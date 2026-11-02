@@ -47,6 +47,8 @@ public class McpToolRegistrar {
     AccessPolicy policy;
     @Inject
     ExposurePolicy exposure;
+    @Inject
+    org.keycloak.mcp.spi.CallerProvider callers;
 
     void onStart(@Observes StartupEvent event) {
         registerMetaTools();
@@ -82,7 +84,8 @@ public class McpToolRegistrar {
                 .setHandler(args -> {
                     Map<String, Object> a = args.args();
                     return toResponse(metaTools.execute(str(a, "name"), mapOf(a.get("arguments")),
-                            boolOf(a.get(InputSchema.CONFIRM)), InvocationContext.of(args, MetaTools.EXECUTE_TOOL)));
+                            boolOf(a.get(InputSchema.CONFIRM)),
+                            InvocationContext.of(args, MetaTools.EXECUTE_TOOL).withCaller(callers.current(args))));
                 }, VIRTUAL_THREADS)
                 .register();
     }
@@ -97,7 +100,8 @@ public class McpToolRegistrar {
                 .setHandler(args -> {
                     Map<String, Object> a = args.args();
                     boolean confirm = Boolean.TRUE.equals(boolOf(a.get(InputSchema.CONFIRM)));
-                    return toResponse(invoker.invoke(spec, a, confirm, InvocationContext.of(args, "direct")));
+                    return toResponse(invoker.invoke(spec, a, confirm,
+                            InvocationContext.of(args, "direct").withCaller(callers.current(args))));
                 }, VIRTUAL_THREADS)
                 .register();
     }

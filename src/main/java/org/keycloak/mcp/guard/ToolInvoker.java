@@ -1,6 +1,5 @@
 package org.keycloak.mcp.guard;
 
-import java.util.List;
 import java.util.Map;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -14,6 +13,8 @@ import org.keycloak.mcp.catalog.ToolCatalog;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.config.McpServerConfig;
+import org.keycloak.mcp.keycloak.KeycloakAdmin;
+import org.keycloak.mcp.keycloak.KeycloakSystems;
 
 import io.vertx.core.json.JsonObject;
 
@@ -31,28 +32,35 @@ public class ToolInvoker {
     private final AccessPolicy policy;
     private final Confirmer confirmer;
     private final int maxItems;
+    private final KeycloakSystems systems;
 
     @Inject
-    public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, McpServerConfig config) {
-        this(catalog, policy, confirmer, config.resultMaxItems());
+    public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, McpServerConfig config,
+            KeycloakSystems systems) {
+        this(catalog, policy, confirmer, config.resultMaxItems(), systems);
     }
 
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems) {
+        this(catalog, policy, confirmer, maxItems, null);
+    }
+
+    public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems,
+            KeycloakSystems systems) {
         this.catalog = catalog;
         this.policy = policy;
         this.confirmer = confirmer;
         this.maxItems = maxItems;
+        this.systems = systems;
     }
 
     public ToolResult invoke(ToolSpec spec, Map<String, Object> rawArgs, boolean confirmFlag, InvocationContext ctx) {
         long start = System.nanoTime();
         ToolResult result;
         String realm = null;
+        String system = null;
         try {
             if (!policy.permits(spec)) {
-                result = ToolResult.error("read_only_mode",
-                        "This server runs in read-only mode; " + spec.name() + " is a " + spec.level().name().toLowerCase()
-                                + " operation.");
+                result = policy.forbids(spec, null).orElseThrow();
             } else {
                 ArgumentValidator.Outcome outcome = ArgumentValidator.validate(spec.inputSchema(), rawArgs);
                 if (!outcome.valid()) {
@@ -61,19 +69,35 @@ public class ToolInvoker {
                             "inputSchema", spec.inputSchema().getMap());
                 } else {
                     Map<String, Object> args = outcome.values();
+                    KeycloakAdmin admin = null;
+                    ToolResult systemError = null;
+                    if (systems != null) {
+                        String requested = (String) args.get(InputSchema.SYSTEM);
+                        system = requested != null ? requested : systems.defaultName().orElse(null);
+                        if (system == null) {
+                            systemError = ToolResult.error("system_required", "Pass the system argument.",
+                                    "systems", systems.names());
+                        } else if (systems.find(system).isEmpty()) {
+                            systemError = ToolResult.error("unknown_system", "No Keycloak system named '" + system + "'.",
+                                    "systems", systems.names());
+                        } else {
+                            admin = systems.get(system);
+                        }
+                    }
                     if (spec.realmScoped()) {
                         realm = (String) args.get(InputSchema.REALM);
                         if (realm == null) {
-                            realm = catalog.defaultRealm();
+                            realm = admin != null ? admin.system().defaultRealm().orElse(null) : catalog.defaultRealm();
                         }
                     }
-                    if (spec.realmScoped() && realm == null) {
+                    if (systemError != null) {
+                        result = systemError;
+                    } else if (spec.realmScoped() && realm == null) {
                         result = ToolResult.error("realm_required", "Pass the realm argument.");
-                    } else if (spec.realmScoped() && !policy.realmAllowed(realm)) {
-                        result = ToolResult.error("realm_not_allowed", "Realm '" + realm + "' is not allowed.",
-                                "allowed", List.copyOf(policy.allowedRealms()));
                     } else {
-                        result = runWithConfirmation(spec, realm, args, confirmFlag, ctx);
+                        java.util.Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx);
+                        result = denied.isPresent() ? denied.get()
+                                : runWithConfirmation(spec, system, admin, realm, args, confirmFlag, ctx);
                     }
                 }
             }
@@ -81,12 +105,12 @@ public class ToolInvoker {
             LOG.debugf(e, "Tool %s failed", spec.name());
             result = ErrorMapper.map(e);
         }
-        audit(spec, realm, result, ctx, System.nanoTime() - start);
+        audit(spec, system, realm, result, ctx, System.nanoTime() - start);
         return result;
     }
 
-    private ToolResult runWithConfirmation(ToolSpec spec, String realm, Map<String, Object> args, boolean confirmFlag,
-            InvocationContext ctx) throws Exception {
+    private ToolResult runWithConfirmation(ToolSpec spec, String system, KeycloakAdmin admin, String realm,
+            Map<String, Object> args, boolean confirmFlag, InvocationContext ctx) throws Exception {
         if (spec.isDestructive()) {
             Confirmer.Decision decision = confirmer.confirm(spec, realm, new JsonObject(args), confirmFlag, ctx);
             switch (decision) {
@@ -103,20 +127,22 @@ public class ToolInvoker {
                 }
             }
         }
-        ToolCall call = new ToolCall(realm, args, maxItems);
+        ToolCall call = new ToolCall(realm, args, maxItems, ctx.caller(), system, admin);
         ToolResult r = spec.handler().handle(call);
         return r == null ? ToolResult.done("ok") : r;
     }
 
-    private void audit(ToolSpec spec, String realm, ToolResult result, InvocationContext ctx, long nanos) {
+    private void audit(ToolSpec spec, String system, String realm, ToolResult result, InvocationContext ctx,
+            long nanos) {
         String outcome = "ok";
         if (result.isError() && result.payload() instanceof Map<?, ?> m && m.get("error") != null) {
             outcome = String.valueOf(m.get("error"));
         } else if (result.isError()) {
             outcome = "error";
         }
-        AUDIT.infof("tool=%s level=%s realm=%s outcome=%s via=%s client=%s conn=%s ms=%d",
-                spec.name(), spec.level(), realm == null ? "-" : realm, outcome, ctx.via(), ctx.clientName(),
-                ctx.connectionId(), nanos / 1_000_000);
+        AUDIT.infof("tool=%s level=%s system=%s realm=%s outcome=%s via=%s caller=%s%s client=%s conn=%s ms=%d",
+                spec.name(), spec.level(), system == null ? "-" : system, realm == null ? "-" : realm, outcome, ctx.via(),
+                ctx.caller().isAnonymous() ? "-" : ctx.caller().name() + "(" + ctx.caller().subject() + ")",
+                ctx.caller().delegated() ? " delegated" : "", ctx.clientName(), ctx.connectionId(), nanos / 1_000_000);
     }
 }

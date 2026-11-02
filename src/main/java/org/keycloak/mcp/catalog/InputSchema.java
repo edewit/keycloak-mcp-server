@@ -12,6 +12,7 @@ import io.vertx.core.json.JsonObject;
 public final class InputSchema {
 
     public static final String REALM = "realm";
+    public static final String SYSTEM = "system";
     public static final String FIRST = "first";
     public static final String MAX = "max";
     public static final String CONFIRM = "confirm";
@@ -27,7 +28,9 @@ public final class InputSchema {
     public static JsonObject withRealm(JsonObject schema, boolean required, String defaultRealm) {
         JsonObject realm = new JsonObject().put("type", "string");
         String desc = "Realm name";
-        if (defaultRealm != null) {
+        if ("(per system)".equals(defaultRealm)) {
+            desc += " (default: the system's default realm)";
+        } else if (defaultRealm != null) {
             desc += " (default: " + defaultRealm + ")";
         }
         realm.put("description", desc);
@@ -49,6 +52,42 @@ public final class InputSchema {
         if (oldReq != null) {
             for (Object o : oldReq) {
                 if (!REALM.equals(o)) {
+                    req.add(o);
+                }
+            }
+        }
+        JsonObject out = schema.copy();
+        out.put("properties", props);
+        if (req.isEmpty()) {
+            out.remove("required");
+        } else {
+            out.put("required", req);
+        }
+        return out;
+    }
+
+    /** Adds the {@code system} enum property in front of everything else (multi-system deployments). */
+    public static JsonObject withSystem(JsonObject schema, List<String> systems, String defaultSystem) {
+        JsonObject prop = new JsonObject().put("type", "string").put("enum", new JsonArray(systems));
+        prop.put("description", defaultSystem != null ? "Keycloak system (default: " + defaultSystem + ")"
+                : "Keycloak system");
+        JsonObject props = new JsonObject().put(SYSTEM, prop);
+        JsonObject old = schema.getJsonObject("properties");
+        if (old != null) {
+            for (String k : old.fieldNames()) {
+                if (!k.equals(SYSTEM)) {
+                    props.put(k, old.getValue(k));
+                }
+            }
+        }
+        JsonArray req = new JsonArray();
+        if (defaultSystem == null) {
+            req.add(SYSTEM);
+        }
+        JsonArray oldReq = schema.getJsonArray("required");
+        if (oldReq != null) {
+            for (Object o : oldReq) {
+                if (!SYSTEM.equals(o)) {
                     req.add(o);
                 }
             }

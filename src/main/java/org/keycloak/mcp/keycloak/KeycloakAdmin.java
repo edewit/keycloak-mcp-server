@@ -4,9 +4,6 @@ import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
-import jakarta.annotation.PreDestroy;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.core.Response;
@@ -22,37 +19,40 @@ import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.mcp.config.ClientAuth;
 import org.keycloak.mcp.config.GrantType;
-import org.keycloak.mcp.config.McpServerConfig;
-import org.keycloak.mcp.guard.ErrorMapper;
+import org.keycloak.mcp.guard.AccessTokenSource;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
 /**
- * Lazily built Keycloak admin client plus the lookup helpers every tool area needs. Identifier arguments are
- * forgiving: a user may be given by id or username, a client by id or clientId, a group by id, path or name.
+ * Lazily built Keycloak admin client for one {@link KeycloakSystem} plus the lookup helpers every tool area needs.
+ * Identifier arguments are forgiving: a user may be given by id or username, a client by id or clientId, a group by
+ * id, path or name. Instances are managed by {@link KeycloakSystems}.
  */
-@ApplicationScoped
-public class KeycloakAdmin {
+public class KeycloakAdmin implements AccessTokenSource {
 
     private static final Logger LOG = Logger.getLogger(KeycloakAdmin.class);
     private static final Pattern UUID = Pattern
             .compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
-    private final McpServerConfig config;
+    private final KeycloakSystem system;
+    private final JwtKeyMaterial jwtKeys;
     private final ReentrantLock initLock = new ReentrantLock();
     private volatile Keycloak keycloak;
     private volatile ClientAssertionTokenManager jwtTokens;
 
-    @Inject
-    public KeycloakAdmin(McpServerConfig config) {
-        this.config = config;
-        ErrorMapper.register(KeycloakErrors::map);
+    public KeycloakAdmin(KeycloakSystem system, JwtKeyMaterial jwtKeys) {
+        this.system = system;
+        this.jwtKeys = jwtKeys;
     }
 
-    public McpServerConfig config() {
-        return config;
+    public KeycloakSystem system() {
+        return system;
+    }
+
+    public String name() {
+        return system.name();
     }
 
     /** Lazily builds the client; uses a lock rather than {@code synchronized} so virtual threads are not pinned. */
@@ -75,35 +75,35 @@ public class KeycloakAdmin {
     }
 
     private Keycloak build() {
-        GrantType grant = config.grantType();
-        ClientAuth auth = config.effectiveClientAuth();
-        LOG.infof("Connecting to Keycloak at %s (grant=%s, clientAuth=%s, authRealm=%s)", config.url(),
-                grant.oauthValue(), auth, config.authRealm());
+        GrantType grant = system.grantType();
+        ClientAuth auth = system.clientAuth();
+        LOG.infof("Connecting to Keycloak system '%s' at %s (grant=%s, clientAuth=%s, authRealm=%s)", system.name(),
+                system.url(), grant.oauthValue(), auth, system.authRealm());
         if (grant == GrantType.CLIENT_CREDENTIALS && auth == ClientAuth.NONE) {
             throw new IllegalStateException("Missing configuration: the client_credentials grant needs "
                     + "'kc-mcp.client-secret' or a private_key_jwt key ('kc-mcp.jwt.key-file' / 'kc-mcp.jwt.keystore-file')");
         }
-        String clientId = config.clientId().filter(v -> !v.isBlank())
+        String clientId = system.clientId().filter(v -> !v.isBlank())
                 .orElseGet(() -> grant == GrantType.PASSWORD && auth == ClientAuth.NONE ? "admin-cli" : null);
         if (clientId == null) {
             throw new IllegalStateException("Missing configuration 'kc-mcp.client-id'");
         }
-        String username = grant == GrantType.PASSWORD ? require(config.username(), "kc-mcp.username") : null;
-        String password = grant == GrantType.PASSWORD ? require(config.password(), "kc-mcp.password") : null;
+        String username = grant == GrantType.PASSWORD ? require(system.username(), "kc-mcp.username") : null;
+        String password = grant == GrantType.PASSWORD ? require(system.password(), "kc-mcp.password") : null;
 
         KeycloakBuilder builder = KeycloakBuilder.builder()
-                .serverUrl(config.url())
-                .realm(config.authRealm())
+                .serverUrl(system.url())
+                .realm(system.authRealm())
                 .clientId(clientId);
         switch (auth) {
             case NONE -> builder.grantType(grant.oauthValue()).username(username).password(password);
             case CLIENT_SECRET -> builder.grantType(grant.oauthValue()).username(username).password(password)
-                    .clientSecret(require(config.clientSecret(), "kc-mcp.client-secret"));
+                    .clientSecret(require(system.clientSecret(), "kc-mcp.client-secret"));
             case PRIVATE_KEY_JWT -> {
                 Client restClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
                 Client tokenClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
-                jwtTokens = new ClientAssertionTokenManager(tokenClient, config.url(), config.authRealm(), clientId,
-                        JwtSigner.fromConfig(config.jwt()), config.jwt().assertionLifespan(), grant, username, password);
+                jwtTokens = new ClientAssertionTokenManager(tokenClient, system.url(), system.authRealm(), clientId,
+                        jwtKeys.signer(), jwtKeys.assertionLifespan(), grant, username, password);
                 restClient.register(new PrivateKeyJwtAuthFilter(jwtTokens));
                 // A fixed placeholder token makes the admin client skip its own TokenManager; the filter above
                 // runs later in the chain and replaces the Authorization header with a real token.
@@ -116,6 +116,22 @@ public class KeycloakAdmin {
     private static String require(java.util.Optional<String> value, String key) {
         return value.filter(v -> !v.isBlank()).orElseThrow(
                 () -> new IllegalStateException("Missing configuration '" + key + "' for auth mode"));
+    }
+
+    /** Current admin access token (triggers a login on first use). */
+    @Override
+    public String accessToken() {
+        Keycloak k = client();
+        ClientAssertionTokenManager jwt = jwtTokens;
+        if (jwt != null) {
+            return jwt.accessToken();
+        }
+        return k.tokenManager().getAccessTokenString();
+    }
+
+    @Override
+    public String authRealm() {
+        return system.authRealm();
     }
 
     public RealmResource realm(String realm) {
@@ -246,8 +262,7 @@ public class KeycloakAdmin {
         }
     }
 
-    @PreDestroy
-    void close() {
+    public void close() {
         Keycloak k = keycloak;
         if (k != null) {
             try {

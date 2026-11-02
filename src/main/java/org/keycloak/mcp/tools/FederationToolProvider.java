@@ -13,6 +13,7 @@ import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.Delegation;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.ComponentRepresentation;
 import org.keycloak.representations.idm.SynchronizationResultRepresentation;
@@ -55,6 +56,7 @@ public class FederationToolProvider extends AbstractToolProvider {
                         .category(Category.FEDERATION).read()
                         .synonyms("ldap", "active directory", "ad", "kerberos", "user storage", "directory", "external users")
                         .handler(this::list)
+                        .roles("view-realm")
                         .api(get(R + "/components").fixedQuery("parent", "type"))
                         .build(),
                 tool("keycloak_federation_get")
@@ -64,6 +66,7 @@ public class FederationToolProvider extends AbstractToolProvider {
                         .synonyms("ldap settings", "bind dn", "users dn", "edit mode", "connection url")
                         .schema(schema().string("id", PROVIDER_ID).required())
                         .handler(this::get)
+                        .roles("view-realm")
                         .api(get(R + "/components").fixedQuery("parent", "type"))
                         .build(),
                 tool("keycloak_federation_sync")
@@ -75,17 +78,19 @@ public class FederationToolProvider extends AbstractToolProvider {
                                 .string("id", PROVIDER_ID).required()
                                 .enumeration("mode", "full or changed (default changed)", "full", "changed").def("changed"))
                         .handler(this::sync)
+                        .delegation(Delegation.FORBIDDEN)
+                        .roles("manage-realm")
                         .api(ApiOperation.unspecified("post", R + "/user-storage/{id}/sync", "UserStorageProviderResource is not part of the published OpenAPI document"))
                         .build());
     }
 
-    private List<ComponentRepresentation> providers(String realm) {
-        String realmId = kc.realm(realm).toRepresentation().getId();
-        return kc.realm(realm).components().query(realmId, PROVIDER_TYPE);
+    private static List<ComponentRepresentation> providers(ToolCall call) {
+        String realmId = call.kc().realm(call.realm()).toRepresentation().getId();
+        return call.kc().realm(call.realm()).components().query(realmId, PROVIDER_TYPE);
     }
 
-    private ComponentRepresentation find(String realm, String idOrName) {
-        for (ComponentRepresentation c : providers(realm)) {
+    private static ComponentRepresentation find(ToolCall call, String idOrName) {
+        for (ComponentRepresentation c : providers(call)) {
             if (idOrName.equals(c.getId()) || idOrName.equalsIgnoreCase(c.getName())) {
                 return c;
             }
@@ -116,12 +121,12 @@ public class FederationToolProvider extends AbstractToolProvider {
     }
 
     ToolResult list(ToolCall call) {
-        return ToolResult.ok(Views.page(Views.list(providers(call.realm()), FederationToolProvider::view),
+        return ToolResult.ok(Views.page(Views.list(providers(call), FederationToolProvider::view),
                 Integer.MAX_VALUE));
     }
 
     ToolResult get(ToolCall call) {
-        ComponentRepresentation c = find(call.realm(), call.str("id"));
+        ComponentRepresentation c = find(call, call.str("id"));
         Map<String, Object> m = view(c);
         Map<String, Object> config = new LinkedHashMap<>();
         if (c.getConfig() != null) {
@@ -133,9 +138,9 @@ public class FederationToolProvider extends AbstractToolProvider {
     }
 
     ToolResult sync(ToolCall call) {
-        ComponentRepresentation c = find(call.realm(), call.str("id"));
+        ComponentRepresentation c = find(call, call.str("id"));
         String action = "full".equals(call.str("mode", "changed")) ? "triggerFullSync" : "triggerChangedUsersSync";
-        SynchronizationResultRepresentation r = kc.realm(call.realm()).userStorage().syncUsers(c.getId(), action);
+        SynchronizationResultRepresentation r = call.kc().realm(call.realm()).userStorage().syncUsers(c.getId(), action);
         return ToolResult.done("Sync finished", "provider", c.getName(), "mode", call.str("mode", "changed"),
                 "status", r.getStatus(), "added", r.getAdded(), "updated", r.getUpdated(), "removed", r.getRemoved(),
                 "failed", r.getFailed(), "ignored", r.isIgnored());

@@ -53,6 +53,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                         .synonyms("permissions", "available roles", "rbac", "authorization")
                         .schema(schema().string("search", "Filter by (partial) role name").pagination())
                         .handler(this::list)
+                        .roles("view-realm")
                         .api(get(R + "/roles").query("search", "first", "max"))
                         .build(),
                 tool("keycloak_client_roles_list")
@@ -62,6 +63,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                         .synonyms("application roles", "permissions", "realm-management", "scoped roles")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::clientRoles)
+                        .roles("view-clients")
                         .api(get(R + "/clients/{client-uuid}/roles").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_user_roles_get")
@@ -71,6 +73,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                         .synonyms("permissions of user", "what can", "is admin", "role mapping", "has role")
                         .schema(schema().string("userId", USER_ID).required())
                         .handler(this::userRoles)
+                        .roles("view-users")
                         .api(get(R + "/users/{user-id}/role-mappings/realm").path("user-id", "userId"), get(R + "/users/{user-id}/role-mappings/realm/composite").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_user_role_assign")
@@ -82,6 +85,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("userId", USER_ID).required()
                                 .string("role", "Realm role name, e.g. admin").required())
                         .handler(this::userRoleAssign)
+                        .roles("manage-users")
                         .api(post(R + "/users/{user-id}/role-mappings/realm").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_user_role_unassign")
@@ -93,6 +97,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("userId", USER_ID).required()
                                 .string("role", "Realm role name").required())
                         .handler(this::userRoleUnassign)
+                        .roles("manage-users")
                         .api(delete(R + "/users/{user-id}/role-mappings/realm").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_user_client_roles_get")
@@ -104,6 +109,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("userId", USER_ID).required()
                                 .string("clientId", CLIENT_ID).required())
                         .handler(this::userClientRoles)
+                        .roles("view-users")
                         .api(get(R + "/users/{user-id}/role-mappings/clients/{client-id}").path("user-id", "userId").path("client-id", "clientId"), get(R + "/users/{user-id}/role-mappings/clients/{client-id}/composite").path("user-id", "userId").path("client-id", "clientId"))
                         .build(),
                 tool("keycloak_user_client_role_assign")
@@ -116,6 +122,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("clientId", CLIENT_ID).required()
                                 .string("role", "Client role name").required())
                         .handler(this::userClientRoleAssign)
+                        .roles("manage-users")
                         .api(post(R + "/users/{user-id}/role-mappings/clients/{client-id}").path("user-id", "userId").path("client-id", "clientId"))
                         .build(),
                 tool("keycloak_user_client_role_unassign")
@@ -128,6 +135,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("clientId", CLIENT_ID).required()
                                 .string("role", "Client role name").required())
                         .handler(this::userClientRoleUnassign)
+                        .roles("manage-users")
                         .api(delete(R + "/users/{user-id}/role-mappings/clients/{client-id}").path("user-id", "userId").path("client-id", "clientId"))
                         .build());
     }
@@ -149,22 +157,22 @@ public class RoleToolProvider extends AbstractToolProvider {
     }
 
     ToolResult list(ToolCall call) {
-        List<RoleRepresentation> roles = kc.realm(call.realm()).roles().list(call.str("search"), call.first(),
+        List<RoleRepresentation> roles = call.kc().realm(call.realm()).roles().list(call.str("search"), call.first(),
                 call.max(), true);
         return ToolResult.ok(Views.page(Views.list(roles, Views::role), call.max()));
     }
 
     ToolResult clientRoles(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        List<RoleRepresentation> roles = kc.realm(call.realm()).clients().get(c.getId()).roles().list(true);
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        List<RoleRepresentation> roles = call.kc().realm(call.realm()).clients().get(c.getId()).roles().list(true);
         Map<String, Object> page = Views.page(Views.list(roles, Views::role), Integer.MAX_VALUE);
         page.put("clientId", c.getClientId());
         return ToolResult.ok(page);
     }
 
     ToolResult userRoles(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        RoleMappingResource roles = kc.realm(call.realm()).users().get(u.getId()).roles();
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        RoleMappingResource roles = call.kc().realm(call.realm()).users().get(u.getId()).roles();
         return ToolResult.ok(Map.of(
                 "username", u.getUsername(),
                 "realmRoles", roles.realmLevel().listAll().stream().map(RoleRepresentation::getName).sorted().toList(),
@@ -173,23 +181,23 @@ public class RoleToolProvider extends AbstractToolProvider {
     }
 
     ToolResult userRoleAssign(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        RoleRepresentation role = realmRole(kc, call.realm(), call.str("role"));
-        kc.realm(call.realm()).users().get(u.getId()).roles().realmLevel().add(List.of(role));
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        RoleRepresentation role = realmRole(call.kc(), call.realm(), call.str("role"));
+        call.kc().realm(call.realm()).users().get(u.getId()).roles().realmLevel().add(List.of(role));
         return ToolResult.done("Role assigned", "username", u.getUsername(), "role", role.getName());
     }
 
     ToolResult userRoleUnassign(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        RoleRepresentation role = realmRole(kc, call.realm(), call.str("role"));
-        kc.realm(call.realm()).users().get(u.getId()).roles().realmLevel().remove(List.of(role));
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        RoleRepresentation role = realmRole(call.kc(), call.realm(), call.str("role"));
+        call.kc().realm(call.realm()).users().get(u.getId()).roles().realmLevel().remove(List.of(role));
         return ToolResult.done("Role removed", "username", u.getUsername(), "role", role.getName());
     }
 
     ToolResult userClientRoles(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        var scope = kc.realm(call.realm()).users().get(u.getId()).roles().clientLevel(c.getId());
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        var scope = call.kc().realm(call.realm()).users().get(u.getId()).roles().clientLevel(c.getId());
         return ToolResult.ok(Map.of(
                 "username", u.getUsername(),
                 "clientId", c.getClientId(),
@@ -198,19 +206,19 @@ public class RoleToolProvider extends AbstractToolProvider {
     }
 
     ToolResult userClientRoleAssign(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        RoleRepresentation role = clientRole(kc, call.realm(), c.getId(), call.str("role"));
-        kc.realm(call.realm()).users().get(u.getId()).roles().clientLevel(c.getId()).add(List.of(role));
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        RoleRepresentation role = clientRole(call.kc(), call.realm(), c.getId(), call.str("role"));
+        call.kc().realm(call.realm()).users().get(u.getId()).roles().clientLevel(c.getId()).add(List.of(role));
         return ToolResult.done("Client role assigned", "username", u.getUsername(), "clientId", c.getClientId(),
                 "role", role.getName());
     }
 
     ToolResult userClientRoleUnassign(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        RoleRepresentation role = clientRole(kc, call.realm(), c.getId(), call.str("role"));
-        kc.realm(call.realm()).users().get(u.getId()).roles().clientLevel(c.getId()).remove(List.of(role));
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        RoleRepresentation role = clientRole(call.kc(), call.realm(), c.getId(), call.str("role"));
+        call.kc().realm(call.realm()).users().get(u.getId()).roles().clientLevel(c.getId()).remove(List.of(role));
         return ToolResult.done("Client role removed", "username", u.getUsername(), "clientId", c.getClientId(),
                 "role", role.getName());
     }

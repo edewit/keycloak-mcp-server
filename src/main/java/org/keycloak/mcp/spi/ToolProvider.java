@@ -45,6 +45,11 @@ public interface ToolProvider {
     /** The tools this provider contributes. Names must be globally unique. */
     List<ToolSpec> tools(ToolProviderContext context);
 
+    /** Access checks applied to every tool call on this server (not only this provider's tools). */
+    default List<AccessCheck> accessChecks(ToolProviderContext context) {
+        return List.of();
+    }
+
     /** Called on shutdown. */
     default void close() {
     }

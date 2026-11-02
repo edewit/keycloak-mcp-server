@@ -11,6 +11,7 @@ import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.Signature;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.RSAPrivateKey;
@@ -31,30 +32,53 @@ import io.vertx.core.json.JsonObject;
 public final class JwtSigner {
 
     private final PrivateKey key;
+    private final PublicKey publicKey;
     private final String algorithm;
     private final String keyId;
+    private final JsonObject jwk;
 
     public JwtSigner(PrivateKey key, String algorithm, String keyId) {
+        this(key, null, algorithm, keyId);
+    }
+
+    /**
+     * @param publicKey the matching public key; derived from the private key when {@code null}
+     * @param keyId     {@code kid} to put in the JWS header and the JWK; RFC 7638 thumbprint when {@code null}
+     */
+    public JwtSigner(PrivateKey key, PublicKey publicKey, String algorithm, String keyId) {
         this.key = key;
         this.algorithm = algorithm.toUpperCase(Locale.ROOT);
-        this.keyId = keyId;
         checkKeyMatchesAlgorithm();
+        try {
+            this.publicKey = publicKey != null ? publicKey : Jwks.publicKeyOf(key);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Cannot derive the public key: " + e.getMessage(), e);
+        }
+        this.jwk = Jwks.jwk(this.publicKey, this.algorithm, keyId);
+        this.keyId = jwk.getString("kid");
     }
 
     public static JwtSigner fromConfig(McpServerConfig.Jwt jwt) {
         try {
             PrivateKey key;
+            PublicKey publicKey = null;
             if (jwt.keyFile().isPresent()) {
                 key = loadPem(Path.of(jwt.keyFile().get()));
             } else if (jwt.keystoreFile().isPresent()) {
-                key = loadKeystore(Path.of(jwt.keystoreFile().get()), jwt.keystoreType(),
-                        jwt.keystorePassword().orElse(""), jwt.keyAlias().orElse(null),
-                        jwt.keyPassword().or(jwt::keystorePassword).orElse(""));
+                KeyStore ks = openKeystore(Path.of(jwt.keystoreFile().get()), jwt.keystoreType(),
+                        jwt.keystorePassword().orElse(""));
+                String alias = keyAlias(ks, jwt.keyAlias().orElse(null));
+                key = privateKey(ks, alias, jwt.keyPassword().or(jwt::keystorePassword).orElse(""));
+                java.security.cert.Certificate cert = ks.getCertificate(alias);
+                publicKey = cert == null ? null : cert.getPublicKey();
             } else {
                 throw new IllegalStateException(
                         "Missing configuration 'kc-mcp.jwt.key-file' or 'kc-mcp.jwt.keystore-file' for auth mode private_key_jwt");
             }
-            return new JwtSigner(key, jwt.algorithm(), jwt.keyId().orElse(null));
+            if (jwt.publicKeyFile().isPresent()) {
+                publicKey = Jwks.loadPublicKeyPem(Path.of(jwt.publicKeyFile().get()));
+            }
+            return new JwtSigner(key, publicKey, jwt.algorithm(), jwt.keyId().orElse(null));
         } catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Cannot load private key for private_key_jwt: " + e.getMessage(), e);
         }
@@ -62,6 +86,19 @@ public final class JwtSigner {
 
     public String algorithm() {
         return algorithm;
+    }
+
+    public String keyId() {
+        return keyId;
+    }
+
+    public PublicKey publicKey() {
+        return publicKey;
+    }
+
+    /** Public JWK of the signing key, as served by the JWKS endpoint. */
+    public JsonObject jwk() {
+        return jwk.copy();
     }
 
     public String sign(JsonObject claims) {
@@ -172,27 +209,37 @@ public final class JwtSigner {
 
     static PrivateKey loadKeystore(Path file, String type, String storePassword, String alias, String keyPassword)
             throws IOException, GeneralSecurityException {
+        KeyStore ks = openKeystore(file, type, storePassword);
+        return privateKey(ks, keyAlias(ks, alias), keyPassword);
+    }
+
+    static KeyStore openKeystore(Path file, String type, String storePassword)
+            throws IOException, GeneralSecurityException {
         KeyStore ks = KeyStore.getInstance(type);
         try (InputStream in = Files.newInputStream(file)) {
             ks.load(in, storePassword.toCharArray());
         }
-        String a = alias;
-        if (a == null) {
-            var aliases = ks.aliases();
-            while (aliases.hasMoreElements()) {
-                String candidate = aliases.nextElement();
-                if (ks.isKeyEntry(candidate)) {
-                    a = candidate;
-                    break;
-                }
-            }
-            if (a == null) {
-                throw new GeneralSecurityException("Keystore has no private key entry");
+        return ks;
+    }
+
+    static String keyAlias(KeyStore ks, String alias) throws GeneralSecurityException {
+        if (alias != null) {
+            return alias;
+        }
+        var aliases = ks.aliases();
+        while (aliases.hasMoreElements()) {
+            String candidate = aliases.nextElement();
+            if (ks.isKeyEntry(candidate)) {
+                return candidate;
             }
         }
-        Key key = ks.getKey(a, keyPassword.toCharArray());
+        throw new GeneralSecurityException("Keystore has no private key entry");
+    }
+
+    static PrivateKey privateKey(KeyStore ks, String alias, String keyPassword) throws GeneralSecurityException {
+        Key key = ks.getKey(alias, keyPassword.toCharArray());
         if (!(key instanceof PrivateKey pk)) {
-            throw new GeneralSecurityException("Alias '" + a + "' is not a private key");
+            throw new GeneralSecurityException("Alias '" + alias + "' is not a private key");
         }
         return pk;
     }

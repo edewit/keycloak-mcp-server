@@ -62,6 +62,7 @@ public class EventToolProvider extends AbstractToolProvider {
                                 .string("dateTo", "To date, " + DATE)
                                 .pagination())
                         .handler(this::loginEvents)
+                        .roles("view-events")
                         .api(get(R + "/events").query("type", "client", "user", "ipAddress", "dateFrom", "dateTo", "first", "max"))
                         .build(),
                 tool("keycloak_events_admin")
@@ -78,6 +79,7 @@ public class EventToolProvider extends AbstractToolProvider {
                                 .string("dateTo", "To date, " + DATE)
                                 .pagination())
                         .handler(this::adminEvents)
+                        .roles("view-events")
                         .api(get(R + "/admin-events").queryAs("operationTypes", "operationType").query("authUser", "resourcePath", "dateFrom", "dateTo", "first", "max"))
                         .build());
     }
@@ -86,10 +88,10 @@ public class EventToolProvider extends AbstractToolProvider {
         String userId = null;
         if (call.has("user")) {
             String u = call.str("user");
-            userId = KeycloakAdmin.isUuid(u) ? u : kc.findUser(call.realm(), u).getId();
+            userId = KeycloakAdmin.isUuid(u) ? u : call.kc().findUser(call.realm(), u).getId();
         }
         List<String> types = call.has("type") ? List.of(call.str("type").toUpperCase()) : null;
-        List<EventRepresentation> events = kc.realm(call.realm()).getEvents(types, call.str("client"), userId,
+        List<EventRepresentation> events = call.kc().realm(call.realm()).getEvents(types, call.str("client"), userId,
                 call.str("dateFrom"), call.str("dateTo"), call.str("ipAddress"), call.first(), call.max());
         List<Map<String, Object>> items = new ArrayList<>();
         for (EventRepresentation e : events) {
@@ -107,7 +109,7 @@ public class EventToolProvider extends AbstractToolProvider {
         }
         Map<String, Object> page = Views.page(items, call.max());
         if (items.isEmpty()) {
-            RealmRepresentation r = kc.realm(call.realm()).toRepresentation();
+            RealmRepresentation r = call.kc().realm(call.realm()).toRepresentation();
             if (!Boolean.TRUE.equals(r.isEventsEnabled())) {
                 page.put("hint", "Login events are not saved in this realm. Enable with keycloak_realm_update "
                         + "eventsEnabled=true.");
@@ -118,7 +120,7 @@ public class EventToolProvider extends AbstractToolProvider {
 
     ToolResult adminEvents(ToolCall call) {
         List<String> ops = call.has("operationType") ? List.of(call.str("operationType")) : null;
-        List<AdminEventRepresentation> events = kc.realm(call.realm()).getAdminEvents(ops, null, null,
+        List<AdminEventRepresentation> events = call.kc().realm(call.realm()).getAdminEvents(ops, null, null,
                 call.str("authUser"), null, call.str("resourcePath"), call.str("dateFrom"), call.str("dateTo"),
                 call.first(), call.max());
         String resourceType = call.str("resourceType");
@@ -142,7 +144,7 @@ public class EventToolProvider extends AbstractToolProvider {
         }
         Map<String, Object> page = Views.page(items, call.max());
         if (items.isEmpty()) {
-            RealmRepresentation r = kc.realm(call.realm()).toRepresentation();
+            RealmRepresentation r = call.kc().realm(call.realm()).toRepresentation();
             if (!Boolean.TRUE.equals(r.isAdminEventsEnabled())) {
                 page.put("hint", "Admin events are not saved in this realm. Enable with keycloak_realm_update "
                         + "adminEventsEnabled=true.");

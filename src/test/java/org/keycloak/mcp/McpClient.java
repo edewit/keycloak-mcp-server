@@ -5,6 +5,7 @@ import static io.restassured.RestAssured.given;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.restassured.response.Response;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -39,9 +40,32 @@ public class McpClient {
         return parse(post(msg));
     }
 
+    /** All tools across result pages. */
+    public JsonArray listTools() {
+        JsonArray all = new JsonArray();
+        String cursor = null;
+        do {
+            JsonObject params = new JsonObject();
+            if (cursor != null) {
+                params.put("cursor", cursor);
+            }
+            JsonObject result = request("tools/list", params).getJsonObject("result");
+            all.addAll(result.getJsonArray("tools"));
+            cursor = result.getString("nextCursor");
+        } while (cursor != null);
+        return all;
+    }
+
     public JsonObject callTool(String name, JsonObject arguments) {
-        JsonObject result = request("tools/call", new JsonObject().put("name", name).put("arguments", arguments))
-                .getJsonObject("result");
+        return callTool(name, arguments, null);
+    }
+
+    public JsonObject callTool(String name, JsonObject arguments, JsonObject meta) {
+        JsonObject params = new JsonObject().put("name", name).put("arguments", arguments);
+        if (meta != null) {
+            params.put("_meta", meta);
+        }
+        JsonObject result = request("tools/call", params).getJsonObject("result");
         if (result == null) {
             throw new IllegalStateException("no result for " + name);
         }

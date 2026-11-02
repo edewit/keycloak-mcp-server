@@ -13,6 +13,7 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.Delegation;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
 import org.keycloak.representations.idm.AuthenticationFlowRepresentation;
@@ -59,6 +60,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("login flow", "browser flow", "mfa", "otp", "2fa", "passkey", "webauthn",
                                 "authentication", "which flow is bound")
                         .handler(this::flows)
+                        .roles("view-realm")
                         .api(get(R + "/authentication/flows"), get(R))
                         .build(),
                 tool("keycloak_auth_flow_executions_list")
@@ -68,6 +70,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("steps", "authenticators in flow", "requirement", "conditional otp", "flow structure")
                         .schema(schema().string("flowAlias", "Flow alias, e.g. browser").required())
                         .handler(this::executions)
+                        .roles("view-realm")
                         .api(get(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias"))
                         .build(),
                 tool("keycloak_auth_authenticator_providers_list")
@@ -79,6 +82,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .schema(schema().enumeration("type", "Provider kind (default authenticator)", "authenticator",
                                 "form-action", "client-authenticator").def("authenticator"))
                         .handler(this::providers)
+                        .roles("view-realm")
                         .api(get(R + "/authentication/authenticator-providers"), get(R + "/authentication/form-action-providers"), get(R + "/authentication/client-authenticator-providers"))
                         .build(),
                 tool("keycloak_auth_flow_create")
@@ -90,6 +94,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .string("alias", "Alias of the new flow, e.g. 'passkey-browser'").required()
                                 .string("description", "Description"))
                         .handler(this::flowCreate)
+                        .roles("manage-realm")
                         .api(post(R + "/authentication/flows").body("AuthenticationFlowRepresentation", "alias", "description", "providerId", "topLevel", "builtIn"))
                         .build(),
                 tool("keycloak_auth_flow_copy")
@@ -101,6 +106,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .string("flowAlias", "Source flow alias, e.g. browser").required()
                                 .string("newName", "Alias of the copy").required())
                         .handler(this::flowCopy)
+                        .roles("manage-realm")
                         .api(post(R + "/authentication/flows/{flowAlias}/copy").path("flowAlias", "flowAlias"))
                         .build(),
                 tool("keycloak_auth_flow_bind")
@@ -112,6 +118,8 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .enumeration("binding", "Realm slot to bind", BINDINGS).required()
                                 .string("flowAlias", "Alias of the flow to bind").required())
                         .handler(this::flowBind)
+                        .delegation(Delegation.FORBIDDEN)
+                        .roles("manage-realm")
                         .api(put(R).body("RealmRepresentation", "browserFlow", "registrationFlow", "directGrantFlow", "resetCredentialsFlow", "clientAuthenticationFlow", "dockerAuthenticationFlow", "firstBrokerLoginFlow"))
                         .build(),
                 tool("keycloak_auth_flow_execution_add")
@@ -124,6 +132,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .string("providerId", "Authenticator provider id, e.g. auth-otp-form").required()
                                 .enumeration("requirement", "Requirement to set right away", REQUIREMENTS))
                         .handler(this::executionAdd)
+                        .roles("manage-realm")
                         .api(post(R + "/authentication/flows/{flowAlias}/executions/execution").path("flowAlias", "flowAlias"), put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
                         .build(),
                 tool("keycloak_auth_flow_subflow_add")
@@ -138,6 +147,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .enumeration("type", "basic-flow (default) or form-flow", "basic-flow", "form-flow")
                                 .enumeration("requirement", "Requirement to set right away", REQUIREMENTS))
                         .handler(this::subflowAdd)
+                        .roles("manage-realm")
                         .api(post(R + "/authentication/flows/{flowAlias}/executions/flow").path("flowAlias", "parentFlowAlias"), put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "parentFlowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
                         .build(),
                 tool("keycloak_auth_flow_execution_update")
@@ -150,6 +160,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .string("executionId", EXECUTION_ID).required()
                                 .enumeration("requirement", "New requirement", REQUIREMENTS).required())
                         .handler(this::executionUpdate)
+                        .roles("manage-realm")
                         .api(put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
                         .build(),
                 tool("keycloak_auth_flow_execution_raise_priority")
@@ -159,6 +170,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("reorder", "move up", "priority", "order of steps")
                         .schema(schema().string("executionId", EXECUTION_ID).required())
                         .handler(this::raise)
+                        .roles("manage-realm")
                         .api(post(R + "/authentication/executions/{executionId}/raise-priority").path("executionId", "executionId"))
                         .build(),
                 tool("keycloak_auth_flow_execution_lower_priority")
@@ -168,6 +180,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("reorder", "move down", "priority", "order of steps")
                         .schema(schema().string("executionId", EXECUTION_ID).required())
                         .handler(this::lower)
+                        .roles("manage-realm")
                         .api(post(R + "/authentication/executions/{executionId}/lower-priority").path("executionId", "executionId"))
                         .build(),
                 tool("keycloak_auth_flow_execution_delete")
@@ -177,6 +190,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("remove step", "remove authenticator", "delete subflow")
                         .schema(schema().string("executionId", EXECUTION_ID).required())
                         .handler(this::executionDelete)
+                        .roles("manage-realm")
                         .api(delete(R + "/authentication/executions/{executionId}").path("executionId", "executionId"))
                         .build(),
                 tool("keycloak_auth_required_actions_list")
@@ -186,6 +200,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("update password", "configure otp", "terms and conditions", "webauthn register",
                                 "default action")
                         .handler(this::requiredActions)
+                        .roles("view-realm")
                         .api(get(R + "/authentication/required-actions"))
                         .build(),
                 tool("keycloak_auth_required_action_set_enabled")
@@ -198,17 +213,18 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .bool("enabled", "true to enable, false to disable").required()
                                 .bool("defaultAction", "Also set/unset as default action for new users"))
                         .handler(this::requiredActionSetEnabled)
+                        .roles("manage-realm")
                         .api(put(R + "/authentication/required-actions/{alias}").path("alias", "alias").body("RequiredActionProviderRepresentation", "enabled", "defaultAction"))
                         .build());
     }
 
-    private AuthenticationManagementResource flowsOf(String realm) {
-        return kc.realm(realm).flows();
+    private static AuthenticationManagementResource flowsOf(ToolCall call) {
+        return call.kc().realm(call.realm()).flows();
     }
 
     /** Top-level flows only. */
-    private AuthenticationFlowRepresentation findFlow(String realm, String alias) {
-        for (AuthenticationFlowRepresentation f : flowsOf(realm).getFlows()) {
+    private AuthenticationFlowRepresentation findFlow(ToolCall call, String alias) {
+        for (AuthenticationFlowRepresentation f : flowsOf(call).getFlows()) {
             if (f.getAlias().equals(alias)) {
                 return f;
             }
@@ -217,14 +233,14 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
     }
 
     /** Top-level flow or sub-flow alias; sub-flows are not in {@code getFlows()} but accept execution calls. */
-    private String flowOrSubflow(String realm, String alias) {
-        for (AuthenticationFlowRepresentation f : flowsOf(realm).getFlows()) {
+    private String flowOrSubflow(ToolCall call, String alias) {
+        for (AuthenticationFlowRepresentation f : flowsOf(call).getFlows()) {
             if (f.getAlias().equals(alias)) {
                 return alias;
             }
         }
         try {
-            flowsOf(realm).getExecutions(alias);
+            flowsOf(call).getExecutions(alias);
             return alias;
         } catch (jakarta.ws.rs.NotFoundException | jakarta.ws.rs.BadRequestException e) {
             throw ToolException.notFound("Authentication flow", alias);
@@ -244,9 +260,9 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
     }
 
     ToolResult flows(ToolCall call) {
-        Map<String, String> bound = bindings(kc.realm(call.realm()).toRepresentation());
+        Map<String, String> bound = bindings(call.kc().realm(call.realm()).toRepresentation());
         List<Map<String, Object>> items = new ArrayList<>();
-        for (AuthenticationFlowRepresentation f : flowsOf(call.realm()).getFlows()) {
+        for (AuthenticationFlowRepresentation f : flowsOf(call).getFlows()) {
             Map<String, Object> v = new LinkedHashMap<>();
             v.put("alias", f.getAlias());
             Views.put(v, "description", f.getDescription());
@@ -282,15 +298,15 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
     }
 
     ToolResult executions(ToolCall call) {
-        String alias = flowOrSubflow(call.realm(), call.str("flowAlias"));
-        List<AuthenticationExecutionInfoRepresentation> execs = flowsOf(call.realm()).getExecutions(alias);
+        String alias = flowOrSubflow(call, call.str("flowAlias"));
+        List<AuthenticationExecutionInfoRepresentation> execs = flowsOf(call).getExecutions(alias);
         Map<String, Object> page = Views.page(Views.list(execs, AuthFlowToolProvider::executionView), Integer.MAX_VALUE);
         page.put("flowAlias", alias);
         return ToolResult.ok(page);
     }
 
     ToolResult providers(ToolCall call) {
-        AuthenticationManagementResource flows = flowsOf(call.realm());
+        AuthenticationManagementResource flows = flowsOf(call);
         List<Map<String, Object>> raw = switch (call.str("type", "authenticator")) {
             case "form-action" -> flows.getFormActionProviders();
             case "client-authenticator" -> flows.getClientAuthenticatorProviders();
@@ -315,20 +331,20 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         f.setProviderId("basic-flow");
         f.setTopLevel(true);
         f.setBuiltIn(false);
-        String id = KeycloakAdmin.created(flowsOf(call.realm()).createFlow(f));
+        String id = KeycloakAdmin.created(flowsOf(call).createFlow(f));
         return ToolResult.done("Flow created", "id", id, "alias", f.getAlias());
     }
 
     ToolResult flowCopy(ToolCall call) {
-        AuthenticationFlowRepresentation source = findFlow(call.realm(), call.str("flowAlias"));
-        KeycloakAdmin.ok(flowsOf(call.realm()).copy(source.getAlias(), Map.of("newName", call.str("newName"))));
+        AuthenticationFlowRepresentation source = findFlow(call, call.str("flowAlias"));
+        KeycloakAdmin.ok(flowsOf(call).copy(source.getAlias(), Map.of("newName", call.str("newName"))));
         return ToolResult.done("Flow copied", "from", source.getAlias(), "alias", call.str("newName"));
     }
 
     ToolResult flowBind(ToolCall call) {
-        AuthenticationFlowRepresentation flow = findFlow(call.realm(), call.str("flowAlias"));
+        AuthenticationFlowRepresentation flow = findFlow(call, call.str("flowAlias"));
         String binding = call.str("binding");
-        RealmRepresentation r = kc.realm(call.realm()).toRepresentation();
+        RealmRepresentation r = call.kc().realm(call.realm()).toRepresentation();
         String previous = bindings(r).get(binding);
         switch (binding) {
             case "browserFlow" -> r.setBrowserFlow(flow.getAlias());
@@ -340,12 +356,12 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
             case "firstBrokerLoginFlow" -> r.setFirstBrokerLoginFlow(flow.getAlias());
             default -> throw new ToolException("invalid_arguments", "Unknown binding " + binding);
         }
-        kc.realm(call.realm()).update(r);
+        call.kc().realm(call.realm()).update(r);
         return ToolResult.done("Flow bound", "binding", binding, "flowAlias", flow.getAlias(), "previous", previous);
     }
 
-    private AuthenticationExecutionInfoRepresentation findExecution(String realm, String flowAlias, String executionId) {
-        for (AuthenticationExecutionInfoRepresentation e : flowsOf(realm).getExecutions(flowAlias)) {
+    private AuthenticationExecutionInfoRepresentation findExecution(ToolCall call, String flowAlias, String executionId) {
+        for (AuthenticationExecutionInfoRepresentation e : flowsOf(call).getExecutions(flowAlias)) {
             if (e.getId().equals(executionId)) {
                 return e;
             }
@@ -353,10 +369,10 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         throw ToolException.notFound("Execution in flow '" + flowAlias + "'", executionId);
     }
 
-    private AuthenticationExecutionInfoRepresentation lastExecution(String realm, String flowAlias,
+    private AuthenticationExecutionInfoRepresentation lastExecution(ToolCall call, String flowAlias,
             java.util.function.Predicate<AuthenticationExecutionInfoRepresentation> match) {
         AuthenticationExecutionInfoRepresentation found = null;
-        for (AuthenticationExecutionInfoRepresentation e : flowsOf(realm).getExecutions(flowAlias)) {
+        for (AuthenticationExecutionInfoRepresentation e : flowsOf(call).getExecutions(flowAlias)) {
             if (match.test(e)) {
                 found = e;
             }
@@ -364,25 +380,25 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         return found;
     }
 
-    private void setRequirement(String realm, String flowAlias, AuthenticationExecutionInfoRepresentation e,
+    private void setRequirement(ToolCall call, String flowAlias, AuthenticationExecutionInfoRepresentation e,
             String requirement) {
         if (requirement != null && !requirement.equals(e.getRequirement())) {
             e.setRequirement(requirement);
-            flowsOf(realm).updateExecutions(flowAlias, e);
+            flowsOf(call).updateExecutions(flowAlias, e);
         }
     }
 
     ToolResult executionAdd(ToolCall call) {
-        String flowAlias = flowOrSubflow(call.realm(), call.str("flowAlias"));
+        String flowAlias = flowOrSubflow(call, call.str("flowAlias"));
         String providerId = call.str("providerId");
-        flowsOf(call.realm()).addExecution(flowAlias, Map.of("provider", providerId));
-        AuthenticationExecutionInfoRepresentation added = lastExecution(call.realm(), flowAlias,
+        flowsOf(call).addExecution(flowAlias, Map.of("provider", providerId));
+        AuthenticationExecutionInfoRepresentation added = lastExecution(call, flowAlias,
                 e -> providerId.equals(e.getProviderId()) && e.getLevel() == 0);
         if (added == null) {
-            added = lastExecution(call.realm(), flowAlias, e -> providerId.equals(e.getProviderId()));
+            added = lastExecution(call, flowAlias, e -> providerId.equals(e.getProviderId()));
         }
         if (added != null && call.has("requirement")) {
-            setRequirement(call.realm(), flowAlias, added, call.str("requirement"));
+            setRequirement(call, flowAlias, added, call.str("requirement"));
         }
         return ToolResult.done("Execution added", "flowAlias", flowAlias, "providerId", providerId,
                 "executionId", added == null ? null : added.getId(),
@@ -390,7 +406,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
     }
 
     ToolResult subflowAdd(ToolCall call) {
-        String parentAlias = flowOrSubflow(call.realm(), call.str("parentFlowAlias"));
+        String parentAlias = flowOrSubflow(call, call.str("parentFlowAlias"));
         String alias = call.str("alias");
         String type = call.str("type", "basic-flow");
         Map<String, Object> data = new LinkedHashMap<>();
@@ -400,47 +416,47 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         if ("form-flow".equals(type)) {
             data.put("provider", "registration-page-form");
         }
-        flowsOf(call.realm()).addExecutionFlow(parentAlias, data);
-        AuthenticationExecutionInfoRepresentation added = lastExecution(call.realm(), parentAlias,
+        flowsOf(call).addExecutionFlow(parentAlias, data);
+        AuthenticationExecutionInfoRepresentation added = lastExecution(call, parentAlias,
                 e -> Boolean.TRUE.equals(e.getAuthenticationFlow()) && alias.equals(e.getDisplayName()));
         if (added != null && call.has("requirement")) {
-            setRequirement(call.realm(), parentAlias, added, call.str("requirement"));
+            setRequirement(call, parentAlias, added, call.str("requirement"));
         }
         return ToolResult.done("Sub-flow added", "parentFlowAlias", parentAlias, "alias", alias,
                 "executionId", added == null ? null : added.getId());
     }
 
     ToolResult executionUpdate(ToolCall call) {
-        String flowAlias = flowOrSubflow(call.realm(), call.str("flowAlias"));
-        AuthenticationExecutionInfoRepresentation e = findExecution(call.realm(), flowAlias, call.str("executionId"));
+        String flowAlias = flowOrSubflow(call, call.str("flowAlias"));
+        AuthenticationExecutionInfoRepresentation e = findExecution(call, flowAlias, call.str("executionId"));
         String requirement = call.str("requirement");
         if (e.getRequirementChoices() != null && !e.getRequirementChoices().contains(requirement)) {
             throw new ToolException("invalid_arguments", "Execution '" + e.getDisplayName() + "' allows only "
                     + e.getRequirementChoices());
         }
-        setRequirement(call.realm(), flowAlias, e, requirement);
+        setRequirement(call, flowAlias, e, requirement);
         return ToolResult.done("Requirement set", "executionId", e.getId(), "displayName", e.getDisplayName(),
                 "requirement", requirement);
     }
 
     ToolResult raise(ToolCall call) {
-        flowsOf(call.realm()).raisePriority(call.str("executionId"));
+        flowsOf(call).raisePriority(call.str("executionId"));
         return ToolResult.done("Execution moved up", "executionId", call.str("executionId"));
     }
 
     ToolResult lower(ToolCall call) {
-        flowsOf(call.realm()).lowerPriority(call.str("executionId"));
+        flowsOf(call).lowerPriority(call.str("executionId"));
         return ToolResult.done("Execution moved down", "executionId", call.str("executionId"));
     }
 
     ToolResult executionDelete(ToolCall call) {
-        flowsOf(call.realm()).removeExecution(call.str("executionId"));
+        flowsOf(call).removeExecution(call.str("executionId"));
         return ToolResult.done("Execution deleted", "executionId", call.str("executionId"));
     }
 
     ToolResult requiredActions(ToolCall call) {
         List<Map<String, Object>> items = new ArrayList<>();
-        for (RequiredActionProviderRepresentation a : flowsOf(call.realm()).getRequiredActions()) {
+        for (RequiredActionProviderRepresentation a : flowsOf(call).getRequiredActions()) {
             Map<String, Object> v = new LinkedHashMap<>();
             v.put("alias", a.getAlias());
             v.put("name", a.getName());
@@ -453,7 +469,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
     }
 
     ToolResult requiredActionSetEnabled(ToolCall call) {
-        AuthenticationManagementResource flows = flowsOf(call.realm());
+        AuthenticationManagementResource flows = flowsOf(call);
         RequiredActionProviderRepresentation a;
         try {
             a = flows.getRequiredAction(call.str("alias"));

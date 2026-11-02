@@ -52,6 +52,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("search", "Filter by (partial) group name")
                                 .pagination())
                         .handler(this::list)
+                        .roles("query-groups")
                         .api(get(R + "/groups").query("search", "first", "max"))
                         .build(),
                 tool("keycloak_group_create")
@@ -63,6 +64,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("name", "Group name").required()
                                 .string("parentId", "Parent group (id, path or name) for a subgroup"))
                         .handler(this::create)
+                        .roles("manage-users")
                         .api(post(R + "/groups").body("GroupRepresentation", "name"), post(R + "/groups/{group-id}/children").path("group-id", "parentId").body("GroupRepresentation", "name"))
                         .build(),
                 tool("keycloak_group_delete")
@@ -72,6 +74,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                         .synonyms("remove group", "purge team")
                         .schema(schema().string("id", GROUP_ID).required())
                         .handler(this::delete)
+                        .roles("manage-users")
                         .api(delete(R + "/groups/{group-id}").path("group-id", "id"))
                         .build(),
                 tool("keycloak_group_members_list")
@@ -81,6 +84,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                         .synonyms("who is in", "membership", "users in group", "members")
                         .schema(schema().string("groupId", GROUP_ID).required().pagination())
                         .handler(this::members)
+                        .roles("view-users")
                         .api(get(R + "/groups/{group-id}/members").path("group-id", "groupId").query("first", "max"))
                         .build(),
                 tool("keycloak_group_member_add")
@@ -92,6 +96,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("groupId", GROUP_ID).required()
                                 .string("userId", USER_ID).required())
                         .handler(this::memberAdd)
+                        .roles("manage-users")
                         .api(put(R + "/users/{user-id}/groups/{groupId}").path("user-id", "userId").path("groupId", "groupId"))
                         .build(),
                 tool("keycloak_group_member_remove")
@@ -103,6 +108,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("groupId", GROUP_ID).required()
                                 .string("userId", USER_ID).required())
                         .handler(this::memberRemove)
+                        .roles("manage-users")
                         .api(delete(R + "/users/{user-id}/groups/{groupId}").path("user-id", "userId").path("groupId", "groupId"))
                         .build(),
                 tool("keycloak_user_groups_list")
@@ -112,6 +118,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                         .synonyms("membership", "member of", "which groups", "teams of user")
                         .schema(schema().string("userId", USER_ID).required())
                         .handler(this::userGroups)
+                        .roles("view-users")
                         .api(get(R + "/users/{user-id}/groups").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_group_role_assign")
@@ -123,12 +130,13 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("groupId", GROUP_ID).required()
                                 .string("role", "Realm role name, e.g. admin").required())
                         .handler(this::roleAssign)
+                        .roles("manage-users")
                         .api(post(R + "/groups/{group-id}/role-mappings/realm").path("group-id", "groupId"))
                         .build());
     }
 
     ToolResult list(ToolCall call) {
-        GroupsResource groups = kc.realm(call.realm()).groups();
+        GroupsResource groups = call.kc().realm(call.realm()).groups();
         List<GroupRepresentation> found = groups.groups(call.str("search"), call.first(), call.max(), true);
         return ToolResult.ok(Views.page(Views.list(found, Views::group), call.max()));
     }
@@ -138,23 +146,23 @@ public class GroupToolProvider extends AbstractToolProvider {
         g.setName(call.str("name"));
         String id;
         if (call.has("parentId")) {
-            id = KeycloakAdmin.created(kc.group(call.realm(), call.str("parentId")).subGroup(g));
+            id = KeycloakAdmin.created(call.kc().group(call.realm(), call.str("parentId")).subGroup(g));
         } else {
-            id = KeycloakAdmin.created(kc.realm(call.realm()).groups().add(g));
+            id = KeycloakAdmin.created(call.kc().realm(call.realm()).groups().add(g));
         }
-        GroupRepresentation created = kc.realm(call.realm()).groups().group(id).toRepresentation();
+        GroupRepresentation created = call.kc().realm(call.realm()).groups().group(id).toRepresentation();
         return ToolResult.done("Group created", "id", id, "name", created.getName(), "path", created.getPath());
     }
 
     ToolResult delete(ToolCall call) {
-        GroupRepresentation g = kc.findGroup(call.realm(), call.str("id"));
-        kc.realm(call.realm()).groups().group(g.getId()).remove();
+        GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("id"));
+        call.kc().realm(call.realm()).groups().group(g.getId()).remove();
         return ToolResult.done("Group deleted", "id", g.getId(), "path", g.getPath());
     }
 
     ToolResult members(ToolCall call) {
-        GroupRepresentation g = kc.findGroup(call.realm(), call.str("groupId"));
-        List<UserRepresentation> members = kc.realm(call.realm()).groups().group(g.getId())
+        GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("groupId"));
+        List<UserRepresentation> members = call.kc().realm(call.realm()).groups().group(g.getId())
                 .members(call.first(), call.max(), true);
         Map<String, Object> page = Views.page(Views.list(members, Views::user), call.max());
         page.put("group", g.getPath());
@@ -162,31 +170,31 @@ public class GroupToolProvider extends AbstractToolProvider {
     }
 
     ToolResult memberAdd(ToolCall call) {
-        GroupRepresentation g = kc.findGroup(call.realm(), call.str("groupId"));
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        kc.realm(call.realm()).users().get(u.getId()).joinGroup(g.getId());
+        GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("groupId"));
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        call.kc().realm(call.realm()).users().get(u.getId()).joinGroup(g.getId());
         return ToolResult.done("User added to group", "username", u.getUsername(), "group", g.getPath());
     }
 
     ToolResult memberRemove(ToolCall call) {
-        GroupRepresentation g = kc.findGroup(call.realm(), call.str("groupId"));
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        kc.realm(call.realm()).users().get(u.getId()).leaveGroup(g.getId());
+        GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("groupId"));
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        call.kc().realm(call.realm()).users().get(u.getId()).leaveGroup(g.getId());
         return ToolResult.done("User removed from group", "username", u.getUsername(), "group", g.getPath());
     }
 
     ToolResult userGroups(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("userId"));
-        List<GroupRepresentation> groups = kc.realm(call.realm()).users().get(u.getId()).groups(0, call.maxItems(), true);
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        List<GroupRepresentation> groups = call.kc().realm(call.realm()).users().get(u.getId()).groups(0, call.maxItems(), true);
         Map<String, Object> page = Views.page(Views.list(groups, Views::group), call.maxItems());
         page.put("username", u.getUsername());
         return ToolResult.ok(page);
     }
 
     ToolResult roleAssign(ToolCall call) {
-        GroupRepresentation g = kc.findGroup(call.realm(), call.str("groupId"));
-        RoleRepresentation role = RoleToolProvider.realmRole(kc, call.realm(), call.str("role"));
-        kc.realm(call.realm()).groups().group(g.getId()).roles().realmLevel().add(List.of(role));
+        GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("groupId"));
+        RoleRepresentation role = RoleToolProvider.realmRole(call.kc(), call.realm(), call.str("role"));
+        call.kc().realm(call.realm()).groups().group(g.getId()).roles().realmLevel().add(List.of(role));
         return ToolResult.done("Role assigned to group", "group", g.getPath(), "role", role.getName());
     }
 }

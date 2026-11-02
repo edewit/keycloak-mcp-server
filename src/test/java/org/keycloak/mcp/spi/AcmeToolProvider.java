@@ -36,6 +36,14 @@ public class AcmeToolProvider implements ToolProvider {
     }
 
     @Override
+    public List<AccessCheck> accessChecks(ToolProviderContext context) {
+        // global example: nobody may greet mallory, whichever tool is used
+        return List.of(ctx -> "mallory".equals(ctx.arg("name"))
+                ? AccessCheck.Decision.deny("blocked_name", "mallory is not welcome")
+                : AccessCheck.Decision.allow());
+    }
+
+    @Override
     public List<ToolSpec> tools(ToolProviderContext context) {
         return List.of(ToolSpec.builder("keycloak_acme_ping")
                 .title("ACME ping")
@@ -43,7 +51,8 @@ public class AcmeToolProvider implements ToolProvider {
                 .category(Category.REALM).read().global()
                 .synonyms("acme", "ping")
                 .schema(InputSchema.builder().string("name", "Who to greet"))
-                .handler(call -> ToolResult.ok(Map.of("greeting", greeting, "name", call.str("name", "world"))))
+                .handler(call -> ToolResult.ok(Map.of("greeting", greeting, "name", call.str("name", "world"),
+                        "caller", call.caller().isAnonymous() ? "anonymous" : call.caller().name())))
                 .build());
     }
 }

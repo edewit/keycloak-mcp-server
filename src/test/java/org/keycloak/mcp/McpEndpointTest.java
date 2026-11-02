@@ -61,6 +61,20 @@ class McpEndpointTest {
     }
 
     @Test
+    void callerIsResolvedPerRequest() {
+        assertEquals("anonymous", McpClient.text(mcp.callTool("keycloak_acme_ping", new JsonObject())).getString("caller"));
+        JsonObject meta = new JsonObject().put("kc-mcp/test-caller", "alice");
+        assertEquals("alice", McpClient.text(mcp.callTool("keycloak_acme_ping", new JsonObject(), meta)).getString("caller"));
+    }
+
+    @Test
+    void providerAccessChecksApply() {
+        JsonObject result = mcp.callTool("keycloak_acme_ping", new JsonObject().put("name", "mallory"));
+        assertTrue(result.getBoolean("isError"));
+        assertEquals("blocked_name", McpClient.text(result).getString("error"));
+    }
+
+    @Test
     void hiddenToolsAreStillCallableDirectly() {
         JsonObject result = mcp.callTool("keycloak_acme_ping", new JsonObject());
         assertEquals("world", McpClient.text(result).getString("name"));

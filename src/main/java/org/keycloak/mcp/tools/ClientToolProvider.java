@@ -14,6 +14,7 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.Delegation;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ClientScopeRepresentation;
@@ -58,6 +59,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                                 "relying party")
                         .schema(schema().string("search", "Filter by (partial) clientId").pagination())
                         .handler(this::list)
+                        .roles("query-clients")
                         .api(get(R + "/clients").queryAs("clientId", "search").query("first", "max"))
                         .build(),
                 tool("keycloak_client_get")
@@ -67,6 +69,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("redirect uris", "pkce", "flows enabled", "client details", "web origins")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::get)
+                        .roles("view-clients")
                         .api(get(R + "/clients/{client-uuid}").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_get_secret")
@@ -78,6 +81,8 @@ public class ClientToolProvider extends AbstractToolProvider {
                                 .string("clientId", CLIENT_ID).required()
                                 .bool("reveal", "Return the plaintext secret (default false)"))
                         .handler(this::getSecret)
+                        .delegation(Delegation.FORBIDDEN)
+                        .roles("view-clients")
                         .api(get(R + "/clients/{client-uuid}/client-secret").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_regenerate_secret")
@@ -87,6 +92,8 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("rotate", "new secret", "reset secret", "credentials")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::regenerateSecret)
+                        .delegation(Delegation.FORBIDDEN)
+                        .roles("manage-clients")
                         .api(post(R + "/clients/{client-uuid}/client-secret").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_create")
@@ -97,6 +104,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .schema(clientFields(schema().string("clientId", "New clientId, e.g. my-app").required()
                                 .enumeration("protocol", "Protocol (default openid-connect)", "openid-connect", "saml")))
                         .handler(this::create)
+                        .roles("manage-clients")
                         .api(post(R + "/clients").body("ClientRepresentation", "clientId", "protocol", "name", "description", "enabled", "publicClient", "redirectUris", "webOrigins", "rootUrl", "baseUrl", "standardFlowEnabled", "implicitFlowEnabled", "directAccessGrantsEnabled", "serviceAccountsEnabled", "bearerOnly", "attributes"))
                         .build(),
                 tool("keycloak_client_update")
@@ -106,6 +114,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("edit app", "add redirect uri", "enable pkce", "disable client", "web origins")
                         .schema(clientFields(schema().string("clientId", CLIENT_ID).required()))
                         .handler(this::update)
+                        .roles("manage-clients")
                         .api(put(R + "/clients/{client-uuid}").path("client-uuid", "clientId").body("ClientRepresentation", "name", "description", "enabled", "publicClient", "redirectUris", "webOrigins", "rootUrl", "baseUrl", "standardFlowEnabled", "implicitFlowEnabled", "directAccessGrantsEnabled", "serviceAccountsEnabled", "bearerOnly", "attributes"))
                         .build(),
                 tool("keycloak_client_delete")
@@ -115,6 +124,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("remove app", "unregister")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::delete)
+                        .roles("manage-clients")
                         .api(delete(R + "/clients/{client-uuid}").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_mappers_list")
@@ -124,6 +134,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("claims", "token mappers", "audience mapper", "attribute mapper")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::mappers)
+                        .roles("view-clients")
                         .api(get(R + "/clients/{client-uuid}/protocol-mappers/models").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_scopes_list")
@@ -132,6 +143,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .category(Category.CLIENT_SCOPES).read()
                         .synonyms("scopes", "profile email roles", "available scopes", "offline_access")
                         .handler(this::scopesList)
+                        .roles("view-clients")
                         .api(get(R + "/client-scopes"), get(R + "/default-default-client-scopes"), get(R + "/default-optional-client-scopes"))
                         .build(),
                 tool("keycloak_client_default_scopes_get")
@@ -141,6 +153,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("assigned scopes", "scopes of app", "which scopes")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::clientScopes)
+                        .roles("view-clients")
                         .api(get(R + "/clients/{client-uuid}/default-client-scopes").path("client-uuid", "clientId"), get(R + "/clients/{client-uuid}/optional-client-scopes").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_scope_assign")
@@ -153,6 +166,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                                 .string("scope", "Client scope name or id, e.g. email").required()
                                 .enumeration("type", SCOPE_TYPE_DESC, "default", "optional").def("default"))
                         .handler(this::scopeAssign)
+                        .roles("manage-clients")
                         .api(put(R + "/clients/{client-uuid}/default-client-scopes/{clientScopeId}").path("client-uuid", "clientId").path("clientScopeId", "scope"), put(R + "/clients/{client-uuid}/optional-client-scopes/{clientScopeId}").path("client-uuid", "clientId").path("clientScopeId", "scope"))
                         .build(),
                 tool("keycloak_client_scope_unassign")
@@ -165,6 +179,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                                 .string("scope", "Client scope name or id").required()
                                 .enumeration("type", SCOPE_TYPE_DESC, "default", "optional").def("default"))
                         .handler(this::scopeUnassign)
+                        .roles("manage-clients")
                         .api(delete(R + "/clients/{client-uuid}/default-client-scopes/{clientScopeId}").path("client-uuid", "clientId").path("clientScopeId", "scope"), delete(R + "/clients/{client-uuid}/optional-client-scopes/{clientScopeId}").path("client-uuid", "clientId").path("clientScopeId", "scope"))
                         .build());
     }
@@ -189,13 +204,13 @@ public class ClientToolProvider extends AbstractToolProvider {
     // ---- handlers -----------------------------------------------------------------------------------------------
 
     ToolResult list(ToolCall call) {
-        List<ClientRepresentation> clients = kc.realm(call.realm()).clients()
+        List<ClientRepresentation> clients = call.kc().realm(call.realm()).clients()
                 .findAll(call.str("search"), true, call.has("search"), call.first(), call.max());
         return ToolResult.ok(Views.page(Views.list(clients, Views::client), call.max()));
     }
 
     ToolResult get(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
         Map<String, Object> m = Views.client(c);
         Views.put(m, "description", c.getDescription());
         Views.put(m, "bearerOnly", c.isBearerOnly());
@@ -219,11 +234,11 @@ public class ClientToolProvider extends AbstractToolProvider {
     }
 
     ToolResult getSecret(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
         if (Boolean.TRUE.equals(c.isPublicClient())) {
             throw new ToolException("public_client", "Client '" + c.getClientId() + "' is public and has no secret.");
         }
-        CredentialRepresentation secret = kc.realm(call.realm()).clients().get(c.getId()).getSecret();
+        CredentialRepresentation secret = call.kc().realm(call.realm()).clients().get(c.getId()).getSecret();
         String value = secret == null ? null : secret.getValue();
         return ToolResult.ok(Map.of("clientId", c.getClientId(),
                 "secret", value == null ? "" : call.bool("reveal", false) ? value : mask(value),
@@ -238,11 +253,11 @@ public class ClientToolProvider extends AbstractToolProvider {
     }
 
     ToolResult regenerateSecret(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
         if (Boolean.TRUE.equals(c.isPublicClient())) {
             throw new ToolException("public_client", "Client '" + c.getClientId() + "' is public and has no secret.");
         }
-        CredentialRepresentation secret = kc.realm(call.realm()).clients().get(c.getId()).generateNewSecret();
+        CredentialRepresentation secret = call.kc().realm(call.realm()).clients().get(c.getId()).generateNewSecret();
         return ToolResult.done("Secret regenerated", "clientId", c.getClientId(), "secret", secret.getValue());
     }
 
@@ -255,13 +270,13 @@ public class ClientToolProvider extends AbstractToolProvider {
         c.setStandardFlowEnabled(true);
         c.setDirectAccessGrantsEnabled(false);
         apply(call, c);
-        String id = KeycloakAdmin.created(kc.realm(call.realm()).clients().create(c));
+        String id = KeycloakAdmin.created(call.kc().realm(call.realm()).clients().create(c));
         return ToolResult.done("Client created", "id", id, "clientId", c.getClientId(),
                 "publicClient", c.isPublicClient());
     }
 
     ToolResult update(ToolCall call) {
-        ClientResource res = kc.clientResource(call.realm(), call.str("clientId"));
+        ClientResource res = call.kc().clientResource(call.realm(), call.str("clientId"));
         ClientRepresentation c = res.toRepresentation();
         List<String> changed = apply(call, c);
         if (changed.isEmpty()) {
@@ -340,14 +355,14 @@ public class ClientToolProvider extends AbstractToolProvider {
     }
 
     ToolResult delete(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        kc.realm(call.realm()).clients().get(c.getId()).remove();
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        call.kc().realm(call.realm()).clients().get(c.getId()).remove();
         return ToolResult.done("Client deleted", "clientId", c.getClientId(), "id", c.getId());
     }
 
     ToolResult mappers(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        List<ProtocolMapperRepresentation> mappers = kc.realm(call.realm()).clients().get(c.getId())
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        List<ProtocolMapperRepresentation> mappers = call.kc().realm(call.realm()).clients().get(c.getId())
                 .getProtocolMappers().getMappers();
         List<Map<String, Object>> items = new ArrayList<>();
         for (ProtocolMapperRepresentation m : mappers) {
@@ -366,7 +381,7 @@ public class ClientToolProvider extends AbstractToolProvider {
     }
 
     ToolResult scopesList(ToolCall call) {
-        RealmResource realm = kc.realm(call.realm());
+        RealmResource realm = call.kc().realm(call.realm());
         List<String> realmDefault = realm.getDefaultDefaultClientScopes().stream().map(ClientScopeRepresentation::getName)
                 .toList();
         List<String> realmOptional = realm.getDefaultOptionalClientScopes().stream()
@@ -389,16 +404,16 @@ public class ClientToolProvider extends AbstractToolProvider {
     }
 
     ToolResult clientScopes(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        ClientResource res = kc.realm(call.realm()).clients().get(c.getId());
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        ClientResource res = call.kc().realm(call.realm()).clients().get(c.getId());
         return ToolResult.ok(Map.of(
                 "clientId", c.getClientId(),
                 "defaultScopes", res.getDefaultClientScopes().stream().map(ClientScopeRepresentation::getName).sorted().toList(),
                 "optionalScopes", res.getOptionalClientScopes().stream().map(ClientScopeRepresentation::getName).sorted().toList()));
     }
 
-    private ClientScopeRepresentation findScope(String realm, String nameOrId) {
-        for (ClientScopeRepresentation s : kc.realm(realm).clientScopes().findAll()) {
+    private static ClientScopeRepresentation findScope(ToolCall call, String nameOrId) {
+        for (ClientScopeRepresentation s : call.kc().realm(call.realm()).clientScopes().findAll()) {
             if (s.getName().equals(nameOrId) || s.getId().equals(nameOrId)) {
                 return s;
             }
@@ -407,9 +422,9 @@ public class ClientToolProvider extends AbstractToolProvider {
     }
 
     ToolResult scopeAssign(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        ClientScopeRepresentation s = findScope(call.realm(), call.str("scope"));
-        ClientResource res = kc.realm(call.realm()).clients().get(c.getId());
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        ClientScopeRepresentation s = findScope(call, call.str("scope"));
+        ClientResource res = call.kc().realm(call.realm()).clients().get(c.getId());
         String type = call.str("type", "default");
         if ("optional".equals(type)) {
             res.addOptionalClientScope(s.getId());
@@ -420,9 +435,9 @@ public class ClientToolProvider extends AbstractToolProvider {
     }
 
     ToolResult scopeUnassign(ToolCall call) {
-        ClientRepresentation c = kc.findClient(call.realm(), call.str("clientId"));
-        ClientScopeRepresentation s = findScope(call.realm(), call.str("scope"));
-        ClientResource res = kc.realm(call.realm()).clients().get(c.getId());
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        ClientScopeRepresentation s = findScope(call, call.str("scope"));
+        ClientResource res = call.kc().realm(call.realm()).clients().get(c.getId());
         String type = call.str("type", "default");
         if ("optional".equals(type)) {
             res.removeOptionalClientScope(s.getId());

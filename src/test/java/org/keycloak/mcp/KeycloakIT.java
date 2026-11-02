@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -356,5 +358,85 @@ class KeycloakIT {
         assertEquals(0, call("keycloak_federation_list", new JsonObject()).getInteger("count"));
         assertEquals("not_found", error("keycloak_federation_get", new JsonObject().put("id", "corp-ldap"))
                 .getString("error"));
+    }
+
+    static JsonObject as(String caller, String tool, JsonObject args) {
+        return McpClient.text(mcp.callTool(tool, args.put("realm", REALM),
+                new JsonObject().put("kc-mcp/test-caller", caller).put("kc-mcp/test-caller-realm", REALM)));
+    }
+
+    @Test
+    @Order(11)
+    void policiesAgainstRealUsers() {
+        // setup as the (anonymous = unrestricted) service account
+        call("keycloak_user_create", new JsonObject().put("username", "p-alice"));
+        call("keycloak_user_create", new JsonObject().put("username", "p-bob"));
+        call("keycloak_user_create", new JsonObject().put("username", "p-carol"));
+        call("keycloak_group_create", new JsonObject().put("name", "team-a"));
+        call("keycloak_group_create", new JsonObject().put("name", "dev").put("parentId", "/team-a"));
+        call("keycloak_group_create", new JsonObject().put("name", "team-b"));
+        call("keycloak_group_member_add", new JsonObject().put("groupId", "/team-a").put("userId", "p-alice"));
+        call("keycloak_user_role_assign", new JsonObject().put("userId", "p-bob").put("role", "admin"));
+        // the manager role is checked against the caller's effective roles in Keycloak
+        JsonObject noRole = as("p-alice", "keycloak_group_members_list", new JsonObject().put("groupId", "/team-a"));
+        assertEquals("manager_role_required", noRole.getString("error"), noRole.encode());
+        call("keycloak_role_list", new JsonObject()); // warm
+        JsonObject mkRole = McpClient.text(mcp.callTool("execute_tool", new JsonObject()
+                .put("name", "keycloak_user_role_assign").put("arguments", new JsonObject().put("realm", REALM)
+                        .put("userId", "p-alice").put("role", "create-realm"))));
+        assertFalse(mkRole.containsKey("error"), mkRole.encode());
+
+        // group scope: alice is in /team-a
+        JsonObject ok = as("p-alice", "keycloak_group_members_list", new JsonObject().put("groupId", "/team-a/dev"));
+        assertFalse(ok.containsKey("error"), ok.encode());
+        JsonObject out = as("p-alice", "keycloak_group_members_list", new JsonObject().put("groupId", "/team-b"));
+        assertEquals("group_out_of_scope", out.getString("error"), out.encode());
+        JsonObject sub = as("p-alice", "keycloak_group_create", new JsonObject().put("name", "ops").put("parentId", "team-a"));
+        assertEquals("/team-a/ops", sub.getString("path"), sub.encode());
+
+        // no escalation: alice holds create-realm + defaults, bob holds admin
+        JsonObject grantOk = as("p-alice", "keycloak_user_role_assign", new JsonObject().put("userId", "p-carol")
+                .put("role", "offline_access"));
+        assertFalse(grantOk.containsKey("error"), grantOk.encode());
+        JsonObject grantAdmin = as("p-alice", "keycloak_user_role_assign", new JsonObject().put("userId", "p-carol")
+                .put("role", "admin"));
+        assertEquals("privilege_escalation", grantAdmin.getString("error"), grantAdmin.encode());
+        JsonObject touchBob = as("p-alice", "keycloak_user_set_enabled", new JsonObject().put("id", "p-bob")
+                .put("enabled", false));
+        assertEquals("target_outranks_caller", touchBob.getString("error"), touchBob.encode());
+        JsonObject self = as("p-alice", "keycloak_user_role_assign", new JsonObject().put("userId", "p-alice")
+                .put("role", "offline_access"));
+        assertEquals("self_grant", self.getString("error"), self.encode());
+        // bob is super (realm admin in master) and may do it
+        JsonObject bobGrants = as("p-bob", "keycloak_user_role_assign", new JsonObject().put("userId", "p-carol")
+                .put("role", "admin"));
+        assertFalse(bobGrants.containsKey("error"), bobGrants.encode());
+        // callers from another realm are refused
+        JsonObject foreign = McpClient.text(mcp.callTool("keycloak_user_set_enabled", new JsonObject()
+                .put("realm", REALM).put("id", "p-carol").put("enabled", true),
+                new JsonObject().put("kc-mcp/test-caller", "p-alice").put("kc-mcp/test-caller-realm", "elsewhere")));
+        assertEquals("caller_foreign_realm", foreign.getString("error"), foreign.encode());
+    }
+
+    @Test
+    @Order(12)
+    void secondSystemIsSelectable() {
+        JsonArray tools = mcp.listTools();
+        assertEquals(73, tools.size(), "direct mode lists every tool across pages");
+        JsonObject search = tools.stream().map(t -> (JsonObject) t)
+                .filter(t -> t.getString("name").equals("keycloak_user_search")).findFirst().orElseThrow();
+        JsonObject props = search.getJsonObject("inputSchema").getJsonObject("properties");
+        assertEquals("system", props.fieldNames().iterator().next());
+        assertEquals(List.of("primary", "mirror"), props.getJsonObject("system").getJsonArray("enum").getList());
+
+        JsonObject viaMirror = call("keycloak_user_search", new JsonObject().put("system", "mirror").put("username", "eve"));
+        assertEquals("eve", viaMirror.getJsonArray("items").getJsonObject(0).getString("username"));
+        JsonObject info = McpClient.text(mcp.callTool("keycloak_server_info", new JsonObject().put("system", "mirror")));
+        assertTrue(info.getString("version").startsWith("26."));
+        JsonObject bad = error("keycloak_user_search", new JsonObject().put("system", "nope"));
+        assertEquals("invalid_arguments", bad.getString("error"));
+        JsonObject notAllowed = McpClient.text(mcp.callTool("keycloak_user_search", new JsonObject()
+                .put("system", "mirror").put("realm", "other")));
+        assertEquals("realm_not_allowed", notAllowed.getString("error"));
     }
 }

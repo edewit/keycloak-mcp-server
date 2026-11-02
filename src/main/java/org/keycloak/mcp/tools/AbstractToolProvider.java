@@ -3,21 +3,17 @@ package org.keycloak.mcp.tools;
 import org.keycloak.mcp.catalog.ApiOperation;
 import org.keycloak.mcp.catalog.InputSchema;
 import org.keycloak.mcp.catalog.ToolSpec;
-import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 
 /**
- * Base class for the built-in providers: keeps the admin client from {@link #init(ToolProviderContext)} and offers
- * a few shared schema snippets.
+ * Base class for the built-in providers: shared schema snippets and API binding shorthands. Handlers take the admin
+ * client of the call's Keycloak system from {@code call.kc()}.
  */
 public abstract class AbstractToolProvider implements ToolProvider {
 
-    protected KeycloakAdmin kc;
-
     @Override
     public void init(ToolProviderContext context) {
-        this.kc = context.keycloak();
     }
 
     protected static ToolSpec.Builder tool(String name) {

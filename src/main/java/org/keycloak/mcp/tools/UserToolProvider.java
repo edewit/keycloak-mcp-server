@@ -62,6 +62,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .bool("enabled", "Only enabled (true) or disabled (false) users")
                                 .pagination())
                         .handler(this::search)
+                        .roles("query-users")
                         .api(get(R + "/users").query("search", "username", "email", "enabled", "first", "max"))
                         .build(),
                 tool("keycloak_user_get")
@@ -71,6 +72,7 @@ public class UserToolProvider extends AbstractToolProvider {
                         .synonyms("show", "details", "profile", "attributes", "info")
                         .schema(schema().string("id", USER_ID).required())
                         .handler(this::get)
+                        .roles("view-users")
                         .api(get(R + "/users/{user-id}").path("user-id", "id"), get(R + "/users/{user-id}/groups").path("user-id", "id"))
                         .build(),
                 tool("keycloak_user_create")
@@ -88,6 +90,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("password", "Initial password; set temporary=true to force a change at first login")
                                 .bool("temporary", "Password must be changed at next login (default false)"))
                         .handler(this::create)
+                        .roles("manage-users")
                         .api(post(R + "/users").body("UserRepresentation", "username", "email", "firstName", "lastName", "enabled", "emailVerified", "credentials"))
                         .build(),
                 tool("keycloak_user_update")
@@ -104,6 +107,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .bool("emailVerified", "New email verified state")
                                 .stringMap("attributes", "Custom attributes to set (merged into existing ones)"))
                         .handler(this::update)
+                        .roles("manage-users")
                         .api(put(R + "/users/{user-id}").path("user-id", "id").body("UserRepresentation", "email", "firstName", "lastName", "enabled", "emailVerified", "attributes"))
                         .build(),
                 tool("keycloak_user_set_enabled")
@@ -115,6 +119,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("id", USER_ID).required()
                                 .bool("enabled", "true to enable, false to disable").required())
                         .handler(this::setEnabled)
+                        .roles("manage-users")
                         .api(put(R + "/users/{user-id}").path("user-id", "id").body("UserRepresentation", "enabled"))
                         .build(),
                 tool("keycloak_user_delete")
@@ -126,6 +131,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("id", "User id (UUID)").required()
                                 .string("username", "Username of that user, must match").required())
                         .handler(this::delete)
+                        .roles("manage-users")
                         .api(delete(R + "/users/{user-id}").path("user-id", "id"))
                         .build(),
                 tool("keycloak_user_reset_password")
@@ -138,6 +144,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("password", "New password").required()
                                 .bool("temporary", "User must change it at next login (default false)"))
                         .handler(this::resetPassword)
+                        .roles("manage-users")
                         .api(put(R + "/users/{user-id}/reset-password").path("user-id", "id").body("CredentialRepresentation", "type", "value", "temporary"))
                         .build(),
                 tool("keycloak_user_send_action_email")
@@ -155,6 +162,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("clientId", "Client the link should redirect back to")
                                 .string("redirectUri", "Redirect URI after completing the actions"))
                         .handler(this::sendActionEmail)
+                        .roles("manage-users")
                         .api(put(R + "/users/{user-id}/execute-actions-email").path("user-id", "id").queryAs("client_id", "clientId").queryAs("redirect_uri", "redirectUri").query("lifespan"))
                         .build(),
                 tool("keycloak_user_sessions_list")
@@ -164,6 +172,7 @@ public class UserToolProvider extends AbstractToolProvider {
                         .synonyms("logged in", "online", "login", "active", "where", "devices")
                         .schema(schema().string("id", USER_ID).required())
                         .handler(this::sessions)
+                        .roles("view-users")
                         .api(get(R + "/users/{user-id}/sessions").path("user-id", "id"))
                         .build(),
                 tool("keycloak_user_logout")
@@ -173,6 +182,7 @@ public class UserToolProvider extends AbstractToolProvider {
                         .synonyms("kick", "sign out", "signout", "revoke sessions", "terminate", "force logout")
                         .schema(schema().string("id", USER_ID).required())
                         .handler(this::logout)
+                        .roles("manage-users")
                         .api(post(R + "/users/{user-id}/logout").path("user-id", "id"))
                         .build());
     }
@@ -180,7 +190,7 @@ public class UserToolProvider extends AbstractToolProvider {
     // ---- handlers -----------------------------------------------------------------------------------------------
 
     ToolResult search(ToolCall call) {
-        UsersResource users = kc.realm(call.realm()).users();
+        UsersResource users = call.kc().realm(call.realm()).users();
         boolean hasSearch = call.has("search");
         boolean hasUsername = call.has("username");
         boolean hasEmail = call.has("email");
@@ -206,10 +216,10 @@ public class UserToolProvider extends AbstractToolProvider {
     }
 
     ToolResult get(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("id"));
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("id"));
         Map<String, Object> view = Views.userDetail(u);
         try {
-            view.put("groups", kc.realm(call.realm()).users().get(u.getId()).groups(0, 50).stream()
+            view.put("groups", call.kc().realm(call.realm()).users().get(u.getId()).groups(0, 50).stream()
                     .map(g -> g.getPath()).toList());
         } catch (RuntimeException e) {
             // groups are optional detail; a missing view-users role on groups should not fail the call
@@ -234,12 +244,12 @@ public class UserToolProvider extends AbstractToolProvider {
             cred.setTemporary(call.bool("temporary", false));
             u.setCredentials(List.of(cred));
         }
-        String id = KeycloakAdmin.created(kc.realm(call.realm()).users().create(u));
+        String id = KeycloakAdmin.created(call.kc().realm(call.realm()).users().create(u));
         return ToolResult.done("User created", "id", id, "username", u.getUsername());
     }
 
     ToolResult update(ToolCall call) {
-        UserResource res = kc.user(call.realm(), call.str("id"));
+        UserResource res = call.kc().user(call.realm(), call.str("id"));
         UserRepresentation u = res.toRepresentation();
         List<String> changed = new ArrayList<>();
         if (call.has("email")) {
@@ -287,7 +297,7 @@ public class UserToolProvider extends AbstractToolProvider {
     }
 
     ToolResult setEnabled(ToolCall call) {
-        UserResource res = kc.user(call.realm(), call.str("id"));
+        UserResource res = call.kc().user(call.realm(), call.str("id"));
         UserRepresentation u = res.toRepresentation();
         u.setEnabled(call.bool("enabled"));
         res.update(u);
@@ -300,17 +310,17 @@ public class UserToolProvider extends AbstractToolProvider {
         if (!KeycloakAdmin.isUuid(id)) {
             throw new ToolException("invalid_arguments", "id must be the user's UUID; look it up with keycloak_user_search.");
         }
-        UserRepresentation u = kc.findUser(call.realm(), id);
+        UserRepresentation u = call.kc().findUser(call.realm(), id);
         if (!u.getUsername().equalsIgnoreCase(call.str("username"))) {
             throw new ToolException("username_mismatch", "User " + id + " is '" + u.getUsername()
                     + "', not '" + call.str("username") + "'. Nothing deleted.");
         }
-        kc.realm(call.realm()).users().get(u.getId()).remove();
+        call.kc().realm(call.realm()).users().get(u.getId()).remove();
         return ToolResult.done("User deleted", "id", u.getId(), "username", u.getUsername());
     }
 
     ToolResult resetPassword(ToolCall call) {
-        UserResource res = kc.user(call.realm(), call.str("id"));
+        UserResource res = call.kc().user(call.realm(), call.str("id"));
         CredentialRepresentation cred = new CredentialRepresentation();
         cred.setType(CredentialRepresentation.PASSWORD);
         cred.setValue(call.str("password"));
@@ -320,7 +330,7 @@ public class UserToolProvider extends AbstractToolProvider {
     }
 
     ToolResult sendActionEmail(ToolCall call) {
-        UserResource res = kc.user(call.realm(), call.str("id"));
+        UserResource res = call.kc().user(call.realm(), call.str("id"));
         List<String> actions = call.strings("actions");
         if (actions == null || actions.isEmpty()) {
             throw new ToolException("invalid_arguments", "actions must contain at least one action");
@@ -334,14 +344,14 @@ public class UserToolProvider extends AbstractToolProvider {
     }
 
     ToolResult sessions(ToolCall call) {
-        UserResource res = kc.user(call.realm(), call.str("id"));
+        UserResource res = call.kc().user(call.realm(), call.str("id"));
         List<Map<String, Object>> sessions = Views.list(res.getUserSessions(), Views::session);
         return ToolResult.ok(Views.page(sessions, Integer.MAX_VALUE));
     }
 
     ToolResult logout(ToolCall call) {
-        UserRepresentation u = kc.findUser(call.realm(), call.str("id"));
-        kc.realm(call.realm()).users().get(u.getId()).logout();
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("id"));
+        call.kc().realm(call.realm()).users().get(u.getId()).logout();
         return ToolResult.done("All sessions revoked", "id", u.getId(), "username", u.getUsername());
     }
 }

@@ -16,6 +16,7 @@ import org.jboss.logging.Logger;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.config.McpServerConfig;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
+import org.keycloak.mcp.keycloak.KeycloakSystems;
 
 /**
  * Discovers {@link ToolProvider}s (ServiceLoader + CDI), applies {@code kc-mcp.spi.<id>.enabled}, initialises them
@@ -28,13 +29,14 @@ public class ToolProviderRegistry {
 
     private final List<ToolProvider> providers;
     private final List<ToolSpec> specs;
+    private final List<AccessCheck> accessChecks;
 
     @Inject
-    public ToolProviderRegistry(Instance<ToolProvider> cdiProviders, KeycloakAdmin keycloak, McpServerConfig serverConfig) {
-        this(discover(cdiProviders), keycloak, serverConfig);
+    public ToolProviderRegistry(Instance<ToolProvider> cdiProviders, KeycloakSystems systems, McpServerConfig serverConfig) {
+        this(discover(cdiProviders), systems, serverConfig);
     }
 
-    public ToolProviderRegistry(List<ToolProvider> candidates, KeycloakAdmin keycloak, McpServerConfig serverConfig) {
+    public ToolProviderRegistry(List<ToolProvider> candidates, KeycloakSystems systems, McpServerConfig serverConfig) {
         Map<String, ToolProvider> byId = new LinkedHashMap<>();
         for (ToolProvider p : candidates) {
             ToolProvider existing = byId.get(p.id());
@@ -49,6 +51,7 @@ public class ToolProviderRegistry {
         }
         List<ToolProvider> active = new ArrayList<>();
         List<ToolSpec> all = new ArrayList<>();
+        List<AccessCheck> checks = new ArrayList<>();
         List<ToolProvider> sorted = new ArrayList<>(byId.values());
         sorted.sort(Comparator.comparingInt(ToolProvider::order).thenComparing(ToolProvider::id));
         for (ToolProvider p : sorted) {
@@ -57,15 +60,17 @@ public class ToolProviderRegistry {
                 LOG.infof("Tool provider '%s' disabled by configuration", p.id());
                 continue;
             }
-            ToolProviderContext ctx = new Context(keycloak, serverConfig, pc);
+            ToolProviderContext ctx = new Context(systems, serverConfig, pc);
             p.init(ctx);
             List<ToolSpec> tools = p.tools(ctx);
             LOG.infof("Tool provider '%s' (%s): %d tools", p.id(), p.displayName(), tools.size());
             all.addAll(tools);
+            checks.addAll(p.accessChecks(ctx));
             active.add(p);
         }
         this.providers = List.copyOf(active);
         this.specs = List.copyOf(all);
+        this.accessChecks = List.copyOf(checks);
     }
 
     static List<ToolProvider> discover(Instance<ToolProvider> cdiProviders) {
@@ -93,6 +98,11 @@ public class ToolProviderRegistry {
         return specs;
     }
 
+    /** Global access checks contributed by providers. */
+    public List<AccessCheck> accessChecks() {
+        return accessChecks;
+    }
+
     @PreDestroy
     void shutdown() {
         for (ToolProvider p : providers) {
@@ -104,7 +114,11 @@ public class ToolProviderRegistry {
         }
     }
 
-    private record Context(KeycloakAdmin keycloak, McpServerConfig serverConfig, ProviderConfig config)
+    private record Context(KeycloakSystems systems, McpServerConfig serverConfig, ProviderConfig config)
             implements ToolProviderContext {
+        @Override
+        public KeycloakAdmin keycloak() {
+            return systems.defaultName().map(systems::get).orElseGet(() -> systems.all().get(0));
+        }
     }
 }

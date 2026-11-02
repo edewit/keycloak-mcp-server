@@ -3,6 +3,9 @@ package org.keycloak.mcp.exposure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.keycloak.mcp.catalog.ToolCatalog;
+import org.keycloak.mcp.guard.AccessPolicy;
+
 import io.quarkiverse.mcp.server.FilterContext;
 import io.quarkiverse.mcp.server.McpMethod;
 import io.quarkiverse.mcp.server.ToolFilter;
@@ -18,12 +21,20 @@ public class ExposureToolFilter implements ToolFilter {
 
     @Inject
     ExposurePolicy policy;
+    @Inject
+    AccessPolicy access;
+    @Inject
+    ToolCatalog catalog;
 
     @Override
     public boolean test(ToolInfo tool, FilterContext context) {
         if (context.method() != McpMethod.TOOLS_LIST) {
             return true;
         }
-        return policy.listed(tool.name(), context.connection() == null ? null : context.connection().id());
+        if (!policy.listed(tool.name(), context.connection() == null ? null : context.connection().id())) {
+            return false;
+        }
+        // roles as currently known; never blocks (ToolFilter contract)
+        return catalog.get(tool.name()).map(access::visible).orElse(true);
     }
 }

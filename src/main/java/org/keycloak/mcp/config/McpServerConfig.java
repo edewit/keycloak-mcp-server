@@ -21,6 +21,19 @@ public interface McpServerConfig {
     @WithDefault("http://localhost:8080")
     String url();
 
+    /**
+     * Named Keycloak systems: {@code kc-mcp.systems.<name>.url} etc. Each field falls back to the top-level value.
+     * When empty, the top-level settings form a single system called {@code default}. With several systems the
+     * tools gain a {@code system} argument.
+     */
+    Map<String, SystemSettings> systems();
+
+    /** System used when the {@code system} argument is omitted; inferred when only one system exists. */
+    Optional<String> defaultSystem();
+
+    /** Optional prefix for every tool name, e.g. {@code prod_} -> {@code prod_keycloak_user_search}. */
+    Optional<String> toolPrefix();
+
     /** OAuth grant used to obtain the admin token: {@code client_credentials} (default) or {@code password}. */
     @WithDefault("client_credentials")
     @WithConverter(GrantType.Converter.class)
@@ -34,18 +47,6 @@ public interface McpServerConfig {
     @WithConverter(ClientAuth.Converter.class)
     Optional<ClientAuth> clientAuth();
 
-    default ClientAuth effectiveClientAuth() {
-        if (clientAuth().isPresent()) {
-            return clientAuth().get();
-        }
-        if (clientSecret().filter(s -> !s.isBlank()).isPresent()) {
-            return ClientAuth.CLIENT_SECRET;
-        }
-        if (jwt().keyFile().isPresent() || jwt().keystoreFile().isPresent()) {
-            return ClientAuth.PRIVATE_KEY_JWT;
-        }
-        return ClientAuth.NONE;
-    }
 
     /** Realm the admin client / service account lives in. */
     @WithDefault("master")
@@ -74,6 +75,23 @@ public interface McpServerConfig {
     @WithDefault("false")
     boolean readOnly();
 
+    /** Only these tools exist on this server (csv of tool names). Empty = all. */
+    Optional<List<String>> allowedTools();
+
+    /** These tools never exist on this server (csv). Wins over {@link #allowedTools()}. */
+    Optional<List<String>> deniedTools();
+
+    /** Only tools of these categories exist (csv, e.g. {@code users,groups}). Empty = all. */
+    Optional<List<String>> allowedCategories();
+
+    /** Hide and refuse tools whose realm-management roles the server's own token does not hold. */
+    @WithDefault("true")
+    boolean roleFilter();
+
+    /** Startup check that every allowed realm is reachable with the credentials: off, warn or fail. */
+    @WithDefault("warn")
+    String startupCheck();
+
     /** Which tools show up in {@code tools/list}. */
     @WithDefault("hybrid")
     @WithConverter(ExposureMode.Converter.class)
@@ -101,6 +119,30 @@ public interface McpServerConfig {
     @WithDefault("120")
     int confirmTimeoutSeconds();
 
+    interface SystemSettings {
+        Optional<String> url();
+
+        @WithConverter(GrantType.Converter.class)
+        Optional<GrantType> grantType();
+
+        @WithConverter(ClientAuth.Converter.class)
+        Optional<ClientAuth> clientAuth();
+
+        Optional<String> authRealm();
+
+        Optional<String> clientId();
+
+        Optional<String> clientSecret();
+
+        Optional<String> username();
+
+        Optional<String> password();
+
+        Optional<String> defaultRealm();
+
+        Optional<List<String>> allowedRealms();
+    }
+
     interface Jwt {
         /** Path to a PEM file with the client's private key (PKCS#8, {@code BEGIN PRIVATE KEY}). */
         Optional<String> keyFile();
@@ -118,8 +160,19 @@ public interface McpServerConfig {
         /** Password of the key entry; defaults to the keystore password. */
         Optional<String> keyPassword();
 
-        /** Optional {@code kid} header, must match the key configured on the Keycloak client. */
+        /** Public key / certificate PEM to publish in the JWKS; derived from the private key when unset. */
+        Optional<String> publicKeyFile();
+
+        /** {@code kid} in the JWS header and the JWKS; defaults to the RFC 7638 thumbprint of the public key. */
         Optional<String> keyId();
+
+        /** Serve the public key as a JWK Set so Keycloak can fetch it via the client's "JWKS URL" setting. */
+        @WithDefault("true")
+        boolean jwksEnabled();
+
+        /** HTTP path of the JWK Set. */
+        @WithDefault("/.well-known/jwks.json")
+        String jwksPath();
 
         /** RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384 or PS512. */
         @WithDefault("RS256")

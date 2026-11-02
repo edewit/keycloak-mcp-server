@@ -27,16 +27,24 @@ public class KeycloakTestResource implements QuarkusTestResourceLifecycleManager
                 .withEnv("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
                 .withEnv("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
                 .withCommand("start-dev")
-                .waitingFor(Wait.forHttp("/realms/master").forPort(8080).withStartupTimeout(Duration.ofMinutes(3)));
+                .waitingFor(Wait.forLogMessage(".*Keycloak .* started in .*\\n", 1)
+                        .withStartupTimeout(Duration.ofMinutes(3)));
         keycloak.start();
         String url = "http://" + keycloak.getHost() + ":" + keycloak.getMappedPort(8080);
-        return Map.of(
-                "kc-mcp.url", url,
-                "kc-mcp.grant-type", "password",
-                "kc-mcp.auth-realm", "master",
-                "kc-mcp.username", "admin",
-                "kc-mcp.password", "admin",
-                "kc-mcp.tool-exposure", "direct");
+        return Map.ofEntries(
+                Map.entry("kc-mcp.url", url),
+                Map.entry("kc-mcp.grant-type", "password"),
+                Map.entry("kc-mcp.auth-realm", "master"),
+                Map.entry("kc-mcp.username", "admin"),
+                Map.entry("kc-mcp.password", "admin"),
+                Map.entry("kc-mcp.tool-exposure", "direct"),
+                Map.entry("kc-mcp.systems.primary.url", url),
+                Map.entry("kc-mcp.systems.mirror.url", url),
+                Map.entry("kc-mcp.systems.mirror.allowed-realms", "master"),
+                Map.entry("kc-mcp.default-system", "primary"),
+                Map.entry("kc-mcp.spi.policies.group-scope", "group"),
+                Map.entry("kc-mcp.spi.policies.manager-role", "realm:create-realm"),
+                Map.entry("kc-mcp.spi.policies.no-escalation", "true"));
     }
 
     @Override

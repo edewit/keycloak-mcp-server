@@ -72,4 +72,36 @@ class ToolCatalogTest {
         specs.add(Fixtures.specs().get(0));
         assertThrows(IllegalStateException.class, () -> new ToolCatalog(specs, null, 10, List.of()));
     }
+
+    @Test
+    void systemArgumentOnlyWithSeveralSystems() {
+        ToolCatalog single = Fixtures.catalog(null);
+        assertFalse(single.get("keycloak_user_search").orElseThrow().parameterNames().contains("system"));
+
+        ToolCatalog multi = new ToolCatalog(Fixtures.specs(), null, 50, List.of(), "", List.of("prod", "dev"), "prod");
+        ToolSpec search = multi.get("keycloak_user_search").orElseThrow();
+        assertEquals(List.of("system", "realm", "search", "username", "first", "max"), search.parameterNames());
+        JsonObject system = search.inputSchema().getJsonObject("properties").getJsonObject("system");
+        assertEquals(List.of("prod", "dev"), system.getJsonArray("enum").getList());
+        assertTrue(system.getString("description").contains("prod"));
+        assertFalse(search.inputSchema().getJsonArray("required").contains("system"), "default system set");
+        // global tools take the system too
+        assertEquals(List.of("system"), multi.get("keycloak_server_info").orElseThrow().parameterNames());
+
+        ToolCatalog noDefault = new ToolCatalog(Fixtures.specs(), null, 50, List.of(), "", List.of("a", "b"), null);
+        assertTrue(noDefault.get("keycloak_user_search").orElseThrow().inputSchema().getJsonArray("required")
+                .contains("system"));
+    }
+
+    @Test
+    void toolPrefixRenamesButResolvesBothForms() {
+        ToolCatalog prefixed = new ToolCatalog(Fixtures.specs(), null, 50, List.of("user_search"), "prod_", List.of(), null);
+        assertTrue(prefixed.get("prod_keycloak_user_search").isPresent());
+        assertTrue(prefixed.get("keycloak_user_search").isEmpty());
+        assertEquals("prod_keycloak_user_search", prefixed.resolve("keycloak_user_search").orElseThrow().name());
+        assertEquals("prod_keycloak_user_search", prefixed.resolve("user_search").orElseThrow().name());
+        assertEquals("prod_keycloak_user_search", prefixed.resolve("prod_keycloak_user_search").orElseThrow().name());
+        assertTrue(prefixed.get("prod_keycloak_user_search").orElseThrow().hot(), "hot list matches without prefix");
+        assertFalse(prefixed.get("prod_keycloak_user_delete").orElseThrow().hot());
+    }
 }

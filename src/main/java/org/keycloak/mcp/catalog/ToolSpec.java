@@ -3,6 +3,11 @@ package org.keycloak.mcp.catalog;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.LinkedHashSet;
+
+import org.keycloak.mcp.spi.AccessCheck;
+import org.keycloak.mcp.spi.Delegation;
 
 import io.vertx.core.json.JsonObject;
 
@@ -15,6 +20,10 @@ import io.vertx.core.json.JsonObject;
  * @param hot         candidate for direct exposure in hybrid mode
  * @param realmScoped whether the tool takes a {@code realm} argument
  * @param api         Admin REST operations the tool relies on (checked against the OpenAPI document in tests)
+ * @param requiredRoles {@code realm-management} roles the caller needs (any one of them suffices per entry group,
+ *                    see {@link org.keycloak.mcp.guard.GrantedRoles}); empty = no realm role needed
+ * @param accessChecks extra per-call predicates, evaluated after roles and before confirmation
+ * @param delegation  whether the tool may run under delegated access
  */
 public record ToolSpec(
         String name,
@@ -28,6 +37,9 @@ public record ToolSpec(
         boolean hot,
         boolean realmScoped,
         List<ApiOperation> api,
+        Set<String> requiredRoles,
+        List<AccessCheck> accessChecks,
+        Delegation delegation,
         ToolHandler handler) {
 
     public ToolSpec {
@@ -40,6 +52,9 @@ public record ToolSpec(
         inputSchema = inputSchema == null ? InputSchema.builder().build() : inputSchema;
         synonyms = List.copyOf(synonyms == null ? List.of() : synonyms);
         api = List.copyOf(api == null ? List.of() : api);
+        requiredRoles = Set.copyOf(requiredRoles == null ? Set.of() : requiredRoles);
+        accessChecks = List.copyOf(accessChecks == null ? List.of() : accessChecks);
+        delegation = delegation == null ? Delegation.ALLOWED : delegation;
     }
 
     public boolean isDestructive() {
@@ -52,12 +67,20 @@ public record ToolSpec(
 
     public ToolSpec withInputSchema(JsonObject schema) {
         return new ToolSpec(name, title, description, category, level, idempotent, schema, synonyms, hot, realmScoped,
-                api, handler);
+                api, requiredRoles, accessChecks, delegation, handler);
+    }
+
+    public ToolSpec withName(String newName) {
+        if (newName.equals(name)) {
+            return this;
+        }
+        return new ToolSpec(newName, title, description, category, level, idempotent, inputSchema, synonyms, hot,
+                realmScoped, api, requiredRoles, accessChecks, delegation, handler);
     }
 
     public ToolSpec withHot(boolean hotFlag) {
         return new ToolSpec(name, title, description, category, level, idempotent, inputSchema, synonyms, hotFlag,
-                realmScoped, api, handler);
+                realmScoped, api, requiredRoles, accessChecks, delegation, handler);
     }
 
     /** Parameter names declared in the (effective) schema, in declaration order. */
@@ -82,6 +105,9 @@ public record ToolSpec(
         private boolean hot;
         private boolean realmScoped = true;
         private final List<ApiOperation> api = new ArrayList<>();
+        private final Set<String> requiredRoles = new LinkedHashSet<>();
+        private final List<AccessCheck> accessChecks = new ArrayList<>();
+        private Delegation delegation = Delegation.ALLOWED;
         private ToolHandler handler;
 
         private Builder(String name) {
@@ -150,6 +176,24 @@ public record ToolSpec(
             return this;
         }
 
+        /** {@code realm-management} roles needed in the target realm, e.g. {@code roles("manage-users")}. */
+        public Builder roles(String... roles) {
+            requiredRoles.addAll(List.of(roles));
+            return this;
+        }
+
+        /** Additional per-call access predicate; several are ANDed. */
+        public Builder access(AccessCheck check) {
+            accessChecks.add(check);
+            return this;
+        }
+
+        /** Whether the tool may run under delegated access (default {@link Delegation#ALLOWED}). */
+        public Builder delegation(Delegation delegation) {
+            this.delegation = delegation;
+            return this;
+        }
+
         public Builder handler(ToolHandler handler) {
             this.handler = handler;
             return this;
@@ -158,7 +202,7 @@ public record ToolSpec(
         public ToolSpec build() {
             boolean idem = idempotent != null ? idempotent : level == ToolLevel.READ;
             return new ToolSpec(name, title, description, category, level, idem, inputSchema, synonyms, hot, realmScoped,
-                    api, handler);
+                    api, requiredRoles, accessChecks, delegation, handler);
         }
     }
 }

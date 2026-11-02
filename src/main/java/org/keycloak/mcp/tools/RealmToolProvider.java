@@ -10,6 +10,7 @@ import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolCall;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
+import org.keycloak.mcp.spi.Delegation;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.info.ServerInfoRepresentation;
@@ -57,6 +58,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                         .synonyms("settings", "realm config", "registration enabled", "token lifespan", "smtp",
                                 "password policy", "brute force", "ssl required", "default locale")
                         .handler(this::realmConfig)
+                        .roles("view-realm")
                         .api(get(R))
                         .build(),
                 tool("keycloak_realm_update")
@@ -92,12 +94,14 @@ public class RealmToolProvider extends AbstractToolProvider {
                                         + "(list), userVerificationRequirement, requireResidentKey, "
                                         + "authenticatorAttachment, attestationConveyancePreference"))
                         .handler(this::realmUpdate)
+                        .delegation(Delegation.FORBIDDEN)
+                        .roles("manage-realm")
                         .api(put(R).body("RealmRepresentation", "displayName", "enabled", "registrationAllowed", "registrationEmailAsUsername", "loginWithEmailAllowed", "duplicateEmailsAllowed", "resetPasswordAllowed", "rememberMe", "verifyEmail", "editUsernameAllowed", "bruteForceProtected", "eventsEnabled", "adminEventsEnabled", "organizationsEnabled", "accessTokenLifespan", "ssoSessionIdleTimeout", "ssoSessionMaxLifespan", "passwordPolicy", "defaultLocale", "smtpServer", "webAuthnPolicyPasswordlessRpEntityName", "webAuthnPolicyPasswordlessRpId", "webAuthnPolicyPasswordlessSignatureAlgorithms", "webAuthnPolicyPasswordlessUserVerificationRequirement", "webAuthnPolicyPasswordlessRequireResidentKey", "webAuthnPolicyPasswordlessAuthenticatorAttachment", "webAuthnPolicyPasswordlessAttestationConveyancePreference", "webAuthnPolicyPasswordlessCreateTimeout", "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister", "webAuthnPolicyPasswordlessAcceptableAaguids", "webAuthnPolicyPasswordlessPasskeysEnabled"))
                         .build());
     }
 
     ToolResult realmUpdate(ToolCall call) {
-        RealmRepresentation r = kc.realm(call.realm()).toRepresentation();
+        RealmRepresentation r = call.kc().realm(call.realm()).toRepresentation();
         List<String> changed = new ArrayList<>();
         if (call.has("displayName")) { r.setDisplayName(call.str("displayName")); changed.add("displayName"); }
         if (call.has("enabled")) { r.setEnabled(call.bool("enabled")); changed.add("enabled"); }
@@ -131,7 +135,7 @@ public class RealmToolProvider extends AbstractToolProvider {
         if (changed.isEmpty()) {
             return ToolResult.error("invalid_arguments", "Nothing to update: pass at least one setting.");
         }
-        kc.realm(call.realm()).update(r);
+        call.kc().realm(call.realm()).update(r);
         return ToolResult.done("Realm updated", "realm", r.getRealm(), "changed", changed);
     }
 
@@ -173,7 +177,7 @@ public class RealmToolProvider extends AbstractToolProvider {
     }
 
     ToolResult serverInfo(ToolCall call) {
-        ServerInfoRepresentation info = kc.client().serverInfo().getInfo();
+        ServerInfoRepresentation info = call.kc().client().serverInfo().getInfo();
         Map<String, Object> m = new LinkedHashMap<>();
         if (info.getSystemInfo() != null) {
             m.put("version", info.getSystemInfo().getVersion());
@@ -193,7 +197,7 @@ public class RealmToolProvider extends AbstractToolProvider {
     }
 
     ToolResult realmConfig(ToolCall call) {
-        RealmRepresentation r = kc.realm(call.realm()).toRepresentation();
+        RealmRepresentation r = call.kc().realm(call.realm()).toRepresentation();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("realm", r.getRealm());
         m.put("displayName", r.getDisplayName());

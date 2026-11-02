@@ -45,6 +45,18 @@ class CatalogLintTest {
             if (spec.synonyms().isEmpty()) {
                 problems.add(spec.name() + ": no synonyms");
             }
+            if (spec.realmScoped() && spec.requiredRoles().isEmpty() && !spec.name().startsWith("keycloak_acme_")) {
+                problems.add(spec.name() + ": realm scoped tool without requiredRoles");
+            }
+            List<org.keycloak.mcp.guard.RoleRef> refs = spec.requiredRoles().stream()
+                    .map(org.keycloak.mcp.guard.RoleRef::parse).toList();
+            if (spec.isReadOnly() && refs.stream().anyMatch(r -> r.isRealmManagement() && r.role().startsWith("manage-"))) {
+                problems.add(spec.name() + ": READ tool requiring a manage-* role");
+            }
+            if (!spec.isReadOnly() && refs.stream().anyMatch(r -> r.isRealmManagement()
+                    && (r.role().startsWith("view-") || r.role().startsWith("query-")))) {
+                problems.add(spec.name() + ": write tool requiring only a view/query role");
+            }
             JsonObject schema = spec.inputSchema();
             assertEquals("object", schema.getString("type"), spec.name());
             JsonObject props = schema.getJsonObject("properties");

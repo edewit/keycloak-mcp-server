@@ -8,3 +8,4 @@ org.keycloak.mcp.tools.FederationToolProvider
 org.keycloak.mcp.tools.AuthFlowToolProvider
 org.keycloak.mcp.tools.EventToolProvider
 org.keycloak.mcp.tools.RealmToolProvider
+org.keycloak.mcp.policies.PolicyToolProvider

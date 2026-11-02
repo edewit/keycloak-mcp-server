@@ -96,7 +96,7 @@ public class MetaTools {
             return ToolResult.ok(out);
         }
         int limit = limitArg == null ? defaultLimit : Math.clamp(limitArg, 1, SEARCH_LIMIT_MAX);
-        List<SearchHit> hits = index.search(query, category, limit, policy::permits);
+        List<SearchHit> hits = index.search(query, category, limit, policy::visibleNow);
         JsonArray tools = new JsonArray();
         List<String> names = new ArrayList<>();
         for (SearchHit hit : hits) {
@@ -121,7 +121,7 @@ public class MetaTools {
     public JsonArray categoriesJson() {
         Map<Category, Integer> counts = new TreeMap<>();
         for (ToolSpec spec : catalog.all()) {
-            if (policy.permits(spec)) {
+            if (policy.visibleNow(spec)) {
                 counts.merge(spec.category(), 1, Integer::sum);
             }
         }
@@ -161,7 +161,7 @@ public class MetaTools {
             if (isMetaTool(name == null ? "" : ToolCatalog.normalize(name))) {
                 return ToolResult.error("invalid_arguments", "Call " + name + " directly, not through execute_tool.");
             }
-            List<SearchHit> similar = index.similarNames(name == null ? "" : name, 3, policy::permits);
+            List<SearchHit> similar = index.similarNames(name == null ? "" : name, 3, policy::visibleNow);
             JsonArray didYouMean = new JsonArray();
             for (SearchHit hit : similar) {
                 didYouMean.add(toolJson(hit.spec()));

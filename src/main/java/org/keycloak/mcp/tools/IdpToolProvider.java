@@ -57,6 +57,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                                 "federated login", "login with")
                         .schema(schema().string("search", "Filter by alias or display name").pagination())
                         .handler(this::list)
+                        .roles("view-identity-providers")
                         .api(get(R + "/identity-provider/instances").query("search", "first", "max"))
                         .build(),
                 tool("keycloak_idp_get")
@@ -66,6 +67,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                         .synonyms("broker config", "client id of idp", "issuer", "first login flow", "hide on login")
                         .schema(schema().string("alias", "Identity provider alias, e.g. google").required())
                         .handler(this::get)
+                        .roles("view-identity-providers")
                         .api(get(R + "/identity-provider/instances/{alias}").path("alias", "alias"))
                         .build(),
                 tool("keycloak_idp_mappers_list")
@@ -75,6 +77,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                         .synonyms("attribute importer", "role mapper", "username template", "claim to attribute")
                         .schema(schema().string("alias", "Identity provider alias").required())
                         .handler(this::mappers)
+                        .roles("view-identity-providers")
                         .api(get(R + "/identity-provider/instances/{alias}/mappers").path("alias", "alias"))
                         .build(),
                 tool("keycloak_idp_create")
@@ -95,6 +98,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                                 .stringMap("config", "Provider config: clientId, clientSecret, authorizationUrl, tokenUrl, "
                                         + "issuer, defaultScope, entityId, singleSignOnServiceUrl, ..."))
                         .handler(this::create)
+                        .roles("manage-identity-providers")
                         .api(post(R + "/identity-provider/instances").body("IdentityProviderRepresentation", "alias", "providerId", "displayName", "enabled", "trustEmail", "hideOnLogin", "firstBrokerLoginFlowAlias", "config"))
                         .build(),
                 tool("keycloak_idp_delete")
@@ -104,6 +108,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                         .synonyms("remove sso", "remove google login", "unconfigure broker")
                         .schema(schema().string("alias", "Identity provider alias").required())
                         .handler(this::delete)
+                        .roles("manage-identity-providers")
                         .api(delete(R + "/identity-provider/instances/{alias}").path("alias", "alias"))
                         .build());
     }
@@ -123,22 +128,22 @@ public class IdpToolProvider extends AbstractToolProvider {
         return m;
     }
 
-    private IdentityProviderRepresentation find(String realm, String alias) {
+    private static IdentityProviderRepresentation find(ToolCall call, String alias) {
         try {
-            return kc.realm(realm).identityProviders().get(alias).toRepresentation();
+            return call.kc().realm(call.realm()).identityProviders().get(alias).toRepresentation();
         } catch (NotFoundException e) {
             throw ToolException.notFound("Identity provider", alias);
         }
     }
 
     ToolResult list(ToolCall call) {
-        List<IdentityProviderRepresentation> idps = kc.realm(call.realm()).identityProviders()
+        List<IdentityProviderRepresentation> idps = call.kc().realm(call.realm()).identityProviders()
                 .find(call.str("search"), true, call.first(), call.max());
         return ToolResult.ok(Views.page(Views.list(idps, IdpToolProvider::view), call.max()));
     }
 
     ToolResult get(ToolCall call) {
-        IdentityProviderRepresentation idp = find(call.realm(), call.str("alias"));
+        IdentityProviderRepresentation idp = find(call, call.str("alias"));
         Map<String, Object> m = view(idp);
         m.put("trustEmail", Boolean.TRUE.equals(idp.isTrustEmail()));
         m.put("storeToken", Boolean.TRUE.equals(idp.isStoreToken()));
@@ -154,8 +159,8 @@ public class IdpToolProvider extends AbstractToolProvider {
     }
 
     ToolResult mappers(ToolCall call) {
-        IdentityProviderRepresentation idp = find(call.realm(), call.str("alias"));
-        List<IdentityProviderMapperRepresentation> mappers = kc.realm(call.realm()).identityProviders()
+        IdentityProviderRepresentation idp = find(call, call.str("alias"));
+        List<IdentityProviderMapperRepresentation> mappers = call.kc().realm(call.realm()).identityProviders()
                 .get(idp.getAlias()).getMappers();
         List<Map<String, Object>> items = new ArrayList<>();
         for (IdentityProviderMapperRepresentation mp : mappers) {
@@ -189,13 +194,13 @@ public class IdpToolProvider extends AbstractToolProvider {
             config.putAll(call.stringMap("config"));
         }
         idp.setConfig(config);
-        KeycloakAdmin.ok(kc.realm(call.realm()).identityProviders().create(idp));
+        KeycloakAdmin.ok(call.kc().realm(call.realm()).identityProviders().create(idp));
         return ToolResult.done("Identity provider created", "alias", idp.getAlias(), "providerId", idp.getProviderId());
     }
 
     ToolResult delete(ToolCall call) {
-        IdentityProviderRepresentation idp = find(call.realm(), call.str("alias"));
-        kc.realm(call.realm()).identityProviders().get(idp.getAlias()).remove();
+        IdentityProviderRepresentation idp = find(call, call.str("alias"));
+        call.kc().realm(call.realm()).identityProviders().get(idp.getAlias()).remove();
         return ToolResult.done("Identity provider deleted", "alias", idp.getAlias());
     }
 }
