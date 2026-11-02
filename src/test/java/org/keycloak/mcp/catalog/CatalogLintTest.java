@@ -90,8 +90,8 @@ class CatalogLintTest {
         Set<String> missing = new TreeSet<>(reference);
         missing.removeAll(ours);
         System.out.println("Reference coverage: " + ours.size() + "/" + reference.size() + ", missing: " + missing);
-        // Phase 3 ports users, groups, roles (+ server_info, realm_get_config); raise as phases land.
-        assertTrue(ours.size() >= 28, "expected at least 28 ported tools, got " + ours.size());
+        assertTrue(missing.isEmpty(), "reference tools not ported: " + missing);
+        assertEquals(72, ours.size());
     }
 
     static Set<String> referenceNames() throws IOException {

@@ -5,8 +5,9 @@ and `quarkus-mcp-server` (streamable HTTP). Functionally modelled on
 [mcp-keycloak-admin](https://github.com/edewit/mcp-keycloak-admin) (72 `keycloak_*` tools), but designed for
 **small local models**: the model-facing surface is kept tiny through lazy tool loading.
 
-Status: phases 1–3 of `sketch/notes/implementation-plan.md` are implemented (skeleton, search, Keycloak adapter,
-USERS / GROUPS / ROLES / REALM basics = 28 of the 72 reference tools). Remaining areas are listed in §Roadmap.
+Status: phases 1–4 of `sketch/notes/implementation-plan.md` are implemented: all 72 reference tools (users,
+sessions, groups, roles, clients, client scopes, identity providers, organizations, user federation, authentication
+flows, events, realm) plus search, exposure modes, guardrails and the extension SPI. See §Roadmap for what is left.
 
 ## How the model sees it
 
@@ -37,7 +38,8 @@ USERS / GROUPS / ROLES / REALM basics = 28 of the 72 reference tools). Remaining
 * `KC_MCP_ALLOWED_REALMS=a,b` restricts every call to those realms.
 * DESTRUCTIVE tools (delete user/group, reset password, logout, unassign roles, …) ask the human through MCP
   elicitation when the client supports it; otherwise they require `confirm: true` and explain that in the error.
-* `keycloak_user_delete` additionally requires the matching `username`.
+* `keycloak_user_delete` additionally requires the matching `username`; `keycloak_realm_update` and
+  `keycloak_auth_flow_bind` count as destructive because they can lock people out.
 * One audit log line per executed tool (`org.keycloak.mcp.audit`).
 
 ## Configuration
@@ -114,8 +116,8 @@ public class AcmeToolProvider implements ToolProvider {
 Register it in `META-INF/services/org.keycloak.mcp.spi.ToolProvider` (or make it a CDI bean). Jars placed in
 `target/quarkus-app/providers/` are picked up at startup (`quarkus.package.jar.user-providers-directory`).
 Provider tools automatically get search, exposure modes, validation, realm checks, confirmation and the audit log.
-The built-in areas (`users`, `groups`, `roles`, `realm`) use the same SPI and can be switched off with
-`kc-mcp.spi.<id>.enabled=false`.
+The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`,
+`realm`) use the same SPI and can be switched off with `kc-mcp.spi.<id>.enabled=false`.
 
 ## Running
 
@@ -132,12 +134,27 @@ LM Studio (`mcp.json`):
 { "mcpServers": { "keycloak": { "url": "http://localhost:8081/mcp" } } }
 ```
 
+## Tool areas
+
+| category        | tools |
+|-----------------|-------|
+| users, sessions | search, get, create, update, set_enabled, delete, reset_password, send_action_email, sessions_list, logout |
+| groups          | list, create, delete, members_list, member_add, member_remove, user_groups_list, role_assign |
+| roles           | role_list, client_roles_list, user_roles_get, user_role_assign/unassign, user_client_roles_get, user_client_role_assign/unassign |
+| clients, scopes | list, get, get_secret, regenerate_secret, create, update, delete, mappers_list, scopes_list, default_scopes_get, scope_assign/unassign |
+| idp             | list, get, mappers_list, create, delete |
+| orgs            | list, get, create, delete, idp_list, idp_link, idp_unlink |
+| federation      | list, get, sync |
+| auth flows      | flows_list, executions_list, authenticator_providers_list, flow_create/copy/bind, execution_add/update/raise/lower/delete, subflow_add, required_actions_list, required_action_set_enabled |
+| events          | events_login, events_admin |
+| realm           | server_info, realm_get_config, realm_update |
+
 ## Roadmap
 
-See `sketch/notes/implementation-plan.md`. Not yet ported: CLIENTS, CLIENT_SCOPES, IDP, ORGS, FEDERATION,
-AUTH_FLOWS, EVENTS and `keycloak_realm_update` (44 tools, listed by the `CatalogLintTest` coverage output).
-Then: model-in-the-loop benchmarks with LM Studio, optional OIDC protection of the endpoint, the skill recipes of
-the reference project as MCP prompts.
+See `sketch/notes/implementation-plan.md`. Next: model-in-the-loop benchmarks with LM Studio (turns to success,
+tool-choice errors, tokens per mode), optional OIDC protection of the endpoint, the reference project's skill
+recipes as MCP prompts, a federation sync test against a real LDAP, and `private_key_jwt` against a Keycloak
+client configured for JWT authentication.
 
 ## Quarkus notes
 

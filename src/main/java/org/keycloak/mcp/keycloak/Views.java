@@ -115,11 +115,11 @@ public final class Views {
         return m;
     }
 
-    static String iso(Long epochMillis) {
+    public static String iso(Long epochMillis) {
         return epochMillis == null ? null : Instant.ofEpochMilli(epochMillis).toString();
     }
 
-    static void put(Map<String, Object> m, String key, Object value) {
+    public static void put(Map<String, Object> m, String key, Object value) {
         if (value != null) {
             m.put(key, value);
         }

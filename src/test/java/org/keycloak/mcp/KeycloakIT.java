@@ -3,6 +3,7 @@ package org.keycloak.mcp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -182,5 +183,178 @@ class KeycloakIT {
 
         call("keycloak_group_delete", new JsonObject().put("id", groupId).put("confirm", true));
         assertEquals(0, call("keycloak_group_list", new JsonObject().put("search", "admins")).getInteger("count"));
+    }
+
+    @Test
+    @Order(6)
+    void clientsAndScopes() {
+        JsonObject created = call("keycloak_client_create", new JsonObject().put("clientId", "my-app")
+                .put("redirectUris", new JsonArray().add("https://app.example.com/*")).put("pkce", true)
+                .put("serviceAccountsEnabled", true));
+        assertEquals(false, created.getBoolean("publicClient"));
+
+        JsonObject get = call("keycloak_client_get", new JsonObject().put("clientId", "my-app"));
+        assertEquals("S256", get.getString("pkceMethod"));
+        assertEquals(true, get.getBoolean("serviceAccountsEnabled"));
+        assertTrue(get.getJsonArray("defaultClientScopes").contains("profile"));
+
+        JsonObject masked = call("keycloak_client_get_secret", new JsonObject().put("clientId", "my-app"));
+        assertTrue(masked.getString("secret").startsWith("****"));
+        JsonObject revealed = call("keycloak_client_get_secret", new JsonObject().put("clientId", "my-app")
+                .put("reveal", true));
+        assertFalse(revealed.getString("secret").startsWith("****"));
+        JsonObject rotated = call("keycloak_client_regenerate_secret", new JsonObject().put("clientId", "my-app")
+                .put("confirm", true));
+        assertFalse(rotated.getString("secret").equals(revealed.getString("secret")));
+
+        JsonObject upd = call("keycloak_client_update", new JsonObject().put("clientId", "my-app")
+                .put("webOrigins", "+").put("directAccessGrantsEnabled", "true"));
+        assertTrue(upd.getJsonArray("changed").contains("webOrigins"));
+        assertEquals("+", call("keycloak_client_get", new JsonObject().put("clientId", "my-app"))
+                .getJsonArray("webOrigins").getString(0));
+
+        JsonObject list = call("keycloak_client_list", new JsonObject().put("search", "my-"));
+        assertEquals("my-app", list.getJsonArray("items").getJsonObject(0).getString("clientId"));
+
+        JsonObject scopes = call("keycloak_client_scopes_list", new JsonObject());
+        assertTrue(scopes.getInteger("count") > 5);
+        call("keycloak_client_scope_assign", new JsonObject().put("clientId", "my-app").put("scope", "offline_access")
+                .put("type", "optional"));
+        JsonObject assigned = call("keycloak_client_default_scopes_get", new JsonObject().put("clientId", "my-app"));
+        assertTrue(assigned.getJsonArray("optionalScopes").contains("offline_access"));
+        call("keycloak_client_scope_unassign", new JsonObject().put("clientId", "my-app").put("scope", "email")
+                .put("confirm", true));
+        assertFalse(call("keycloak_client_default_scopes_get", new JsonObject().put("clientId", "my-app"))
+                .getJsonArray("defaultScopes").contains("email"));
+
+        JsonObject mappers = call("keycloak_client_mappers_list", new JsonObject().put("clientId", "my-app"));
+        assertEquals("my-app", mappers.getString("clientId"));
+        assertEquals("not_found", error("keycloak_client_get", new JsonObject().put("clientId", "nope")).getString("error"));
+        assertEquals("public_client", error("keycloak_client_get_secret", new JsonObject().put("clientId", "admin-cli"))
+                .getString("error"));
+    }
+
+    @Test
+    @Order(7)
+    void realmUpdateAndEvents() {
+        JsonObject hint = call("keycloak_events_admin", new JsonObject());
+        assertTrue(hint.getString("hint", "").contains("adminEventsEnabled"));
+        JsonObject upd = call("keycloak_realm_update", new JsonObject().put("eventsEnabled", true)
+                .put("adminEventsEnabled", true).put("organizationsEnabled", true).put("rememberMe", true)
+                .put("smtpServer", new JsonObject().put("host", "mail.example.com").put("from", "kc@example.com"))
+                .put("webAuthnPasswordlessPolicy", new JsonObject().put("rpEntityName", "ACME")
+                        .put("userVerificationRequirement", "required").put("requireResidentKey", "Yes"))
+                .put("confirm", true));
+        assertTrue(upd.getJsonArray("changed").contains("smtpServer"));
+        JsonObject cfg = call("keycloak_realm_get_config", new JsonObject());
+        assertEquals(true, cfg.getJsonObject("login").getBoolean("rememberMe"));
+        assertEquals("mail.example.com", cfg.getJsonObject("smtp").getString("host"));
+        assertEquals("ACME", cfg.getJsonObject("webAuthnPasswordlessPolicy").getString("rpEntityName"));
+        assertEquals(true, cfg.getBoolean("organizationsEnabled"));
+
+        // the realm update above happened before admin events were on; this one is recorded
+        call("keycloak_user_create", new JsonObject().put("username", "eve"));
+        JsonObject admin = call("keycloak_events_admin", new JsonObject().put("operationType", "CREATE"));
+        assertTrue(admin.getInteger("count") >= 1, admin.encode());
+        assertEquals("USER", admin.getJsonArray("items").getJsonObject(0).getString("resourceType"));
+        JsonObject login = call("keycloak_events_login", new JsonObject().put("type", "login_error"));
+        assertEquals(0, login.getInteger("count"));
+        assertNull(login.getString("hint"));
+    }
+
+    @Test
+    @Order(8)
+    void identityProvidersAndOrganizations() {
+        call("keycloak_idp_create", new JsonObject().put("alias", "corp").put("providerId", "oidc")
+                .put("displayName", "Corp SSO").put("hideOnLogin", true)
+                .put("config", new JsonObject().put("clientId", "kc").put("clientSecret", "s3cret")
+                        .put("authorizationUrl", "https://idp.example.com/auth")
+                        .put("tokenUrl", "https://idp.example.com/token")));
+        JsonObject idp = call("keycloak_idp_get", new JsonObject().put("alias", "corp"));
+        assertEquals("****", idp.getJsonObject("config").getString("clientSecret"));
+        assertEquals("kc", idp.getJsonObject("config").getString("clientId"));
+        assertEquals(1, call("keycloak_idp_list", new JsonObject()).getInteger("count"));
+        assertEquals(0, call("keycloak_idp_mappers_list", new JsonObject().put("alias", "corp")).getInteger("count"));
+
+        JsonObject org = call("keycloak_org_create", new JsonObject().put("name", "ACME Corp").put("alias", "acme")
+                .put("domains", new JsonArray().add("acme.com")));
+        String orgId = org.getString("id");
+        JsonObject got = call("keycloak_org_get", new JsonObject().put("organizationId", "acme"));
+        assertEquals(orgId, got.getString("id"));
+        assertEquals("acme.com", got.getJsonArray("domains").getString(0));
+        call("keycloak_org_idp_link", new JsonObject().put("organizationId", orgId).put("idpAlias", "corp"));
+        JsonObject linked = call("keycloak_org_idp_list", new JsonObject().put("organizationId", "ACME Corp"));
+        assertEquals("corp", linked.getJsonArray("items").getJsonObject(0).getString("alias"));
+        call("keycloak_org_idp_unlink", new JsonObject().put("organizationId", orgId).put("idpAlias", "corp")
+                .put("confirm", true));
+        assertEquals(0, call("keycloak_org_idp_list", new JsonObject().put("organizationId", orgId)).getInteger("count"));
+        assertEquals(1, call("keycloak_org_list", new JsonObject().put("search", "acme")).getInteger("count"));
+        call("keycloak_org_delete", new JsonObject().put("organizationId", orgId).put("confirm", true));
+        call("keycloak_idp_delete", new JsonObject().put("alias", "corp").put("confirm", true));
+        assertEquals("not_found", error("keycloak_idp_get", new JsonObject().put("alias", "corp")).getString("error"));
+    }
+
+    @Test
+    @Order(9)
+    void authenticationFlows() {
+        JsonObject flows = call("keycloak_auth_flows_list", new JsonObject());
+        JsonObject browser = flows.getJsonArray("items").stream().map(o -> (JsonObject) o)
+                .filter(f -> f.getString("alias").equals("browser")).findFirst().orElseThrow();
+        assertTrue(browser.getJsonArray("boundAs").contains("browserFlow"));
+
+        JsonObject execs = call("keycloak_auth_flow_executions_list", new JsonObject().put("flowAlias", "browser"));
+        assertTrue(execs.getInteger("count") > 3);
+        JsonObject providers = call("keycloak_auth_authenticator_providers_list", new JsonObject());
+        assertTrue(providers.getJsonArray("items").stream().anyMatch(p -> ((JsonObject) p).getString("id")
+                .equals("auth-otp-form")));
+
+        call("keycloak_auth_flow_copy", new JsonObject().put("flowAlias", "browser").put("newName", "browser-copy"));
+        call("keycloak_auth_flow_create", new JsonObject().put("alias", "passkey").put("description", "passkey only"));
+        JsonObject sub = call("keycloak_auth_flow_subflow_add", new JsonObject().put("parentFlowAlias", "passkey")
+                .put("alias", "passkey forms").put("requirement", "REQUIRED"));
+        assertNotNull(sub.getString("executionId"));
+        JsonObject exec = call("keycloak_auth_flow_execution_add", new JsonObject().put("flowAlias", "passkey forms")
+                .put("providerId", "webauthn-authenticator-passwordless").put("requirement", "REQUIRED"));
+        assertEquals("REQUIRED", exec.getString("requirement"));
+        JsonObject exec2 = call("keycloak_auth_flow_execution_add", new JsonObject().put("flowAlias", "passkey forms")
+                .put("providerId", "auth-cookie"));
+        call("keycloak_auth_flow_execution_raise_priority", new JsonObject().put("executionId", exec2.getString("executionId")));
+        JsonObject after = call("keycloak_auth_flow_executions_list", new JsonObject().put("flowAlias", "passkey"));
+        JsonObject first = after.getJsonArray("items").getJsonObject(1);
+        assertEquals("auth-cookie", first.getString("providerId"));
+        JsonObject updated = call("keycloak_auth_flow_execution_update", new JsonObject().put("flowAlias", "passkey")
+                .put("executionId", exec2.getString("executionId")).put("requirement", "DISABLED"));
+        assertEquals("DISABLED", updated.getString("requirement"));
+        JsonObject bad = error("keycloak_auth_flow_execution_update", new JsonObject().put("flowAlias", "passkey")
+                .put("executionId", exec2.getString("executionId")).put("requirement", "CONDITIONAL"));
+        assertEquals("invalid_arguments", bad.getString("error"));
+
+        JsonObject bound = call("keycloak_auth_flow_bind", new JsonObject().put("binding", "browserFlow")
+                .put("flowAlias", "browser-copy").put("confirm", true));
+        assertEquals("browser", bound.getString("previous"));
+        assertEquals("browser-copy", call("keycloak_realm_get_config", new JsonObject()).getJsonObject("flows")
+                .getString("browserFlow"));
+        call("keycloak_auth_flow_bind", new JsonObject().put("binding", "browserFlow").put("flowAlias", "browser")
+                .put("confirm", true));
+        call("keycloak_auth_flow_execution_delete", new JsonObject().put("executionId", exec2.getString("executionId"))
+                .put("confirm", true));
+        assertEquals(2, call("keycloak_auth_flow_executions_list", new JsonObject().put("flowAlias", "passkey"))
+                .getInteger("count"));
+
+        JsonObject actions = call("keycloak_auth_required_actions_list", new JsonObject());
+        assertTrue(actions.getInteger("count") > 3);
+        JsonObject toggled = call("keycloak_auth_required_action_set_enabled", new JsonObject()
+                .put("alias", "TERMS_AND_CONDITIONS").put("enabled", true).put("defaultAction", true));
+        assertEquals(true, toggled.getBoolean("defaultAction"));
+        call("keycloak_auth_required_action_set_enabled", new JsonObject().put("alias", "TERMS_AND_CONDITIONS")
+                .put("enabled", false));
+    }
+
+    @Test
+    @Order(10)
+    void federation() {
+        assertEquals(0, call("keycloak_federation_list", new JsonObject()).getInteger("count"));
+        assertEquals("not_found", error("keycloak_federation_get", new JsonObject().put("id", "corp-ldap"))
+                .getString("error"));
     }
 }
