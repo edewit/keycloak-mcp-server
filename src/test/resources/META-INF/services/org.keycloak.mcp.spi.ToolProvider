@@ -1,0 +1,2 @@
+org.keycloak.mcp.spi.AcmeToolProvider
+org.keycloak.mcp.spi.DisabledDemoToolProvider

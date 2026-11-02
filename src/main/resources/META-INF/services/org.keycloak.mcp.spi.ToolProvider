@@ -1,0 +1,4 @@
+org.keycloak.mcp.tools.UserToolProvider
+org.keycloak.mcp.tools.GroupToolProvider
+org.keycloak.mcp.tools.RoleToolProvider
+org.keycloak.mcp.tools.RealmToolProvider

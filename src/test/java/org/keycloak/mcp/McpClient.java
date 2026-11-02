@@ -1,0 +1,91 @@
+package org.keycloak.mcp;
+
+import static io.restassured.RestAssured.given;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+import io.restassured.response.Response;
+import io.vertx.core.json.JsonObject;
+
+/**
+ * Minimal streamable-HTTP JSON-RPC client for tests.
+ */
+public class McpClient {
+
+    private final AtomicInteger ids = new AtomicInteger();
+    private String sessionId;
+
+    public McpClient initialize(boolean elicitation) {
+        JsonObject caps = new JsonObject();
+        if (elicitation) {
+            caps.put("elicitation", new JsonObject());
+        }
+        JsonObject params = new JsonObject()
+                .put("protocolVersion", "2025-06-18")
+                .put("capabilities", caps)
+                .put("clientInfo", new JsonObject().put("name", "test-client").put("version", "1.0"));
+        Response r = post(new JsonObject().put("jsonrpc", "2.0").put("id", ids.incrementAndGet())
+                .put("method", "initialize").put("params", params));
+        sessionId = r.getHeader("Mcp-Session-Id");
+        post(new JsonObject().put("jsonrpc", "2.0").put("method", "notifications/initialized"));
+        return this;
+    }
+
+    public JsonObject request(String method, JsonObject params) {
+        JsonObject msg = new JsonObject().put("jsonrpc", "2.0").put("id", ids.incrementAndGet()).put("method", method);
+        if (params != null) {
+            msg.put("params", params);
+        }
+        return parse(post(msg));
+    }
+
+    public JsonObject callTool(String name, JsonObject arguments) {
+        JsonObject result = request("tools/call", new JsonObject().put("name", name).put("arguments", arguments))
+                .getJsonObject("result");
+        if (result == null) {
+            throw new IllegalStateException("no result for " + name);
+        }
+        return result;
+    }
+
+    /** Parses the text content of a tool result as JSON. */
+    public static JsonObject text(JsonObject toolResult) {
+        return new JsonObject(toolResult.getJsonArray("content").getJsonObject(0).getString("text"));
+    }
+
+    private Response post(JsonObject body) {
+        var spec = given()
+                .header("Accept", "application/json, text/event-stream")
+                .header("Content-Type", "application/json")
+                .header("Mcp-Protocol-Version", "2025-06-18");
+        if (sessionId != null) {
+            spec = spec.header("Mcp-Session-Id", sessionId);
+        }
+        Response r = spec.body(body.encode()).post("/mcp");
+        if (r.statusCode() >= 400) {
+            throw new IllegalStateException("HTTP " + r.statusCode() + ": " + r.asString());
+        }
+        return r;
+    }
+
+    private static JsonObject parse(Response r) {
+        String ct = r.getContentType() == null ? "" : r.getContentType();
+        String body = r.asString();
+        if (ct.contains("text/event-stream")) {
+            JsonObject last = null;
+            for (String line : body.split("\n")) {
+                if (line.startsWith("data:")) {
+                    JsonObject msg = new JsonObject(line.substring(5).trim());
+                    if (msg.containsKey("id") && (msg.containsKey("result") || msg.containsKey("error"))) {
+                        last = msg;
+                    }
+                }
+            }
+            if (last == null) {
+                throw new IllegalStateException("no response in SSE body: " + body);
+            }
+            return last;
+        }
+        return new JsonObject(body);
+    }
+}
