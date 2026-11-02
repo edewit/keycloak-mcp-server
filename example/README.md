@@ -23,8 +23,12 @@ set -a; source example/env/realm-admin.env; set +a
 Or let compose run it from the packaged jar (`./mvnw package` first):
 
 ```shell
-KC_MCP_ENV_FILE=env/realm-manager.env docker compose --profile mcp up -d
+KC_MCP_ENV_FILE=env/realm-manager.env docker compose --profile mcp up -d --build
+docker compose logs mcp | grep 'tools registered'    # shows version, build time and tool count
 ```
+
+After changing the server, run `./mvnw package` and `up --build` again; without `--build` compose reuses the
+previous image. With `quarkus:dev` on the host nothing is needed.
 
 Point your MCP client at `http://localhost:8081/mcp` (LM Studio: copy `mcp.json`).
 
@@ -67,7 +71,7 @@ The `mcp-jwt` client in the realm is configured with *Client Authenticator = Sig
 client assertion with the private key, Keycloak fetches the JWKS from the running MCP server, validates the
 assertion and issues the service-account token. The assertion's `kid` equals the JWK's `kid` (RFC 7638
 thumbprint), so key rotation is a matter of swapping the PEM and restarting. Compose runs the same setup with
-`KC_MCP_ENV_FILE=env/private-key-jwt.env docker compose --profile mcp up -d` (the key is mounted at `/keys`).
+`KC_MCP_ENV_FILE=env/private-key-jwt.env docker compose --profile mcp up -d --build` (the key is mounted at `/keys`).
 
 ## Prompts to try
 

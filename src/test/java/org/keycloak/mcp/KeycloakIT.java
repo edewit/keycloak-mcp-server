@@ -125,6 +125,9 @@ class KeycloakIT {
 
         JsonObject added = call("keycloak_group_member_add", new JsonObject().put("groupId", "/admins/ops").put("userId", "alice"));
         assertTrue(added.getJsonObject("now").containsKey("effectiveRealmRoles"), added.encode());
+        assertEquals(false, added.getBoolean("alreadyMember"));
+        JsonObject again = call("keycloak_group_member_add", new JsonObject().put("groupId", "/admins/ops").put("userId", "alice"));
+        assertEquals(true, again.getBoolean("alreadyMember"), again.encode());
         JsonObject members = call("keycloak_group_members_list", new JsonObject().put("groupId", sub.getString("id")));
         assertEquals("alice", members.getJsonArray("items").getJsonObject(0).getString("username"));
         JsonObject userGroups = call("keycloak_user_groups_list", new JsonObject().put("userId", userId));

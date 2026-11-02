@@ -60,8 +60,18 @@ public class McpToolRegistrar {
             registerCatalogTool(spec);
             registered++;
         }
-        LOG.infof("Keycloak MCP: %d/%d tools registered, exposure=%s, readOnly=%s", registered, catalog.size(),
-                exposure.mode(), policy.readOnly());
+        LOG.infof("Keycloak MCP %s: %d/%d tools registered, exposure=%s, readOnly=%s", buildVersion(), registered,
+                catalog.size(), exposure.mode(), policy.readOnly());
+    }
+
+    /** Version and build time from the jar manifest, so a stale deployment is visible in the first log line. */
+    static String buildVersion() {
+        Package p = McpToolRegistrar.class.getPackage();
+        String v = p == null ? null : p.getImplementationVersion();
+        String version = v == null ? "dev" : v;
+        String built = org.eclipse.microprofile.config.ConfigProvider.getConfig()
+                .getOptionalValue("keycloak-mcp.build-time", String.class).orElse(null);
+        return built == null ? version : version + " (built " + built + ")";
     }
 
     private void registerMetaTools() {

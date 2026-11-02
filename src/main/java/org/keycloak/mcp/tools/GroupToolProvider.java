@@ -103,7 +103,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                         .build(),
                 tool("keycloak_group_member_add")
                         .title("Add group member")
-                        .description("Add a user to a group.")
+                        .description("Add a user to a group; idempotent (reports if already a member) and returns the user's effective roles.")
                         .category(Category.GROUPS).write().idempotent(true)
                         .synonyms("join", "assign to group", "put user in", "membership")
                         .schema(schema()
@@ -225,8 +225,13 @@ public class GroupToolProvider extends AbstractToolProvider {
     ToolResult memberAdd(ToolCall call) {
         GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("groupId"));
         UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
-        call.kc().realm(call.realm()).users().get(u.getId()).joinGroup(g.getId());
-        return ToolResult.done("User added to group", "username", u.getUsername(), "group", g.getPath(),
+        boolean already = call.kc().realm(call.realm()).users().get(u.getId()).groups(0, 500, true).stream()
+                .anyMatch(m -> g.getId().equals(m.getId()));
+        if (!already) {
+            call.kc().realm(call.realm()).users().get(u.getId()).joinGroup(g.getId());
+        }
+        return ToolResult.done(already ? "User was already a member of the group" : "User added to group",
+                "username", u.getUsername(), "group", g.getPath(), "alreadyMember", already,
                 "now", RoleToolProvider.afterChange(call, u.getId()));
     }
 
