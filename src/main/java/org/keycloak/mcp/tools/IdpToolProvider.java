@@ -57,6 +57,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                                 "federated login", "login with")
                         .schema(schema().string("search", "Filter by alias or display name").pagination())
                         .handler(this::list)
+                        .api(get(R + "/identity-provider/instances").query("search", "first", "max"))
                         .build(),
                 tool("keycloak_idp_get")
                         .title("Get identity provider")
@@ -65,6 +66,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                         .synonyms("broker config", "client id of idp", "issuer", "first login flow", "hide on login")
                         .schema(schema().string("alias", "Identity provider alias, e.g. google").required())
                         .handler(this::get)
+                        .api(get(R + "/identity-provider/instances/{alias}").path("alias", "alias"))
                         .build(),
                 tool("keycloak_idp_mappers_list")
                         .title("List identity provider mappers")
@@ -73,6 +75,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                         .synonyms("attribute importer", "role mapper", "username template", "claim to attribute")
                         .schema(schema().string("alias", "Identity provider alias").required())
                         .handler(this::mappers)
+                        .api(get(R + "/identity-provider/instances/{alias}/mappers").path("alias", "alias"))
                         .build(),
                 tool("keycloak_idp_create")
                         .title("Create identity provider")
@@ -92,6 +95,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                                 .stringMap("config", "Provider config: clientId, clientSecret, authorizationUrl, tokenUrl, "
                                         + "issuer, defaultScope, entityId, singleSignOnServiceUrl, ..."))
                         .handler(this::create)
+                        .api(post(R + "/identity-provider/instances").body("IdentityProviderRepresentation", "alias", "providerId", "displayName", "enabled", "trustEmail", "hideOnLogin", "firstBrokerLoginFlowAlias", "config"))
                         .build(),
                 tool("keycloak_idp_delete")
                         .title("Delete identity provider")
@@ -100,6 +104,7 @@ public class IdpToolProvider extends AbstractToolProvider {
                         .synonyms("remove sso", "remove google login", "unconfigure broker")
                         .schema(schema().string("alias", "Identity provider alias").required())
                         .handler(this::delete)
+                        .api(delete(R + "/identity-provider/instances/{alias}").path("alias", "alias"))
                         .build());
     }
 

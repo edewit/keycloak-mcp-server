@@ -62,6 +62,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .bool("enabled", "Only enabled (true) or disabled (false) users")
                                 .pagination())
                         .handler(this::search)
+                        .api(get(R + "/users").query("search", "username", "email", "enabled", "first", "max"))
                         .build(),
                 tool("keycloak_user_get")
                         .title("Get user")
@@ -70,6 +71,7 @@ public class UserToolProvider extends AbstractToolProvider {
                         .synonyms("show", "details", "profile", "attributes", "info")
                         .schema(schema().string("id", USER_ID).required())
                         .handler(this::get)
+                        .api(get(R + "/users/{user-id}").path("user-id", "id"), get(R + "/users/{user-id}/groups").path("user-id", "id"))
                         .build(),
                 tool("keycloak_user_create")
                         .title("Create user")
@@ -86,6 +88,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("password", "Initial password; set temporary=true to force a change at first login")
                                 .bool("temporary", "Password must be changed at next login (default false)"))
                         .handler(this::create)
+                        .api(post(R + "/users").body("UserRepresentation", "username", "email", "firstName", "lastName", "enabled", "emailVerified", "credentials"))
                         .build(),
                 tool("keycloak_user_update")
                         .title("Update user")
@@ -101,6 +104,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .bool("emailVerified", "New email verified state")
                                 .stringMap("attributes", "Custom attributes to set (merged into existing ones)"))
                         .handler(this::update)
+                        .api(put(R + "/users/{user-id}").path("user-id", "id").body("UserRepresentation", "email", "firstName", "lastName", "enabled", "emailVerified", "attributes"))
                         .build(),
                 tool("keycloak_user_set_enabled")
                         .title("Enable or disable user")
@@ -111,6 +115,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("id", USER_ID).required()
                                 .bool("enabled", "true to enable, false to disable").required())
                         .handler(this::setEnabled)
+                        .api(put(R + "/users/{user-id}").path("user-id", "id").body("UserRepresentation", "enabled"))
                         .build(),
                 tool("keycloak_user_delete")
                         .title("Delete user")
@@ -121,6 +126,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("id", "User id (UUID)").required()
                                 .string("username", "Username of that user, must match").required())
                         .handler(this::delete)
+                        .api(delete(R + "/users/{user-id}").path("user-id", "id"))
                         .build(),
                 tool("keycloak_user_reset_password")
                         .title("Reset user password")
@@ -132,6 +138,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("password", "New password").required()
                                 .bool("temporary", "User must change it at next login (default false)"))
                         .handler(this::resetPassword)
+                        .api(put(R + "/users/{user-id}/reset-password").path("user-id", "id").body("CredentialRepresentation", "type", "value", "temporary"))
                         .build(),
                 tool("keycloak_user_send_action_email")
                         .title("Send action email")
@@ -148,6 +155,7 @@ public class UserToolProvider extends AbstractToolProvider {
                                 .string("clientId", "Client the link should redirect back to")
                                 .string("redirectUri", "Redirect URI after completing the actions"))
                         .handler(this::sendActionEmail)
+                        .api(put(R + "/users/{user-id}/execute-actions-email").path("user-id", "id").queryAs("client_id", "clientId").queryAs("redirect_uri", "redirectUri").query("lifespan"))
                         .build(),
                 tool("keycloak_user_sessions_list")
                         .title("List user sessions")
@@ -156,6 +164,7 @@ public class UserToolProvider extends AbstractToolProvider {
                         .synonyms("logged in", "online", "login", "active", "where", "devices")
                         .schema(schema().string("id", USER_ID).required())
                         .handler(this::sessions)
+                        .api(get(R + "/users/{user-id}/sessions").path("user-id", "id"))
                         .build(),
                 tool("keycloak_user_logout")
                         .title("Log out user")
@@ -164,6 +173,7 @@ public class UserToolProvider extends AbstractToolProvider {
                         .synonyms("kick", "sign out", "signout", "revoke sessions", "terminate", "force logout")
                         .schema(schema().string("id", USER_ID).required())
                         .handler(this::logout)
+                        .api(post(R + "/users/{user-id}/logout").path("user-id", "id"))
                         .build());
     }
 

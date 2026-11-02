@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.keycloak.common.util.MultivaluedHashMap;
+import org.keycloak.mcp.catalog.ApiOperation;
 import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolCall;
 import org.keycloak.mcp.catalog.ToolResult;
@@ -54,6 +55,7 @@ public class FederationToolProvider extends AbstractToolProvider {
                         .category(Category.FEDERATION).read()
                         .synonyms("ldap", "active directory", "ad", "kerberos", "user storage", "directory", "external users")
                         .handler(this::list)
+                        .api(get(R + "/components").fixedQuery("parent", "type"))
                         .build(),
                 tool("keycloak_federation_get")
                         .title("Get user federation provider")
@@ -62,6 +64,7 @@ public class FederationToolProvider extends AbstractToolProvider {
                         .synonyms("ldap settings", "bind dn", "users dn", "edit mode", "connection url")
                         .schema(schema().string("id", PROVIDER_ID).required())
                         .handler(this::get)
+                        .api(get(R + "/components").fixedQuery("parent", "type"))
                         .build(),
                 tool("keycloak_federation_sync")
                         .title("Sync user federation provider")
@@ -72,6 +75,7 @@ public class FederationToolProvider extends AbstractToolProvider {
                                 .string("id", PROVIDER_ID).required()
                                 .enumeration("mode", "full or changed (default changed)", "full", "changed").def("changed"))
                         .handler(this::sync)
+                        .api(ApiOperation.unspecified("post", R + "/user-storage/{id}/sync", "UserStorageProviderResource is not part of the published OpenAPI document"))
                         .build());
     }
 

@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.keycloak.mcp.catalog.ApiOperation;
 import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolCall;
 import org.keycloak.mcp.catalog.ToolResult;
@@ -47,6 +48,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                         .category(Category.REALM).read().global().hot()
                         .synonyms("version", "health", "which keycloak", "features", "about")
                         .handler(this::serverInfo)
+                        .api(ApiOperation.unspecified("get", "/admin/serverinfo", "ServerInfoAdminResource is not part of the published OpenAPI document"))
                         .build(),
                 tool("keycloak_realm_get_config")
                         .title("Get realm configuration")
@@ -55,6 +57,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                         .synonyms("settings", "realm config", "registration enabled", "token lifespan", "smtp",
                                 "password policy", "brute force", "ssl required", "default locale")
                         .handler(this::realmConfig)
+                        .api(get(R))
                         .build(),
                 tool("keycloak_realm_update")
                         .title("Update realm settings")
@@ -89,6 +92,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                                         + "(list), userVerificationRequirement, requireResidentKey, "
                                         + "authenticatorAttachment, attestationConveyancePreference"))
                         .handler(this::realmUpdate)
+                        .api(put(R).body("RealmRepresentation", "displayName", "enabled", "registrationAllowed", "registrationEmailAsUsername", "loginWithEmailAllowed", "duplicateEmailsAllowed", "resetPasswordAllowed", "rememberMe", "verifyEmail", "editUsernameAllowed", "bruteForceProtected", "eventsEnabled", "adminEventsEnabled", "organizationsEnabled", "accessTokenLifespan", "ssoSessionIdleTimeout", "ssoSessionMaxLifespan", "passwordPolicy", "defaultLocale", "smtpServer", "webAuthnPolicyPasswordlessRpEntityName", "webAuthnPolicyPasswordlessRpId", "webAuthnPolicyPasswordlessSignatureAlgorithms", "webAuthnPolicyPasswordlessUserVerificationRequirement", "webAuthnPolicyPasswordlessRequireResidentKey", "webAuthnPolicyPasswordlessAuthenticatorAttachment", "webAuthnPolicyPasswordlessAttestationConveyancePreference", "webAuthnPolicyPasswordlessCreateTimeout", "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister", "webAuthnPolicyPasswordlessAcceptableAaguids", "webAuthnPolicyPasswordlessPasskeysEnabled"))
                         .build());
     }
 

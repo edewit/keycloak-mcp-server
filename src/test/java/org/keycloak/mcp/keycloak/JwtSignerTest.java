@@ -58,6 +58,19 @@ class JwtSignerTest {
     }
 
     @Test
+    void tokenEndpointKeepsContextPath() throws Exception {
+        KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
+        gen.initialize(2048);
+        JwtSigner signer = new JwtSigner(gen.generateKeyPair().getPrivate(), "RS256", null);
+        for (String base : new String[] { "https://sso.example.com/auth", "https://sso.example.com/auth/" }) {
+            ClientAssertionTokenManager tm = new ClientAssertionTokenManager(null, base, "master", "c", signer, 60,
+                    org.keycloak.mcp.config.GrantType.CLIENT_CREDENTIALS, null, null);
+            assertEquals("https://sso.example.com/auth/realms/master/protocol/openid-connect/token", tm.tokenEndpoint());
+            assertEquals("https://sso.example.com/auth/realms/master", tm.audience());
+        }
+    }
+
+    @Test
     void keyTypeMustMatchAlgorithm() throws Exception {
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         gen.initialize(2048);

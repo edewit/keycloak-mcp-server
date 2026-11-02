@@ -62,6 +62,7 @@ public class EventToolProvider extends AbstractToolProvider {
                                 .string("dateTo", "To date, " + DATE)
                                 .pagination())
                         .handler(this::loginEvents)
+                        .api(get(R + "/events").query("type", "client", "user", "ipAddress", "dateFrom", "dateTo", "first", "max"))
                         .build(),
                 tool("keycloak_events_admin")
                         .title("List admin events")
@@ -77,6 +78,7 @@ public class EventToolProvider extends AbstractToolProvider {
                                 .string("dateTo", "To date, " + DATE)
                                 .pagination())
                         .handler(this::adminEvents)
+                        .api(get(R + "/admin-events").queryAs("operationTypes", "operationType").query("authUser", "resourcePath", "dateFrom", "dateTo", "first", "max"))
                         .build());
     }
 

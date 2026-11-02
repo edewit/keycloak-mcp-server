@@ -58,6 +58,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                         .synonyms("tenants", "companies", "customers", "org", "multi-tenant")
                         .schema(schema().string("search", "Filter by name or domain").pagination())
                         .handler(guard(this::list))
+                        .api(get(R + "/organizations").query("search", "first", "max"))
                         .build(),
                 tool("keycloak_org_get")
                         .title("Get organization")
@@ -66,6 +67,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                         .synonyms("tenant details", "org domains", "company")
                         .schema(schema().string("organizationId", ORG_ID).required())
                         .handler(guard(this::get))
+                        .api(get(R + "/organizations/{org-id}").path("org-id", "organizationId"), get(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
                         .build(),
                 tool("keycloak_org_create")
                         .title("Create organization")
@@ -80,6 +82,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                                 .bool("enabled", "Enabled (default true)")
                                 .string("redirectUrl", "Redirect URL after invitation"))
                         .handler(guard(this::create))
+                        .api(post(R + "/organizations").body("OrganizationRepresentation", "name", "alias", "description", "enabled", "redirectUrl", "domains"))
                         .build(),
                 tool("keycloak_org_delete")
                         .title("Delete organization")
@@ -88,6 +91,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                         .synonyms("remove tenant", "offboard company")
                         .schema(schema().string("organizationId", ORG_ID).required())
                         .handler(guard(this::delete))
+                        .api(delete(R + "/organizations/{org-id}").path("org-id", "organizationId"))
                         .build(),
                 tool("keycloak_org_idp_list")
                         .title("List organization identity providers")
@@ -96,6 +100,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                         .synonyms("tenant sso", "org login", "home idp")
                         .schema(schema().string("organizationId", ORG_ID).required())
                         .handler(guard(this::idpList))
+                        .api(get(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
                         .build(),
                 tool("keycloak_org_idp_link")
                         .title("Link identity provider to organization")
@@ -106,6 +111,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                                 .string("organizationId", ORG_ID).required()
                                 .string("idpAlias", "Identity provider alias").required())
                         .handler(guard(this::idpLink))
+                        .api(post(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
                         .build(),
                 tool("keycloak_org_idp_unlink")
                         .title("Unlink identity provider from organization")
@@ -116,6 +122,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                                 .string("organizationId", ORG_ID).required()
                                 .string("idpAlias", "Identity provider alias").required())
                         .handler(guard(this::idpUnlink))
+                        .api(delete(R + "/organizations/{org-id}/identity-providers/{alias}").path("org-id", "organizationId").path("alias", "idpAlias"))
                         .build());
     }
 

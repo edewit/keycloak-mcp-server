@@ -54,6 +54,15 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         this.password = password;
     }
 
+    /** Token endpoint derived from the server URL (context paths such as {@code /auth} are preserved). */
+    public String tokenEndpoint() {
+        return tokenEndpoint;
+    }
+
+    public String audience() {
+        return audience;
+    }
+
     public String accessToken() {
         lock.lock();
         try {

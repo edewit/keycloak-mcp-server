@@ -53,6 +53,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                         .synonyms("permissions", "available roles", "rbac", "authorization")
                         .schema(schema().string("search", "Filter by (partial) role name").pagination())
                         .handler(this::list)
+                        .api(get(R + "/roles").query("search", "first", "max"))
                         .build(),
                 tool("keycloak_client_roles_list")
                         .title("List client roles")
@@ -61,6 +62,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                         .synonyms("application roles", "permissions", "realm-management", "scoped roles")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::clientRoles)
+                        .api(get(R + "/clients/{client-uuid}/roles").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_user_roles_get")
                         .title("Get a user's realm roles")
@@ -69,6 +71,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                         .synonyms("permissions of user", "what can", "is admin", "role mapping", "has role")
                         .schema(schema().string("userId", USER_ID).required())
                         .handler(this::userRoles)
+                        .api(get(R + "/users/{user-id}/role-mappings/realm").path("user-id", "userId"), get(R + "/users/{user-id}/role-mappings/realm/composite").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_user_role_assign")
                         .title("Assign realm role to user")
@@ -79,6 +82,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("userId", USER_ID).required()
                                 .string("role", "Realm role name, e.g. admin").required())
                         .handler(this::userRoleAssign)
+                        .api(post(R + "/users/{user-id}/role-mappings/realm").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_user_role_unassign")
                         .title("Remove realm role from user")
@@ -89,6 +93,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("userId", USER_ID).required()
                                 .string("role", "Realm role name").required())
                         .handler(this::userRoleUnassign)
+                        .api(delete(R + "/users/{user-id}/role-mappings/realm").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_user_client_roles_get")
                         .title("Get a user's client roles")
@@ -99,6 +104,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("userId", USER_ID).required()
                                 .string("clientId", CLIENT_ID).required())
                         .handler(this::userClientRoles)
+                        .api(get(R + "/users/{user-id}/role-mappings/clients/{client-id}").path("user-id", "userId").path("client-id", "clientId"), get(R + "/users/{user-id}/role-mappings/clients/{client-id}/composite").path("user-id", "userId").path("client-id", "clientId"))
                         .build(),
                 tool("keycloak_user_client_role_assign")
                         .title("Assign client role to user")
@@ -110,6 +116,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("clientId", CLIENT_ID).required()
                                 .string("role", "Client role name").required())
                         .handler(this::userClientRoleAssign)
+                        .api(post(R + "/users/{user-id}/role-mappings/clients/{client-id}").path("user-id", "userId").path("client-id", "clientId"))
                         .build(),
                 tool("keycloak_user_client_role_unassign")
                         .title("Remove client role from user")
@@ -121,6 +128,7 @@ public class RoleToolProvider extends AbstractToolProvider {
                                 .string("clientId", CLIENT_ID).required()
                                 .string("role", "Client role name").required())
                         .handler(this::userClientRoleUnassign)
+                        .api(delete(R + "/users/{user-id}/role-mappings/clients/{client-id}").path("user-id", "userId").path("client-id", "clientId"))
                         .build());
     }
 

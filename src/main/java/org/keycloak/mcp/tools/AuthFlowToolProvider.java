@@ -59,6 +59,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("login flow", "browser flow", "mfa", "otp", "2fa", "passkey", "webauthn",
                                 "authentication", "which flow is bound")
                         .handler(this::flows)
+                        .api(get(R + "/authentication/flows"), get(R))
                         .build(),
                 tool("keycloak_auth_flow_executions_list")
                         .title("List flow executions")
@@ -67,6 +68,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("steps", "authenticators in flow", "requirement", "conditional otp", "flow structure")
                         .schema(schema().string("flowAlias", "Flow alias, e.g. browser").required())
                         .handler(this::executions)
+                        .api(get(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias"))
                         .build(),
                 tool("keycloak_auth_authenticator_providers_list")
                         .title("List authenticator providers")
@@ -77,6 +79,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .schema(schema().enumeration("type", "Provider kind (default authenticator)", "authenticator",
                                 "form-action", "client-authenticator").def("authenticator"))
                         .handler(this::providers)
+                        .api(get(R + "/authentication/authenticator-providers"), get(R + "/authentication/form-action-providers"), get(R + "/authentication/client-authenticator-providers"))
                         .build(),
                 tool("keycloak_auth_flow_create")
                         .title("Create authentication flow")
@@ -87,6 +90,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .string("alias", "Alias of the new flow, e.g. 'passkey-browser'").required()
                                 .string("description", "Description"))
                         .handler(this::flowCreate)
+                        .api(post(R + "/authentication/flows").body("AuthenticationFlowRepresentation", "alias", "description", "providerId", "topLevel", "builtIn"))
                         .build(),
                 tool("keycloak_auth_flow_copy")
                         .title("Copy authentication flow")
@@ -97,6 +101,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .string("flowAlias", "Source flow alias, e.g. browser").required()
                                 .string("newName", "Alias of the copy").required())
                         .handler(this::flowCopy)
+                        .api(post(R + "/authentication/flows/{flowAlias}/copy").path("flowAlias", "flowAlias"))
                         .build(),
                 tool("keycloak_auth_flow_bind")
                         .title("Bind flow to realm")
@@ -107,6 +112,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .enumeration("binding", "Realm slot to bind", BINDINGS).required()
                                 .string("flowAlias", "Alias of the flow to bind").required())
                         .handler(this::flowBind)
+                        .api(put(R).body("RealmRepresentation", "browserFlow", "registrationFlow", "directGrantFlow", "resetCredentialsFlow", "clientAuthenticationFlow", "dockerAuthenticationFlow", "firstBrokerLoginFlow"))
                         .build(),
                 tool("keycloak_auth_flow_execution_add")
                         .title("Add execution to flow")
@@ -118,6 +124,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .string("providerId", "Authenticator provider id, e.g. auth-otp-form").required()
                                 .enumeration("requirement", "Requirement to set right away", REQUIREMENTS))
                         .handler(this::executionAdd)
+                        .api(post(R + "/authentication/flows/{flowAlias}/executions/execution").path("flowAlias", "flowAlias"), put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
                         .build(),
                 tool("keycloak_auth_flow_subflow_add")
                         .title("Add sub-flow")
@@ -131,6 +138,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .enumeration("type", "basic-flow (default) or form-flow", "basic-flow", "form-flow")
                                 .enumeration("requirement", "Requirement to set right away", REQUIREMENTS))
                         .handler(this::subflowAdd)
+                        .api(post(R + "/authentication/flows/{flowAlias}/executions/flow").path("flowAlias", "parentFlowAlias"), put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "parentFlowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
                         .build(),
                 tool("keycloak_auth_flow_execution_update")
                         .title("Set execution requirement")
@@ -142,6 +150,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .string("executionId", EXECUTION_ID).required()
                                 .enumeration("requirement", "New requirement", REQUIREMENTS).required())
                         .handler(this::executionUpdate)
+                        .api(put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
                         .build(),
                 tool("keycloak_auth_flow_execution_raise_priority")
                         .title("Move execution up")
@@ -150,6 +159,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("reorder", "move up", "priority", "order of steps")
                         .schema(schema().string("executionId", EXECUTION_ID).required())
                         .handler(this::raise)
+                        .api(post(R + "/authentication/executions/{executionId}/raise-priority").path("executionId", "executionId"))
                         .build(),
                 tool("keycloak_auth_flow_execution_lower_priority")
                         .title("Move execution down")
@@ -158,6 +168,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("reorder", "move down", "priority", "order of steps")
                         .schema(schema().string("executionId", EXECUTION_ID).required())
                         .handler(this::lower)
+                        .api(post(R + "/authentication/executions/{executionId}/lower-priority").path("executionId", "executionId"))
                         .build(),
                 tool("keycloak_auth_flow_execution_delete")
                         .title("Delete execution")
@@ -166,6 +177,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("remove step", "remove authenticator", "delete subflow")
                         .schema(schema().string("executionId", EXECUTION_ID).required())
                         .handler(this::executionDelete)
+                        .api(delete(R + "/authentication/executions/{executionId}").path("executionId", "executionId"))
                         .build(),
                 tool("keycloak_auth_required_actions_list")
                         .title("List required actions")
@@ -174,6 +186,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                         .synonyms("update password", "configure otp", "terms and conditions", "webauthn register",
                                 "default action")
                         .handler(this::requiredActions)
+                        .api(get(R + "/authentication/required-actions"))
                         .build(),
                 tool("keycloak_auth_required_action_set_enabled")
                         .title("Enable or disable required action")
@@ -185,6 +198,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                                 .bool("enabled", "true to enable, false to disable").required()
                                 .bool("defaultAction", "Also set/unset as default action for new users"))
                         .handler(this::requiredActionSetEnabled)
+                        .api(put(R + "/authentication/required-actions/{alias}").path("alias", "alias").body("RequiredActionProviderRepresentation", "enabled", "defaultAction"))
                         .build());
     }
 

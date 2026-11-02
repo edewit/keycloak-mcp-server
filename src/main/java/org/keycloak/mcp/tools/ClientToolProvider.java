@@ -58,6 +58,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                                 "relying party")
                         .schema(schema().string("search", "Filter by (partial) clientId").pagination())
                         .handler(this::list)
+                        .api(get(R + "/clients").queryAs("clientId", "search").query("first", "max"))
                         .build(),
                 tool("keycloak_client_get")
                         .title("Get client")
@@ -66,6 +67,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("redirect uris", "pkce", "flows enabled", "client details", "web origins")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::get)
+                        .api(get(R + "/clients/{client-uuid}").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_get_secret")
                         .title("Get client secret")
@@ -76,6 +78,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                                 .string("clientId", CLIENT_ID).required()
                                 .bool("reveal", "Return the plaintext secret (default false)"))
                         .handler(this::getSecret)
+                        .api(get(R + "/clients/{client-uuid}/client-secret").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_regenerate_secret")
                         .title("Regenerate client secret")
@@ -84,6 +87,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("rotate", "new secret", "reset secret", "credentials")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::regenerateSecret)
+                        .api(post(R + "/clients/{client-uuid}/client-secret").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_create")
                         .title("Create client")
@@ -93,6 +97,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .schema(clientFields(schema().string("clientId", "New clientId, e.g. my-app").required()
                                 .enumeration("protocol", "Protocol (default openid-connect)", "openid-connect", "saml")))
                         .handler(this::create)
+                        .api(post(R + "/clients").body("ClientRepresentation", "clientId", "protocol", "name", "description", "enabled", "publicClient", "redirectUris", "webOrigins", "rootUrl", "baseUrl", "standardFlowEnabled", "implicitFlowEnabled", "directAccessGrantsEnabled", "serviceAccountsEnabled", "bearerOnly", "attributes"))
                         .build(),
                 tool("keycloak_client_update")
                         .title("Update client")
@@ -101,6 +106,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("edit app", "add redirect uri", "enable pkce", "disable client", "web origins")
                         .schema(clientFields(schema().string("clientId", CLIENT_ID).required()))
                         .handler(this::update)
+                        .api(put(R + "/clients/{client-uuid}").path("client-uuid", "clientId").body("ClientRepresentation", "name", "description", "enabled", "publicClient", "redirectUris", "webOrigins", "rootUrl", "baseUrl", "standardFlowEnabled", "implicitFlowEnabled", "directAccessGrantsEnabled", "serviceAccountsEnabled", "bearerOnly", "attributes"))
                         .build(),
                 tool("keycloak_client_delete")
                         .title("Delete client")
@@ -109,6 +115,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("remove app", "unregister")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::delete)
+                        .api(delete(R + "/clients/{client-uuid}").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_mappers_list")
                         .title("List client protocol mappers")
@@ -117,6 +124,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("claims", "token mappers", "audience mapper", "attribute mapper")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::mappers)
+                        .api(get(R + "/clients/{client-uuid}/protocol-mappers/models").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_scopes_list")
                         .title("List client scopes")
@@ -124,6 +132,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .category(Category.CLIENT_SCOPES).read()
                         .synonyms("scopes", "profile email roles", "available scopes", "offline_access")
                         .handler(this::scopesList)
+                        .api(get(R + "/client-scopes"), get(R + "/default-default-client-scopes"), get(R + "/default-optional-client-scopes"))
                         .build(),
                 tool("keycloak_client_default_scopes_get")
                         .title("Get a client's scopes")
@@ -132,6 +141,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .synonyms("assigned scopes", "scopes of app", "which scopes")
                         .schema(schema().string("clientId", CLIENT_ID).required())
                         .handler(this::clientScopes)
+                        .api(get(R + "/clients/{client-uuid}/default-client-scopes").path("client-uuid", "clientId"), get(R + "/clients/{client-uuid}/optional-client-scopes").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_client_scope_assign")
                         .title("Assign client scope")
@@ -143,6 +153,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                                 .string("scope", "Client scope name or id, e.g. email").required()
                                 .enumeration("type", SCOPE_TYPE_DESC, "default", "optional").def("default"))
                         .handler(this::scopeAssign)
+                        .api(put(R + "/clients/{client-uuid}/default-client-scopes/{clientScopeId}").path("client-uuid", "clientId").path("clientScopeId", "scope"), put(R + "/clients/{client-uuid}/optional-client-scopes/{clientScopeId}").path("client-uuid", "clientId").path("clientScopeId", "scope"))
                         .build(),
                 tool("keycloak_client_scope_unassign")
                         .title("Unassign client scope")
@@ -154,6 +165,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                                 .string("scope", "Client scope name or id").required()
                                 .enumeration("type", SCOPE_TYPE_DESC, "default", "optional").def("default"))
                         .handler(this::scopeUnassign)
+                        .api(delete(R + "/clients/{client-uuid}/default-client-scopes/{clientScopeId}").path("client-uuid", "clientId").path("clientScopeId", "scope"), delete(R + "/clients/{client-uuid}/optional-client-scopes/{clientScopeId}").path("client-uuid", "clientId").path("clientScopeId", "scope"))
                         .build());
     }
 

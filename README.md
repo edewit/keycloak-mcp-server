@@ -48,7 +48,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 
 | property                        | default                     | meaning |
 |---------------------------------|-----------------------------|---------|
-| `kc-mcp.url`                    | `http://localhost:8080`     | Keycloak base URL |
+| `kc-mcp.url`                    | `http://localhost:8080`     | Keycloak base URL; include a context path if there is one, e.g. `https://sso.example.com/auth` |
 | `kc-mcp.grant-type`             | `client_credentials`        | `client_credentials` or `password` |
 | `kc-mcp.client-auth`            | inferred                    | `client_secret`, `private_key_jwt` or `none`; inferred from what is configured |
 | `kc-mcp.auth-realm`             | `master`                    | realm the client / admin user lives in |
@@ -118,6 +118,24 @@ Register it in `META-INF/services/org.keycloak.mcp.spi.ToolProvider` (or make it
 Provider tools automatically get search, exposure modes, validation, realm checks, confirmation and the audit log.
 The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`,
 `realm`) use the same SPI and can be switched off with `kc-mcp.spi.<id>.enabled=false`.
+
+## Keeping the tools aligned with a Keycloak version
+
+Every tool declares the Admin REST operations it relies on (`ToolSpec.api(...)`, see `ApiOperation`): method and
+path, which tool argument fills which path or query parameter, and which fields of the request body it writes.
+`OpenApiAlignmentTest` checks all of that against the published OpenAPI document of a concrete server version in
+`src/test/resources/openapi/keycloak-<version>.json` (26.8.1 is checked in): the operation must exist and not be
+deprecated, parameters and body fields must exist with compatible types and enums. Spec parameters a tool does not
+expose are printed as a drift report. To check another version:
+
+```shell
+curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org/docs-api/26.9.0/rest-api/openapi.json
+./mvnw test -Dtest=OpenApiAlignmentTest -Dkeycloak.openapi.version=26.9.0
+```
+
+Two endpoints we use are missing from the published document (server info, user storage sync); they are marked
+`unspecified` with a reason. The Java admin client itself is versioned independently of the server since Keycloak
+26.1, so this test, together with the Testcontainers run, is what ties the tool surface to a server version.
 
 ## Running
 

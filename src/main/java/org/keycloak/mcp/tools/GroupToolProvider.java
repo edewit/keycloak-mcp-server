@@ -52,6 +52,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("search", "Filter by (partial) group name")
                                 .pagination())
                         .handler(this::list)
+                        .api(get(R + "/groups").query("search", "first", "max"))
                         .build(),
                 tool("keycloak_group_create")
                         .title("Create group")
@@ -62,6 +63,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("name", "Group name").required()
                                 .string("parentId", "Parent group (id, path or name) for a subgroup"))
                         .handler(this::create)
+                        .api(post(R + "/groups").body("GroupRepresentation", "name"), post(R + "/groups/{group-id}/children").path("group-id", "parentId").body("GroupRepresentation", "name"))
                         .build(),
                 tool("keycloak_group_delete")
                         .title("Delete group")
@@ -70,6 +72,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                         .synonyms("remove group", "purge team")
                         .schema(schema().string("id", GROUP_ID).required())
                         .handler(this::delete)
+                        .api(delete(R + "/groups/{group-id}").path("group-id", "id"))
                         .build(),
                 tool("keycloak_group_members_list")
                         .title("List group members")
@@ -78,6 +81,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                         .synonyms("who is in", "membership", "users in group", "members")
                         .schema(schema().string("groupId", GROUP_ID).required().pagination())
                         .handler(this::members)
+                        .api(get(R + "/groups/{group-id}/members").path("group-id", "groupId").query("first", "max"))
                         .build(),
                 tool("keycloak_group_member_add")
                         .title("Add group member")
@@ -88,6 +92,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("groupId", GROUP_ID).required()
                                 .string("userId", USER_ID).required())
                         .handler(this::memberAdd)
+                        .api(put(R + "/users/{user-id}/groups/{groupId}").path("user-id", "userId").path("groupId", "groupId"))
                         .build(),
                 tool("keycloak_group_member_remove")
                         .title("Remove group member")
@@ -98,6 +103,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("groupId", GROUP_ID).required()
                                 .string("userId", USER_ID).required())
                         .handler(this::memberRemove)
+                        .api(delete(R + "/users/{user-id}/groups/{groupId}").path("user-id", "userId").path("groupId", "groupId"))
                         .build(),
                 tool("keycloak_user_groups_list")
                         .title("List a user's groups")
@@ -106,6 +112,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                         .synonyms("membership", "member of", "which groups", "teams of user")
                         .schema(schema().string("userId", USER_ID).required())
                         .handler(this::userGroups)
+                        .api(get(R + "/users/{user-id}/groups").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_group_role_assign")
                         .title("Assign realm role to group")
@@ -116,6 +123,7 @@ public class GroupToolProvider extends AbstractToolProvider {
                                 .string("groupId", GROUP_ID).required()
                                 .string("role", "Realm role name, e.g. admin").required())
                         .handler(this::roleAssign)
+                        .api(post(R + "/groups/{group-id}/role-mappings/realm").path("group-id", "groupId"))
                         .build());
     }
 

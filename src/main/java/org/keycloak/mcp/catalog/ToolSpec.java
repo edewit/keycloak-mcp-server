@@ -14,6 +14,7 @@ import io.vertx.core.json.JsonObject;
  * @param synonyms    extra search terms, never shown to the model
  * @param hot         candidate for direct exposure in hybrid mode
  * @param realmScoped whether the tool takes a {@code realm} argument
+ * @param api         Admin REST operations the tool relies on (checked against the OpenAPI document in tests)
  */
 public record ToolSpec(
         String name,
@@ -26,6 +27,7 @@ public record ToolSpec(
         List<String> synonyms,
         boolean hot,
         boolean realmScoped,
+        List<ApiOperation> api,
         ToolHandler handler) {
 
     public ToolSpec {
@@ -37,6 +39,7 @@ public record ToolSpec(
         Objects.requireNonNull(handler, "handler");
         inputSchema = inputSchema == null ? InputSchema.builder().build() : inputSchema;
         synonyms = List.copyOf(synonyms == null ? List.of() : synonyms);
+        api = List.copyOf(api == null ? List.of() : api);
     }
 
     public boolean isDestructive() {
@@ -49,12 +52,12 @@ public record ToolSpec(
 
     public ToolSpec withInputSchema(JsonObject schema) {
         return new ToolSpec(name, title, description, category, level, idempotent, schema, synonyms, hot, realmScoped,
-                handler);
+                api, handler);
     }
 
     public ToolSpec withHot(boolean hotFlag) {
         return new ToolSpec(name, title, description, category, level, idempotent, inputSchema, synonyms, hotFlag,
-                realmScoped, handler);
+                realmScoped, api, handler);
     }
 
     /** Parameter names declared in the (effective) schema, in declaration order. */
@@ -78,6 +81,7 @@ public record ToolSpec(
         private final List<String> synonyms = new ArrayList<>();
         private boolean hot;
         private boolean realmScoped = true;
+        private final List<ApiOperation> api = new ArrayList<>();
         private ToolHandler handler;
 
         private Builder(String name) {
@@ -140,6 +144,12 @@ public record ToolSpec(
             return this;
         }
 
+        /** Admin REST operations this tool uses; see {@link ApiOperation}. */
+        public Builder api(ApiOperation... operations) {
+            api.addAll(List.of(operations));
+            return this;
+        }
+
         public Builder handler(ToolHandler handler) {
             this.handler = handler;
             return this;
@@ -148,7 +158,7 @@ public record ToolSpec(
         public ToolSpec build() {
             boolean idem = idempotent != null ? idempotent : level == ToolLevel.READ;
             return new ToolSpec(name, title, description, category, level, idem, inputSchema, synonyms, hot, realmScoped,
-                    handler);
+                    api, handler);
         }
     }
 }

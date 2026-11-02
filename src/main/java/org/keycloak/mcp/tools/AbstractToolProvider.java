@@ -1,5 +1,6 @@
 package org.keycloak.mcp.tools;
 
+import org.keycloak.mcp.catalog.ApiOperation;
 import org.keycloak.mcp.catalog.InputSchema;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
@@ -25,6 +26,32 @@ public abstract class AbstractToolProvider implements ToolProvider {
 
     protected static InputSchema.Builder schema() {
         return InputSchema.builder();
+    }
+
+    protected static final String R = "/admin/realms/{realm}";
+
+    protected static ApiOperation get(String path) {
+        return ApiOperation.get(path);
+    }
+
+    protected static ApiOperation post(String path) {
+        return ApiOperation.post(path);
+    }
+
+    protected static ApiOperation put(String path) {
+        return ApiOperation.put(path);
+    }
+
+    protected static ApiOperation delete(String path) {
+        return ApiOperation.delete(path);
+    }
+
+    protected static ApiOperation patch(String path) {
+        return ApiOperation.patch(path);
+    }
+
+    protected static ApiOperation head(String path) {
+        return ApiOperation.head(path);
     }
 
     protected static final String USER_ID = "User id (UUID); a username is accepted too";
