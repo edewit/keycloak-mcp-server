@@ -1,0 +1,33 @@
+{
+  "realm": "other",
+  "displayName": "Other realm (outside ALLOWED_REALMS)",
+  "enabled": true,
+  "users": [
+    {
+      "username": "zed",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Zed",
+      "lastName": "Zero",
+      "email": "zed@other.test",
+      "groups": [],
+      "realmRoles": [
+        "default-roles-demo"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "zed-demo",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "viewer"
+      }
+    ]
+  }
+}

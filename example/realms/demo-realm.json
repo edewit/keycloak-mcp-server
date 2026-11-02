@@ -1,0 +1,471 @@
+{
+  "realm": "demo",
+  "displayName": "Demo (keycloak-mcp-server)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "enabledEventTypes": [
+    "LOGIN",
+    "LOGIN_ERROR",
+    "LOGOUT",
+    "REGISTER",
+    "UPDATE_PASSWORD",
+    "UPDATE_PROFILE",
+    "SEND_RESET_PASSWORD",
+    "CODE_TO_TOKEN",
+    "CLIENT_LOGIN",
+    "CLIENT_LOGIN_ERROR"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false,
+  "organizationsEnabled": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "passwordPolicy": "length(8)",
+  "defaultLocale": "en",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "en",
+    "de"
+  ],
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "keycloak@demo.local",
+    "fromDisplayName": "Demo Keycloak",
+    "auth": "false",
+    "ssl": "false",
+    "starttls": "false"
+  },
+  "roles": {
+    "realm": [
+      {
+        "name": "viewer",
+        "description": "May read application data"
+      },
+      {
+        "name": "editor",
+        "description": "May change application data (includes viewer)",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "viewer"
+          ]
+        }
+      },
+      {
+        "name": "group-manager",
+        "description": "May manage the groups they belong to (MCP policy role)"
+      },
+      {
+        "name": "support",
+        "description": "First-level support"
+      }
+    ],
+    "client": {
+      "demo-app": [
+        {
+          "name": "app-user",
+          "description": "Regular user of demo-app"
+        },
+        {
+          "name": "app-admin",
+          "description": "Administrator of demo-app"
+        }
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "admins",
+      "path": "/admins",
+      "realmRoles": [
+        "editor"
+      ],
+      "subGroups": []
+    },
+    {
+      "name": "devs",
+      "path": "/devs",
+      "realmRoles": [
+        "viewer"
+      ],
+      "subGroups": [
+        {
+          "name": "backend",
+          "path": "/devs/backend",
+          "realmRoles": [],
+          "subGroups": []
+        },
+        {
+          "name": "frontend",
+          "path": "/devs/frontend",
+          "realmRoles": [],
+          "subGroups": []
+        }
+      ]
+    },
+    {
+      "name": "team-a",
+      "path": "/team-a",
+      "realmRoles": [
+        "viewer"
+      ],
+      "subGroups": [
+        {
+          "name": "ops",
+          "path": "/team-a/ops",
+          "subGroups": []
+        }
+      ]
+    },
+    {
+      "name": "team-b",
+      "path": "/team-b",
+      "realmRoles": [
+        "viewer"
+      ],
+      "subGroups": []
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Liddell",
+      "email": "alice@acme.com",
+      "groups": [
+        "/admins",
+        "/team-a"
+      ],
+      "realmRoles": [
+        "default-roles-demo",
+        "group-manager"
+      ],
+      "attributes": {
+        "department": [
+          "R&D"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice-demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Builder",
+      "email": "bob@acme.com",
+      "groups": [
+        "/devs/backend"
+      ],
+      "realmRoles": [
+        "default-roles-demo"
+      ],
+      "clientRoles": {
+        "demo-app": [
+          "app-user"
+        ]
+      },
+      "attributes": {
+        "department": [
+          "Engineering"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob-demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "carol",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Danvers",
+      "email": "carol@example.org",
+      "groups": [
+        "/team-b"
+      ],
+      "realmRoles": [
+        "default-roles-demo",
+        "support"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "carol-demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "dave",
+      "enabled": false,
+      "emailVerified": true,
+      "firstName": "Dave",
+      "lastName": "Disabled",
+      "email": "dave@example.org",
+      "groups": [],
+      "realmRoles": [
+        "default-roles-demo"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dave-demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "service-account-mcp-admin",
+      "enabled": true,
+      "serviceAccountClientId": "mcp-admin",
+      "clientRoles": {
+        "realm-management": [
+          "realm-admin"
+        ]
+      },
+      "realmRoles": [
+        "default-roles-demo"
+      ]
+    },
+    {
+      "username": "service-account-mcp-manager",
+      "enabled": true,
+      "serviceAccountClientId": "mcp-manager",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "manage-users",
+          "view-clients",
+          "view-events"
+        ]
+      },
+      "realmRoles": [
+        "default-roles-demo"
+      ]
+    },
+    {
+      "username": "service-account-mcp-readonly",
+      "enabled": true,
+      "serviceAccountClientId": "mcp-readonly",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "view-clients",
+          "view-realm",
+          "view-events",
+          "view-identity-providers"
+        ]
+      },
+      "realmRoles": [
+        "default-roles-demo"
+      ]
+    },
+    {
+      "username": "service-account-mcp-jwt",
+      "enabled": true,
+      "serviceAccountClientId": "mcp-jwt",
+      "clientRoles": {
+        "realm-management": [
+          "realm-admin"
+        ]
+      },
+      "realmRoles": [
+        "default-roles-demo"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "mcp-admin",
+      "name": "MCP server (realm admin)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "fullScopeAllowed": true,
+      "attributes": {},
+      "description": "Service account for keycloak-mcp-server, realm-admin",
+      "secret": "mcp-admin-secret"
+    },
+    {
+      "clientId": "mcp-manager",
+      "name": "MCP server (realm manager)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "fullScopeAllowed": true,
+      "attributes": {},
+      "description": "Service account for keycloak-mcp-server, users only",
+      "secret": "mcp-manager-secret"
+    },
+    {
+      "clientId": "mcp-readonly",
+      "name": "MCP server (read-only)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "fullScopeAllowed": true,
+      "attributes": {},
+      "description": "Service account for keycloak-mcp-server, view-* only",
+      "secret": "mcp-readonly-secret"
+    },
+    {
+      "clientId": "demo-app",
+      "name": "Demo Application",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "description": "A confidential OIDC client to play with",
+      "secret": "demo-app-secret",
+      "defaultRoles": [],
+      "protocolMappers": []
+    },
+    {
+      "clientId": "mcp-consumer",
+      "name": "MCP consumer (LLM client)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "description": "Public PKCE client for MCP clients once the MCP endpoint is protected with OIDC"
+    },
+    {
+      "clientId": "mcp-jwt",
+      "name": "MCP server (private_key_jwt)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "fullScopeAllowed": true,
+      "clientAuthenticatorType": "client-jwt",
+      "description": "Service account authenticating with a signed JWT; public key fetched from the MCP server's JWKS",
+      "attributes": {
+        "use.jwks.url": "true",
+        "jwks.url": "http://host.docker.internal:8081/.well-known/jwks.json",
+        "token.endpoint.auth.signing.alg": "RS256"
+      }
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "corp-oidc",
+      "displayName": "Corporate SSO",
+      "providerId": "oidc",
+      "enabled": false,
+      "hideOnLogin": true,
+      "trustEmail": true,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "keycloak-demo",
+        "clientSecret": "corp-secret",
+        "authorizationUrl": "https://idp.example.com/oauth2/authorize",
+        "tokenUrl": "https://idp.example.com/oauth2/token",
+        "issuer": "https://idp.example.com",
+        "defaultScope": "openid email profile",
+        "syncMode": "IMPORT"
+      }
+    }
+  ],
+  "organizations": [
+    {
+      "name": "ACME Corp",
+      "alias": "acme",
+      "enabled": true,
+      "description": "Demo tenant",
+      "domains": [
+        {
+          "name": "acme.com",
+          "verified": true
+        }
+      ]
+    }
+  ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\": [{\"name\": \"username\", \"displayName\": \"${username}\", \"validations\": {\"length\": {\"min\": 3, \"max\": 255}, \"username-prohibited-characters\": {}, \"up-username-not-idn-homograph\": {}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"email\", \"displayName\": \"${email}\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}}, \"required\": {\"roles\": [\"user\"]}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"firstName\", \"displayName\": \"${firstName}\", \"validations\": {\"length\": {\"max\": 255}, \"person-name-prohibited-characters\": {}}, \"required\": {\"roles\": [\"user\"]}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"lastName\", \"displayName\": \"${lastName}\", \"validations\": {\"length\": {\"max\": 255}, \"person-name-prohibited-characters\": {}}, \"required\": {\"roles\": [\"user\"]}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"department\", \"displayName\": \"Department\", \"validations\": {\"length\": {\"max\": 64}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\"]}, \"multivalued\": false, \"group\": \"user-metadata\"}], \"groups\": [{\"name\": \"user-metadata\", \"displayHeader\": \"User metadata\", \"displayDescription\": \"Attributes, which refer to user metadata\"}], \"unmanagedAttributePolicy\": \"ENABLED\"}"
+          ]
+        }
+      }
+    ]
+  }
+}
