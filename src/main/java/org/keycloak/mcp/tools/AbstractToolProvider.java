@@ -50,7 +50,7 @@ public abstract class AbstractToolProvider implements ToolProvider {
         return ApiOperation.head(path);
     }
 
-    protected static final String USER_ID = "User id (UUID); a username is accepted too";
-    protected static final String GROUP_ID = "Group id (UUID); a full path like /parent/child or a unique name is accepted too";
-    protected static final String CLIENT_ID = "Client's internal id (UUID) or its clientId, e.g. my-app";
+    protected static final String USER_ID = "User id (UUID) or username; pass it directly, no lookup needed";
+    protected static final String GROUP_ID = "Group id (UUID), full path like /parent/child, or unique name; no lookup needed";
+    protected static final String CLIENT_ID = "Client's internal id (UUID) or its clientId, e.g. my-app; no lookup needed";
 }

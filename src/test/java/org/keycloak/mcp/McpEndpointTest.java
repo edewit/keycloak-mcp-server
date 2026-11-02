@@ -28,6 +28,24 @@ class McpEndpointTest {
     }
 
     @Test
+    void corsAllowsLocalOriginsOnly() {
+        io.restassured.RestAssured.given()
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "content-type,mcp-session-id,mcp-protocol-version")
+                .options("/mcp")
+                .then()
+                .header("Access-Control-Allow-Origin", "http://localhost:5173")
+                .header("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsStringIgnoringCase("mcp-session-id"));
+        io.restassured.RestAssured.given()
+                .header("Origin", "https://evil.example")
+                .header("Access-Control-Request-Method", "POST")
+                .options("/mcp")
+                .then()
+                .header("Access-Control-Allow-Origin", org.hamcrest.Matchers.nullValue());
+    }
+
+    @Test
     void hybridModeListsMetaAndHotToolsOnly() {
         JsonArray tools = mcp.request("tools/list", new JsonObject()).getJsonObject("result").getJsonArray("tools");
         List<String> names = tools.stream().map(t -> ((JsonObject) t).getString("name")).sorted().toList();

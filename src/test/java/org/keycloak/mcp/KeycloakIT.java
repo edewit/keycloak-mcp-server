@@ -120,8 +120,11 @@ class KeycloakIT {
 
         JsonObject list = call("keycloak_group_list", new JsonObject().put("search", "adm"));
         assertEquals("admins", list.getJsonArray("items").getJsonObject(0).getString("name"));
+        JsonObject deep = call("keycloak_group_list", new JsonObject().put("search", "ops"));
+        assertEquals("/admins/ops", deep.getJsonArray("items").getJsonObject(0).getString("path"), deep.encode());
 
-        call("keycloak_group_member_add", new JsonObject().put("groupId", "/admins/ops").put("userId", "alice"));
+        JsonObject added = call("keycloak_group_member_add", new JsonObject().put("groupId", "/admins/ops").put("userId", "alice"));
+        assertTrue(added.getJsonObject("now").containsKey("effectiveRealmRoles"), added.encode());
         JsonObject members = call("keycloak_group_members_list", new JsonObject().put("groupId", sub.getString("id")));
         assertEquals("alice", members.getJsonArray("items").getJsonObject(0).getString("username"));
         JsonObject userGroups = call("keycloak_user_groups_list", new JsonObject().put("userId", userId));
@@ -130,6 +133,13 @@ class KeycloakIT {
         call("keycloak_group_role_assign", new JsonObject().put("groupId", groupId).put("role", "offline_access"));
         JsonObject roles = call("keycloak_user_roles_get", new JsonObject().put("userId", "alice"));
         assertTrue(roles.getJsonArray("effectiveRealmRoles").contains("offline_access"), roles.encode());
+        assertTrue(roles.getJsonObject("sources").getJsonArray("offline_access").contains("group:/admins"), roles.encode());
+        assertTrue(roles.getJsonArray("defaultRoles").contains("uma_authorization"), roles.encode());
+        assertFalse(roles.getJsonArray("effectiveRealmRoles").contains("uma_authorization"), "defaults separated");
+        assertTrue(roles.getJsonArray("groups").contains("/admins/ops"));
+        JsonObject grp = call("keycloak_group_get", new JsonObject().put("id", "/admins/ops"));
+        assertTrue(grp.getJsonArray("effectiveRealmRoles").contains("offline_access"), grp.encode());
+        assertEquals("/admins/ops", grp.getString("path"));
 
         call("keycloak_group_member_remove", new JsonObject().put("groupId", "ops").put("userId", userId)
                 .put("confirm", true));
@@ -422,7 +432,7 @@ class KeycloakIT {
     @Order(12)
     void secondSystemIsSelectable() {
         JsonArray tools = mcp.listTools();
-        assertEquals(73, tools.size(), "direct mode lists every tool across pages");
+        assertEquals(74, tools.size(), "direct mode lists every tool across pages");
         JsonObject search = tools.stream().map(t -> (JsonObject) t)
                 .filter(t -> t.getString("name").equals("keycloak_user_search")).findFirst().orElseThrow();
         JsonObject props = search.getJsonObject("inputSchema").getJsonObject("properties");

@@ -29,8 +29,12 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
   `realm_not_allowed`, `confirmation_required`, `read_only_mode`, `not_found`, `conflict`, `keycloak_unreachable`, …)
   and always flagged `isError: true`.
 * Hidden tools stay callable by name, so a model that guesses `keycloak_user_search` in lazy mode still succeeds.
-* Identifiers are forgiving: users by id or username, clients by id or clientId, groups by id, path or name.
+* Identifiers are forgiving: users by id or username, clients by id or clientId, groups by id, path or name; the
+  instructions tell the model to pass them directly instead of looking ids up first.
   Booleans/integers given as strings are coerced; `max` is clamped to `kc-mcp.result-max-items`.
+* Fewer round trips: membership and role changes return the user's effective roles, `keycloak_user_roles_get`
+  explains where each role comes from (`direct`, `group:/path`, `composite:<role>`) and keeps the realm's default
+  roles apart, and `keycloak_group_get` shows what a group grants.
 
 ## Guardrails
 
@@ -172,6 +176,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.result-max-items`       | `100`                       | cap for list results |
 | `kc-mcp.confirm-timeout-seconds`| `120`                       | elicitation timeout |
 | `kc-mcp.spi.<provider>.<key>`   |                             | per tool-provider settings, `enabled=false` disables one |
+| `quarkus.http.cors.origins`     | local origins               | browser based MCP clients only; set to the client origin(s) in production |
 
 Examples:
 
@@ -265,8 +270,8 @@ LM Studio (`mcp.json`):
 | category        | tools |
 |-----------------|-------|
 | users, sessions | search, get, create, update, set_enabled, delete, reset_password, send_action_email, sessions_list, logout |
-| groups          | list, create, delete, members_list, member_add, member_remove, user_groups_list, role_assign |
-| roles           | role_list, client_roles_list, user_roles_get, user_role_assign/unassign, user_client_roles_get, user_client_role_assign/unassign |
+| groups          | list (search matches subgroups), get (roles a group grants, incl. inherited), create, delete, members_list, member_add, member_remove, user_groups_list, role_assign |
+| roles           | role_list, client_roles_list, user_roles_get (direct + effective realm and client roles, groups, and the source of each role), user_role_assign/unassign, user_client_roles_get, user_client_role_assign/unassign |
 | clients, scopes | list, get, get_secret, regenerate_secret, create, update, delete, mappers_list, scopes_list, default_scopes_get, scope_assign/unassign |
 | idp             | list, get, mappers_list, create, delete |
 | orgs            | list, get, create, delete, idp_list, idp_link, idp_unlink |

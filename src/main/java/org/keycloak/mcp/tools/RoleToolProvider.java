@@ -5,12 +5,12 @@ import java.util.Map;
 
 import jakarta.ws.rs.NotFoundException;
 
-import org.keycloak.admin.client.resource.RoleMappingResource;
 import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolCall;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
+import org.keycloak.mcp.keycloak.EffectiveRoles;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.ToolProviderContext;
@@ -67,14 +67,16 @@ public class RoleToolProvider extends AbstractToolProvider {
                         .api(get(R + "/clients/{client-uuid}/roles").path("client-uuid", "clientId"))
                         .build(),
                 tool("keycloak_user_roles_get")
-                        .title("Get a user's realm roles")
-                        .description("Realm roles mapped to a user, directly and effective (incl. groups/composites).")
+                        .title("Get a user's roles")
+                        .description("All roles of a user: direct and effective realm + client roles, groups, and where each role comes from.")
                         .category(Category.ROLES).read()
-                        .synonyms("permissions of user", "what can", "is admin", "role mapping", "has role")
+                        .synonyms("permissions of user", "what can", "is admin", "role mapping", "has role",
+                                "effective roles", "why does user have role", "client roles of user", "inherited")
                         .schema(schema().string("userId", USER_ID).required())
                         .handler(this::userRoles)
                         .roles("view-users")
-                        .api(get(R + "/users/{user-id}/role-mappings/realm").path("user-id", "userId"), get(R + "/users/{user-id}/role-mappings/realm/composite").path("user-id", "userId"))
+                        .api(get(R + "/users/{user-id}/role-mappings").path("user-id", "userId"),
+                                get(R + "/users/{user-id}/groups").path("user-id", "userId"))
                         .build(),
                 tool("keycloak_user_role_assign")
                         .title("Assign realm role to user")
@@ -172,26 +174,34 @@ public class RoleToolProvider extends AbstractToolProvider {
 
     ToolResult userRoles(ToolCall call) {
         UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
-        RoleMappingResource roles = call.kc().realm(call.realm()).users().get(u.getId()).roles();
-        return ToolResult.ok(Map.of(
-                "username", u.getUsername(),
-                "realmRoles", roles.realmLevel().listAll().stream().map(RoleRepresentation::getName).sorted().toList(),
-                "effectiveRealmRoles", roles.realmLevel().listEffective(true).stream().map(RoleRepresentation::getName)
-                        .sorted().toList()));
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("username", u.getUsername());
+        m.putAll(EffectiveRoles.ofUser(call.kc(), call.realm(), u.getId()).toView(true));
+        return ToolResult.ok(m);
+    }
+
+    /** Effective roles after a change, so "assign and tell me" is one call. */
+    static Map<String, Object> afterChange(ToolCall call, String userId) {
+        Map<String, Object> v = EffectiveRoles.ofUser(call.kc(), call.realm(), userId).toView(false);
+        v.remove("sources");
+        v.remove("defaultRoles");
+        return v;
     }
 
     ToolResult userRoleAssign(ToolCall call) {
         UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
         RoleRepresentation role = realmRole(call.kc(), call.realm(), call.str("role"));
         call.kc().realm(call.realm()).users().get(u.getId()).roles().realmLevel().add(List.of(role));
-        return ToolResult.done("Role assigned", "username", u.getUsername(), "role", role.getName());
+        return ToolResult.done("Role assigned", "username", u.getUsername(), "role", role.getName(),
+                "now", afterChange(call, u.getId()));
     }
 
     ToolResult userRoleUnassign(ToolCall call) {
         UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
         RoleRepresentation role = realmRole(call.kc(), call.realm(), call.str("role"));
         call.kc().realm(call.realm()).users().get(u.getId()).roles().realmLevel().remove(List.of(role));
-        return ToolResult.done("Role removed", "username", u.getUsername(), "role", role.getName());
+        return ToolResult.done("Role removed", "username", u.getUsername(), "role", role.getName(),
+                "now", afterChange(call, u.getId()));
     }
 
     ToolResult userClientRoles(ToolCall call) {
@@ -211,7 +221,7 @@ public class RoleToolProvider extends AbstractToolProvider {
         RoleRepresentation role = clientRole(call.kc(), call.realm(), c.getId(), call.str("role"));
         call.kc().realm(call.realm()).users().get(u.getId()).roles().clientLevel(c.getId()).add(List.of(role));
         return ToolResult.done("Client role assigned", "username", u.getUsername(), "clientId", c.getClientId(),
-                "role", role.getName());
+                "role", role.getName(), "now", afterChange(call, u.getId()));
     }
 
     ToolResult userClientRoleUnassign(ToolCall call) {

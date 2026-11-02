@@ -96,14 +96,16 @@ class CatalogLintTest {
                 ours.add(s.name());
             }
         }
+        Set<String> extras = Set.of("keycloak_group_get");
         Set<String> unknown = new TreeSet<>(ours);
         unknown.removeAll(reference);
-        assertTrue(unknown.isEmpty(), "not in reference: " + unknown);
+        unknown.removeAll(extras);
+        assertTrue(unknown.isEmpty(), "not in reference and not a declared extra: " + unknown);
         Set<String> missing = new TreeSet<>(reference);
         missing.removeAll(ours);
         System.out.println("Reference coverage: " + ours.size() + "/" + reference.size() + ", missing: " + missing);
         assertTrue(missing.isEmpty(), "reference tools not ported: " + missing);
-        assertEquals(72, ours.size());
+        assertEquals(72 + extras.size(), ours.size());
     }
 
     static Set<String> referenceNames() throws IOException {

@@ -8,6 +8,7 @@ import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolCall;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
+import org.keycloak.mcp.keycloak.EffectiveRoles;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.ToolProviderContext;
@@ -45,15 +46,28 @@ public class GroupToolProvider extends AbstractToolProvider {
         return List.of(
                 tool("keycloak_group_list")
                         .title("List groups")
-                        .description("List groups (optionally filtered by name) with id and path.")
+                        .description("Top-level groups, or with search: matching groups at any depth with full paths.")
                         .category(Category.GROUPS).read()
-                        .synonyms("teams", "departments", "find group", "search groups", "hierarchy")
+                        .synonyms("teams", "departments", "find group", "search groups", "hierarchy", "subgroups",
+                                "does group exist")
                         .schema(schema()
-                                .string("search", "Filter by (partial) group name")
+                                .string("search", "Partial group name; matches subgroups too and returns their paths")
                                 .pagination())
                         .handler(this::list)
                         .roles("query-groups")
                         .api(get(R + "/groups").query("search", "first", "max"))
+                        .build(),
+                tool("keycloak_group_get")
+                        .title("Get group")
+                        .description("One group with path, attributes, subgroups and the roles its members get (incl. inherited).")
+                        .category(Category.GROUPS).read()
+                        .synonyms("group roles", "what does group grant", "group details", "subgroups of", "group permissions")
+                        .schema(schema().string("id", GROUP_ID).required())
+                        .roles("query-groups")
+                        .api(get(R + "/groups/{group-id}").path("group-id", "id"),
+                                get(R + "/groups/{group-id}/role-mappings").path("group-id", "id"),
+                                get(R + "/groups/{group-id}/children").path("group-id", "id"))
+                        .handler(this::get)
                         .build(),
                 tool("keycloak_group_create")
                         .title("Create group")
@@ -137,8 +151,47 @@ public class GroupToolProvider extends AbstractToolProvider {
 
     ToolResult list(ToolCall call) {
         GroupsResource groups = call.kc().realm(call.realm()).groups();
-        List<GroupRepresentation> found = groups.groups(call.str("search"), call.first(), call.max(), true);
-        return ToolResult.ok(Views.page(Views.list(found, Views::group), call.max()));
+        if (!call.has("search")) {
+            List<GroupRepresentation> top = groups.groups(null, call.first(), call.max(), true);
+            return ToolResult.ok(Views.page(Views.list(top, Views::group), call.max()));
+        }
+        // Keycloak returns matching subgroups nested under their ancestors: flatten and keep real matches only
+        String needle = call.str("search").toLowerCase();
+        List<GroupRepresentation> tree = groups.groups(call.str("search"), false, call.first(), call.max(), false);
+        List<GroupRepresentation> flat = new java.util.ArrayList<>();
+        flatten(tree, flat);
+        List<GroupRepresentation> matches = flat.stream()
+                .filter(g -> g.getName() != null && g.getName().toLowerCase().contains(needle)).toList();
+        return ToolResult.ok(Views.page(Views.list(matches, Views::group), call.max()));
+    }
+
+    private static void flatten(List<GroupRepresentation> groups, List<GroupRepresentation> out) {
+        if (groups == null) {
+            return;
+        }
+        for (GroupRepresentation g : groups) {
+            out.add(g);
+            flatten(g.getSubGroups(), out);
+        }
+    }
+
+    ToolResult get(ToolCall call) {
+        GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("id"));
+        GroupRepresentation full = call.kc().realm(call.realm()).groups().group(g.getId()).toRepresentation();
+        Map<String, Object> m = Views.group(full);
+        if (full.getAttributes() != null && !full.getAttributes().isEmpty()) {
+            Map<String, Object> attrs = new java.util.LinkedHashMap<>();
+            full.getAttributes().forEach((k, v) -> attrs.put(k, v != null && v.size() == 1 ? v.get(0) : v));
+            m.put("attributes", attrs);
+        }
+        List<GroupRepresentation> children = call.kc().realm(call.realm()).groups().group(g.getId())
+                .getSubGroups(0, 100, true);
+        if (!children.isEmpty()) {
+            m.put("subGroups", children.stream().map(GroupRepresentation::getPath).toList());
+        }
+        m.putAll(EffectiveRoles.ofGroup(call.kc(), call.realm(), full.getPath()).toView(false));
+        m.remove("groups");
+        return ToolResult.ok(m);
     }
 
     ToolResult create(ToolCall call) {
@@ -173,14 +226,16 @@ public class GroupToolProvider extends AbstractToolProvider {
         GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("groupId"));
         UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
         call.kc().realm(call.realm()).users().get(u.getId()).joinGroup(g.getId());
-        return ToolResult.done("User added to group", "username", u.getUsername(), "group", g.getPath());
+        return ToolResult.done("User added to group", "username", u.getUsername(), "group", g.getPath(),
+                "now", RoleToolProvider.afterChange(call, u.getId()));
     }
 
     ToolResult memberRemove(ToolCall call) {
         GroupRepresentation g = call.kc().findGroup(call.realm(), call.str("groupId"));
         UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
         call.kc().realm(call.realm()).users().get(u.getId()).leaveGroup(g.getId());
-        return ToolResult.done("User removed from group", "username", u.getUsername(), "group", g.getPath());
+        return ToolResult.done("User removed from group", "username", u.getUsername(), "group", g.getPath(),
+                "now", RoleToolProvider.afterChange(call, u.getId()));
     }
 
     ToolResult userGroups(ToolCall call) {
