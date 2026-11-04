@@ -66,7 +66,7 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
   elicitation when the client supports it; otherwise they require `confirm: true` and explain that in the error.
 * `keycloak_user_delete` additionally requires the matching `username`; `keycloak_realm_update` and
   `keycloak_auth_flow_bind` count as destructive because they can lock people out.
-* One audit log line per executed tool (`org.keycloak.mcp.audit`), and an `AuditListener` SPI that receives the
+* One audit log line per executed tool (`com.github.thomasdarimont.keycloak.mcp.audit`), and an `AuditListener` SPI that receives the
   same event (tool, level, system, realm, redacted arguments, outcome, caller, client, duration) for shipping to a
   SIEM or database; see §Extending.
 
@@ -242,7 +242,7 @@ The server listens on port 8081 (`quarkus.http.port`) so a local Keycloak can ke
 
 ## Extending: tool providers
 
-Extensions depend on `org.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
+Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
 `AccessCheck`, `AuditListener`, `Caller`), the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
 `InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client
 with the forgiving lookups, `GrantedRoles`, `Views`, `AbstractToolProvider` and the server configuration interface.
@@ -270,7 +270,7 @@ public class AcmeToolProvider implements ToolProvider {
 ```
 
 Annotate it with `@AutoService(ToolProvider.class)` (Google AutoService generates the
-`META-INF/services/org.keycloak.mcp.spi.ToolProvider` entry at compile time; writing that file by hand or making
+`META-INF/services/com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider` entry at compile time; writing that file by hand or making
 the class a CDI bean works too). Jars placed in `target/quarkus-app/providers/` are picked up at startup
 (`quarkus.package.jar.user-providers-directory`).
 Provider tools automatically get search, exposure modes, validation, realm checks, confirmation and the audit log.
@@ -280,7 +280,7 @@ The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `feder
 Global `AccessCheck`s (see §Per-tool access checks) are extension points of their own: `@AutoService(AccessCheck.class)`
 on the class, a CDI bean, or `ToolProvider.accessChecks(...)` all register a check that runs on every call.
 
-`org.keycloak.mcp.spi.AuditListener` receives one event per finished call, whatever the outcome
+`com.github.thomasdarimont.keycloak.mcp.spi.AuditListener` receives one event per finished call, whatever the outcome
 (`@AutoService(AuditListener.class)` or a CDI bean). The built-in listener writes the log line; yours can forward
 to a SIEM, a database or a queue. Password-like arguments arrive as `***`. Listeners run synchronously on the
 handler's virtual thread, so hand slow deliveries to your own executor; an exception is logged and never changes
@@ -325,7 +325,7 @@ Two endpoints we use are missing from the published document (server info, user 
 ./mvnw spotless:apply                  # format the Java sources; `verify` fails on unformatted code
 ```
 
-Two Maven modules: `api` (`org.keycloak:keycloak-mcp-server-api`, what extensions compile against, no Quarkus
+Two Maven modules: `api` (`com.github.thomasdarimont.keycloak:keycloak-mcp-server-api`, what extensions compile against, no Quarkus
 dependency) and `server` (the Quarkus application). Dev mode needs `-pl server -am` so the api is built in the
 same reactor; every other goal runs from the root.
 
