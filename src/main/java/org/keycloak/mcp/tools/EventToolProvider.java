@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolCall;
@@ -90,7 +91,7 @@ public class EventToolProvider extends AbstractToolProvider {
             String u = call.str("user");
             userId = KeycloakAdmin.isUuid(u) ? u : call.kc().findUser(call.realm(), u).getId();
         }
-        List<String> types = call.has("type") ? List.of(call.str("type").toUpperCase()) : null;
+        List<String> types = call.has("type") ? List.of(Objects.requireNonNull(call.str("type")).toUpperCase()) : null;
         List<EventRepresentation> events = call.kc().realm(call.realm()).getEvents(types, call.str("client"), userId,
                 call.str("dateFrom"), call.str("dateTo"), call.str("ipAddress"), call.first(), call.max());
         List<Map<String, Object>> items = new ArrayList<>();
@@ -119,7 +120,7 @@ public class EventToolProvider extends AbstractToolProvider {
     }
 
     ToolResult adminEvents(ToolCall call) {
-        List<String> ops = call.has("operationType") ? List.of(call.str("operationType")) : null;
+        List<String> ops = call.has("operationType") ? List.of(Objects.requireNonNull(call.str("operationType"))) : null;
         List<AdminEventRepresentation> events = call.kc().realm(call.realm()).getAdminEvents(ops, null, null,
                 call.str("authUser"), null, call.str("resourcePath"), call.str("dateFrom"), call.str("dateTo"),
                 call.first(), call.max());

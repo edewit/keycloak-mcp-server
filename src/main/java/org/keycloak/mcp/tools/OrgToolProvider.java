@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import jakarta.ws.rs.WebApplicationException;
 
@@ -209,7 +210,7 @@ public class OrgToolProvider extends AbstractToolProvider {
         o.setEnabled(call.bool("enabled", true));
         o.setRedirectUrl(call.str("redirectUrl"));
         if (call.has("domains")) {
-            for (String d : call.strings("domains")) {
+            for (String d : Objects.requireNonNull(call.strings("domains"))) {
                 OrganizationDomainRepresentation rep = new OrganizationDomainRepresentation();
                 rep.setName(d.trim().toLowerCase());
                 rep.setVerified(true);

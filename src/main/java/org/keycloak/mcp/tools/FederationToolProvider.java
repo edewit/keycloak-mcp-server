@@ -131,7 +131,7 @@ public class FederationToolProvider extends AbstractToolProvider {
         Map<String, Object> config = new LinkedHashMap<>();
         if (c.getConfig() != null) {
             c.getConfig().forEach((k, v) -> config.put(k,
-                    SECRET_KEYS.contains(k) ? "****" : v != null && v.size() == 1 ? v.get(0) : v));
+                    SECRET_KEYS.contains(k) ? "****" : v != null && v.size() == 1 ? v.getFirst() : v));
         }
         m.put("config", config);
         return ToolResult.ok(m);

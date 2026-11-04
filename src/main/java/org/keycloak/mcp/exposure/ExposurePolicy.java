@@ -35,6 +35,9 @@ public class ExposurePolicy {
     }
 
     public boolean listed(String toolName, String connectionId) {
+        if (MetaTools.WHOAMI.equals(toolName)) {
+            return true;
+        }
         if (MetaTools.isMetaTool(toolName)) {
             return mode != ExposureMode.DIRECT;
         }

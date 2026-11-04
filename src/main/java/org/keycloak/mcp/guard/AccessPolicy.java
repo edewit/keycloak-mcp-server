@@ -35,6 +35,10 @@ import org.keycloak.mcp.spi.ToolProviderRegistry;
 @ApplicationScoped
 public class AccessPolicy {
 
+    /** Points the model at the tool that explains the current permissions instead of retrying. */
+    public static final String WHOAMI_HINT = "Do not retry; tell the user which role is missing. "
+            + "Call whoami to see what the current caller may do.";
+
     private final boolean readOnly;
     private final Set<String> allowedRealms;
     private final java.util.function.Function<String, Set<String>> allowedRealmsBySystem;
@@ -167,20 +171,21 @@ public class AccessPolicy {
                     "allowed", List.copyOf(allowedRealms(system))));
         }
         boolean delegated = ctx.caller().delegated();
-        GrantedRoles granted = grantedFor(system, ctx);
+        GrantedRoles granted = granted(system, ctx);
         if (granted != null && realm != null) {
             String who = delegated ? "caller '" + ctx.caller().name() + "' has" : "the server's credentials have";
             // an unknown server token disables filtering; a caller token without any admin role simply cannot act
             if (!granted.reaches(realm) || (delegated && !granted.known())) {
                 return Optional.of(ToolResult.error("forbidden", Character.toUpperCase(who.charAt(0)) + who.substring(1)
-                        + " no admin roles in realm '" + realm + "'.", "realmsWithRoles", List.copyOf(granted.realms())));
+                        + " no admin roles in realm '" + realm + "'.", "realmsWithRoles", List.copyOf(granted.realms()),
+                        "hint", WHOAMI_HINT));
             }
             Set<String> missing = granted.missing(realm, spec.requiredRoles());
             if (!missing.isEmpty()) {
                 return Optional.of(ToolResult.error("forbidden", spec.name() + " needs the realm-management role(s) "
                         + missing + " in realm '" + realm + "', which " + (delegated
                                 ? "caller '" + ctx.caller().name() + "' lacks." : "the server's credentials lack."),
-                        "missingRoles", List.copyOf(missing)));
+                        "missingRoles", List.copyOf(missing), "hint", WHOAMI_HINT));
             }
         }
         if (delegated && spec.delegation() == Delegation.FORBIDDEN) {
@@ -211,10 +216,12 @@ public class AccessPolicy {
     }
 
     /**
-     * Roles that decide this call: the caller's own (parsed from the forwarded token) when the call is delegated,
+     * Roles that decide a call: the caller's own (parsed from the forwarded token) when the call is delegated,
      * otherwise the server token's as discovered; {@code null} when role checks are off.
+     *
+     * @param system Keycloak system name, or {@code null} for the single/default system
      */
-    private GrantedRoles grantedFor(String system, InvocationContext ctx) {
+    public GrantedRoles granted(String system, InvocationContext ctx) {
         if (ctx.caller().delegated() && ctx.callerToken() != null) {
             return GrantedRoles.fromToken(ctx.callerToken(), ctx.caller().realm());
         }

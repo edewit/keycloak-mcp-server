@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import jakarta.ws.rs.NotFoundException;
@@ -118,7 +119,7 @@ public class IdpToolProvider extends AbstractToolProvider {
         m.put("alias", idp.getAlias());
         Views.put(m, "displayName", idp.getDisplayName());
         m.put("providerId", idp.getProviderId());
-        m.put("enabled", Boolean.TRUE.equals(idp.isEnabled()));
+        m.put("enabled", idp.isEnabled());
         if (Boolean.TRUE.equals(idp.isHideOnLogin())) {
             m.put("hideOnLogin", true);
         }
@@ -191,7 +192,7 @@ public class IdpToolProvider extends AbstractToolProvider {
         }
         Map<String, String> config = new LinkedHashMap<>();
         if (call.has("config")) {
-            config.putAll(call.stringMap("config"));
+            config.putAll(Objects.requireNonNull(call.stringMap("config")));
         }
         idp.setConfig(config);
         KeycloakAdmin.ok(call.kc().realm(call.realm()).identityProviders().create(idp));

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.keycloak.mcp.catalog.ApiOperation;
 import org.keycloak.mcp.catalog.Category;
@@ -13,7 +14,9 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.spi.Delegation;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.representations.info.FeatureRepresentation;
 import org.keycloak.representations.info.ServerInfoRepresentation;
+import org.keycloak.representations.info.ThemeInfoRepresentation;
 
 /**
  * REALM: server info, realm configuration and realm updates (login options, tokens, SMTP, WebAuthn passwordless).
@@ -114,7 +117,7 @@ public class RealmToolProvider extends AbstractToolProvider {
         if (call.has("verifyEmail")) { r.setVerifyEmail(call.bool("verifyEmail")); changed.add("verifyEmail"); }
         if (call.has("editUsernameAllowed")) { r.setEditUsernameAllowed(call.bool("editUsernameAllowed")); changed.add("editUsernameAllowed"); }
         if (call.has("bruteForceProtected")) { r.setBruteForceProtected(call.bool("bruteForceProtected")); changed.add("bruteForceProtected"); }
-        if (call.has("eventsEnabled")) { r.setEventsEnabled(call.bool("eventsEnabled")); changed.add("eventsEnabled"); }
+        if (call.has("eventsEnabled")) { r.setEventsEnabled(Boolean.TRUE.equals(call.bool("eventsEnabled"))); changed.add("eventsEnabled"); }
         if (call.has("adminEventsEnabled")) { r.setAdminEventsEnabled(call.bool("adminEventsEnabled")); changed.add("adminEventsEnabled"); }
         if (call.has("organizationsEnabled")) { r.setOrganizationsEnabled(call.bool("organizationsEnabled")); changed.add("organizationsEnabled"); }
         if (call.has("accessTokenLifespan")) { r.setAccessTokenLifespan(call.integer("accessTokenLifespan")); changed.add("accessTokenLifespan"); }
@@ -124,7 +127,7 @@ public class RealmToolProvider extends AbstractToolProvider {
         if (call.has("defaultLocale")) { r.setDefaultLocale(call.str("defaultLocale")); changed.add("defaultLocale"); }
         if (call.has("smtpServer")) {
             Map<String, String> smtp = r.getSmtpServer() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(r.getSmtpServer());
-            smtp.putAll(call.stringMap("smtpServer"));
+            smtp.putAll(Objects.requireNonNull(call.stringMap("smtpServer")));
             r.setSmtpServer(smtp);
             changed.add("smtpServer");
         }
@@ -150,10 +153,10 @@ public class RealmToolProvider extends AbstractToolProvider {
                 case "rpId" -> r.setWebAuthnPolicyPasswordlessRpId(s);
                 case "signatureAlgorithms" -> r.setWebAuthnPolicyPasswordlessSignatureAlgorithms(toList(v));
                 case "userVerificationRequirement" -> r.setWebAuthnPolicyPasswordlessUserVerificationRequirement(s);
-                case "requireResidentKey" -> r.setWebAuthnPolicyPasswordlessRequireResidentKey(s);
+                case "requireResidentKey" -> r.setWebAuthnPolicyPasswordlessResidentKey(s);
                 case "authenticatorAttachment" -> r.setWebAuthnPolicyPasswordlessAuthenticatorAttachment(s);
                 case "attestationConveyancePreference" -> r.setWebAuthnPolicyPasswordlessAttestationConveyancePreference(s);
-                case "createTimeout" -> r.setWebAuthnPolicyPasswordlessCreateTimeout(Integer.parseInt(s));
+                case "createTimeout" -> r.setWebAuthnPolicyPasswordlessCreateTimeout(s == null ? null : Integer.parseInt(s));
                 case "avoidSameAuthenticatorRegister" -> r.setWebAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister(Boolean.parseBoolean(s));
                 case "acceptableAaguids" -> r.setWebAuthnPolicyPasswordlessAcceptableAaguids(toList(v));
                 case "passkeysEnabled" -> r.setWebAuthnPolicyPasswordlessPasskeysEnabled(Boolean.parseBoolean(s));
@@ -185,12 +188,12 @@ public class RealmToolProvider extends AbstractToolProvider {
             m.put("uptime", info.getSystemInfo().getUptime());
         }
         if (info.getFeatures() != null) {
-            m.put("enabledFeatures", info.getFeatures().stream().filter(f -> f.isEnabled()).map(f -> f.getName())
+            m.put("enabledFeatures", info.getFeatures().stream().filter(FeatureRepresentation::isEnabled).map(FeatureRepresentation::getName)
                     .sorted().toList());
         }
         if (info.getThemes() != null) {
             Map<String, Object> themes = new LinkedHashMap<>();
-            info.getThemes().forEach((type, list) -> themes.put(type, list.stream().map(t -> t.getName()).toList()));
+            info.getThemes().forEach((type, list) -> themes.put(type, list.stream().map(ThemeInfoRepresentation::getName).toList()));
             m.put("themes", themes);
         }
         return ToolResult.ok(m);
@@ -238,9 +241,9 @@ public class RealmToolProvider extends AbstractToolProvider {
         passwordless.put("rpId", r.getWebAuthnPolicyPasswordlessRpId());
         passwordless.put("signatureAlgorithms", r.getWebAuthnPolicyPasswordlessSignatureAlgorithms());
         passwordless.put("userVerificationRequirement", r.getWebAuthnPolicyPasswordlessUserVerificationRequirement());
-        passwordless.put("requireResidentKey", r.getWebAuthnPolicyPasswordlessRequireResidentKey());
+        passwordless.put("requireResidentKey", r.getWebAuthnPolicyPasswordlessResidentKey());
         passwordless.put("authenticatorAttachment", r.getWebAuthnPolicyPasswordlessAuthenticatorAttachment());
-        passwordless.values().removeIf(v -> v == null);
+        passwordless.values().removeIf(Objects::isNull);
         m.put("webAuthnPasswordlessPolicy", passwordless);
         m.put("defaultLocale", r.getDefaultLocale());
         m.put("internationalizationEnabled", r.isInternationalizationEnabled());
@@ -252,7 +255,7 @@ public class RealmToolProvider extends AbstractToolProvider {
             smtp.remove("password");
             m.put("smtp", smtp);
         }
-        m.values().removeIf(v -> v == null);
+        m.values().removeIf(Objects::isNull);
         return ToolResult.ok(m);
     }
 }

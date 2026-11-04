@@ -2,6 +2,7 @@ package org.keycloak.mcp.tools;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.keycloak.admin.client.resource.GroupsResource;
 import org.keycloak.mcp.catalog.Category;
@@ -156,7 +157,7 @@ public class GroupToolProvider extends AbstractToolProvider {
             return ToolResult.ok(Views.page(Views.list(top, Views::group), call.max()));
         }
         // Keycloak returns matching subgroups nested under their ancestors: flatten and keep real matches only
-        String needle = call.str("search").toLowerCase();
+        String needle = Objects.requireNonNull(call.str("search")).toLowerCase();
         List<GroupRepresentation> tree = groups.groups(call.str("search"), false, call.first(), call.max(), false);
         List<GroupRepresentation> flat = new java.util.ArrayList<>();
         flatten(tree, flat);
@@ -181,7 +182,7 @@ public class GroupToolProvider extends AbstractToolProvider {
         Map<String, Object> m = Views.group(full);
         if (full.getAttributes() != null && !full.getAttributes().isEmpty()) {
             Map<String, Object> attrs = new java.util.LinkedHashMap<>();
-            full.getAttributes().forEach((k, v) -> attrs.put(k, v != null && v.size() == 1 ? v.get(0) : v));
+            full.getAttributes().forEach((k, v) -> attrs.put(k, v != null && v.size() == 1 ? v.getFirst() : v));
             m.put("attributes", attrs);
         }
         List<GroupRepresentation> children = call.kc().realm(call.realm()).groups().group(g.getId())

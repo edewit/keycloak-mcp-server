@@ -86,7 +86,21 @@ public class McpToolRegistrar {
                 .setInputSchema(metaTools.searchSchema())
                 .setHandler(args -> toResponse(metaTools.search(
                         str(args.args(), "query"), str(args.args(), "category"), intOf(args.args(), "limit"),
-                        args.connection() == null ? null : args.connection().id(), exposure.mode())), VIRTUAL_THREADS)
+                        args.connection() == null ? null : args.connection().id(), exposure.mode(),
+                        InvocationContext.of(args, MetaTools.SEARCH_TOOLS)
+                                .withCaller(callers.current(args), callers.accessToken(args)))), VIRTUAL_THREADS)
+                .register();
+
+        toolManager.newTool(MetaTools.WHOAMI)
+                .setTitle("Who am I")
+                .setDescription("Who the Keycloak calls of this session run as (the signed-in user or the server's "
+                        + "service account), their realm-management roles with readable labels, and what they may "
+                        + "view or manage. Call it when an action was forbidden or the user asks what they can do.")
+                .setAnnotations(new ToolAnnotations("Who am I", true, false, true, false))
+                .setInputSchema(metaTools.whoamiSchema())
+                .setHandler(args -> toResponse(metaTools.whoami(str(args.args(), "language"),
+                        str(args.args(), InputSchema.SYSTEM), InvocationContext.of(args, MetaTools.WHOAMI)
+                                .withCaller(callers.current(args), callers.accessToken(args)))), VIRTUAL_THREADS)
                 .register();
 
         toolManager.newTool(MetaTools.EXECUTE_TOOL)

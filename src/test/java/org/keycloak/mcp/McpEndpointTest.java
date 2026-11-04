@@ -50,7 +50,7 @@ class McpEndpointTest {
         JsonArray tools = mcp.request("tools/list", new JsonObject()).getJsonObject("result").getJsonArray("tools");
         List<String> names = tools.stream().map(t -> ((JsonObject) t).getString("name")).sorted().toList();
         assertEquals(List.of("execute_tool", "keycloak_realm_get_config", "keycloak_server_info", "keycloak_user_get",
-                "keycloak_user_search", "search_tools"), names);
+                "keycloak_user_search", "search_tools", "whoami"), names);
         JsonObject search = tools.stream().map(t -> (JsonObject) t)
                 .filter(t -> t.getString("name").equals("keycloak_user_search")).findFirst().orElseThrow();
         assertEquals("realm", search.getJsonObject("inputSchema").getJsonObject("properties").fieldNames().iterator()

@@ -343,7 +343,7 @@ public class ClientToolProvider extends AbstractToolProvider {
         if (call.has("pkce")) {
             Map<String, String> attrs = c.getAttributes() == null ? new LinkedHashMap<>()
                     : new LinkedHashMap<>(c.getAttributes());
-            if (call.bool("pkce")) {
+            if (Boolean.TRUE.equals(call.bool("pkce"))) {
                 attrs.put("pkce.code.challenge.method", "S256");
             } else {
                 attrs.remove("pkce.code.challenge.method");

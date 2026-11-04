@@ -33,6 +33,7 @@ public class PrivateKeyJwtProfile implements QuarkusTestProfile {
         }
         return Map.of(
                 "kc-mcp.grant-type", "client_credentials",
+                "kc-mcp.client-auth", "private_key_jwt",
                 "kc-mcp.client-id", "mcp-admin",
                 "kc-mcp.jwt.key-file", pem.toString(),
                 "kc-mcp.jwt.key-id", "kc-mcp-test-key",

@@ -435,7 +435,7 @@ class KeycloakIT {
     @Order(12)
     void secondSystemIsSelectable() {
         JsonArray tools = mcp.listTools();
-        assertEquals(74, tools.size(), "direct mode lists every tool across pages");
+        assertEquals(75, tools.size(), "direct mode lists every tool across pages, plus whoami");
         JsonObject search = tools.stream().map(t -> (JsonObject) t)
                 .filter(t -> t.getString("name").equals("keycloak_user_search")).findFirst().orElseThrow();
         JsonObject props = search.getJsonObject("inputSchema").getJsonObject("properties");

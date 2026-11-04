@@ -141,6 +141,33 @@ public record GrantedRoles(boolean known, boolean superAdmin, String authRealm, 
         return false;
     }
 
+    /**
+     * The smallest set of required refs still missing in any realm the token reaches (for search, where the target
+     * realm is not known yet); empty when some realm satisfies them all.
+     */
+    public Set<String> missingAnyRealm(Set<String> required) {
+        if (!known || superAdmin || required.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> realms = new LinkedHashSet<>(byRealm.keySet());
+        if (authRealm != null) {
+            realms.add(authRealm);
+        }
+        Set<String> best = null;
+        for (String realm : realms) {
+            Set<String> missing = missing(realm, required);
+            if (best == null || missing.size() < best.size()) {
+                best = missing;
+            }
+        }
+        return best == null ? Set.copyOf(required) : best;
+    }
+
+    /** Whether {@code role} (a realm-management role) is held or implied in {@code realm}. */
+    public boolean holds(String realm, String role) {
+        return !known || superAdmin || satisfiedManagement(byRealm.getOrDefault(realm, Set.of()), role);
+    }
+
     /** Required refs not satisfied in {@code realm}, in declaration order. */
     public Set<String> missing(String realm, Set<String> required) {
         Set<String> missing = new LinkedHashSet<>();

@@ -12,10 +12,6 @@ import org.keycloak.mcp.spi.ToolProviderContext;
  */
 public abstract class AbstractToolProvider implements ToolProvider {
 
-    @Override
-    public void init(ToolProviderContext context) {
-    }
-
     protected static ToolSpec.Builder tool(String name) {
         return ToolSpec.builder(name);
     }

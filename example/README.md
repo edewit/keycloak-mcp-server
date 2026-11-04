@@ -99,9 +99,11 @@ LM Studio: copy `mcp-oauth.json` (`"auth": {"CLIENT_ID": "mcp-consumer"}`), conn
 | user | roles via group | what happens |
 |---|---|---|
 | `alice / alice-demo` | `/mcp-admins` → `realm-admin` | everything works; audit: `caller=alice(…) delegated` |
-| `carol / carol-demo` | `/mcp-support` → `view-users`, `view-events` | "list users" works, "disable dave" → `forbidden`, missing `manage-users` |
+| `carol / carol-demo` | `/mcp-support` → `view-users`, `view-events` | "list users" works, "disable dave" → `forbidden`, missing `manage-users`; `search_tools` already marks such tools `allowed: false` |
 | `bob / bob-demo` | none | every tool → `forbidden` ("no admin roles in realm 'demo'") |
 
+"What am I allowed to do?" (or "Was darf ich?") calls `whoami`, which lists the user's roles with readable labels
+(`language: de` gives German ones) and a per-area summary such as `users: view, clients: none`.
 To switch users, remove the server in LM Studio and add it again, or log the user out in the Keycloak account
 console. Other MCP clients need their own callback added to `mcp-consumer`'s redirect URIs (Keycloak allows `*`
 only at the end of a URI). A token obtained for `demo-app` is rejected with `401` because it lacks `aud=mcp-admin`.

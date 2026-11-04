@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
@@ -16,6 +17,7 @@ import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
 /**
@@ -202,14 +204,14 @@ public class UserToolProvider extends AbstractToolProvider {
         } else {
             found = users.search(call.str("search"), call.bool("enabled"), call.first(), call.max());
             if (hasUsername) {
-                found = found.stream().filter(u -> call.str("username").equalsIgnoreCase(u.getUsername())).toList();
+                found = found.stream().filter(u -> Objects.requireNonNull(call.str("username")).equalsIgnoreCase(u.getUsername())).toList();
             }
             if (hasEmail) {
-                found = found.stream().filter(u -> call.str("email").equalsIgnoreCase(u.getEmail())).toList();
+                found = found.stream().filter(u -> Objects.requireNonNull(call.str("email")).equalsIgnoreCase(u.getEmail())).toList();
             }
         }
         if (call.has("enabled")) {
-            boolean enabled = call.bool("enabled");
+            boolean enabled = Boolean.TRUE.equals(call.bool("enabled"));
             found = found.stream().filter(u -> Boolean.valueOf(enabled).equals(u.isEnabled())).toList();
         }
         return ToolResult.ok(Views.page(Views.list(found, Views::user), call.max()));
@@ -220,7 +222,7 @@ public class UserToolProvider extends AbstractToolProvider {
         Map<String, Object> view = Views.userDetail(u);
         try {
             view.put("groups", call.kc().realm(call.realm()).users().get(u.getId()).groups(0, 50).stream()
-                    .map(g -> g.getPath()).toList());
+                    .map(GroupRepresentation::getPath).toList());
         } catch (RuntimeException e) {
             // groups are optional detail; a missing view-users role on groups should not fail the call
         }
@@ -275,7 +277,7 @@ public class UserToolProvider extends AbstractToolProvider {
         if (call.has("attributes")) {
             Map<String, List<String>> attrs = u.getAttributes() == null ? new LinkedHashMap<>()
                     : new LinkedHashMap<>(u.getAttributes());
-            call.stringMap("attributes").forEach((k, v) -> attrs.put(k, List.of(v)));
+            Objects.requireNonNull(call.stringMap("attributes")).forEach((k, v) -> attrs.put(k, List.of(v)));
             u.setAttributes(attrs);
             changed.add("attributes");
         }
@@ -285,7 +287,7 @@ public class UserToolProvider extends AbstractToolProvider {
         res.update(u);
         if (call.has("attributes")) {
             Map<String, List<String>> stored = res.toRepresentation().getAttributes();
-            List<String> dropped = call.stringMap("attributes").keySet().stream()
+            List<String> dropped = Objects.requireNonNull(call.stringMap("attributes")).keySet().stream()
                     .filter(k -> stored == null || !stored.containsKey(k)).toList();
             if (!dropped.isEmpty()) {
                 return ToolResult.done("User updated", "id", u.getId(), "changed", changed,

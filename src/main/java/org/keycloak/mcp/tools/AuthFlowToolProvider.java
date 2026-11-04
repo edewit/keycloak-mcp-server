@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.keycloak.admin.client.resource.AuthenticationManagementResource;
 import org.keycloak.mcp.catalog.Category;
@@ -337,7 +338,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
 
     ToolResult flowCopy(ToolCall call) {
         AuthenticationFlowRepresentation source = findFlow(call, call.str("flowAlias"));
-        KeycloakAdmin.ok(flowsOf(call).copy(source.getAlias(), Map.of("newName", call.str("newName"))));
+        KeycloakAdmin.ok(flowsOf(call).copy(source.getAlias(), Map.of("newName", Objects.requireNonNull(call.str("newName")))));
         return ToolResult.done("Flow copied", "from", source.getAlias(), "alias", call.str("newName"));
     }
 
@@ -354,6 +355,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
             case "clientAuthenticationFlow" -> r.setClientAuthenticationFlow(flow.getAlias());
             case "dockerAuthenticationFlow" -> r.setDockerAuthenticationFlow(flow.getAlias());
             case "firstBrokerLoginFlow" -> r.setFirstBrokerLoginFlow(flow.getAlias());
+            case null -> {}
             default -> throw new ToolException("invalid_arguments", "Unknown binding " + binding);
         }
         call.kc().realm(call.realm()).update(r);
@@ -476,9 +478,9 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         } catch (jakarta.ws.rs.NotFoundException e) {
             throw ToolException.notFound("Required action", call.str("alias"));
         }
-        a.setEnabled(call.bool("enabled"));
+        a.setEnabled(Boolean.TRUE.equals(call.bool("enabled")));
         if (call.has("defaultAction")) {
-            a.setDefaultAction(call.bool("defaultAction"));
+            a.setDefaultAction(Boolean.TRUE.equals(call.bool("defaultAction")));
         }
         if (!a.isEnabled()) {
             a.setDefaultAction(false);

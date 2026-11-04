@@ -20,6 +20,8 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
 | `direct`      | every tool, like the reference implementation            |
 | `progressive` | hybrid + whatever the last `search_tools` surfaced, per connection (needs clients that honour `tools/list_changed`) |
 
+`whoami` is listed in every mode.
+
 * `search_tools(query, category?, limit?)` – lexical search over names, titles, descriptions, parameters and a
   hand-maintained synonym table ("kick" → logout, "ldap" → federation, …). Umlauts and accents are folded and
   German query words are translated before matching ("Benutzer abmelden" → `user logout`,
@@ -31,6 +33,13 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
   Errors are structured (`unknown_tool` with `didYouMean`, `invalid_arguments` with `problems` + schema,
   `realm_not_allowed`, `confirmation_required`, `read_only_mode`, `not_found`, `conflict`, `keycloak_unreachable`, …)
   and always flagged `isError: true`.
+* `whoami(language?)` – who the Keycloak calls of this session run as (the signed-in user under
+  `KC_MCP_DELEGATION=forward`, otherwise the server's service account), their `realm-management` roles per realm
+  with the admin console's labels (`view-users` → "View users"; `language: de` → "Benutzer anzeigen", other
+  languages fall back to English and say so in `labelLanguage`), a per-area summary (`users: view`,
+  `clients: none`, …) and how many tools that unlocks. When roles are known, `search_tools` keeps hits the caller
+  may not use but marks them `allowed: false` with `missingRoles`, and a `forbidden` error points the model at
+  `whoami`, so a user with only `view-*` roles is told what is missing instead of watching the model retry.
 * Hidden tools stay callable by name, so a model that guesses `keycloak_user_search` in lazy mode still succeeds.
 * Identifiers are forgiving: users by id or username, clients by id or clientId, groups by id, path or name; the
   instructions tell the model to pass them directly instead of looking ids up first.
