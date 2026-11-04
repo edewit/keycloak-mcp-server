@@ -1,11 +1,8 @@
 package org.keycloak.mcp.guard;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.Map;
 import java.util.Set;
+import jakarta.json.Json;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.junit.jupiter.api.Test;
@@ -14,7 +11,10 @@ import org.keycloak.mcp.spi.Caller;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.runtime.QuarkusPrincipal;
 import io.quarkus.security.runtime.QuarkusSecurityIdentity;
-import jakarta.json.Json;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SecurityIdentityCallerProviderTest {
 
@@ -40,23 +40,27 @@ class SecurityIdentityCallerProviderTest {
 
     @Test
     void anonymousIdentity() {
-        SecurityIdentity anon = QuarkusSecurityIdentity.builder().setAnonymous(true).setPrincipal(new QuarkusPrincipal("")).build();
+        SecurityIdentity anon = QuarkusSecurityIdentity.builder()
+            .setAnonymous(true)
+            .setPrincipal(new QuarkusPrincipal(""))
+            .build();
         assertTrue(SecurityIdentityCallerProvider.fromIdentity(anon).isAnonymous());
         assertTrue(SecurityIdentityCallerProvider.fromIdentity(null).isAnonymous());
     }
 
     @Test
     void jwtIdentityCarriesSubjectRealmAndRoles() {
-        JsonWebToken token = jwt(Map.of(
-                "sub", "1234-5678",
-                "upn", "alice@example.com",
-                "preferred_username", "alice",
-                "iss", "https://sso.example.com/auth/realms/demo",
-                "realm_access", Json.createObjectBuilder().add("roles", Json.createArrayBuilder().add("group-manager")).build(),
-                "resource_access", Json.createObjectBuilder()
-                        .add("my-app", Json.createObjectBuilder().add("roles", Json.createArrayBuilder().add("auditor")))
-                        .build()));
-        SecurityIdentity identity = QuarkusSecurityIdentity.builder().setPrincipal(token).addRole("group-manager").build();
+        JsonWebToken token = jwt(Map.of("sub", "1234-5678", "upn", "alice@example.com", "preferred_username", "alice",
+                "iss", "https://sso.example.com/auth/realms/demo", "realm_access",
+                Json.createObjectBuilder().add("roles", Json.createArrayBuilder().add("group-manager")).build(),
+                "resource_access",
+                Json.createObjectBuilder()
+                    .add("my-app", Json.createObjectBuilder().add("roles", Json.createArrayBuilder().add("auditor")))
+                    .build()));
+        SecurityIdentity identity = QuarkusSecurityIdentity.builder()
+            .setPrincipal(token)
+            .addRole("group-manager")
+            .build();
         Caller c = SecurityIdentityCallerProvider.fromIdentity(identity);
         assertEquals("1234-5678", c.subject());
         assertEquals("alice", c.name());
@@ -68,8 +72,10 @@ class SecurityIdentityCallerProviderTest {
 
     @Test
     void plainPrincipalFallsBackToName() {
-        SecurityIdentity identity = QuarkusSecurityIdentity.builder().setPrincipal(new QuarkusPrincipal("bob"))
-                .addRole("viewer").build();
+        SecurityIdentity identity = QuarkusSecurityIdentity.builder()
+            .setPrincipal(new QuarkusPrincipal("bob"))
+            .addRole("viewer")
+            .build();
         Caller c = SecurityIdentityCallerProvider.fromIdentity(identity);
         assertEquals("bob", c.subject());
         assertEquals("bob", c.name());

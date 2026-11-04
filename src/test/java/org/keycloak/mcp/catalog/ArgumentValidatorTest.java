@@ -1,10 +1,5 @@
 package org.keycloak.mcp.catalog;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,16 +8,25 @@ import org.junit.jupiter.api.Test;
 
 import io.vertx.core.json.JsonObject;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 class ArgumentValidatorTest {
 
     private final JsonObject schema = InputSchema.builder()
-            .string("id", "id").required()
-            .bool("enabled", "flag")
-            .integer("count", "n").min(0).max(10).def(3)
-            .enumeration("action", "a", "full", "changed")
-            .stringArray("uris", "list")
-            .stringMap("config", "map")
-            .build();
+        .string("id", "id")
+        .required()
+        .bool("enabled", "flag")
+        .integer("count", "n")
+        .min(0)
+        .max(10)
+        .def(3)
+        .enumeration("action", "a", "full", "changed")
+        .stringArray("uris", "list")
+        .stringMap("config", "map")
+        .build();
 
     @Test
     void appliesDefaultsAndDropsUnknown() {
@@ -68,8 +72,8 @@ class ArgumentValidatorTest {
 
     @Test
     void rejectsBadEnumAndTypes() {
-        var out = ArgumentValidator.validate(schema, Map.of("id", "x", "action", "nope", "enabled", "maybe",
-                "count", 1.5));
+        var out = ArgumentValidator.validate(schema,
+                Map.of("id", "x", "action", "nope", "enabled", "maybe", "count", 1.5));
         assertFalse(out.valid());
         assertEquals(List.of("enabled", "count", "action"),
                 out.problems().stream().map(ArgumentValidator.Problem::field).toList());

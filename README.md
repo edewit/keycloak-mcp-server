@@ -292,7 +292,12 @@ Two endpoints we use are missing from the published document (server info, user 
 ./mvnw test                            # unit + in-process MCP endpoint tests (no Keycloak needed)
 ./mvnw verify -DskipITs=false          # + Testcontainers Keycloak 26.8.1 integration test
 ./mvnw package && java -jar target/quarkus-app/quarkus-run.jar
+./mvnw spotless:apply                  # format the Java sources; `verify` fails on unformatted code
 ```
+
+Formatting is checked with [Spotless](https://github.com/diffplug/spotless) using the
+[Spring Java Format](https://github.com/spring-io/spring-javaformat) conventions with spaces
+(`etc/eclipse-formatter.prefs`, imports ordered `java|javax|jakarta`, `org`, `com`, rest, static).
 
 LM Studio (`mcp.json`); with the OIDC tenant on add `"auth": { "CLIENT_ID": "mcp-consumer" }` so LM Studio logs the
 user in with that pre-registered client (`example/mcp-oauth.json`):

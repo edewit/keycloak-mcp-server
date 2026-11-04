@@ -1,8 +1,5 @@
 package org.keycloak.mcp.search;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -12,26 +9,21 @@ import org.keycloak.mcp.Fixtures;
 import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolSpec;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 class ToolIndexTest {
 
     private final ToolIndex index = new ToolIndex(Fixtures.catalog(null).all());
 
     @ParameterizedTest
-    @CsvSource({
-            "keycloak_user_search, keycloak_user_search",
-            "user_serach, keycloak_user_search",
-            "find user by email, keycloak_user_search",
-            "disable user bob, keycloak_user_set_enabled",
-            "block user, keycloak_user_set_enabled",
-            "remove a user permanently, keycloak_user_delete",
-            "ldap, keycloak_federation_sync",
-            "active directory sync, keycloak_federation_sync",
-            "which keycloak version, keycloak_server_info",
-            "Benutzer deaktivieren, keycloak_user_set_enabled",
-            "Benutzer löschen, keycloak_user_delete",
-            "Nutzer suchen, keycloak_user_search",
-            "LDAP Verzeichnis abgleichen, keycloak_federation_sync",
-    })
+    @CsvSource({ "keycloak_user_search, keycloak_user_search", "user_serach, keycloak_user_search",
+            "find user by email, keycloak_user_search", "disable user bob, keycloak_user_set_enabled",
+            "block user, keycloak_user_set_enabled", "remove a user permanently, keycloak_user_delete",
+            "ldap, keycloak_federation_sync", "active directory sync, keycloak_federation_sync",
+            "which keycloak version, keycloak_server_info", "Benutzer deaktivieren, keycloak_user_set_enabled",
+            "Benutzer löschen, keycloak_user_delete", "Nutzer suchen, keycloak_user_search",
+            "LDAP Verzeichnis abgleichen, keycloak_federation_sync", })
     void topHit(String query, String expected) {
         List<SearchHit> hits = index.search(query, null, 5, s -> true);
         assertTrue(!hits.isEmpty(), "no hits for " + query);

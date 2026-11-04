@@ -6,8 +6,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
- * Builder for the flat JSON schemas we expose to the model: one level of properties, primitive types, enums,
- * arrays of strings and string maps. No oneOf/anyOf, no nesting.
+ * Builder for the flat JSON schemas we expose to the model: one level of properties,
+ * primitive types, enums, arrays of strings and string maps. No oneOf/anyOf, no nesting.
  */
 public final class InputSchema {
 
@@ -30,7 +30,8 @@ public final class InputSchema {
         String desc = "Realm name";
         if ("(per system)".equals(defaultRealm)) {
             desc += " (default: the system's default realm)";
-        } else if (defaultRealm != null) {
+        }
+        else if (defaultRealm != null) {
             desc += " (default: " + defaultRealm + ")";
         }
         realm.put("description", desc);
@@ -60,17 +61,21 @@ public final class InputSchema {
         out.put("properties", props);
         if (req.isEmpty()) {
             out.remove("required");
-        } else {
+        }
+        else {
             out.put("required", req);
         }
         return out;
     }
 
-    /** Adds the {@code system} enum property in front of everything else (multi-system deployments). */
+    /**
+     * Adds the {@code system} enum property in front of everything else (multi-system
+     * deployments).
+     */
     public static JsonObject withSystem(JsonObject schema, List<String> systems, String defaultSystem) {
         JsonObject prop = new JsonObject().put("type", "string").put("enum", new JsonArray(systems));
-        prop.put("description", defaultSystem != null ? "Keycloak system (default: " + defaultSystem + ")"
-                : "Keycloak system");
+        prop.put("description",
+                defaultSystem != null ? "Keycloak system (default: " + defaultSystem + ")" : "Keycloak system");
         JsonObject props = new JsonObject().put(SYSTEM, prop);
         JsonObject old = schema.getJsonObject("properties");
         if (old != null) {
@@ -96,7 +101,8 @@ public final class InputSchema {
         out.put("properties", props);
         if (req.isEmpty()) {
             out.remove("required");
-        } else {
+        }
+        else {
             out.put("required", req);
         }
         return out;
@@ -162,14 +168,18 @@ public final class InputSchema {
             return this;
         }
 
-        /** Object with arbitrary string values, e.g. provider config or user attributes. */
+        /**
+         * Object with arbitrary string values, e.g. provider config or user attributes.
+         */
         public Builder stringMap(String name, String description) {
             add(name, "object", description);
             current.put("additionalProperties", new JsonObject().put("type", "string"));
             return this;
         }
 
-        /** Object with arbitrary values (used sparingly, e.g. for realm update patches). */
+        /**
+         * Object with arbitrary values (used sparingly, e.g. for realm update patches).
+         */
         public Builder anyMap(String name, String description) {
             add(name, "object", description);
             current.put("additionalProperties", true);

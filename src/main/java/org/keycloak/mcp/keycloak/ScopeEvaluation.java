@@ -2,7 +2,6 @@ package org.keycloak.mcp.keycloak;
 
 import java.util.List;
 import java.util.Map;
-
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -13,10 +12,11 @@ import jakarta.ws.rs.core.MediaType;
 import org.keycloak.representations.idm.RoleRepresentation;
 
 /**
- * The admin console's "Client scopes → Evaluate" tab: what a client's token would contain for a user and a set of
- * optional scopes. The Keycloak admin client has no binding for these endpoints, so this JAX-RS proxy is created
- * through {@code Keycloak.proxy(...)} and shares its authentication. Tokens come back as plain claim maps, exactly
- * as Keycloak renders them (unsigned examples, never valid credentials).
+ * The admin console's "Client scopes → Evaluate" tab: what a client's token would contain
+ * for a user and a set of optional scopes. The Keycloak admin client has no binding for
+ * these endpoints, so this JAX-RS proxy is created through {@code Keycloak.proxy(...)}
+ * and shares its authentication. Tokens come back as plain claim maps, exactly as
+ * Keycloak renders them (unsigned examples, never valid credentials).
  */
 @Path("/admin/realms/{realm}/clients/{client-uuid}/evaluate-scopes")
 @Produces(MediaType.APPLICATION_JSON)
@@ -46,7 +46,10 @@ public interface ScopeEvaluation {
             @QueryParam("scope") String scope, @QueryParam("userId") String userId,
             @QueryParam("audience") String audience);
 
-    /** Effective protocol mappers: mapperName, protocolMapper, containerName, containerType. */
+    /**
+     * Effective protocol mappers: mapperName, protocolMapper, containerName,
+     * containerType.
+     */
     @GET
     @Path("protocol-mappers")
     List<Map<String, Object>> protocolMappers(@PathParam("realm") String realm,

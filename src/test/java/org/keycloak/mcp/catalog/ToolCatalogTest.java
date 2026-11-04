@@ -1,10 +1,5 @@
 package org.keycloak.mcp.catalog;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +7,11 @@ import org.junit.jupiter.api.Test;
 import org.keycloak.mcp.Fixtures;
 
 import io.vertx.core.json.JsonObject;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ToolCatalogTest {
 
@@ -28,8 +28,11 @@ class ToolCatalogTest {
         ToolCatalog catalog = Fixtures.catalog("demo");
         ToolSpec spec = catalog.get("keycloak_user_search").orElseThrow();
         assertFalse(spec.inputSchema().containsKey("required"));
-        assertTrue(spec.inputSchema().getJsonObject("properties").getJsonObject("realm").getString("description")
-                .contains("demo"));
+        assertTrue(spec.inputSchema()
+            .getJsonObject("properties")
+            .getJsonObject("realm")
+            .getString("description")
+            .contains("demo"));
     }
 
     @Test
@@ -89,13 +92,17 @@ class ToolCatalogTest {
         assertEquals(List.of("system"), multi.get("keycloak_server_info").orElseThrow().parameterNames());
 
         ToolCatalog noDefault = new ToolCatalog(Fixtures.specs(), null, 50, List.of(), "", List.of("a", "b"), null);
-        assertTrue(noDefault.get("keycloak_user_search").orElseThrow().inputSchema().getJsonArray("required")
-                .contains("system"));
+        assertTrue(noDefault.get("keycloak_user_search")
+            .orElseThrow()
+            .inputSchema()
+            .getJsonArray("required")
+            .contains("system"));
     }
 
     @Test
     void toolPrefixRenamesButResolvesBothForms() {
-        ToolCatalog prefixed = new ToolCatalog(Fixtures.specs(), null, 50, List.of("user_search"), "prod_", List.of(), null);
+        ToolCatalog prefixed = new ToolCatalog(Fixtures.specs(), null, 50, List.of("user_search"), "prod_", List.of(),
+                null);
         assertTrue(prefixed.get("prod_keycloak_user_search").isPresent());
         assertTrue(prefixed.get("keycloak_user_search").isEmpty());
         assertEquals("prod_keycloak_user_search", prefixed.resolve("keycloak_user_search").orElseThrow().name());

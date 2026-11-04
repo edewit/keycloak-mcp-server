@@ -47,42 +47,45 @@ public class EventToolProvider extends AbstractToolProvider {
     @Override
     public List<ToolSpec> tools(ToolProviderContext context) {
         return List.of(
-                tool("keycloak_events_login")
-                        .title("List login events")
-                        .description("Recent login events (LOGIN, LOGIN_ERROR, LOGOUT, ...) with user, client and IP.")
-                        .category(Category.EVENTS).read()
-                        .synonyms("failed logins", "who logged in", "login errors", "audit", "brute force", "last login",
-                                "ip address", "security log")
-                        .schema(schema()
-                                .string("type", "Event type, e.g. LOGIN, LOGIN_ERROR, LOGOUT, CODE_TO_TOKEN, "
+                tool("keycloak_events_login").title("List login events")
+                    .description("Recent login events (LOGIN, LOGIN_ERROR, LOGOUT, ...) with user, client and IP.")
+                    .category(Category.EVENTS)
+                    .read()
+                    .synonyms("failed logins", "who logged in", "login errors", "audit", "brute force", "last login",
+                            "ip address", "security log")
+                    .schema(schema()
+                        .string("type",
+                                "Event type, e.g. LOGIN, LOGIN_ERROR, LOGOUT, CODE_TO_TOKEN, "
                                         + "UPDATE_PASSWORD, REGISTER")
-                                .string("user", USER_ID)
-                                .string("client", "Filter by clientId")
-                                .string("ipAddress", "Filter by IP address")
-                                .string("dateFrom", "From date, " + DATE)
-                                .string("dateTo", "To date, " + DATE)
-                                .pagination())
-                        .handler(this::loginEvents)
-                        .roles("view-events")
-                        .api(get(R + "/events").query("type", "client", "user", "ipAddress", "dateFrom", "dateTo", "first", "max"))
-                        .build(),
-                tool("keycloak_events_admin")
-                        .title("List admin events")
-                        .description("Recent admin console / API changes: who changed which resource.")
-                        .category(Category.EVENTS).read()
-                        .synonyms("audit log", "who changed", "admin actions", "change history", "deleted by whom")
-                        .schema(schema()
-                                .enumeration("operationType", "Filter by operation", "CREATE", "UPDATE", "DELETE", "ACTION")
-                                .string("resourceType", "e.g. USER, CLIENT, REALM, GROUP, REALM_ROLE, AUTH_FLOW")
-                                .string("resourcePath", "Resource path filter, e.g. users/<id>")
-                                .string("authUser", "Admin who did it: user id (UUID)")
-                                .string("dateFrom", "From date, " + DATE)
-                                .string("dateTo", "To date, " + DATE)
-                                .pagination())
-                        .handler(this::adminEvents)
-                        .roles("view-events")
-                        .api(get(R + "/admin-events").queryAs("operationTypes", "operationType").query("authUser", "resourcePath", "dateFrom", "dateTo", "first", "max"))
-                        .build());
+                        .string("user", USER_ID)
+                        .string("client", "Filter by clientId")
+                        .string("ipAddress", "Filter by IP address")
+                        .string("dateFrom", "From date, " + DATE)
+                        .string("dateTo", "To date, " + DATE)
+                        .pagination())
+                    .handler(this::loginEvents)
+                    .roles("view-events")
+                    .api(get(R + "/events").query("type", "client", "user", "ipAddress", "dateFrom", "dateTo", "first",
+                            "max"))
+                    .build(),
+                tool("keycloak_events_admin").title("List admin events")
+                    .description("Recent admin console / API changes: who changed which resource.")
+                    .category(Category.EVENTS)
+                    .read()
+                    .synonyms("audit log", "who changed", "admin actions", "change history", "deleted by whom")
+                    .schema(schema()
+                        .enumeration("operationType", "Filter by operation", "CREATE", "UPDATE", "DELETE", "ACTION")
+                        .string("resourceType", "e.g. USER, CLIENT, REALM, GROUP, REALM_ROLE, AUTH_FLOW")
+                        .string("resourcePath", "Resource path filter, e.g. users/<id>")
+                        .string("authUser", "Admin who did it: user id (UUID)")
+                        .string("dateFrom", "From date, " + DATE)
+                        .string("dateTo", "To date, " + DATE)
+                        .pagination())
+                    .handler(this::adminEvents)
+                    .roles("view-events")
+                    .api(get(R + "/admin-events").queryAs("operationTypes", "operationType")
+                        .query("authUser", "resourcePath", "dateFrom", "dateTo", "first", "max"))
+                    .build());
     }
 
     ToolResult loginEvents(ToolCall call) {
@@ -92,8 +95,10 @@ public class EventToolProvider extends AbstractToolProvider {
             userId = KeycloakAdmin.isUuid(u) ? u : call.kc().findUser(call.realm(), u).getId();
         }
         List<String> types = call.has("type") ? List.of(Objects.requireNonNull(call.str("type")).toUpperCase()) : null;
-        List<EventRepresentation> events = call.kc().realm(call.realm()).getEvents(types, call.str("client"), userId,
-                call.str("dateFrom"), call.str("dateTo"), call.str("ipAddress"), call.first(), call.max());
+        List<EventRepresentation> events = call.kc()
+            .realm(call.realm())
+            .getEvents(types, call.str("client"), userId, call.str("dateFrom"), call.str("dateTo"),
+                    call.str("ipAddress"), call.first(), call.max());
         List<Map<String, Object>> items = new ArrayList<>();
         for (EventRepresentation e : events) {
             Map<String, Object> v = new LinkedHashMap<>();
@@ -120,10 +125,12 @@ public class EventToolProvider extends AbstractToolProvider {
     }
 
     ToolResult adminEvents(ToolCall call) {
-        List<String> ops = call.has("operationType") ? List.of(Objects.requireNonNull(call.str("operationType"))) : null;
-        List<AdminEventRepresentation> events = call.kc().realm(call.realm()).getAdminEvents(ops, null, null,
-                call.str("authUser"), null, call.str("resourcePath"), call.str("dateFrom"), call.str("dateTo"),
-                call.first(), call.max());
+        List<String> ops = call.has("operationType") ? List.of(Objects.requireNonNull(call.str("operationType")))
+                : null;
+        List<AdminEventRepresentation> events = call.kc()
+            .realm(call.realm())
+            .getAdminEvents(ops, null, null, call.str("authUser"), null, call.str("resourcePath"), call.str("dateFrom"),
+                    call.str("dateTo"), call.first(), call.max());
         String resourceType = call.str("resourceType");
         List<Map<String, Object>> items = new ArrayList<>();
         for (AdminEventRepresentation e : events) {

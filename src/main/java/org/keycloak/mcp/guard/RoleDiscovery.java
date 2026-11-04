@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -17,9 +16,10 @@ import org.keycloak.mcp.config.McpServerConfig;
 import org.keycloak.mcp.keycloak.KeycloakSystems;
 
 /**
- * Caches the {@link GrantedRoles} of the server's token per Keycloak system. {@link #peek} never blocks (for the
- * tool filter); {@link #get} fetches a token on first use and refreshes every few minutes (for handlers, which run on
- * virtual threads). Failures leave the roles {@link GrantedRoles#UNKNOWN}, which disables filtering.
+ * Caches the {@link GrantedRoles} of the server's token per Keycloak system.
+ * {@link #peek} never blocks (for the tool filter); {@link #get} fetches a token on first
+ * use and refreshes every few minutes (for handlers, which run on virtual threads).
+ * Failures leave the roles {@link GrantedRoles#UNKNOWN}, which disables filtering.
  */
 @ApplicationScoped
 public class RoleDiscovery {
@@ -39,7 +39,8 @@ public class RoleDiscovery {
 
     @Inject
     public RoleDiscovery(KeycloakSystems systems, McpServerConfig config) {
-        // in forward mode the caller's token decides per call; the server may not even have credentials
+        // in forward mode the caller's token decides per call; the server may not even
+        // have credentials
         this(systems.names(), systems::get, config.roleFilter() && config.delegation() == DelegationMode.OFF);
     }
 
@@ -80,7 +81,9 @@ public class RoleDiscovery {
         return get(systems.get(0));
     }
 
-    /** Roles of one system, discovering or refreshing them if needed. May block briefly. */
+    /**
+     * Roles of one system, discovering or refreshing them if needed. May block briefly.
+     */
     public GrantedRoles get(String system) {
         if (!enabled) {
             return GrantedRoles.UNKNOWN;
@@ -101,18 +104,21 @@ public class RoleDiscovery {
             if (!roles.known() && warned.putIfAbsent(system, Boolean.TRUE) == null) {
                 LOG.warnf("[%s] the admin token carries no realm-management roles; role based tool filtering is off."
                         + " Check the 'roles' client scope and the service account roles.", system);
-            } else if (roles.known() && (s == null || !roles.equals(s.roles()))) {
+            }
+            else if (roles.known() && (s == null || !roles.equals(s.roles()))) {
                 LOG.infof("[%s] admin token roles: %s", system,
                         roles.superAdmin() ? "super admin (master)" : roles.byRealm());
             }
             snapshots.put(system, new Snapshot(roles, Instant.now()));
             return roles;
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             LOG.warnf("[%s] role discovery failed, tool filtering by role is off until it succeeds: %s", system,
                     e.toString());
             snapshots.put(system, new Snapshot(GrantedRoles.UNKNOWN, Instant.now().minus(REFRESH).plusSeconds(30)));
             return GrantedRoles.UNKNOWN;
-        } finally {
+        }
+        finally {
             lock.unlock();
         }
     }

@@ -10,8 +10,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import jakarta.enterprise.context.ApplicationScoped;
 
 /**
- * Per-connection set of tool names surfaced by the last {@code search_tools} calls (progressive mode only).
- * Bounded so abandoned connections cannot grow it forever.
+ * Per-connection set of tool names surfaced by the last {@code search_tools} calls
+ * (progressive mode only). Bounded so abandoned connections cannot grow it forever.
  */
 @ApplicationScoped
 public class ProgressiveState {
@@ -43,7 +43,8 @@ public class ProgressiveState {
                 changed = true;
             }
             return changed;
-        } finally {
+        }
+        finally {
             lock.unlock();
         }
     }
@@ -53,7 +54,8 @@ public class ProgressiveState {
         try {
             Set<String> set = surfaced.get(connectionId);
             return set != null && set.contains(toolName);
-        } finally {
+        }
+        finally {
             lock.unlock();
         }
     }
@@ -62,7 +64,8 @@ public class ProgressiveState {
         lock.lock();
         try {
             surfaced.remove(connectionId);
-        } finally {
+        }
+        finally {
             lock.unlock();
         }
     }

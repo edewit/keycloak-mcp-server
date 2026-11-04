@@ -82,7 +82,8 @@ public final class KeycloakErrors {
                 return null;
             }
             return trimmed.length() > 300 ? trimmed.substring(0, 300) : trimmed;
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             return null;
         }
     }

@@ -6,7 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
-
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
@@ -19,8 +18,8 @@ import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.KeycloakSystems;
 
 /**
- * Discovers {@link ToolProvider}s (ServiceLoader + CDI), applies {@code kc-mcp.spi.<id>.enabled}, initialises them
- * in order and collects their tools.
+ * Discovers {@link ToolProvider}s (ServiceLoader + CDI), applies
+ * {@code kc-mcp.spi.<id>.enabled}, initialises them in order and collects their tools.
  */
 @ApplicationScoped
 public class ToolProviderRegistry {
@@ -32,7 +31,8 @@ public class ToolProviderRegistry {
     private final List<AccessCheck> accessChecks;
 
     @Inject
-    public ToolProviderRegistry(Instance<ToolProvider> cdiProviders, KeycloakSystems systems, McpServerConfig serverConfig) {
+    public ToolProviderRegistry(Instance<ToolProvider> cdiProviders, KeycloakSystems systems,
+            McpServerConfig serverConfig) {
         this(discover(cdiProviders), systems, serverConfig);
     }
 
@@ -108,14 +108,15 @@ public class ToolProviderRegistry {
         for (ToolProvider p : providers) {
             try {
                 p.close();
-            } catch (RuntimeException e) {
+            }
+            catch (RuntimeException e) {
                 LOG.warnf(e, "Tool provider '%s' failed to close", p.id());
             }
         }
     }
 
-    private record Context(KeycloakSystems systems, McpServerConfig serverConfig, ProviderConfig config)
-            implements ToolProviderContext {
+    private record Context(KeycloakSystems systems, McpServerConfig serverConfig,
+            ProviderConfig config) implements ToolProviderContext {
         @Override
         public KeycloakAdmin keycloak() {
             return systems.defaultName().map(systems::get).orElseGet(() -> systems.all().get(0));

@@ -7,7 +7,8 @@ import org.keycloak.mcp.spi.AccessCheck;
 import org.keycloak.mcp.spi.Caller;
 
 /**
- * Shared logic of the two checks: anonymous handling, resolving the caller in the target realm, super roles.
+ * Shared logic of the two checks: anonymous handling, resolving the caller in the target
+ * realm, super roles.
  */
 final class CallerContext {
 
@@ -19,8 +20,8 @@ final class CallerContext {
         Caller caller = ctx.caller();
         if (caller.isAnonymous()) {
             return Optional.of(settings.denyAnonymous()
-                    ? AccessCheck.Decision.deny("caller_required", ctx.tool().name()
-                            + " requires an authenticated caller on this server.")
+                    ? AccessCheck.Decision.deny("caller_required",
+                            ctx.tool().name() + " requires an authenticated caller on this server.")
                     : AccessCheck.Decision.allow());
         }
         for (String superRole : settings.superRoles()) {
@@ -45,11 +46,12 @@ final class CallerContext {
     }
 
     static AccessCheck.Decision unknownCaller(AccessCheck.Context ctx) {
-        return AccessCheck.Decision.deny("caller_unknown", "Caller '" + ctx.caller().name()
-                + "' is not a user of realm '" + ctx.realm() + "'.");
+        return AccessCheck.Decision.deny("caller_unknown",
+                "Caller '" + ctx.caller().name() + "' is not a user of realm '" + ctx.realm() + "'.");
     }
 
-    static boolean hasEffectiveRole(RealmDirectory directory, String realm, String userId, Caller caller, String roleRef) {
+    static boolean hasEffectiveRole(RealmDirectory directory, String realm, String userId, Caller caller,
+            String roleRef) {
         if (roleRef == null || roleRef.isBlank()) {
             return true;
         }

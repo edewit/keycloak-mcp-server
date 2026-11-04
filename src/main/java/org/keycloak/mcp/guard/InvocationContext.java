@@ -8,12 +8,15 @@ import io.quarkiverse.mcp.server.McpLog;
 import io.quarkiverse.mcp.server.ToolManager.ToolArguments;
 
 /**
- * What the invoker needs from the transport layer. Decoupled from {@link ToolArguments} so unit tests can fake it.
+ * What the invoker needs from the transport layer. Decoupled from {@link ToolArguments}
+ * so unit tests can fake it.
  *
- * @param via         "direct" or "execute_tool", for the audit log
- * @param caller      who acts through the connection; {@link Caller#NONE} until the endpoint authenticates callers
- * @param callerToken the caller's raw access token, or {@code null}; forwarded to Keycloak in delegation mode
- *                    {@code forward}. Deliberately not part of {@link Caller}, which is shown to policies and logs.
+ * @param via "direct" or "execute_tool", for the audit log
+ * @param caller who acts through the connection; {@link Caller#NONE} until the endpoint
+ * authenticates callers
+ * @param callerToken the caller's raw access token, or {@code null}; forwarded to
+ * Keycloak in delegation mode {@code forward}. Deliberately not part of {@link Caller},
+ * which is shown to policies and logs.
  */
 public record InvocationContext(McpConnection connection, Elicitation elicitation, McpLog log, String via,
         Caller caller, String callerToken) {
@@ -45,8 +48,8 @@ public record InvocationContext(McpConnection connection, Elicitation elicitatio
     /** Never prints the token. */
     @Override
     public String toString() {
-        return "InvocationContext[via=" + via + ", caller=" + caller + ", token=" + (callerToken == null ? "none" : "present")
-                + "]";
+        return "InvocationContext[via=" + via + ", caller=" + caller + ", token="
+                + (callerToken == null ? "none" : "present") + "]";
     }
 
     public String connectionId() {

@@ -1,8 +1,5 @@
 package org.keycloak.mcp.policies;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,6 +12,9 @@ import org.keycloak.mcp.guard.GrantedRoles;
 import org.keycloak.mcp.spi.AccessCheck;
 import org.keycloak.mcp.spi.Caller;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 class PolicyChecksTest {
 
     static final Caller ALICE = Caller.of("id-alice", "alice", "demo", Set.of("realm:group-manager"));
@@ -23,27 +23,33 @@ class PolicyChecksTest {
     static final Caller OTHER_REALM = Caller.of("id-x", "x", "other", Set.of());
 
     final FakeDirectory dir = new FakeDirectory()
-            .user("alice", Set.of("realm:group-manager", "realm:editor", "realm:viewer", "app.user"),
-                    List.of("/team-a"), Set.of("org-1"))
-            .user("bob", Set.of("realm:admin", "realm:viewer"), List.of("/team-b"), Set.of("org-2"))
-            .user("carol", Set.of("realm:viewer"), List.of(), Set.of("org-1"))
-            .user("eve", Set.of("realm:viewer"), List.of("/team-b"), Set.of("org-2"))
-            .role("realm:viewer", Set.of("realm:viewer"))
-            .role("realm:editor", Set.of("realm:editor", "realm:viewer"))
-            .role("realm:admin", Set.of("realm:admin", "realm:viewer", "realm:editor", "app.admin"))
-            .role("app.user", Set.of("app.user"))
-            .group("/team-a", Set.of("realm:viewer"), Set.of("org-1"))
-            .group("/team-a/dev", Set.of("realm:editor", "realm:viewer"), Set.of("org-1"))
-            .group("/team-b", Set.of("realm:viewer"), Set.of("org-2"))
-            .group("/admins", Set.of("realm:admin"), Set.of());
+        .user("alice", Set.of("realm:group-manager", "realm:editor", "realm:viewer", "app.user"), List.of("/team-a"),
+                Set.of("org-1"))
+        .user("bob", Set.of("realm:admin", "realm:viewer"), List.of("/team-b"), Set.of("org-2"))
+        .user("carol", Set.of("realm:viewer"), List.of(), Set.of("org-1"))
+        .user("eve", Set.of("realm:viewer"), List.of("/team-b"), Set.of("org-2"))
+        .role("realm:viewer", Set.of("realm:viewer"))
+        .role("realm:editor", Set.of("realm:editor", "realm:viewer"))
+        .role("realm:admin", Set.of("realm:admin", "realm:viewer", "realm:editor", "app.admin"))
+        .role("app.user", Set.of("app.user"))
+        .group("/team-a", Set.of("realm:viewer"), Set.of("org-1"))
+        .group("/team-a/dev", Set.of("realm:editor", "realm:viewer"), Set.of("org-1"))
+        .group("/team-b", Set.of("realm:viewer"), Set.of("org-2"))
+        .group("/admins", Set.of("realm:admin"), Set.of());
 
     static ToolSpec tool(String name, String... params) {
         var schema = org.keycloak.mcp.catalog.InputSchema.builder();
         for (String p : params) {
             schema.string(p, p);
         }
-        return ToolSpec.builder(name).title("t").description("d").category(Category.GROUPS).write().schema(schema)
-                .handler(c -> ToolResult.ok("")).build();
+        return ToolSpec.builder(name)
+            .title("t")
+            .description("d")
+            .category(Category.GROUPS)
+            .write()
+            .schema(schema)
+            .handler(c -> ToolResult.ok(""))
+            .build();
     }
 
     static AccessCheck.Context ctx(ToolSpec tool, Caller caller, Map<String, Object> args) {
@@ -56,7 +62,8 @@ class PolicyChecksTest {
 
     @Test
     void groupScopeByMembership() {
-        GroupScopeCheck check = new GroupScopeCheck(dir, settings(PolicySettings.GroupScope.GROUP, "realm:group-manager", false));
+        GroupScopeCheck check = new GroupScopeCheck(dir,
+                settings(PolicySettings.GroupScope.GROUP, "realm:group-manager", false));
         ToolSpec members = tool("keycloak_group_members_list", "groupId");
         assertTrue(check.check(ctx(members, ALICE, Map.of("groupId", "/team-a"))).allowed());
         assertTrue(check.check(ctx(members, ALICE, Map.of("groupId", "/team-a/dev"))).allowed(), "subgroup");
@@ -65,8 +72,10 @@ class PolicyChecksTest {
         assertEquals("manager_role_required", check.check(ctx(members, EVE, Map.of("groupId", "/team-b"))).code());
         assertEquals("group_out_of_scope",
                 check.check(ctx(tool("keycloak_group_create", "name", "parentId"), ALICE, Map.of("name", "x"))).code());
-        assertTrue(check.check(ctx(tool("keycloak_group_create", "name", "parentId"), ALICE,
-                Map.of("name", "x", "parentId", "/team-a"))).allowed());
+        assertTrue(check
+            .check(ctx(tool("keycloak_group_create", "name", "parentId"), ALICE,
+                    Map.of("name", "x", "parentId", "/team-a")))
+            .allowed());
         // tools outside the group set are untouched
         assertTrue(check.check(ctx(tool("keycloak_user_get", "id"), EVE, Map.of("id", "bob"))).allowed());
         // unknown group: let the tool report not_found
@@ -78,8 +87,10 @@ class PolicyChecksTest {
         GroupScopeCheck check = new GroupScopeCheck(dir, settings(PolicySettings.GroupScope.ORGANIZATION, null, false));
         ToolSpec add = tool("keycloak_group_member_add", "groupId", "userId");
         assertTrue(check.check(ctx(add, ALICE, Map.of("groupId", "/team-a/dev", "userId", "carol"))).allowed());
-        assertEquals("group_out_of_scope", check.check(ctx(add, ALICE, Map.of("groupId", "/team-b", "userId", "carol"))).code());
-        assertEquals("group_out_of_scope", check.check(ctx(add, ALICE, Map.of("groupId", "/admins", "userId", "carol"))).code());
+        assertEquals("group_out_of_scope",
+                check.check(ctx(add, ALICE, Map.of("groupId", "/team-b", "userId", "carol"))).code());
+        assertEquals("group_out_of_scope",
+                check.check(ctx(add, ALICE, Map.of("groupId", "/admins", "userId", "carol"))).code());
     }
 
     @Test
@@ -90,7 +101,8 @@ class PolicyChecksTest {
         assertTrue(allow.check(ctx(members, Caller.NONE, Map.of("groupId", "/team-b"))).allowed());
         assertEquals("caller_required", deny.check(ctx(members, Caller.NONE, Map.of("groupId", "/team-b"))).code());
         assertTrue(deny.check(ctx(members, ROOT, Map.of("groupId", "/team-b"))).allowed(), "super role bypass");
-        assertEquals("caller_foreign_realm", deny.check(ctx(members, OTHER_REALM, Map.of("groupId", "/team-b"))).code());
+        assertEquals("caller_foreign_realm",
+                deny.check(ctx(members, OTHER_REALM, Map.of("groupId", "/team-b"))).code());
         Caller ghost = Caller.of("id-ghost", "ghost", "demo", Set.of());
         assertEquals("caller_unknown", deny.check(ctx(members, ghost, Map.of("groupId", "/team-b"))).code());
     }
@@ -109,14 +121,17 @@ class PolicyChecksTest {
         assertTrue(check.check(ctx(assign, ALICE, Map.of("userId", "carol", "role", "nope"))).allowed());
 
         ToolSpec clientAssign = tool("keycloak_user_client_role_assign", "userId", "clientId", "role");
-        assertTrue(check.check(ctx(clientAssign, ALICE, Map.of("userId", "carol", "clientId", "app", "role", "user"))).allowed());
+        assertTrue(check.check(ctx(clientAssign, ALICE, Map.of("userId", "carol", "clientId", "app", "role", "user")))
+            .allowed());
 
         ToolSpec join = tool("keycloak_group_member_add", "groupId", "userId");
         assertTrue(check.check(ctx(join, ALICE, Map.of("groupId", "/team-a/dev", "userId", "carol"))).allowed());
-        assertEquals("privilege_escalation", check.check(ctx(join, ALICE, Map.of("groupId", "/admins", "userId", "carol"))).code());
+        assertEquals("privilege_escalation",
+                check.check(ctx(join, ALICE, Map.of("groupId", "/admins", "userId", "carol"))).code());
 
         ToolSpec groupRole = tool("keycloak_group_role_assign", "groupId", "role");
-        assertEquals("privilege_escalation", check.check(ctx(groupRole, ALICE, Map.of("groupId", "/team-a", "role", "admin"))).code());
+        assertEquals("privilege_escalation",
+                check.check(ctx(groupRole, ALICE, Map.of("groupId", "/team-a", "role", "admin"))).code());
     }
 
     @Test
@@ -128,8 +143,10 @@ class PolicyChecksTest {
         assertEquals("target_outranks_caller", d.code());
         assertTrue(d.message().contains("realm:admin"), d.message());
         assertEquals("target_outranks_caller",
-                check.check(ctx(tool("keycloak_user_reset_password", "id", "password"), ALICE,
-                        Map.of("id", "bob", "password", "x"))).code());
+                check
+                    .check(ctx(tool("keycloak_user_reset_password", "id", "password"), ALICE,
+                            Map.of("id", "bob", "password", "x")))
+                    .code());
         // the super admin may do anything, anonymous is skipped
         assertTrue(check.check(ctx(disable, ROOT, Map.of("id", "bob", "enabled", false))).allowed());
         assertTrue(check.check(ctx(disable, Caller.NONE, Map.of("id", "bob", "enabled", false))).allowed());
@@ -140,8 +157,9 @@ class PolicyChecksTest {
     @Test
     void providerIsSilentWhenDisabled() {
         assertTrue(new PolicyToolProvider(dir, PolicySettings.DISABLED).accessChecks(null).isEmpty());
-        assertEquals(2, new PolicyToolProvider(dir, settings(PolicySettings.GroupScope.GROUP, null, false))
-                .accessChecks(null).size());
+        assertEquals(2,
+                new PolicyToolProvider(dir, settings(PolicySettings.GroupScope.GROUP, null, false)).accessChecks(null)
+                    .size());
     }
 
     @Test

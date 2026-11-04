@@ -1,10 +1,5 @@
 package org.keycloak.mcp.guard;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,23 +17,51 @@ import org.keycloak.mcp.spi.Delegation;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
-/** Delegation mode {@code forward} without Keycloak: caller required, roles judged from the caller's token. */
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Delegation mode {@code forward} without Keycloak: caller required, roles judged from
+ * the caller's token.
+ */
 class ForwardModeTest {
 
     /** Fixtures carry no role requirements; these two do. */
     private final ToolCatalog catalog = new ToolCatalog(List.of(
-            ToolSpec.builder("keycloak_user_search").title("Search users").description("Find users.")
-                    .category(Category.USERS).read().roles("view-users")
-                    .schema(InputSchema.builder().string("search", "Free text"))
-                    .handler(call -> ToolResult.ok(List.of())).build(),
-            ToolSpec.builder("keycloak_user_set_enabled").title("Enable a user").description("Set enabled.")
-                    .category(Category.USERS).write().roles("manage-users")
-                    .schema(InputSchema.builder().string("id", "User id").required().bool("enabled", "New value").required())
-                    .handler(call -> ToolResult.done("updated")).build(),
-            ToolSpec.builder("keycloak_client_get_secret").title("Client secret").description("Reveal a secret.")
-                    .category(Category.CLIENTS).read().roles("view-clients").delegation(Delegation.FORBIDDEN)
-                    .schema(InputSchema.builder().string("id", "Client id").required())
-                    .handler(call -> ToolResult.ok(Map.of())).build()),
+            ToolSpec.builder("keycloak_user_search")
+                .title("Search users")
+                .description("Find users.")
+                .category(Category.USERS)
+                .read()
+                .roles("view-users")
+                .schema(InputSchema.builder().string("search", "Free text"))
+                .handler(call -> ToolResult.ok(List.of()))
+                .build(),
+            ToolSpec.builder("keycloak_user_set_enabled")
+                .title("Enable a user")
+                .description("Set enabled.")
+                .category(Category.USERS)
+                .write()
+                .roles("manage-users")
+                .schema(InputSchema.builder()
+                    .string("id", "User id")
+                    .required()
+                    .bool("enabled", "New value")
+                    .required())
+                .handler(call -> ToolResult.done("updated"))
+                .build(),
+            ToolSpec.builder("keycloak_client_get_secret")
+                .title("Client secret")
+                .description("Reveal a secret.")
+                .category(Category.CLIENTS)
+                .read()
+                .roles("view-clients")
+                .delegation(Delegation.FORBIDDEN)
+                .schema(InputSchema.builder().string("id", "Client id").required())
+                .handler(call -> ToolResult.ok(Map.of()))
+                .build()),
             "demo", 50, List.of());
 
     private static Map<String, Object> payload(ToolResult r) {
@@ -50,8 +73,10 @@ class ForwardModeTest {
         if (realmManagementRoles.length > 0) {
             access.put("realm-management", new JsonObject().put("roles", new JsonArray(List.of(realmManagementRoles))));
         }
-        return GrantedRolesTest.jwt(new JsonObject().put("resource_access", access).put("sub", "u1")
-                .put("preferred_username", "carol").put("iss", "http://kc/realms/demo"));
+        return GrantedRolesTest.jwt(new JsonObject().put("resource_access", access)
+            .put("sub", "u1")
+            .put("preferred_username", "carol")
+            .put("iss", "http://kc/realms/demo"));
     }
 
     private static InvocationContext caller(String token) {
@@ -59,8 +84,8 @@ class ForwardModeTest {
     }
 
     private ToolInvoker invoker() {
-        return new ToolInvoker(catalog, new AccessPolicy(false, List.of()), (spec, realm, args, flag, ctx) ->
-                Confirmer.Decision.CONFIRMED, 50, null, DelegationMode.FORWARD);
+        return new ToolInvoker(catalog, new AccessPolicy(false, List.of()),
+                (spec, realm, args, flag, ctx) -> Confirmer.Decision.CONFIRMED, 50, null, DelegationMode.FORWARD);
     }
 
     @Test
@@ -74,13 +99,15 @@ class ForwardModeTest {
     @Test
     void callerRolesDecide() {
         ToolSpec write = catalog.get("keycloak_user_set_enabled").orElseThrow();
-        ToolResult denied = invoker().invoke(write, Map.of("id", "x", "enabled", true), false, caller(token("view-users")));
+        ToolResult denied = invoker().invoke(write, Map.of("id", "x", "enabled", true), false,
+                caller(token("view-users")));
         assertTrue(denied.isError(), denied.toJson());
         assertEquals("forbidden", payload(denied).get("error"));
         assertTrue(String.valueOf(payload(denied).get("message")).contains("carol"), denied.toJson());
         assertEquals(List.of("manage-users"), payload(denied).get("missingRoles"));
 
-        ToolResult ok = invoker().invoke(write, Map.of("id", "x", "enabled", true), false, caller(token("manage-users")));
+        ToolResult ok = invoker().invoke(write, Map.of("id", "x", "enabled", true), false,
+                caller(token("manage-users")));
         assertFalse(ok.isError(), ok.toJson());
 
         ToolResult noRoles = invoker().invoke(catalog.get("keycloak_user_search").orElseThrow(), Map.of(), false,

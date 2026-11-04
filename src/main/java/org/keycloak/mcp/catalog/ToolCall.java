@@ -11,11 +11,11 @@ import org.keycloak.mcp.spi.Caller;
  * Validated, coerced input for a {@link ToolHandler}.
  *
  * @param realm resolved realm, or {@code null} for tools that are not realm scoped
- * @param args  validated arguments (defaults applied, unknown keys dropped)
- * @param maxItems  the configured upper bound for result lists
- * @param caller    who is acting ({@link Caller#NONE} when the endpoint is unauthenticated)
- * @param system    name of the Keycloak system the call targets
- * @param keycloak  admin client of that system ({@code null} only in unit tests)
+ * @param args validated arguments (defaults applied, unknown keys dropped)
+ * @param maxItems the configured upper bound for result lists
+ * @param caller who is acting ({@link Caller#NONE} when the endpoint is unauthenticated)
+ * @param system name of the Keycloak system the call targets
+ * @param keycloak admin client of that system ({@code null} only in unit tests)
  */
 public record ToolCall(String realm, Map<String, Object> args, int maxItems, Caller caller, String system,
         KeycloakAdmin keycloak) {

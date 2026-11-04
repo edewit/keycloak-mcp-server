@@ -1,12 +1,12 @@
 package org.keycloak.mcp;
 
-import static io.restassured.RestAssured.given;
-
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.restassured.response.Response;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+
+import static io.restassured.RestAssured.given;
 
 /**
  * Minimal streamable-HTTP JSON-RPC client for tests.
@@ -17,7 +17,10 @@ public class McpClient {
     private String sessionId;
     private String bearer;
 
-    /** Sends {@code Authorization: Bearer <token>} with every request (OIDC-protected endpoint). */
+    /**
+     * Sends {@code Authorization: Bearer <token>} with every request (OIDC-protected
+     * endpoint).
+     */
     public McpClient bearer(String token) {
         this.bearer = token;
         return this;
@@ -28,12 +31,13 @@ public class McpClient {
         if (elicitation) {
             caps.put("elicitation", new JsonObject());
         }
-        JsonObject params = new JsonObject()
-                .put("protocolVersion", "2025-06-18")
-                .put("capabilities", caps)
-                .put("clientInfo", new JsonObject().put("name", "test-client").put("version", "1.0"));
-        Response r = post(new JsonObject().put("jsonrpc", "2.0").put("id", ids.incrementAndGet())
-                .put("method", "initialize").put("params", params));
+        JsonObject params = new JsonObject().put("protocolVersion", "2025-06-18")
+            .put("capabilities", caps)
+            .put("clientInfo", new JsonObject().put("name", "test-client").put("version", "1.0"));
+        Response r = post(new JsonObject().put("jsonrpc", "2.0")
+            .put("id", ids.incrementAndGet())
+            .put("method", "initialize")
+            .put("params", params));
         sessionId = r.getHeader("Mcp-Session-Id");
         post(new JsonObject().put("jsonrpc", "2.0").put("method", "notifications/initialized"));
         return this;
@@ -59,7 +63,8 @@ public class McpClient {
             JsonObject result = request("tools/list", params).getJsonObject("result");
             all.addAll(result.getJsonArray("tools"));
             cursor = result.getString("nextCursor");
-        } while (cursor != null);
+        }
+        while (cursor != null);
         return all;
     }
 
@@ -85,10 +90,9 @@ public class McpClient {
     }
 
     private Response post(JsonObject body) {
-        var spec = given()
-                .header("Accept", "application/json, text/event-stream")
-                .header("Content-Type", "application/json")
-                .header("Mcp-Protocol-Version", "2025-06-18");
+        var spec = given().header("Accept", "application/json, text/event-stream")
+            .header("Content-Type", "application/json")
+            .header("Mcp-Protocol-Version", "2025-06-18");
         if (sessionId != null) {
             spec = spec.header("Mcp-Session-Id", sessionId);
         }

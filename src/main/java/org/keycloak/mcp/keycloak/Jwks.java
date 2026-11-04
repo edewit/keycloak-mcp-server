@@ -26,19 +26,22 @@ import java.util.Base64;
 import io.vertx.core.json.JsonObject;
 
 /**
- * JWK helpers for the {@code private_key_jwt} key: public key derivation, JWK encoding and the RFC 7638 thumbprint
- * used as default {@code kid}. No external JOSE dependency.
+ * JWK helpers for the {@code private_key_jwt} key: public key derivation, JWK encoding
+ * and the RFC 7638 thumbprint used as default {@code kid}. No external JOSE dependency.
  */
 public final class Jwks {
 
     private Jwks() {
     }
 
-    /** Derives the public key from a private key: RSA via the CRT parameters, EC via scalar multiplication. */
+    /**
+     * Derives the public key from a private key: RSA via the CRT parameters, EC via
+     * scalar multiplication.
+     */
     public static PublicKey publicKeyOf(PrivateKey key) throws GeneralSecurityException {
         if (key instanceof RSAPrivateCrtKey rsa) {
             return KeyFactory.getInstance("RSA")
-                    .generatePublic(new RSAPublicKeySpec(rsa.getModulus(), rsa.getPublicExponent()));
+                .generatePublic(new RSAPublicKeySpec(rsa.getModulus(), rsa.getPublicExponent()));
         }
         if (key instanceof ECPrivateKey ec) {
             return deriveEcPublic(ec);
@@ -52,14 +55,16 @@ public final class Jwks {
         String pem = Files.readString(file, StandardCharsets.US_ASCII);
         if (pem.contains("BEGIN CERTIFICATE")) {
             return CertificateFactory.getInstance("X.509")
-                    .generateCertificate(Files.newInputStream(file)).getPublicKey();
+                .generateCertificate(Files.newInputStream(file))
+                .getPublicKey();
         }
         String body = pem.replaceAll("-----(BEGIN|END)[A-Z ]*-----", "").replaceAll("\\s", "");
         byte[] der = Base64.getDecoder().decode(body);
         for (String alg : new String[] { "RSA", "EC" }) {
             try {
                 return KeyFactory.getInstance(alg).generatePublic(new X509EncodedKeySpec(der));
-            } catch (GeneralSecurityException ignored) {
+            }
+            catch (GeneralSecurityException ignored) {
                 // try next
             }
         }
@@ -70,18 +75,18 @@ public final class Jwks {
     public static JsonObject jwk(PublicKey key, String alg, String kid) {
         JsonObject jwk;
         if (key instanceof RSAPublicKey rsa) {
-            jwk = new JsonObject()
-                    .put("kty", "RSA")
-                    .put("n", b64(unsigned(rsa.getModulus())))
-                    .put("e", b64(unsigned(rsa.getPublicExponent())));
-        } else if (key instanceof ECPublicKey ec) {
+            jwk = new JsonObject().put("kty", "RSA")
+                .put("n", b64(unsigned(rsa.getModulus())))
+                .put("e", b64(unsigned(rsa.getPublicExponent())));
+        }
+        else if (key instanceof ECPublicKey ec) {
             int len = (ec.getParams().getCurve().getField().getFieldSize() + 7) / 8;
-            jwk = new JsonObject()
-                    .put("kty", "EC")
-                    .put("crv", curveName(ec.getParams()))
-                    .put("x", b64(fixed(ec.getW().getAffineX(), len)))
-                    .put("y", b64(fixed(ec.getW().getAffineY(), len)));
-        } else {
+            jwk = new JsonObject().put("kty", "EC")
+                .put("crv", curveName(ec.getParams()))
+                .put("x", b64(fixed(ec.getW().getAffineX(), len)))
+                .put("y", b64(fixed(ec.getW().getAffineY(), len)));
+        }
+        else {
             throw new IllegalArgumentException("Unsupported key type " + key.getAlgorithm());
         }
         jwk.put("use", "sig");
@@ -102,7 +107,8 @@ public final class Jwks {
         };
         try {
             return b64(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8)));
-        } catch (GeneralSecurityException e) {
+        }
+        catch (GeneralSecurityException e) {
             throw new IllegalStateException(e);
         }
     }
@@ -112,12 +118,15 @@ public final class Jwks {
             case 256 -> "P-256";
             case 384 -> "P-384";
             case 521 -> "P-521";
-            default -> throw new IllegalArgumentException("Unsupported EC curve size "
-                    + params.getCurve().getField().getFieldSize());
+            default -> throw new IllegalArgumentException(
+                    "Unsupported EC curve size " + params.getCurve().getField().getFieldSize());
         };
     }
 
-    /** Q = d * G on a prime curve, affine double-and-add; the JDK offers no public API for this. */
+    /**
+     * Q = d * G on a prime curve, affine double-and-add; the JDK offers no public API for
+     * this.
+     */
     static ECPublicKey deriveEcPublic(ECPrivateKey key) throws GeneralSecurityException {
         ECParameterSpec params = key.getParams();
         if (!(params.getCurve().getField() instanceof ECFieldFp field)) {
@@ -158,9 +167,9 @@ public final class Jwks {
                 return ECPoint.POINT_INFINITY;
             }
             // doubling: (3x^2 + a) / (2y)
-            lambda = x1.pow(2).multiply(BigInteger.valueOf(3)).add(a)
-                    .multiply(y1.shiftLeft(1).modInverse(p)).mod(p);
-        } else {
+            lambda = x1.pow(2).multiply(BigInteger.valueOf(3)).add(a).multiply(y1.shiftLeft(1).modInverse(p)).mod(p);
+        }
+        else {
             lambda = y2.subtract(y1).multiply(x2.subtract(x1).modInverse(p)).mod(p);
         }
         BigInteger x3 = lambda.pow(2).subtract(x1).subtract(x2).mod(p);

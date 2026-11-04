@@ -6,13 +6,18 @@ import java.util.Locale;
  * Controls what {@code tools/list} returns. See implementation-plan.md §8.
  */
 public enum ExposureMode {
-    /** Every catalog tool is listed; meta-tools hidden. Parity with the reference implementation. */
+    /**
+     * Every catalog tool is listed; meta-tools hidden. Parity with the reference
+     * implementation.
+     */
     DIRECT,
     /** Only {@code search_tools} and {@code execute_tool}. Minimum context. */
     LAZY,
     /** Meta-tools plus the configured hot tools. Default. */
     HYBRID,
-    /** Hybrid plus whatever the last {@code search_tools} call surfaced, per connection. */
+    /**
+     * Hybrid plus whatever the last {@code search_tools} call surfaced, per connection.
+     */
     PROGRESSIVE;
 
     public static ExposureMode parse(String value) {

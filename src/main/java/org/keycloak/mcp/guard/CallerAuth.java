@@ -11,8 +11,9 @@ import org.keycloak.mcp.config.McpServerConfig;
 import io.quarkus.runtime.StartupEvent;
 
 /**
- * How callers of the MCP endpoint are authenticated: whether the OIDC tenant verifies bearer tokens, whether an
- * authenticated caller is required (401 challenge otherwise) and whose credentials reach Keycloak.
+ * How callers of the MCP endpoint are authenticated: whether the OIDC tenant verifies
+ * bearer tokens, whether an authenticated caller is required (401 challenge otherwise)
+ * and whose credentials reach Keycloak.
  */
 @ApplicationScoped
 public class CallerAuth {
@@ -23,8 +24,8 @@ public class CallerAuth {
 
     @Inject
     public CallerAuth(McpServerConfig config) {
-        this(config.delegation(), config.requireCaller(), ConfigProvider.getConfig()
-                .getOptionalValue("quarkus.oidc.tenant-enabled", Boolean.class).orElse(true));
+        this(config.delegation(), config.requireCaller(),
+                ConfigProvider.getConfig().getOptionalValue("quarkus.oidc.tenant-enabled", Boolean.class).orElse(true));
     }
 
     public CallerAuth(DelegationMode delegation, boolean requireCaller, boolean oidcEnabled) {

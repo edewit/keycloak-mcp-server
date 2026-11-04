@@ -14,7 +14,10 @@ public record ToolResult(boolean isError, Object payload) {
         return new ToolResult(false, payload);
     }
 
-    /** Short confirmation for write operations: {@code {"ok":true,"message":...}} plus extra fields. */
+    /**
+     * Short confirmation for write operations: {@code {"ok":true,"message":...}} plus
+     * extra fields.
+     */
     public static ToolResult done(String message, Object... kv) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("ok", true);

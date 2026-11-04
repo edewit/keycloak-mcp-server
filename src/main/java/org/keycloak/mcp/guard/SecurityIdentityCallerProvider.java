@@ -3,7 +3,6 @@ package org.keycloak.mcp.guard;
 import java.security.Principal;
 import java.util.LinkedHashSet;
 import java.util.Set;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
@@ -21,8 +20,9 @@ import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.quarkus.security.identity.SecurityIdentity;
 
 /**
- * Maps the request's {@link SecurityIdentity} to a {@link Caller}. With a JWT principal (OIDC) the subject, the
- * preferred username, the issuing realm and the realm / client roles are taken from the token.
+ * Maps the request's {@link SecurityIdentity} to a {@link Caller}. With a JWT principal
+ * (OIDC) the subject, the preferred username, the issuing realm and the realm / client
+ * roles are taken from the token.
  */
 @ApplicationScoped
 @DefaultBean
@@ -40,7 +40,8 @@ public class SecurityIdentityCallerProvider implements CallerProvider {
                 return Caller.NONE;
             }
             return fromIdentity(identities.get().getIdentity());
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             LOG.debugf("No caller identity available: %s", e.toString());
             return Caller.NONE;
         }
@@ -53,13 +54,17 @@ public class SecurityIdentityCallerProvider implements CallerProvider {
                 return null;
             }
             return tokenOf(identities.get().getIdentity());
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             LOG.debugf("No caller token available: %s", e.toString());
             return null;
         }
     }
 
-    /** The bearer token behind an identity: the OIDC credential, or the JWT principal's raw form. */
+    /**
+     * The bearer token behind an identity: the OIDC credential, or the JWT principal's
+     * raw form.
+     */
     public static String tokenOf(SecurityIdentity identity) {
         if (identity == null || identity.isAnonymous()) {
             return null;

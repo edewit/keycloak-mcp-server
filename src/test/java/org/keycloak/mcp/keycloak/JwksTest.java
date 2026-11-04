@@ -1,8 +1,5 @@
 package org.keycloak.mcp.keycloak;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -17,6 +14,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import io.vertx.core.json.JsonObject;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JwksTest {
 
@@ -72,8 +72,8 @@ class JwksTest {
         KeyPair kp = rsa();
         JwtSigner signer = new JwtSigner(kp.getPrivate(), "RS256", null);
         String jwt = signer.sign(new JsonObject().put("iss", "c"));
-        JsonObject header = new JsonObject(new String(Base64.getUrlDecoder().decode(jwt.split("\\.")[0]),
-                StandardCharsets.UTF_8));
+        JsonObject header = new JsonObject(
+                new String(Base64.getUrlDecoder().decode(jwt.split("\\.")[0]), StandardCharsets.UTF_8));
         assertEquals(signer.jwk().getString("kid"), header.getString("kid"));
         assertEquals(Jwks.thumbprint(Jwks.jwk(kp.getPublic(), null, null)), header.getString("kid"));
         assertTrue(signer.publicKey().equals(kp.getPublic()));

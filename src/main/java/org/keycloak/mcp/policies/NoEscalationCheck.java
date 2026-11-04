@@ -6,9 +6,9 @@ import java.util.Set;
 import org.keycloak.mcp.spi.AccessCheck;
 
 /**
- * Privilege ceiling: a caller may only grant roles (directly, via client roles, group mappings or group membership)
- * that lie within their own effective roles, and may only manage users whose effective roles lie within their own.
- * Self-grants are refused.
+ * Privilege ceiling: a caller may only grant roles (directly, via client roles, group
+ * mappings or group membership) that lie within their own effective roles, and may only
+ * manage users whose effective roles lie within their own. Self-grants are refused.
  */
 public final class NoEscalationCheck implements AccessCheck {
 
@@ -16,8 +16,7 @@ public final class NoEscalationCheck implements AccessCheck {
             "keycloak_group_role_assign", "keycloak_group_member_add");
     /** tools that act on a target user: the target must not outrank the caller */
     static final java.util.Map<String, String> USER_ARG = java.util.Map.ofEntries(
-            java.util.Map.entry("keycloak_user_set_enabled", "id"),
-            java.util.Map.entry("keycloak_user_update", "id"),
+            java.util.Map.entry("keycloak_user_set_enabled", "id"), java.util.Map.entry("keycloak_user_update", "id"),
             java.util.Map.entry("keycloak_user_delete", "id"),
             java.util.Map.entry("keycloak_user_reset_password", "id"),
             java.util.Map.entry("keycloak_user_send_action_email", "id"),
@@ -36,7 +35,8 @@ public final class NoEscalationCheck implements AccessCheck {
         this(ctx -> directory, settings);
     }
 
-    public NoEscalationCheck(java.util.function.Function<Context, RealmDirectory> directories, PolicySettings settings) {
+    public NoEscalationCheck(java.util.function.Function<Context, RealmDirectory> directories,
+            PolicySettings settings) {
         this.directories = directories;
         this.settings = settings;
     }
@@ -66,10 +66,11 @@ public final class NoEscalationCheck implements AccessCheck {
                 if (targetId.get().equals(callerId) && GRANT_TOOLS.contains(tool)) {
                     return Decision.deny("self_grant", "You cannot grant privileges to yourself.");
                 }
-                Set<String> missing = CallerContext.missing(directory.effectiveRoles(ctx.realm(), targetId.get()), mine);
+                Set<String> missing = CallerContext.missing(directory.effectiveRoles(ctx.realm(), targetId.get()),
+                        mine);
                 if (!missing.isEmpty()) {
-                    return Decision.deny("target_outranks_caller", "The target user holds roles you do not: "
-                            + missing + ".");
+                    return Decision.deny("target_outranks_caller",
+                            "The target user holds roles you do not: " + missing + ".");
                 }
             }
         }
@@ -81,13 +82,14 @@ public final class NoEscalationCheck implements AccessCheck {
                 case "keycloak_user_client_role_assign" ->
                     directory.roleClosure(ctx.realm(), ctx.arg("clientId") + "." + ctx.arg("role"));
                 case "keycloak_group_member_add" -> directory.groupPath(ctx.realm(), ctx.arg("groupId"))
-                        .map(p -> directory.groupRoles(ctx.realm(), p)).orElse(Set.of());
+                    .map(p -> directory.groupRoles(ctx.realm(), p))
+                    .orElse(Set.of());
                 default -> Set.of();
             };
             Set<String> missing = CallerContext.missing(granting, mine);
             if (!missing.isEmpty()) {
-                return Decision.deny("privilege_escalation", "This would grant roles you do not hold yourself: "
-                        + missing + ".");
+                return Decision.deny("privilege_escalation",
+                        "This would grant roles you do not hold yourself: " + missing + ".");
             }
         }
         return Decision.allow();

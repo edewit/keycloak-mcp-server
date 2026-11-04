@@ -5,8 +5,9 @@ import java.util.function.Function;
 import org.keycloak.mcp.catalog.ToolResult;
 
 /**
- * Maps exceptions thrown by handlers to structured error results. The Keycloak adapter registers a mapper for
- * JAX-RS {@code WebApplicationException}s so this package does not depend on the REST client.
+ * Maps exceptions thrown by handlers to structured error results. The Keycloak adapter
+ * registers a mapper for JAX-RS {@code WebApplicationException}s so this package does not
+ * depend on the REST client.
  */
 public final class ErrorMapper {
 

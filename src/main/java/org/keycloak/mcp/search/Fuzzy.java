@@ -1,7 +1,8 @@
 package org.keycloak.mcp.search;
 
 /**
- * Optimal string alignment distance (Damerau-Levenshtein without the unrestricted transposition case).
+ * Optimal string alignment distance (Damerau-Levenshtein without the unrestricted
+ * transposition case).
  */
 public final class Fuzzy {
 
@@ -31,7 +32,10 @@ public final class Fuzzy {
         return d[n][m];
     }
 
-    /** Distance bounded by {@code max}; returns {@code max + 1} early when the length difference already exceeds it. */
+    /**
+     * Distance bounded by {@code max}; returns {@code max + 1} early when the length
+     * difference already exceeds it.
+     */
     public static int distance(String a, String b, int max) {
         if (Math.abs(a.length() - b.length()) > max) {
             return max + 1;

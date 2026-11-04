@@ -1,14 +1,14 @@
 package org.keycloak.mcp.catalog;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ApiOperationTest {
 
@@ -27,8 +27,12 @@ class ApiOperationTest {
     @Test
     void buildersAreImmutableAndAccumulate() {
         ApiOperation base = ApiOperation.put("/admin/realms/{realm}/users/{user-id}");
-        ApiOperation bound = base.path("user-id", "id").query("first", "max").queryAs("client_id", "clientId")
-                .fixedQuery("type").body("UserRepresentation", "email").body("UserRepresentation", "enabled");
+        ApiOperation bound = base.path("user-id", "id")
+            .query("first", "max")
+            .queryAs("client_id", "clientId")
+            .fixedQuery("type")
+            .body("UserRepresentation", "email")
+            .body("UserRepresentation", "enabled");
         assertTrue(base.pathParams().isEmpty());
         assertEquals(Map.of("user-id", "id"), bound.pathParams());
         assertEquals(Map.of("first", "first", "max", "max", "client_id", "clientId"), bound.queryParams());
@@ -41,7 +45,8 @@ class ApiOperationTest {
 
     @Test
     void unspecifiedKeepsMethodValidation() {
-        ApiOperation op = ApiOperation.unspecified("POST", "/admin/realms/{realm}/user-storage/{id}/sync", "not published");
+        ApiOperation op = ApiOperation.unspecified("POST", "/admin/realms/{realm}/user-storage/{id}/sync",
+                "not published");
         assertFalse(op.isSpecified());
         assertEquals("post", op.method());
         assertEquals("not published", op.unspecified());

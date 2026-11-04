@@ -11,8 +11,8 @@ import io.smallrye.config.WithConverter;
 import io.smallrye.config.WithDefault;
 
 /**
- * Server configuration. Every property maps to an env variable with the {@code KC_MCP_} prefix,
- * e.g. {@code kc-mcp.grant-type} -> {@code KC_MCP_GRANT_TYPE}.
+ * Server configuration. Every property maps to an env variable with the {@code KC_MCP_}
+ * prefix, e.g. {@code kc-mcp.grant-type} -> {@code KC_MCP_GRANT_TYPE}.
  */
 @ConfigMapping(prefix = "kc-mcp")
 public interface McpServerConfig {
@@ -22,31 +22,42 @@ public interface McpServerConfig {
     String url();
 
     /**
-     * Named Keycloak systems: {@code kc-mcp.systems.<name>.url} etc. Each field falls back to the top-level value.
-     * When empty, the top-level settings form a single system called {@code default}. With several systems the
-     * tools gain a {@code system} argument.
+     * Named Keycloak systems: {@code kc-mcp.systems.<name>.url} etc. Each field falls
+     * back to the top-level value. When empty, the top-level settings form a single
+     * system called {@code default}. With several systems the tools gain a {@code system}
+     * argument.
      */
     Map<String, SystemSettings> systems();
 
-    /** System used when the {@code system} argument is omitted; inferred when only one system exists. */
+    /**
+     * System used when the {@code system} argument is omitted; inferred when only one
+     * system exists.
+     */
     Optional<String> defaultSystem();
 
-    /** Optional prefix for every tool name, e.g. {@code prod_} -> {@code prod_keycloak_user_search}. */
+    /**
+     * Optional prefix for every tool name, e.g. {@code prod_} ->
+     * {@code prod_keycloak_user_search}.
+     */
     Optional<String> toolPrefix();
 
-    /** OAuth grant used to obtain the admin token: {@code client_credentials} (default) or {@code password}. */
+    /**
+     * OAuth grant used to obtain the admin token: {@code client_credentials} (default) or
+     * {@code password}.
+     */
     @WithDefault("client_credentials")
     @WithConverter(GrantType.Converter.class)
     GrantType grantType();
 
     /**
-     * Client authentication at the token endpoint: {@code client_secret}, {@code private_key_jwt} or {@code none}.
-     * When unset it is inferred: a configured secret means {@code client_secret}, a configured JWT key means
-     * {@code private_key_jwt}, otherwise {@code none} (public client, password grant only).
+     * Client authentication at the token endpoint: {@code client_secret},
+     * {@code private_key_jwt} or {@code none}. When unset it is inferred: a configured
+     * secret means {@code client_secret}, a configured JWT key means
+     * {@code private_key_jwt}, otherwise {@code none} (public client, password grant
+     * only).
      */
     @WithConverter(ClientAuth.Converter.class)
     Optional<ClientAuth> clientAuth();
-
 
     /** Realm the admin client / service account lives in. */
     @WithDefault("master")
@@ -66,23 +77,28 @@ public interface McpServerConfig {
     Jwt jwt();
 
     /**
-     * {@code off} (default): admin calls use the server's own credentials; {@code forward}: the caller's access
-     * token is forwarded to the Admin API, so Keycloak enforces the user's own roles. {@code forward} requires the
-     * MCP endpoint to authenticate callers ({@code quarkus.oidc.tenant-enabled=true}) and makes the server
-     * credentials optional.
+     * {@code off} (default): admin calls use the server's own credentials;
+     * {@code forward}: the caller's access token is forwarded to the Admin API, so
+     * Keycloak enforces the user's own roles. {@code forward} requires the MCP endpoint
+     * to authenticate callers ({@code quarkus.oidc.tenant-enabled=true}) and makes the
+     * server credentials optional.
      */
     @WithDefault("off")
     @WithConverter(DelegationMode.Converter.class)
     DelegationMode delegation();
 
     /**
-     * Refuse unauthenticated MCP requests with a 401 challenge even when the server acts with its own credentials
-     * (the caller then only matters for policies and the audit log). Implied by {@code delegation=forward}.
+     * Refuse unauthenticated MCP requests with a 401 challenge even when the server acts
+     * with its own credentials (the caller then only matters for policies and the audit
+     * log). Implied by {@code delegation=forward}.
      */
     @WithDefault("false")
     boolean requireCaller();
 
-    /** If set, the {@code realm} tool argument becomes optional and defaults to this realm. */
+    /**
+     * If set, the {@code realm} tool argument becomes optional and defaults to this
+     * realm.
+     */
     Optional<String> defaultRealm();
 
     /** Realms the server may touch. Empty = all realms. */
@@ -95,17 +111,27 @@ public interface McpServerConfig {
     /** Only these tools exist on this server (csv of tool names). Empty = all. */
     Optional<List<String>> allowedTools();
 
-    /** These tools never exist on this server (csv). Wins over {@link #allowedTools()}. */
+    /**
+     * These tools never exist on this server (csv). Wins over {@link #allowedTools()}.
+     */
     Optional<List<String>> deniedTools();
 
-    /** Only tools of these categories exist (csv, e.g. {@code users,groups}). Empty = all. */
+    /**
+     * Only tools of these categories exist (csv, e.g. {@code users,groups}). Empty = all.
+     */
     Optional<List<String>> allowedCategories();
 
-    /** Hide and refuse tools whose realm-management roles the server's own token does not hold. */
+    /**
+     * Hide and refuse tools whose realm-management roles the server's own token does not
+     * hold.
+     */
     @WithDefault("true")
     boolean roleFilter();
 
-    /** Startup check that every allowed realm is reachable with the credentials: off, warn or fail. */
+    /**
+     * Startup check that every allowed realm is reachable with the credentials: off, warn
+     * or fail.
+     */
     @WithDefault("warn")
     String startupCheck();
 
@@ -127,8 +153,8 @@ public interface McpServerConfig {
     int resultMaxItems();
 
     /**
-     * Per tool-provider settings: {@code kc-mcp.spi.<provider-id>.<key>=value}
-     * (env {@code KC_MCP_SPI_<ID>_<KEY>}). {@code enabled=false} switches a provider off.
+     * Per tool-provider settings: {@code kc-mcp.spi.<provider-id>.<key>=value} (env
+     * {@code KC_MCP_SPI_<ID>_<KEY>}). {@code enabled=false} switches a provider off.
      */
     Map<String, Map<String, String>> spi();
 
@@ -161,7 +187,10 @@ public interface McpServerConfig {
     }
 
     interface Jwt {
-        /** Path to a PEM file with the client's private key (PKCS#8, {@code BEGIN PRIVATE KEY}). */
+        /**
+         * Path to a PEM file with the client's private key (PKCS#8,
+         * {@code BEGIN PRIVATE KEY}).
+         */
         Optional<String> keyFile();
 
         /** Alternatively: a PKCS12/JKS keystore holding the private key. */
@@ -177,13 +206,22 @@ public interface McpServerConfig {
         /** Password of the key entry; defaults to the keystore password. */
         Optional<String> keyPassword();
 
-        /** Public key / certificate PEM to publish in the JWKS; derived from the private key when unset. */
+        /**
+         * Public key / certificate PEM to publish in the JWKS; derived from the private
+         * key when unset.
+         */
         Optional<String> publicKeyFile();
 
-        /** {@code kid} in the JWS header and the JWKS; defaults to the RFC 7638 thumbprint of the public key. */
+        /**
+         * {@code kid} in the JWS header and the JWKS; defaults to the RFC 7638 thumbprint
+         * of the public key.
+         */
         Optional<String> keyId();
 
-        /** Serve the public key as a JWK Set so Keycloak can fetch it via the client's "JWKS URL" setting. */
+        /**
+         * Serve the public key as a JWK Set so Keycloak can fetch it via the client's
+         * "JWKS URL" setting.
+         */
         @WithDefault("true")
         boolean jwksEnabled();
 

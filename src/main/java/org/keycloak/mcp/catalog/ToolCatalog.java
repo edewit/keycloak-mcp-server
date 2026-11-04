@@ -9,7 +9,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -20,8 +19,9 @@ import org.keycloak.mcp.spi.ToolProviderRegistry;
 import io.vertx.core.json.JsonObject;
 
 /**
- * All tool specs, keyed by (possibly prefixed) name, with the effective input schema: {@code system} (when several
- * systems are configured), {@code realm} and pagination decorations.
+ * All tool specs, keyed by (possibly prefixed) name, with the effective input schema:
+ * {@code system} (when several systems are configured), {@code realm} and pagination
+ * decorations.
  */
 @ApplicationScoped
 public class ToolCatalog {
@@ -39,7 +39,10 @@ public class ToolCatalog {
                 systems.defaultName().orElse(null));
     }
 
-    /** The realm argument can only be optional when every system has a default realm; use it if they agree. */
+    /**
+     * The realm argument can only be optional when every system has a default realm; use
+     * it if they agree.
+     */
     private static String commonDefaultRealm(KeycloakSystems systems) {
         Set<String> defaults = new java.util.HashSet<>();
         for (var admin : systems.all()) {
@@ -55,8 +58,8 @@ public class ToolCatalog {
         this(raw, defaultRealm, maxItems, hotTools, "", List.of(), null);
     }
 
-    public ToolCatalog(Collection<ToolSpec> raw, String defaultRealm, int maxItems, List<String> hotTools, String prefix,
-            List<String> systems, String defaultSystem) {
+    public ToolCatalog(Collection<ToolSpec> raw, String defaultRealm, int maxItems, List<String> hotTools,
+            String prefix, List<String> systems, String defaultSystem) {
         this.defaultRealm = defaultRealm;
         this.prefix = prefix == null ? "" : prefix.trim();
         this.systems = List.copyOf(systems == null ? List.of() : systems);
@@ -123,8 +126,8 @@ public class ToolCatalog {
     }
 
     /**
-     * Forgiving lookup: exact, then case-insensitive with {@code -} normalised to {@code _}, then with the
-     * {@code keycloak_} prefix added or removed.
+     * Forgiving lookup: exact, then case-insensitive with {@code -} normalised to
+     * {@code _}, then with the {@code keycloak_} prefix added or removed.
      */
     public Optional<ToolSpec> resolve(String name) {
         if (name == null || name.isBlank()) {
@@ -135,7 +138,8 @@ public class ToolCatalog {
             return Optional.of(exact);
         }
         String norm = stripPrefix(normalize(name));
-        List<String> candidates = List.of(norm, "keycloak_" + norm, norm.startsWith("keycloak_") ? norm.substring(9) : norm,
+        List<String> candidates = List.of(norm, "keycloak_" + norm,
+                norm.startsWith("keycloak_") ? norm.substring(9) : norm,
                 norm.startsWith("kc_") ? "keycloak_" + norm.substring(3) : norm);
         for (String c : candidates) {
             ToolSpec s = specs.get(prefix + c);

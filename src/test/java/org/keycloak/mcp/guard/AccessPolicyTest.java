@@ -1,9 +1,5 @@
 package org.keycloak.mcp.guard;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,6 +16,10 @@ import org.keycloak.mcp.spi.Delegation;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccessPolicyTest {
 
@@ -50,12 +50,14 @@ class AccessPolicyTest {
         ToolSpec delete = catalog.get("keycloak_user_delete").orElseThrow();
         ToolSpec sync = catalog.get("keycloak_federation_sync").orElseThrow();
 
-        AccessPolicy denied = new AccessPolicy(false, List.of(), List.of(), List.of("keycloak_user_delete"), List.of(), null);
+        AccessPolicy denied = new AccessPolicy(false, List.of(), List.of(), List.of("keycloak_user_delete"), List.of(),
+                null);
         assertTrue(denied.permits(search));
         assertFalse(denied.permits(delete));
         assertEquals("tool_not_allowed", payload(denied.forbids(delete, "demo").orElseThrow()).get("error"));
 
-        AccessPolicy allowed = new AccessPolicy(false, List.of(), List.of("user_search", "User-Delete"), List.of(), List.of(), null);
+        AccessPolicy allowed = new AccessPolicy(false, List.of(), List.of("user_search", "User-Delete"), List.of(),
+                List.of(), null);
         assertTrue(allowed.permits(search));
         assertTrue(allowed.permits(delete));
         assertFalse(allowed.permits(sync));
@@ -68,10 +70,22 @@ class AccessPolicyTest {
 
     @Test
     void rolesHideAndForbid() {
-        ToolSpec search = ToolSpec.builder("keycloak_x_search").title("s").description("d").category(Category.USERS)
-                .read().roles("view-users").handler(c -> ToolResult.ok("")).build();
-        ToolSpec disable = ToolSpec.builder("keycloak_x_disable").title("s").description("d").category(Category.USERS)
-                .write().roles("manage-users").handler(c -> ToolResult.ok("")).build();
+        ToolSpec search = ToolSpec.builder("keycloak_x_search")
+            .title("s")
+            .description("d")
+            .category(Category.USERS)
+            .read()
+            .roles("view-users")
+            .handler(c -> ToolResult.ok(""))
+            .build();
+        ToolSpec disable = ToolSpec.builder("keycloak_x_disable")
+            .title("s")
+            .description("d")
+            .category(Category.USERS)
+            .write()
+            .roles("manage-users")
+            .handler(c -> ToolResult.ok(""))
+            .build();
         RoleDiscovery roles = discovery("demo", GrantedRolesTest.resourceAccess("realm-management", "view-users"));
         AccessPolicy policy = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), roles);
 
@@ -93,10 +107,16 @@ class AccessPolicyTest {
 
     @Test
     void unknownRolesNeverFilter() {
-        ToolSpec disable = ToolSpec.builder("keycloak_x_disable").title("s").description("d").category(Category.USERS)
-                .write().roles("manage-users").handler(c -> ToolResult.ok("")).build();
-        RoleDiscovery roles = discovery("demo", new JsonObject().put("account",
-                new JsonObject().put("roles", new JsonArray().add("view-profile"))));
+        ToolSpec disable = ToolSpec.builder("keycloak_x_disable")
+            .title("s")
+            .description("d")
+            .category(Category.USERS)
+            .write()
+            .roles("manage-users")
+            .handler(c -> ToolResult.ok(""))
+            .build();
+        RoleDiscovery roles = discovery("demo",
+                new JsonObject().put("account", new JsonObject().put("roles", new JsonArray().add("view-profile"))));
         AccessPolicy policy = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), roles);
         assertTrue(policy.visibleNow(disable));
         assertTrue(policy.forbids(disable, "demo").isEmpty());
@@ -104,33 +124,37 @@ class AccessPolicyTest {
     }
 
     private static ToolSpec.Builder spec(String name) {
-        return ToolSpec.builder(name).title("t").description("d").category(Category.USERS).write()
-                .schema(org.keycloak.mcp.catalog.InputSchema.builder().string("id", "id"))
-                .handler(c -> ToolResult.ok(""));
+        return ToolSpec.builder(name)
+            .title("t")
+            .description("d")
+            .category(Category.USERS)
+            .write()
+            .schema(org.keycloak.mcp.catalog.InputSchema.builder().string("id", "id"))
+            .handler(c -> ToolResult.ok(""));
     }
 
     @Test
     void perToolAccessChecksRunAfterRolesWithValidatedArgs() {
-        ToolSpec guarded = spec("keycloak_x_delete")
-                .access(ctx -> "root".equals(ctx.arg("id")) ? AccessCheck.Decision.deny("protected_user",
-                        "root cannot be touched") : AccessCheck.Decision.allow())
-                .access(ctx -> ctx.realm().equals("demo") ? AccessCheck.Decision.allow()
-                        : AccessCheck.Decision.deny("only realm demo"))
-                .build();
+        ToolSpec guarded = spec("keycloak_x_delete").access(ctx -> "root".equals(ctx.arg("id"))
+                ? AccessCheck.Decision.deny("protected_user", "root cannot be touched") : AccessCheck.Decision.allow())
+            .access(ctx -> ctx.realm().equals("demo") ? AccessCheck.Decision.allow()
+                    : AccessCheck.Decision.deny("only realm demo"))
+            .build();
         AccessPolicy policy = new AccessPolicy(false, List.of());
         assertTrue(policy.forbids(guarded, "demo", Map.of("id", "bob"), InvocationContext.none()).isEmpty());
-        Map<String, Object> denied = payload(policy.forbids(guarded, "demo", Map.of("id", "root"),
-                InvocationContext.none()).orElseThrow());
+        Map<String, Object> denied = payload(
+                policy.forbids(guarded, "demo", Map.of("id", "root"), InvocationContext.none()).orElseThrow());
         assertEquals("protected_user", denied.get("error"));
         assertEquals("root cannot be touched", denied.get("message"));
-        assertEquals("access_denied", payload(policy.forbids(guarded, "other", Map.of("id", "bob"),
-                InvocationContext.none()).orElseThrow()).get("error"));
+        assertEquals("access_denied",
+                payload(policy.forbids(guarded, "other", Map.of("id", "bob"), InvocationContext.none()).orElseThrow())
+                    .get("error"));
         // a throwing check denies instead of allowing
         ToolSpec broken = spec("keycloak_x_broken").access(ctx -> {
             throw new IllegalStateException("boom");
         }).build();
-        assertEquals("access_check_failed", payload(policy.forbids(broken, "demo", Map.of(), InvocationContext.none())
-                .orElseThrow()).get("error"));
+        assertEquals("access_check_failed",
+                payload(policy.forbids(broken, "demo", Map.of(), InvocationContext.none()).orElseThrow()).get("error"));
     }
 
     @Test
@@ -141,8 +165,8 @@ class AccessPolicyTest {
         AccessPolicy policy = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null,
                 List.of(businessHours));
         ToolSpec write = spec("keycloak_x_write").build();
-        assertEquals("needs_identity", payload(policy.forbids(write, "demo", Map.of(), InvocationContext.none())
-                .orElseThrow()).get("error"));
+        assertEquals("needs_identity",
+                payload(policy.forbids(write, "demo", Map.of(), InvocationContext.none()).orElseThrow()).get("error"));
         InvocationContext asAlice = InvocationContext.none().withCaller(Caller.of("sub-1", "alice", "demo", Set.of()));
         assertTrue(policy.forbids(write, "demo", Map.of(), asAlice).isEmpty());
     }
@@ -154,13 +178,14 @@ class AccessPolicyTest {
         ToolSpec required = spec("keycloak_x_support").delegation(Delegation.REQUIRED).build();
         ToolSpec allowed = spec("keycloak_x_any").build();
         InvocationContext serviceAccount = InvocationContext.none();
-        InvocationContext delegated = InvocationContext.none().withCaller(Caller.delegated("sub-1", "alice", "demo", Set.of()));
+        InvocationContext delegated = InvocationContext.none()
+            .withCaller(Caller.delegated("sub-1", "alice", "demo", Set.of()));
 
         assertTrue(policy.forbids(forbidden, "demo", Map.of(), serviceAccount).isEmpty());
-        assertEquals("delegation_not_allowed", payload(policy.forbids(forbidden, "demo", Map.of(), delegated)
-                .orElseThrow()).get("error"));
-        assertEquals("delegation_required", payload(policy.forbids(required, "demo", Map.of(), serviceAccount)
-                .orElseThrow()).get("error"));
+        assertEquals("delegation_not_allowed",
+                payload(policy.forbids(forbidden, "demo", Map.of(), delegated).orElseThrow()).get("error"));
+        assertEquals("delegation_required",
+                payload(policy.forbids(required, "demo", Map.of(), serviceAccount).orElseThrow()).get("error"));
         assertTrue(policy.forbids(required, "demo", Map.of(), delegated).isEmpty());
         assertTrue(policy.forbids(allowed, "demo", Map.of(), delegated).isEmpty());
         assertTrue(policy.forbids(allowed, "demo", Map.of(), serviceAccount).isEmpty());

@@ -1,10 +1,5 @@
 package org.keycloak.mcp.meta;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -30,6 +25,11 @@ import org.keycloak.mcp.spi.Caller;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetaToolsTest {
 
@@ -94,7 +94,8 @@ class MetaToolsTest {
         assertTrue(policy.listed("keycloak_user_delete", "c9"));
         assertFalse(policy.listed("keycloak_user_delete", "other"));
         // second identical search changes nothing
-        assertNull(payload(meta(false).search("delete user", null, 1, "c9", ExposureMode.PROGRESSIVE)).get("listChanged"));
+        assertNull(
+                payload(meta(false).search("delete user", null, 1, "c9", ExposureMode.PROGRESSIVE)).get("listChanged"));
     }
 
     @Test
@@ -120,8 +121,8 @@ class MetaToolsTest {
 
     @Test
     void executeUnknownToolSuggests() {
-        Map<String, Object> p = payload(meta(false).execute("keycloak_user_serach", Map.of(), null,
-                InvocationContext.none()));
+        Map<String, Object> p = payload(
+                meta(false).execute("keycloak_user_serach", Map.of(), null, InvocationContext.none()));
         assertEquals("unknown_tool", p.get("error"));
         List<?> dym = (List<?>) p.get("didYouMean");
         assertEquals("keycloak_user_search", ((Map<?, ?>) dym.get(0)).get("name"));
@@ -132,37 +133,62 @@ class MetaToolsTest {
     void executeThreadsConfirmFlag() {
         Map<String, Object> args = Map.of("realm", "demo", "id", "1");
         assertEquals("confirmation_required",
-                payload(meta(false).execute("keycloak_user_delete", args, null, InvocationContext.none())).get("error"));
+                payload(meta(false).execute("keycloak_user_delete", args, null, InvocationContext.none()))
+                    .get("error"));
         assertFalse(meta(false).execute("keycloak_user_delete", args, true, InvocationContext.none()).isError());
         // confirm inside the arguments object works too
-        assertFalse(meta(false).execute("keycloak_user_delete",
-                Map.of("realm", "demo", "id", "1", "confirm", true), null, InvocationContext.none()).isError());
+        assertFalse(meta(false)
+            .execute("keycloak_user_delete", Map.of("realm", "demo", "id", "1", "confirm", true), null,
+                    InvocationContext.none())
+            .isError());
     }
 
-    // ---- caller awareness (delegation forward) ------------------------------------------------------------------
+    // ---- caller awareness (delegation forward)
+    // ------------------------------------------------------------------
 
     /** Fixtures carry no role requirements; these do. */
     private static ToolCatalog roleCatalog() {
         return new ToolCatalog(List.of(
-                ToolSpec.builder("keycloak_user_search").title("Search users").description("Find users.")
-                        .category(Category.USERS).read().roles("view-users")
-                        .schema(InputSchema.builder().string("search", "Free text"))
-                        .handler(call -> ToolResult.ok(List.of())).build(),
-                ToolSpec.builder("keycloak_user_set_enabled").title("Enable or disable a user").description("Set enabled.")
-                        .category(Category.USERS).write().roles("manage-users").synonyms("disable", "block")
-                        .schema(InputSchema.builder().string("id", "User id").required().bool("enabled", "New value").required())
-                        .handler(call -> ToolResult.done("updated")).build(),
-                ToolSpec.builder("keycloak_client_list").title("List clients").description("List clients.")
-                        .category(Category.CLIENTS).read().roles("view-clients")
-                        .handler(call -> ToolResult.ok(List.of())).build()),
+                ToolSpec.builder("keycloak_user_search")
+                    .title("Search users")
+                    .description("Find users.")
+                    .category(Category.USERS)
+                    .read()
+                    .roles("view-users")
+                    .schema(InputSchema.builder().string("search", "Free text"))
+                    .handler(call -> ToolResult.ok(List.of()))
+                    .build(),
+                ToolSpec.builder("keycloak_user_set_enabled")
+                    .title("Enable or disable a user")
+                    .description("Set enabled.")
+                    .category(Category.USERS)
+                    .write()
+                    .roles("manage-users")
+                    .synonyms("disable", "block")
+                    .schema(InputSchema.builder()
+                        .string("id", "User id")
+                        .required()
+                        .bool("enabled", "New value")
+                        .required())
+                    .handler(call -> ToolResult.done("updated"))
+                    .build(),
+                ToolSpec.builder("keycloak_client_list")
+                    .title("List clients")
+                    .description("List clients.")
+                    .category(Category.CLIENTS)
+                    .read()
+                    .roles("view-clients")
+                    .handler(call -> ToolResult.ok(List.of()))
+                    .build()),
                 "demo", 50, List.of());
     }
 
     private static MetaTools forward(ToolCatalog catalog) {
         AccessPolicy policy = new AccessPolicy(false, List.of());
         Confirmer confirmer = (spec, realm, args, flag, ctx) -> Confirmer.Decision.CONFIRMED;
-        return new MetaTools(catalog, policy, new ToolInvoker(catalog, policy, confirmer, 50, null, DelegationMode.FORWARD),
-                new ProgressiveState(), 5, DelegationMode.FORWARD);
+        return new MetaTools(catalog, policy,
+                new ToolInvoker(catalog, policy, confirmer, 50, null, DelegationMode.FORWARD), new ProgressiveState(),
+                5, DelegationMode.FORWARD);
     }
 
     private static String token(String... realmManagementRoles) {
@@ -170,8 +196,10 @@ class MetaToolsTest {
         if (realmManagementRoles.length > 0) {
             access.put("realm-management", new JsonObject().put("roles", new JsonArray(List.of(realmManagementRoles))));
         }
-        JsonObject payload = new JsonObject().put("resource_access", access).put("sub", "u1")
-                .put("preferred_username", "demoreadonly").put("iss", "http://kc/realms/demo");
+        JsonObject payload = new JsonObject().put("resource_access", access)
+            .put("sub", "u1")
+            .put("preferred_username", "demoreadonly")
+            .put("iss", "http://kc/realms/demo");
         Base64.Encoder b64 = Base64.getUrlEncoder().withoutPadding();
         return b64.encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8)) + "."
                 + b64.encodeToString(payload.encode().getBytes(StandardCharsets.UTF_8)) + ".sig";
@@ -184,15 +212,21 @@ class MetaToolsTest {
 
     @Test
     void searchMarksToolsTheCallerMayNotUse() {
-        Map<String, Object> p = payload(forward(roleCatalog()).search("disable user", null, 5, "c1", ExposureMode.HYBRID,
-                caller(token("view-users"))));
+        Map<String, Object> p = payload(forward(roleCatalog()).search("disable user", null, 5, "c1",
+                ExposureMode.HYBRID, caller(token("view-users"))));
         List<?> tools = (List<?>) p.get("tools");
-        Map<?, ?> disable = tools.stream().map(t -> (Map<?, ?>) t)
-                .filter(t -> t.get("name").equals("keycloak_user_set_enabled")).findFirst().orElseThrow();
+        Map<?, ?> disable = tools.stream()
+            .map(t -> (Map<?, ?>) t)
+            .filter(t -> t.get("name").equals("keycloak_user_set_enabled"))
+            .findFirst()
+            .orElseThrow();
         assertEquals(false, disable.get("allowed"));
         assertEquals(List.of("manage-users"), disable.get("missingRoles"));
-        Map<?, ?> search = tools.stream().map(t -> (Map<?, ?>) t)
-                .filter(t -> t.get("name").equals("keycloak_user_search")).findFirst().orElseThrow();
+        Map<?, ?> search = tools.stream()
+            .map(t -> (Map<?, ?>) t)
+            .filter(t -> t.get("name").equals("keycloak_user_search"))
+            .findFirst()
+            .orElseThrow();
         assertFalse(search.containsKey("allowed"));
         assertTrue(String.valueOf(p.get("hint")).contains("allowed=false"), String.valueOf(p.get("hint")));
 
@@ -208,14 +242,16 @@ class MetaToolsTest {
 
     @Test
     void whoamiExplainsTheCallersRoles() {
-        Map<String, Object> p = payload(forward(roleCatalog()).whoami(null, null, caller(token("view-users", "view-events"))));
+        Map<String, Object> p = payload(
+                forward(roleCatalog()).whoami(null, null, caller(token("view-users", "view-events"))));
         Map<?, ?> who = (Map<?, ?>) p.get("caller");
         assertEquals("demoreadonly", who.get("username"));
         assertEquals("demo", who.get("realm"));
         assertTrue(String.valueOf(p.get("keycloakCallsRunAs")).contains("delegated"));
         Map<?, ?> roles = (Map<?, ?>) p.get("roles");
         List<?> demo = (List<?>) roles.get("demo");
-        assertEquals(List.of("view-events", "view-users"), demo.stream().map(r -> ((Map<?, ?>) r).get("role")).toList());
+        assertEquals(List.of("view-events", "view-users"),
+                demo.stream().map(r -> ((Map<?, ?>) r).get("role")).toList());
         assertEquals("View users", ((Map<?, ?>) demo.get(1)).get("label"));
         Map<?, ?> can = (Map<?, ?>) ((Map<?, ?>) p.get("can")).get("demo");
         assertEquals("view", can.get("users"));
@@ -237,7 +273,8 @@ class MetaToolsTest {
         assertEquals("manage", ((Map<?, ?>) ((Map<?, ?>) de.get("can")).get("demo")).get("users"));
         // unsupported languages fall back to English, and say so
         Map<String, Object> fr = payload(forward(roleCatalog()).whoami("fr", null, caller(token("manage-users"))));
-        assertEquals("Manage users", ((Map<?, ?>) ((List<?>) ((Map<?, ?>) fr.get("roles")).get("demo")).get(0)).get("label"));
+        assertEquals("Manage users",
+                ((Map<?, ?>) ((List<?>) ((Map<?, ?>) fr.get("roles")).get("demo")).get(0)).get("label"));
         assertEquals("en", fr.get("labelLanguage"));
     }
 
@@ -252,7 +289,8 @@ class MetaToolsTest {
         assertEquals("anonymous", anon.get("caller"));
         assertTrue(String.valueOf(anon.get("keycloakCallsRunAs")).contains("service account"));
 
-        // the service account path (delegation off) reports no roles when discovery is not configured
+        // the service account path (delegation off) reports no roles when discovery is
+        // not configured
         Map<String, Object> off = payload(meta(false).whoami(null, null, InvocationContext.none()));
         assertEquals("unknown", off.get("roles"));
         assertEquals(5, ((Map<?, ?>) off.get("tools")).get("allowed"));

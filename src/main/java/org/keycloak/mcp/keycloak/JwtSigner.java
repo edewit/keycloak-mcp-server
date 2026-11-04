@@ -26,8 +26,8 @@ import org.keycloak.mcp.config.McpServerConfig;
 import io.vertx.core.json.JsonObject;
 
 /**
- * Minimal JWS signer for client assertions: RS*, PS* and ES* with keys from a PKCS#8 PEM file or a keystore.
- * No external JOSE dependency.
+ * Minimal JWS signer for client assertions: RS*, PS* and ES* with keys from a PKCS#8 PEM
+ * file or a keystore. No external JOSE dependency.
  */
 public final class JwtSigner {
 
@@ -42,8 +42,10 @@ public final class JwtSigner {
     }
 
     /**
-     * @param publicKey the matching public key; derived from the private key when {@code null}
-     * @param keyId     {@code kid} to put in the JWS header and the JWK; RFC 7638 thumbprint when {@code null}
+     * @param publicKey the matching public key; derived from the private key when
+     * {@code null}
+     * @param keyId {@code kid} to put in the JWS header and the JWK; RFC 7638 thumbprint
+     * when {@code null}
      */
     public JwtSigner(PrivateKey key, PublicKey publicKey, String algorithm, String keyId) {
         this.key = key;
@@ -51,7 +53,8 @@ public final class JwtSigner {
         checkKeyMatchesAlgorithm();
         try {
             this.publicKey = publicKey != null ? publicKey : Jwks.publicKeyOf(key);
-        } catch (GeneralSecurityException e) {
+        }
+        catch (GeneralSecurityException e) {
             throw new IllegalStateException("Cannot derive the public key: " + e.getMessage(), e);
         }
         this.jwk = Jwks.jwk(this.publicKey, this.algorithm, keyId);
@@ -64,14 +67,16 @@ public final class JwtSigner {
             PublicKey publicKey = null;
             if (jwt.keyFile().isPresent()) {
                 key = loadPem(Path.of(jwt.keyFile().get()));
-            } else if (jwt.keystoreFile().isPresent()) {
+            }
+            else if (jwt.keystoreFile().isPresent()) {
                 KeyStore ks = openKeystore(Path.of(jwt.keystoreFile().get()), jwt.keystoreType(),
                         jwt.keystorePassword().orElse(""));
                 String alias = keyAlias(ks, jwt.keyAlias().orElse(null));
                 key = privateKey(ks, alias, jwt.keyPassword().or(jwt::keystorePassword).orElse(""));
                 java.security.cert.Certificate cert = ks.getCertificate(alias);
                 publicKey = cert == null ? null : cert.getPublicKey();
-            } else {
+            }
+            else {
                 throw new IllegalStateException(
                         "Missing configuration 'kc-mcp.jwt.key-file' or 'kc-mcp.jwt.keystore-file' for auth mode private_key_jwt");
             }
@@ -79,7 +84,8 @@ public final class JwtSigner {
                 publicKey = Jwks.loadPublicKeyPem(Path.of(jwt.publicKeyFile().get()));
             }
             return new JwtSigner(key, publicKey, jwt.algorithm(), jwt.keyId().orElse(null));
-        } catch (IOException | GeneralSecurityException e) {
+        }
+        catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Cannot load private key for private_key_jwt: " + e.getMessage(), e);
         }
     }
@@ -122,7 +128,8 @@ public final class JwtSigner {
                 signature = derToJose(signature, ecPartLength(algorithm));
             }
             return signingInput + "." + b64(signature);
-        } catch (GeneralSecurityException e) {
+        }
+        catch (GeneralSecurityException e) {
             throw new IllegalStateException("Signing client assertion failed: " + e.getMessage(), e);
         }
     }
@@ -158,7 +165,9 @@ public final class JwtSigner {
         };
     }
 
-    /** Converts a DER encoded ECDSA signature to the fixed-size R||S form JOSE requires. */
+    /**
+     * Converts a DER encoded ECDSA signature to the fixed-size R||S form JOSE requires.
+     */
     static byte[] derToJose(byte[] der, int partLength) {
         int offset = 2;
         if ((der[1] & 0x80) != 0) {
@@ -200,7 +209,8 @@ public final class JwtSigner {
         for (String alg : new String[] { "RSA", "EC" }) {
             try {
                 return KeyFactory.getInstance(alg).generatePrivate(spec);
-            } catch (GeneralSecurityException ignored) {
+            }
+            catch (GeneralSecurityException ignored) {
                 // try next
             }
         }

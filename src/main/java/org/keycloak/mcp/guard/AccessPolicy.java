@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
@@ -25,17 +24,23 @@ import org.keycloak.mcp.spi.ToolProviderRegistry;
 /**
  * Who may do what:
  * <ul>
- * <li>static: READ_ONLY, allowed/denied tools, allowed categories, ALLOWED_REALMS (decided at startup),</li>
- * <li>dynamic: the {@code realm-management} roles the server's token actually holds ({@link RoleDiscovery}).</li>
+ * <li>static: READ_ONLY, allowed/denied tools, allowed categories, ALLOWED_REALMS
+ * (decided at startup),</li>
+ * <li>dynamic: the {@code realm-management} roles the server's token actually holds
+ * ({@link RoleDiscovery}).</li>
  * </ul>
- * {@link #permits} is the static part and decides registration; {@link #visible} adds roles for listing and
- * search; {@link #forbids} is the per-call check with the resolved realm: realm allow-list, roles, delegation,
- * global {@link AccessCheck}s, then the tool's own checks.
+ * {@link #permits} is the static part and decides registration; {@link #visible} adds
+ * roles for listing and search; {@link #forbids} is the per-call check with the resolved
+ * realm: realm allow-list, roles, delegation, global {@link AccessCheck}s, then the
+ * tool's own checks.
  */
 @ApplicationScoped
 public class AccessPolicy {
 
-    /** Points the model at the tool that explains the current permissions instead of retrying. */
+    /**
+     * Points the model at the tool that explains the current permissions instead of
+     * retrying.
+     */
     public static final String WHOAMI_HINT = "Do not retry; tell the user which role is missing. "
             + "Call whoami to see what the current caller may do.";
 
@@ -53,8 +58,8 @@ public class AccessPolicy {
             Instance<AccessCheck> cdiChecks, KeycloakSystems systems) {
         this(config.readOnly(), config.allowedRealms().orElse(List.of()), config.allowedTools().orElse(List.of()),
                 config.deniedTools().orElse(List.of()), config.allowedCategories().orElse(List.of()), roles,
-                collectChecks(registry, cdiChecks), name -> systems.find(name).map(a -> a.system().allowedRealms())
-                        .orElse(Set.of()));
+                collectChecks(registry, cdiChecks),
+                name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()));
     }
 
     private static List<AccessCheck> collectChecks(ToolProviderRegistry registry, Instance<AccessCheck> cdiChecks) {
@@ -69,26 +74,29 @@ public class AccessPolicy {
         this(readOnly, allowedRealms, List.of(), List.of(), List.of(), null, List.of());
     }
 
-    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools, List<String> deniedTools,
-            List<String> allowedCategories, RoleDiscovery roles) {
+    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
+            List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles) {
         this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, List.of());
     }
 
-    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools, List<String> deniedTools,
-            List<String> allowedCategories, RoleDiscovery roles, List<AccessCheck> globalChecks) {
+    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
+            List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
+            List<AccessCheck> globalChecks) {
         this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks, null);
     }
 
-    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools, List<String> deniedTools,
-            List<String> allowedCategories, RoleDiscovery roles, List<AccessCheck> globalChecks,
-            java.util.function.Function<String, Set<String>> allowedRealmsBySystem) {
+    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
+            List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
+            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem) {
         this.readOnly = readOnly;
         this.allowedRealms = clean(allowedRealms);
         this.allowedRealmsBySystem = allowedRealmsBySystem;
         this.allowedTools = clean(allowedTools).stream().map(AccessPolicy::shortName).collect(Collectors.toSet());
         this.deniedTools = clean(deniedTools).stream().map(AccessPolicy::shortName).collect(Collectors.toSet());
-        this.allowedCategories = clean(allowedCategories).stream().map(Category::parse).filter(c -> c != null)
-                .collect(Collectors.toSet());
+        this.allowedCategories = clean(allowedCategories).stream()
+            .map(Category::parse)
+            .filter(c -> c != null)
+            .collect(Collectors.toSet());
         this.roles = roles;
         this.globalChecks = List.copyOf(globalChecks == null ? List.of() : globalChecks);
     }
@@ -108,7 +116,10 @@ public class AccessPolicy {
         return readOnly;
     }
 
-    /** Static policy: whether the tool may exist on this server at all (registration, search, execution). */
+    /**
+     * Static policy: whether the tool may exist on this server at all (registration,
+     * search, execution).
+     */
     public boolean permits(ToolSpec spec) {
         if (readOnly && !spec.isReadOnly()) {
             return false;
@@ -123,17 +134,25 @@ public class AccessPolicy {
         return allowedCategories.isEmpty() || allowedCategories.contains(spec.category());
     }
 
-    /** Static policy plus roles as currently known in any system, without blocking (tools/list filter). */
+    /**
+     * Static policy plus roles as currently known in any system, without blocking
+     * (tools/list filter).
+     */
     public boolean visible(ToolSpec spec) {
         return permits(spec) && (roles == null || roles.anySystemPeek(g -> g.permitsAnyRealm(spec.requiredRoles())));
     }
 
-    /** Static policy plus roles, discovering them if necessary (used by search_tools and suggestions). */
+    /**
+     * Static policy plus roles, discovering them if necessary (used by search_tools and
+     * suggestions).
+     */
     public boolean visibleNow(ToolSpec spec) {
         return permits(spec) && (roles == null || roles.anySystem(g -> g.permitsAnyRealm(spec.requiredRoles())));
     }
 
-    /** Per-call check without arguments or caller (static policy, realm and roles only). */
+    /**
+     * Per-call check without arguments or caller (static policy, realm and roles only).
+     */
     public Optional<ToolResult> forbids(ToolSpec spec, String realm) {
         return forbids(spec, null, realm, Map.of(), InvocationContext.none());
     }
@@ -143,7 +162,8 @@ public class AccessPolicy {
     }
 
     /**
-     * Per-call check once system, realm and the validated arguments are known; empty when the call may proceed.
+     * Per-call check once system, realm and the validated arguments are known; empty when
+     * the call may proceed.
      *
      * @param system Keycloak system name, or {@code null} for the single/default system
      */
@@ -153,8 +173,8 @@ public class AccessPolicy {
     }
 
     /**
-     * @param admin the admin client the call will run with (the caller's own under delegation), handed to the
-     *              access checks; {@code null} when unknown
+     * @param admin the admin client the call will run with (the caller's own under
+     * delegation), handed to the access checks; {@code null} when unknown
      */
     public Optional<ToolResult> forbids(ToolSpec spec, String system, String realm, Map<String, Object> args,
             InvocationContext ctx, KeycloakAdmin admin) {
@@ -166,25 +186,29 @@ public class AccessPolicy {
             return Optional.of(ToolResult.error("tool_not_allowed", spec.name() + " is disabled on this server."));
         }
         if (realm != null && !realmAllowed(system, realm)) {
-            return Optional.of(ToolResult.error("realm_not_allowed", "Realm '" + realm + "' is not allowed"
-                    + (system != null ? " in system '" + system + "'." : "."),
+            return Optional.of(ToolResult.error("realm_not_allowed",
+                    "Realm '" + realm + "' is not allowed" + (system != null ? " in system '" + system + "'." : "."),
                     "allowed", List.copyOf(allowedRealms(system))));
         }
         boolean delegated = ctx.caller().delegated();
         GrantedRoles granted = granted(system, ctx);
         if (granted != null && realm != null) {
             String who = delegated ? "caller '" + ctx.caller().name() + "' has" : "the server's credentials have";
-            // an unknown server token disables filtering; a caller token without any admin role simply cannot act
+            // an unknown server token disables filtering; a caller token without any
+            // admin role simply cannot act
             if (!granted.reaches(realm) || (delegated && !granted.known())) {
-                return Optional.of(ToolResult.error("forbidden", Character.toUpperCase(who.charAt(0)) + who.substring(1)
-                        + " no admin roles in realm '" + realm + "'.", "realmsWithRoles", List.copyOf(granted.realms()),
-                        "hint", WHOAMI_HINT));
+                return Optional.of(ToolResult.error(
+                        "forbidden", Character.toUpperCase(who.charAt(0)) + who.substring(1)
+                                + " no admin roles in realm '" + realm + "'.",
+                        "realmsWithRoles", List.copyOf(granted.realms()), "hint", WHOAMI_HINT));
             }
             Set<String> missing = granted.missing(realm, spec.requiredRoles());
             if (!missing.isEmpty()) {
-                return Optional.of(ToolResult.error("forbidden", spec.name() + " needs the realm-management role(s) "
-                        + missing + " in realm '" + realm + "', which " + (delegated
-                                ? "caller '" + ctx.caller().name() + "' lacks." : "the server's credentials lack."),
+                return Optional.of(ToolResult.error("forbidden",
+                        spec.name() + " needs the realm-management role(s) " + missing + " in realm '" + realm
+                                + "', which "
+                                + (delegated ? "caller '" + ctx.caller().name() + "' lacks."
+                                        : "the server's credentials lack."),
                         "missingRoles", List.copyOf(missing), "hint", WHOAMI_HINT));
             }
         }
@@ -216,8 +240,9 @@ public class AccessPolicy {
     }
 
     /**
-     * Roles that decide a call: the caller's own (parsed from the forwarded token) when the call is delegated,
-     * otherwise the server token's as discovered; {@code null} when role checks are off.
+     * Roles that decide a call: the caller's own (parsed from the forwarded token) when
+     * the call is delegated, otherwise the server token's as discovered; {@code null}
+     * when role checks are off.
      *
      * @param system Keycloak system name, or {@code null} for the single/default system
      */
@@ -235,7 +260,8 @@ public class AccessPolicy {
         AccessCheck.Decision d;
         try {
             d = check.check(context);
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             return Optional.of(ToolResult.error("access_check_failed", "Access check failed: " + e.getMessage()));
         }
         if (d == null || d.allowed()) {

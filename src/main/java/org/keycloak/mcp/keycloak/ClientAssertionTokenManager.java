@@ -3,7 +3,6 @@ package org.keycloak.mcp.keycloak;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
-
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.Form;
@@ -17,8 +16,9 @@ import org.keycloak.mcp.guard.ToolException;
 import io.vertx.core.json.JsonObject;
 
 /**
- * Fetches and caches access tokens for a client authenticating with a signed JWT (RFC 7523 / OIDC
- * {@code private_key_jwt}); works with the {@code client_credentials} and the {@code password} grant.
+ * Fetches and caches access tokens for a client authenticating with a signed JWT (RFC
+ * 7523 / OIDC {@code private_key_jwt}); works with the {@code client_credentials} and the
+ * {@code password} grant.
  */
 public class ClientAssertionTokenManager implements AutoCloseable {
 
@@ -54,7 +54,10 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         this.password = password;
     }
 
-    /** Token endpoint derived from the server URL (context paths such as {@code /auth} are preserved). */
+    /**
+     * Token endpoint derived from the server URL (context paths such as {@code /auth} are
+     * preserved).
+     */
     public String tokenEndpoint() {
         return tokenEndpoint;
     }
@@ -71,7 +74,8 @@ public class ClientAssertionTokenManager implements AutoCloseable {
                 grant();
             }
             return token;
-        } finally {
+        }
+        finally {
             lock.unlock();
         }
     }
@@ -81,32 +85,32 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         try {
             token = null;
             expiresAt = 0;
-        } finally {
+        }
+        finally {
             lock.unlock();
         }
     }
 
     private void grant() {
         long now = Instant.now().getEpochSecond();
-        JsonObject claims = new JsonObject()
-                .put("iss", clientId)
-                .put("sub", clientId)
-                .put("aud", audience)
-                .put("jti", UUID.randomUUID().toString())
-                .put("iat", now)
-                .put("nbf", now)
-                .put("exp", now + assertionLifespan);
+        JsonObject claims = new JsonObject().put("iss", clientId)
+            .put("sub", clientId)
+            .put("aud", audience)
+            .put("jti", UUID.randomUUID().toString())
+            .put("iat", now)
+            .put("nbf", now)
+            .put("exp", now + assertionLifespan);
         String assertion = signer.sign(claims);
-        Form form = new Form()
-                .param("grant_type", grantType.oauthValue())
-                .param("client_id", clientId)
-                .param("client_assertion_type", ASSERTION_TYPE)
-                .param("client_assertion", assertion);
+        Form form = new Form().param("grant_type", grantType.oauthValue())
+            .param("client_id", clientId)
+            .param("client_assertion_type", ASSERTION_TYPE)
+            .param("client_assertion", assertion);
         if (grantType == GrantType.PASSWORD) {
             form.param("username", username).param("password", password);
         }
-        try (Response response = client.target(tokenEndpoint).request(MediaType.APPLICATION_JSON_TYPE)
-                .post(Entity.form(form))) {
+        try (Response response = client.target(tokenEndpoint)
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .post(Entity.form(form))) {
             String body = response.hasEntity() ? response.readEntity(String.class) : "";
             if (response.getStatus() != 200) {
                 LOG.warnf("private_key_jwt token request failed: HTTP %d %s", response.getStatus(), body);

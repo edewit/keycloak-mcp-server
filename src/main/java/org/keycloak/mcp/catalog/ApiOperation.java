@@ -9,27 +9,25 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * One Keycloak Admin REST operation a tool relies on, and how the tool's arguments map onto it. Purely
- * declarative: the handlers still go through the Java admin client. The metadata lets a test check every tool
- * against the published OpenAPI document of a concrete Keycloak version (operation present and not deprecated,
- * query parameters and body fields exist with compatible types).
+ * One Keycloak Admin REST operation a tool relies on, and how the tool's arguments map
+ * onto it. Purely declarative: the handlers still go through the Java admin client. The
+ * metadata lets a test check every tool against the published OpenAPI document of a
+ * concrete Keycloak version (operation present and not deprecated, query parameters and
+ * body fields exist with compatible types).
  *
- * @param pathParams  spec path parameter -> tool argument ({@code realm} is bound implicitly for realm scoped tools)
+ * @param pathParams spec path parameter -> tool argument ({@code realm} is bound
+ * implicitly for realm scoped tools)
  * @param queryParams spec query parameter -> tool argument
- * @param fixedQuery  spec query parameters the handler always sets itself (checked for existence only)
- * @param bodySchema  name of the request body schema in {@code components.schemas}, or {@code null}
- * @param bodyFields  properties of that schema the tool sets
- * @param unspecified reason why the operation is not in the OpenAPI document ({@code null} when it is)
+ * @param fixedQuery spec query parameters the handler always sets itself (checked for
+ * existence only)
+ * @param bodySchema name of the request body schema in {@code components.schemas}, or
+ * {@code null}
+ * @param bodyFields properties of that schema the tool sets
+ * @param unspecified reason why the operation is not in the OpenAPI document
+ * ({@code null} when it is)
  */
-public record ApiOperation(
-        String method,
-        String path,
-        Map<String, String> pathParams,
-        Map<String, String> queryParams,
-        List<String> fixedQuery,
-        String bodySchema,
-        List<String> bodyFields,
-        String unspecified) {
+public record ApiOperation(String method, String path, Map<String, String> pathParams, Map<String, String> queryParams,
+        List<String> fixedQuery, String bodySchema, List<String> bodyFields, String unspecified) {
 
     private static final Pattern TEMPLATE_PARAM = Pattern.compile("\\{([^}]+)}");
     /** HTTP methods the OpenAPI document can describe. */
@@ -84,20 +82,28 @@ public record ApiOperation(
         return new ApiOperation(method, path, pathParams, queryParams, fixedQuery, bodySchema, bodyFields, reason);
     }
 
-
     public boolean isSpecified() {
         return unspecified == null;
     }
 
-    /** Marker for a path parameter the handler derives itself (e.g. the realm's internal id). */
+    /**
+     * Marker for a path parameter the handler derives itself (e.g. the realm's internal
+     * id).
+     */
     public static final String DERIVED = "(derived)";
 
-    /** A path template parameter the handler fills from a lookup rather than from a tool argument. */
+    /**
+     * A path template parameter the handler fills from a lookup rather than from a tool
+     * argument.
+     */
     public ApiOperation derivedPath(String specParam) {
         return path(specParam, DERIVED);
     }
 
-    /** Binds a path template parameter to a tool argument, e.g. {@code path("user-id", "id")}. */
+    /**
+     * Binds a path template parameter to a tool argument, e.g.
+     * {@code path("user-id", "id")}.
+     */
     public ApiOperation path(String specParam, String toolArg) {
         Map<String, String> m = new LinkedHashMap<>(pathParams);
         m.put(specParam, toolArg);
@@ -113,14 +119,20 @@ public record ApiOperation(
         return new ApiOperation(method, path, pathParams, m, fixedQuery, bodySchema, bodyFields, unspecified);
     }
 
-    /** A query parameter whose tool argument is named differently, e.g. {@code queryAs("client_id", "clientId")}. */
+    /**
+     * A query parameter whose tool argument is named differently, e.g.
+     * {@code queryAs("client_id", "clientId")}.
+     */
     public ApiOperation queryAs(String specParam, String toolArg) {
         Map<String, String> m = new LinkedHashMap<>(queryParams);
         m.put(specParam, toolArg);
         return new ApiOperation(method, path, pathParams, m, fixedQuery, bodySchema, bodyFields, unspecified);
     }
 
-    /** Query parameters the handler sets to internal constants, e.g. {@code fixedQuery("type")}. */
+    /**
+     * Query parameters the handler sets to internal constants, e.g.
+     * {@code fixedQuery("type")}.
+     */
     public ApiOperation fixedQuery(String... names) {
         List<String> f = new ArrayList<>(fixedQuery);
         f.addAll(List.of(names));

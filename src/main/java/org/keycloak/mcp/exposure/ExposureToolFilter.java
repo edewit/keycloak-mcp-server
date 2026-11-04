@@ -12,9 +12,10 @@ import io.quarkiverse.mcp.server.ToolFilter;
 import io.quarkiverse.mcp.server.ToolManager.ToolInfo;
 
 /**
- * Hides tools from {@code tools/list} according to the {@link ExposurePolicy} but keeps every registered tool
- * callable, so a model that guesses {@code keycloak_user_search} in lazy mode still succeeds. Security
- * (READ_ONLY, ALLOWED_REALMS) lives in the invoker, never here.
+ * Hides tools from {@code tools/list} according to the {@link ExposurePolicy} but keeps
+ * every registered tool callable, so a model that guesses {@code keycloak_user_search} in
+ * lazy mode still succeeds. Security (READ_ONLY, ALLOWED_REALMS) lives in the invoker,
+ * never here.
  */
 @ApplicationScoped
 public class ExposureToolFilter implements ToolFilter {

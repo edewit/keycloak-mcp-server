@@ -1,10 +1,10 @@
 package org.keycloak.mcp.keycloak;
 
-import static io.restassured.RestAssured.given;
-
 import org.junit.jupiter.api.Test;
 
 import io.quarkus.test.junit.QuarkusTest;
+
+import static io.restassured.RestAssured.given;
 
 /** Default test profile authenticates with a password grant: no key, no JWKS. */
 @QuarkusTest

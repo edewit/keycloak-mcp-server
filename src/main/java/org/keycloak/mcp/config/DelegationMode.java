@@ -9,8 +9,9 @@ public enum DelegationMode {
     /** The server's own service account / admin user. Default. */
     OFF,
     /**
-     * The caller's access token is forwarded unchanged: the MCP endpoint requires an OAuth login and every admin
-     * call runs with that user's realm-management roles. Needs {@code quarkus.oidc.tenant-enabled=true}.
+     * The caller's access token is forwarded unchanged: the MCP endpoint requires an
+     * OAuth login and every admin call runs with that user's realm-management roles.
+     * Needs {@code quarkus.oidc.tenant-enabled=true}.
      */
     FORWARD;
 
@@ -19,8 +20,8 @@ public enum DelegationMode {
         return switch (v) {
             case "OFF", "NONE", "SERVICE_ACCOUNT" -> OFF;
             case "FORWARD" -> FORWARD;
-            default -> throw new IllegalArgumentException("Unknown delegation mode '" + value
-                    + "', expected off or forward");
+            default ->
+                throw new IllegalArgumentException("Unknown delegation mode '" + value + "', expected off or forward");
         };
     }
 

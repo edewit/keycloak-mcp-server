@@ -10,23 +10,24 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Lower-case, fold accents and umlauts, split on non-alphanumerics and camelCase, drop stop words, translate
- * known German and French words into their English equivalents ({@link QueryTranslations}), light suffix stripping.
+ * Lower-case, fold accents and umlauts, split on non-alphanumerics and camelCase, drop
+ * stop words, translate known German and French words into their English equivalents
+ * ({@link QueryTranslations}), light suffix stripping.
  */
 public final class Tokenizer {
 
-    private static final Set<String> STOP = Set.of("a", "an", "the", "of", "to", "in", "for", "and", "or", "by",
-            "with", "from", "on", "is", "all", "this", "that", "me", "my", "please", "show", "get", "keycloak");
+    private static final Set<String> STOP = Set.of("a", "an", "the", "of", "to", "in", "for", "and", "or", "by", "with",
+            "from", "on", "is", "all", "this", "that", "me", "my", "please", "show", "get", "keycloak");
 
     /**
-     * Abbreviations used in tool names for phrases that titles and queries spell out (stemmed form -> alias). The
-     * alias is added next to the phrase so "list identity providers" reaches {@code idp_list} by name token.
+     * Abbreviations used in tool names for phrases that titles and queries spell out
+     * (stemmed form -> alias). The alias is added next to the phrase so "list identity
+     * providers" reaches {@code idp_list} by name token.
      */
-    private static final Map<List<String>, String> ALIASES = Map.of(
-            List.of("identity", "provider"), "idp",
-            List.of("provider", "identity"), "idp", // French word order: fournisseur d'identité
-            List.of("organization"), "org",
-            List.of("authentication"), "auth");
+    private static final Map<List<String>, String> ALIASES = Map.of(List.of("identity", "provider"), "idp",
+            List.of("provider", "identity"), "idp", // French word order: fournisseur
+                                                    // d'identité
+            List.of("organization"), "org", List.of("authentication"), "auth");
 
     private Tokenizer() {
     }
@@ -47,7 +48,8 @@ public final class Tokenizer {
                 for (String t : translated) {
                     out.add(stem(t));
                 }
-            } else {
+            }
+            else {
                 out.add(stem(p));
             }
         }
@@ -61,27 +63,37 @@ public final class Tokenizer {
     }
 
     /**
-     * Lower case with German umlauts and ß written out (ä -> ae, ö -> oe, ü -> ue, ß -> ss, the usual ASCII
-     * transcription) and every other diacritic stripped (é -> e), so that "löschen", "loeschen" and "Identität"
-     * survive the alphanumeric split as single words.
+     * Lower case with German umlauts and ß written out (ä -> ae, ö -> oe, ü -> ue, ß ->
+     * ss, the usual ASCII transcription) and every other diacritic stripped (é -> e), so
+     * that "löschen", "loeschen" and "Identität" survive the alphanumeric split as single
+     * words.
      */
     public static String fold(String text) {
         String lower = text.toLowerCase(Locale.ROOT)
-                .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss");
+            .replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace("ß", "ss");
         String decomposed = Normalizer.normalize(lower, Normalizer.Form.NFD);
         return decomposed.replaceAll("\\p{M}+", "");
     }
 
-    /** Very light stemming: users -> user, listing -> list, enabled -> enabl(e), groups -> group. */
+    /**
+     * Very light stemming: users -> user, listing -> list, enabled -> enabl(e), groups ->
+     * group.
+     */
     public static String stem(String word) {
         String w = word;
         if (w.length() > 4 && w.endsWith("ing")) {
             w = w.substring(0, w.length() - 3);
-        } else if (w.length() > 4 && w.endsWith("ies")) {
+        }
+        else if (w.length() > 4 && w.endsWith("ies")) {
             w = w.substring(0, w.length() - 3) + "y";
-        } else if (w.length() > 3 && w.endsWith("ed")) {
+        }
+        else if (w.length() > 3 && w.endsWith("ed")) {
             w = w.substring(0, w.length() - 2);
-        } else if (w.length() > 3 && w.endsWith("es") && !w.endsWith("ses")) {
+        }
+        else if (w.length() > 3 && w.endsWith("es") && !w.endsWith("ses")) {
             w = w.substring(0, w.length() - 1);
         }
         if (w.length() > 3 && w.endsWith("s") && !w.endsWith("ss")) {

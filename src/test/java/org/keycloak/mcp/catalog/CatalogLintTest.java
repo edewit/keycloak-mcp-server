@@ -1,8 +1,5 @@
 package org.keycloak.mcp.catalog;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-
 import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Test;
@@ -19,8 +15,12 @@ import org.keycloak.mcp.spi.ToolProviderRegistry;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
- * Schema flatness, description length, naming and coverage against the reference tool list.
+ * Schema flatness, description length, naming and coverage against the reference tool
+ * list.
  */
 @QuarkusTest
 class CatalogLintTest {
@@ -48,13 +48,17 @@ class CatalogLintTest {
             if (spec.realmScoped() && spec.requiredRoles().isEmpty() && !spec.name().startsWith("keycloak_acme_")) {
                 problems.add(spec.name() + ": realm scoped tool without requiredRoles");
             }
-            List<org.keycloak.mcp.guard.RoleRef> refs = spec.requiredRoles().stream()
-                    .map(org.keycloak.mcp.guard.RoleRef::parse).toList();
-            if (spec.isReadOnly() && refs.stream().anyMatch(r -> r.isRealmManagement() && r.role().startsWith("manage-"))) {
+            List<org.keycloak.mcp.guard.RoleRef> refs = spec.requiredRoles()
+                .stream()
+                .map(org.keycloak.mcp.guard.RoleRef::parse)
+                .toList();
+            if (spec.isReadOnly()
+                    && refs.stream().anyMatch(r -> r.isRealmManagement() && r.role().startsWith("manage-"))) {
                 problems.add(spec.name() + ": READ tool requiring a manage-* role");
             }
-            if (!spec.isReadOnly() && refs.stream().anyMatch(r -> r.isRealmManagement()
-                    && (r.role().startsWith("view-") || r.role().startsWith("query-")))) {
+            if (!spec.isReadOnly() && refs.stream()
+                .anyMatch(r -> r.isRealmManagement()
+                        && (r.role().startsWith("view-") || r.role().startsWith("query-")))) {
                 problems.add(spec.name() + ": write tool requiring only a view/query role");
             }
             JsonObject schema = spec.inputSchema();
@@ -96,8 +100,8 @@ class CatalogLintTest {
                 ours.add(s.name());
             }
         }
-        Set<String> extras = Set.of("keycloak_group_get", "keycloak_client_example_token", "keycloak_client_evaluate_scopes",
-                "keycloak_server_features");
+        Set<String> extras = Set.of("keycloak_group_get", "keycloak_client_example_token",
+                "keycloak_client_evaluate_scopes", "keycloak_server_features");
         Set<String> unknown = new TreeSet<>(ours);
         unknown.removeAll(reference);
         unknown.removeAll(extras);

@@ -5,18 +5,20 @@ import java.util.List;
 import org.keycloak.mcp.catalog.ToolSpec;
 
 /**
- * Extension point, modelled on Keycloak's {@code ProviderFactory}: one provider contributes a set of tools.
+ * Extension point, modelled on Keycloak's {@code ProviderFactory}: one provider
+ * contributes a set of tools.
  * <p>
  * Providers are discovered in two ways:
  * <ul>
  * <li>{@link java.util.ServiceLoader}: list the implementation class in
- * {@code META-INF/services/org.keycloak.mcp.spi.ToolProvider} of any jar on the classpath. Jars dropped into the
- * {@code providers/} directory next to the packaged application are picked up at startup, like Keycloak's own
- * {@code providers/} folder.</li>
+ * {@code META-INF/services/org.keycloak.mcp.spi.ToolProvider} of any jar on the
+ * classpath. Jars dropped into the {@code providers/} directory next to the packaged
+ * application are picked up at startup, like Keycloak's own {@code providers/}
+ * folder.</li>
  * <li>CDI: any bean implementing this interface.</li>
  * </ul>
- * Per-provider configuration lives under {@code kc-mcp.spi.<id>.*} (env {@code KC_MCP_SPI_<ID>_*}); the key
- * {@code enabled=false} switches a provider off.
+ * Per-provider configuration lives under {@code kc-mcp.spi.<id>.*} (env
+ * {@code KC_MCP_SPI_<ID>_*}); the key {@code enabled=false} switches a provider off.
  */
 public interface ToolProvider {
 
@@ -45,7 +47,10 @@ public interface ToolProvider {
     /** The tools this provider contributes. Names must be globally unique. */
     List<ToolSpec> tools(ToolProviderContext context);
 
-    /** Access checks applied to every tool call on this server (not only this provider's tools). */
+    /**
+     * Access checks applied to every tool call on this server (not only this provider's
+     * tools).
+     */
     default List<AccessCheck> accessChecks(ToolProviderContext context) {
         return List.of();
     }

@@ -1,7 +1,8 @@
 package org.keycloak.mcp.guard;
 
 /**
- * Thrown by handlers for expected failures (not found, conflict, ...). Mapped to {@code {"error": code, ...}}.
+ * Thrown by handlers for expected failures (not found, conflict, ...). Mapped to
+ * {@code {"error": code, ...}}.
  */
 public class ToolException extends RuntimeException {
 

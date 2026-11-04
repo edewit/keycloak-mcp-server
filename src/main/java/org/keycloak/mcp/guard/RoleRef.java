@@ -4,8 +4,8 @@ package org.keycloak.mcp.guard;
  * A role requirement, parsed from the strings given to {@code ToolSpec.roles(...)}:
  * <ul>
  * <li>{@code view-users} — shorthand for the {@code realm-management} client role,</li>
- * <li>{@code realm-management.view-users}, {@code my-app.auditor} — client role (split at the last dot, so
- * clientIds with dots work),</li>
+ * <li>{@code realm-management.view-users}, {@code my-app.auditor} — client role (split at
+ * the last dot, so clientIds with dots work),</li>
  * <li>{@code realm:offline_access} — realm role.</li>
  * </ul>
  */
@@ -14,9 +14,7 @@ public record RoleRef(Kind kind, String client, String role) {
     public static final String REALM_MANAGEMENT = "realm-management";
 
     public enum Kind {
-        REALM_MANAGEMENT,
-        CLIENT,
-        REALM
+        REALM_MANAGEMENT, CLIENT, REALM
     }
 
     public static RoleRef parse(String ref) {

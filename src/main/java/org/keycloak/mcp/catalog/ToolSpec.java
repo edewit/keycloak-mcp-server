@@ -1,10 +1,10 @@
 package org.keycloak.mcp.catalog;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.LinkedHashSet;
 
 import org.keycloak.mcp.spi.AccessCheck;
 import org.keycloak.mcp.spi.Delegation;
@@ -14,32 +14,23 @@ import io.vertx.core.json.JsonObject;
 /**
  * Catalog entry for one tool. See implementation-plan.md §3.
  *
- * @param inputSchema flat JSON schema of the tool's own parameters; the catalog adds {@code realm} for realm scoped
- *                    tools and clamps pagination
- * @param synonyms    extra search terms, never shown to the model
- * @param hot         candidate for direct exposure in hybrid mode
+ * @param inputSchema flat JSON schema of the tool's own parameters; the catalog adds
+ * {@code realm} for realm scoped tools and clamps pagination
+ * @param synonyms extra search terms, never shown to the model
+ * @param hot candidate for direct exposure in hybrid mode
  * @param realmScoped whether the tool takes a {@code realm} argument
- * @param api         Admin REST operations the tool relies on (checked against the OpenAPI document in tests)
- * @param requiredRoles {@code realm-management} roles the caller needs (any one of them suffices per entry group,
- *                    see {@link org.keycloak.mcp.guard.GrantedRoles}); empty = no realm role needed
- * @param accessChecks extra per-call predicates, evaluated after roles and before confirmation
- * @param delegation  whether the tool may run under delegated access
+ * @param api Admin REST operations the tool relies on (checked against the OpenAPI
+ * document in tests)
+ * @param requiredRoles {@code realm-management} roles the caller needs (any one of them
+ * suffices per entry group, see {@link org.keycloak.mcp.guard.GrantedRoles}); empty = no
+ * realm role needed
+ * @param accessChecks extra per-call predicates, evaluated after roles and before
+ * confirmation
+ * @param delegation whether the tool may run under delegated access
  */
-public record ToolSpec(
-        String name,
-        String title,
-        String description,
-        Category category,
-        ToolLevel level,
-        boolean idempotent,
-        JsonObject inputSchema,
-        List<String> synonyms,
-        boolean hot,
-        boolean realmScoped,
-        List<ApiOperation> api,
-        Set<String> requiredRoles,
-        List<AccessCheck> accessChecks,
-        Delegation delegation,
+public record ToolSpec(String name, String title, String description, Category category, ToolLevel level,
+        boolean idempotent, JsonObject inputSchema, List<String> synonyms, boolean hot, boolean realmScoped,
+        List<ApiOperation> api, Set<String> requiredRoles, List<AccessCheck> accessChecks, Delegation delegation,
         ToolHandler handler) {
 
     public ToolSpec {
@@ -176,7 +167,10 @@ public record ToolSpec(
             return this;
         }
 
-        /** {@code realm-management} roles needed in the target realm, e.g. {@code roles("manage-users")}. */
+        /**
+         * {@code realm-management} roles needed in the target realm, e.g.
+         * {@code roles("manage-users")}.
+         */
         public Builder roles(String... roles) {
             requiredRoles.addAll(List.of(roles));
             return this;
@@ -188,7 +182,10 @@ public record ToolSpec(
             return this;
         }
 
-        /** Whether the tool may run under delegated access (default {@link Delegation#ALLOWED}). */
+        /**
+         * Whether the tool may run under delegated access (default
+         * {@link Delegation#ALLOWED}).
+         */
         public Builder delegation(Delegation delegation) {
             this.delegation = delegation;
             return this;
@@ -201,8 +198,8 @@ public record ToolSpec(
 
         public ToolSpec build() {
             boolean idem = idempotent != null ? idempotent : level == ToolLevel.READ;
-            return new ToolSpec(name, title, description, category, level, idem, inputSchema, synonyms, hot, realmScoped,
-                    api, requiredRoles, accessChecks, delegation, handler);
+            return new ToolSpec(name, title, description, category, level, idem, inputSchema, synonyms, hot,
+                    realmScoped, api, requiredRoles, accessChecks, delegation, handler);
         }
     }
 }

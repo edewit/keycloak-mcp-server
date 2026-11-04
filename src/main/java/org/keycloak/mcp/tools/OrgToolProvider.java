@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
 import jakarta.ws.rs.WebApplicationException;
 
 import org.keycloak.admin.client.resource.OrganizationsResource;
@@ -52,97 +51,108 @@ public class OrgToolProvider extends AbstractToolProvider {
     @Override
     public List<ToolSpec> tools(ToolProviderContext context) {
         return List.of(
-                tool("keycloak_org_list")
-                        .title("List organizations")
-                        .description("Organizations of the realm with alias, domains and enabled flag.")
-                        .category(Category.ORGS).read()
-                        .synonyms("tenants", "companies", "customers", "org", "multi-tenant")
-                        .schema(schema().string("search", "Filter by name or domain").pagination())
-                        .handler(guard(this::list))
-                        .roles("view-realm")
-                        .api(get(R + "/organizations").query("search", "first", "max"))
-                        .build(),
-                tool("keycloak_org_get")
-                        .title("Get organization")
-                        .description("Details of one organization including domains, attributes and linked IdPs.")
-                        .category(Category.ORGS).read()
-                        .synonyms("tenant details", "org domains", "company")
-                        .schema(schema().string("organizationId", ORG_ID).required())
-                        .handler(guard(this::get))
-                        .roles("view-realm")
-                        .api(get(R + "/organizations/{org-id}").path("org-id", "organizationId"), get(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
-                        .build(),
-                tool("keycloak_org_create")
-                        .title("Create organization")
-                        .description("Create an organization with optional verified email domains.")
-                        .category(Category.ORGS).write()
-                        .synonyms("new tenant", "add company", "onboard customer", "email domain")
-                        .schema(schema()
-                                .string("name", "Organization name").required()
-                                .string("alias", "URL-safe alias (default: derived from name)")
-                                .stringArray("domains", "Email domains, e.g. [\"acme.com\"]; stored as verified")
-                                .string("description", "Description")
-                                .bool("enabled", "Enabled (default true)")
-                                .string("redirectUrl", "Redirect URL after invitation"))
-                        .handler(guard(this::create))
-                        .roles("manage-realm")
-                        .api(post(R + "/organizations").body("OrganizationRepresentation", "name", "alias", "description", "enabled", "redirectUrl", "domains"))
-                        .build(),
-                tool("keycloak_org_delete")
-                        .title("Delete organization")
-                        .description("Delete an organization; members stay as realm users.")
-                        .category(Category.ORGS).destructive()
-                        .synonyms("remove tenant", "offboard company")
-                        .schema(schema().string("organizationId", ORG_ID).required())
-                        .handler(guard(this::delete))
-                        .roles("manage-realm")
-                        .api(delete(R + "/organizations/{org-id}").path("org-id", "organizationId"))
-                        .build(),
-                tool("keycloak_org_idp_list")
-                        .title("List organization identity providers")
-                        .description("Identity providers linked to an organization (used for domain routing).")
-                        .category(Category.ORGS).read()
-                        .synonyms("tenant sso", "org login", "home idp")
-                        .schema(schema().string("organizationId", ORG_ID).required())
-                        .handler(guard(this::idpList))
-                        .roles("view-realm")
-                        .api(get(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
-                        .build(),
-                tool("keycloak_org_idp_link")
-                        .title("Link identity provider to organization")
-                        .description("Attach an existing identity provider to an organization.")
-                        .category(Category.ORGS).write().idempotent(true)
-                        .synonyms("assign sso to tenant", "domain routing", "home idp discovery", "corporate sso")
-                        .schema(schema()
-                                .string("organizationId", ORG_ID).required()
-                                .string("idpAlias", "Identity provider alias").required())
-                        .handler(guard(this::idpLink))
-                        .roles("manage-realm")
-                        .api(post(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
-                        .build(),
-                tool("keycloak_org_idp_unlink")
-                        .title("Unlink identity provider from organization")
-                        .description("Detach an identity provider from an organization.")
-                        .category(Category.ORGS).destructive()
-                        .synonyms("remove sso from tenant", "detach idp")
-                        .schema(schema()
-                                .string("organizationId", ORG_ID).required()
-                                .string("idpAlias", "Identity provider alias").required())
-                        .handler(guard(this::idpUnlink))
-                        .roles("manage-realm")
-                        .api(delete(R + "/organizations/{org-id}/identity-providers/{alias}").path("org-id", "organizationId").path("alias", "idpAlias"))
-                        .build());
+                tool("keycloak_org_list").title("List organizations")
+                    .description("Organizations of the realm with alias, domains and enabled flag.")
+                    .category(Category.ORGS)
+                    .read()
+                    .synonyms("tenants", "companies", "customers", "org", "multi-tenant")
+                    .schema(schema().string("search", "Filter by name or domain").pagination())
+                    .handler(guard(this::list))
+                    .roles("view-realm")
+                    .api(get(R + "/organizations").query("search", "first", "max"))
+                    .build(),
+                tool("keycloak_org_get").title("Get organization")
+                    .description("Details of one organization including domains, attributes and linked IdPs.")
+                    .category(Category.ORGS)
+                    .read()
+                    .synonyms("tenant details", "org domains", "company")
+                    .schema(schema().string("organizationId", ORG_ID).required())
+                    .handler(guard(this::get))
+                    .roles("view-realm")
+                    .api(get(R + "/organizations/{org-id}").path("org-id", "organizationId"),
+                            get(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
+                    .build(),
+                tool("keycloak_org_create").title("Create organization")
+                    .description("Create an organization with optional verified email domains.")
+                    .category(Category.ORGS)
+                    .write()
+                    .synonyms("new tenant", "add company", "onboard customer", "email domain")
+                    .schema(schema().string("name", "Organization name")
+                        .required()
+                        .string("alias", "URL-safe alias (default: derived from name)")
+                        .stringArray("domains", "Email domains, e.g. [\"acme.com\"]; stored as verified")
+                        .string("description", "Description")
+                        .bool("enabled", "Enabled (default true)")
+                        .string("redirectUrl", "Redirect URL after invitation"))
+                    .handler(guard(this::create))
+                    .roles("manage-realm")
+                    .api(post(R + "/organizations").body("OrganizationRepresentation", "name", "alias", "description",
+                            "enabled", "redirectUrl", "domains"))
+                    .build(),
+                tool("keycloak_org_delete").title("Delete organization")
+                    .description("Delete an organization; members stay as realm users.")
+                    .category(Category.ORGS)
+                    .destructive()
+                    .synonyms("remove tenant", "offboard company")
+                    .schema(schema().string("organizationId", ORG_ID).required())
+                    .handler(guard(this::delete))
+                    .roles("manage-realm")
+                    .api(delete(R + "/organizations/{org-id}").path("org-id", "organizationId"))
+                    .build(),
+                tool("keycloak_org_idp_list").title("List organization identity providers")
+                    .description("Identity providers linked to an organization (used for domain routing).")
+                    .category(Category.ORGS)
+                    .read()
+                    .synonyms("tenant sso", "org login", "home idp")
+                    .schema(schema().string("organizationId", ORG_ID).required())
+                    .handler(guard(this::idpList))
+                    .roles("view-realm")
+                    .api(get(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
+                    .build(),
+                tool("keycloak_org_idp_link").title("Link identity provider to organization")
+                    .description("Attach an existing identity provider to an organization.")
+                    .category(Category.ORGS)
+                    .write()
+                    .idempotent(true)
+                    .synonyms("assign sso to tenant", "domain routing", "home idp discovery", "corporate sso")
+                    .schema(schema().string("organizationId", ORG_ID)
+                        .required()
+                        .string("idpAlias", "Identity provider alias")
+                        .required())
+                    .handler(guard(this::idpLink))
+                    .roles("manage-realm")
+                    .api(post(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
+                    .build(),
+                tool("keycloak_org_idp_unlink").title("Unlink identity provider from organization")
+                    .description("Detach an identity provider from an organization.")
+                    .category(Category.ORGS)
+                    .destructive()
+                    .synonyms("remove sso from tenant", "detach idp")
+                    .schema(schema().string("organizationId", ORG_ID)
+                        .required()
+                        .string("idpAlias", "Identity provider alias")
+                        .required())
+                    .handler(guard(this::idpUnlink))
+                    .roles("manage-realm")
+                    .api(delete(R + "/organizations/{org-id}/identity-providers/{alias}")
+                        .path("org-id", "organizationId")
+                        .path("alias", "idpAlias"))
+                    .build());
     }
 
-    /** Turns the generic 404/400 Keycloak answers into a clear hint when organizations are switched off. */
+    /**
+     * Turns the generic 404/400 Keycloak answers into a clear hint when organizations are
+     * switched off.
+     */
     private ToolHandler guard(ToolHandler handler) {
         return call -> {
             try {
                 return handler.handle(call);
-            } catch (WebApplicationException e) {
+            }
+            catch (WebApplicationException e) {
                 int status = e.getResponse().getStatus();
-                if ((status == 404 || status == 400 || status == 501)
-                        && !Boolean.TRUE.equals(call.kc().realm(call.realm()).toRepresentation().isOrganizationsEnabled())) {
+                if ((status == 404 || status == 400 || status == 501) && !Boolean.TRUE
+                    .equals(call.kc().realm(call.realm()).toRepresentation().isOrganizationsEnabled())) {
                     throw new ToolException("organizations_disabled", "Organizations are not enabled in realm '"
                             + call.realm() + "'. Enable them with keycloak_realm_update organizationsEnabled=true.");
                 }
@@ -168,7 +178,8 @@ public class OrgToolProvider extends AbstractToolProvider {
         if (KeycloakAdmin.isUuid(idOrAliasOrName)) {
             try {
                 return orgs.get(idOrAliasOrName).toRepresentation();
-            } catch (jakarta.ws.rs.NotFoundException e) {
+            }
+            catch (jakarta.ws.rs.NotFoundException e) {
                 // fall through
             }
         }
@@ -196,8 +207,12 @@ public class OrgToolProvider extends AbstractToolProvider {
         if (o.getAttributes() != null && !o.getAttributes().isEmpty()) {
             m.put("attributes", o.getAttributes());
         }
-        List<IdentityProviderRepresentation> idps = call.kc().realm(call.realm()).organizations().get(o.getId())
-                .identityProviders().getIdentityProviders();
+        List<IdentityProviderRepresentation> idps = call.kc()
+            .realm(call.realm())
+            .organizations()
+            .get(o.getId())
+            .identityProviders()
+            .getIdentityProviders();
         m.put("identityProviders", idps.stream().map(IdentityProviderRepresentation::getAlias).toList());
         return ToolResult.ok(m);
     }
@@ -229,8 +244,12 @@ public class OrgToolProvider extends AbstractToolProvider {
 
     ToolResult idpList(ToolCall call) {
         OrganizationRepresentation o = find(call, call.str("organizationId"));
-        List<IdentityProviderRepresentation> idps = call.kc().realm(call.realm()).organizations().get(o.getId())
-                .identityProviders().getIdentityProviders();
+        List<IdentityProviderRepresentation> idps = call.kc()
+            .realm(call.realm())
+            .organizations()
+            .get(o.getId())
+            .identityProviders()
+            .getIdentityProviders();
         List<Map<String, Object>> items = new ArrayList<>();
         for (IdentityProviderRepresentation idp : idps) {
             Map<String, Object> v = IdpToolProvider.view(idp);
@@ -248,16 +267,23 @@ public class OrgToolProvider extends AbstractToolProvider {
     ToolResult idpLink(ToolCall call) {
         OrganizationRepresentation o = find(call, call.str("organizationId"));
         String alias = call.str("idpAlias");
-        call.kc().realm(call.realm()).identityProviders().get(alias).toRepresentation(); // 404 -> not_found
-        KeycloakAdmin.ok(call.kc().realm(call.realm()).organizations().get(o.getId()).identityProviders()
-                .addIdentityProvider(alias));
+        call.kc().realm(call.realm()).identityProviders().get(alias).toRepresentation(); // 404
+                                                                                         // ->
+                                                                                         // not_found
+        KeycloakAdmin.ok(call.kc()
+            .realm(call.realm())
+            .organizations()
+            .get(o.getId())
+            .identityProviders()
+            .addIdentityProvider(alias));
         return ToolResult.done("Identity provider linked", "organization", o.getName(), "idpAlias", alias);
     }
 
     ToolResult idpUnlink(ToolCall call) {
         OrganizationRepresentation o = find(call, call.str("organizationId"));
         String alias = call.str("idpAlias");
-        KeycloakAdmin.ok(call.kc().realm(call.realm()).organizations().get(o.getId()).identityProviders().get(alias).delete());
+        KeycloakAdmin
+            .ok(call.kc().realm(call.realm()).organizations().get(o.getId()).identityProviders().get(alias).delete());
         return ToolResult.done("Identity provider unlinked", "organization", o.getName(), "idpAlias", alias);
     }
 }

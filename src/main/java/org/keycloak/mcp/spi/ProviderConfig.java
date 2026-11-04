@@ -6,8 +6,9 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * Read-only view on {@code kc-mcp.spi.<id>.*}. Keys are relative and single-segment, e.g. {@code get("page-size")}
- * reads {@code kc-mcp.spi.<id>.page-size} / {@code KC_MCP_SPI_<ID>_PAGE_SIZE}.
+ * Read-only view on {@code kc-mcp.spi.<id>.*}. Keys are relative and single-segment, e.g.
+ * {@code get("page-size")} reads {@code kc-mcp.spi.<id>.page-size} /
+ * {@code KC_MCP_SPI_<ID>_PAGE_SIZE}.
  */
 public final class ProviderConfig {
 

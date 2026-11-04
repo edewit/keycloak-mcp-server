@@ -50,38 +50,41 @@ public class FederationToolProvider extends AbstractToolProvider {
     @Override
     public List<ToolSpec> tools(ToolProviderContext context) {
         return List.of(
-                tool("keycloak_federation_list")
-                        .title("List user federation providers")
-                        .description("User storage providers (LDAP, Active Directory, Kerberos) with key settings.")
-                        .category(Category.FEDERATION).read()
-                        .synonyms("ldap", "active directory", "ad", "kerberos", "user storage", "directory", "external users")
-                        .handler(this::list)
-                        .roles("view-realm")
-                        .api(get(R + "/components").fixedQuery("parent", "type"))
-                        .build(),
-                tool("keycloak_federation_get")
-                        .title("Get user federation provider")
-                        .description("Full configuration of one user storage provider; credentials masked.")
-                        .category(Category.FEDERATION).read()
-                        .synonyms("ldap settings", "bind dn", "users dn", "edit mode", "connection url")
-                        .schema(schema().string("id", PROVIDER_ID).required())
-                        .handler(this::get)
-                        .roles("view-realm")
-                        .api(get(R + "/components").fixedQuery("parent", "type"))
-                        .build(),
-                tool("keycloak_federation_sync")
-                        .title("Sync user federation provider")
-                        .description("Import users from LDAP/AD now: all users (full) or only changed ones.")
-                        .category(Category.FEDERATION).write()
-                        .synonyms("import users", "ldap sync", "synchronize directory", "refresh users", "trigger sync")
-                        .schema(schema()
-                                .string("id", PROVIDER_ID).required()
-                                .enumeration("mode", "full or changed (default changed)", "full", "changed").def("changed"))
-                        .handler(this::sync)
-                        .delegation(Delegation.FORBIDDEN)
-                        .roles("manage-realm")
-                        .api(ApiOperation.unspecified("post", R + "/user-storage/{id}/sync", "UserStorageProviderResource is not part of the published OpenAPI document"))
-                        .build());
+                tool("keycloak_federation_list").title("List user federation providers")
+                    .description("User storage providers (LDAP, Active Directory, Kerberos) with key settings.")
+                    .category(Category.FEDERATION)
+                    .read()
+                    .synonyms("ldap", "active directory", "ad", "kerberos", "user storage", "directory",
+                            "external users")
+                    .handler(this::list)
+                    .roles("view-realm")
+                    .api(get(R + "/components").fixedQuery("parent", "type"))
+                    .build(),
+                tool("keycloak_federation_get").title("Get user federation provider")
+                    .description("Full configuration of one user storage provider; credentials masked.")
+                    .category(Category.FEDERATION)
+                    .read()
+                    .synonyms("ldap settings", "bind dn", "users dn", "edit mode", "connection url")
+                    .schema(schema().string("id", PROVIDER_ID).required())
+                    .handler(this::get)
+                    .roles("view-realm")
+                    .api(get(R + "/components").fixedQuery("parent", "type"))
+                    .build(),
+                tool("keycloak_federation_sync").title("Sync user federation provider")
+                    .description("Import users from LDAP/AD now: all users (full) or only changed ones.")
+                    .category(Category.FEDERATION)
+                    .write()
+                    .synonyms("import users", "ldap sync", "synchronize directory", "refresh users", "trigger sync")
+                    .schema(schema().string("id", PROVIDER_ID)
+                        .required()
+                        .enumeration("mode", "full or changed (default changed)", "full", "changed")
+                        .def("changed"))
+                    .handler(this::sync)
+                    .delegation(Delegation.FORBIDDEN)
+                    .roles("manage-realm")
+                    .api(ApiOperation.unspecified("post", R + "/user-storage/{id}/sync",
+                            "UserStorageProviderResource is not part of the published OpenAPI document"))
+                    .build());
     }
 
     private static List<ComponentRepresentation> providers(ToolCall call) {
@@ -121,8 +124,7 @@ public class FederationToolProvider extends AbstractToolProvider {
     }
 
     ToolResult list(ToolCall call) {
-        return ToolResult.ok(Views.page(Views.list(providers(call), FederationToolProvider::view),
-                Integer.MAX_VALUE));
+        return ToolResult.ok(Views.page(Views.list(providers(call), FederationToolProvider::view), Integer.MAX_VALUE));
     }
 
     ToolResult get(ToolCall call) {
@@ -130,8 +132,9 @@ public class FederationToolProvider extends AbstractToolProvider {
         Map<String, Object> m = view(c);
         Map<String, Object> config = new LinkedHashMap<>();
         if (c.getConfig() != null) {
-            c.getConfig().forEach((k, v) -> config.put(k,
-                    SECRET_KEYS.contains(k) ? "****" : v != null && v.size() == 1 ? v.getFirst() : v));
+            c.getConfig()
+                .forEach((k, v) -> config.put(k,
+                        SECRET_KEYS.contains(k) ? "****" : v != null && v.size() == 1 ? v.getFirst() : v));
         }
         m.put("config", config);
         return ToolResult.ok(m);
@@ -140,9 +143,12 @@ public class FederationToolProvider extends AbstractToolProvider {
     ToolResult sync(ToolCall call) {
         ComponentRepresentation c = find(call, call.str("id"));
         String action = "full".equals(call.str("mode", "changed")) ? "triggerFullSync" : "triggerChangedUsersSync";
-        SynchronizationResultRepresentation r = call.kc().realm(call.realm()).userStorage().syncUsers(c.getId(), action);
-        return ToolResult.done("Sync finished", "provider", c.getName(), "mode", call.str("mode", "changed"),
-                "status", r.getStatus(), "added", r.getAdded(), "updated", r.getUpdated(), "removed", r.getRemoved(),
-                "failed", r.getFailed(), "ignored", r.isIgnored());
+        SynchronizationResultRepresentation r = call.kc()
+            .realm(call.realm())
+            .userStorage()
+            .syncUsers(c.getId(), action);
+        return ToolResult.done("Sync finished", "provider", c.getName(), "mode", call.str("mode", "changed"), "status",
+                r.getStatus(), "added", r.getAdded(), "updated", r.getUpdated(), "removed", r.getRemoved(), "failed",
+                r.getFailed(), "ignored", r.isIgnored());
     }
 }

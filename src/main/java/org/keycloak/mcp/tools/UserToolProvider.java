@@ -21,7 +21,8 @@ import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
 /**
- * USERS and SESSIONS: search/get/create/update/enable/delete, passwords, action emails, sessions, logout.
+ * USERS and SESSIONS: search/get/create/update/enable/delete, passwords, action emails,
+ * sessions, logout.
  */
 public class UserToolProvider extends AbstractToolProvider {
 
@@ -52,144 +53,162 @@ public class UserToolProvider extends AbstractToolProvider {
     @Override
     public List<ToolSpec> tools(ToolProviderContext context) {
         return List.of(
-                tool("keycloak_user_search")
-                        .title("Search users")
-                        .description("Find users by free text, username or email; returns id, username, email, enabled.")
-                        .category(Category.USERS).read().hot()
-                        .synonyms("find", "lookup", "list users", "account", "who", "email", "login name", "exists")
-                        .schema(schema()
-                                .string("search", "Free text over username, email, first and last name")
-                                .string("username", "Exact username")
-                                .string("email", "Exact email address")
-                                .bool("enabled", "Only enabled (true) or disabled (false) users")
-                                .pagination())
-                        .handler(this::search)
-                        .roles("query-users")
-                        .api(get(R + "/users").query("search", "username", "email", "enabled", "first", "max"))
-                        .build(),
-                tool("keycloak_user_get")
-                        .title("Get user")
-                        .description("Full details of one user including attributes, required actions and groups.")
-                        .category(Category.USERS).read().hot()
-                        .synonyms("show", "details", "profile", "attributes", "info")
-                        .schema(schema().string("id", USER_ID).required())
-                        .handler(this::get)
-                        .roles("view-users")
-                        .api(get(R + "/users/{user-id}").path("user-id", "id"), get(R + "/users/{user-id}/groups").path("user-id", "id"))
-                        .build(),
-                tool("keycloak_user_create")
-                        .title("Create user")
-                        .description("Create a user; optionally set email, names, enabled and emailVerified.")
-                        .category(Category.USERS).write()
-                        .synonyms("add", "new", "register", "onboard", "account")
-                        .schema(schema()
-                                .string("username", "Username, unique in the realm").required()
-                                .string("email", "Email address")
-                                .string("firstName", "First name")
-                                .string("lastName", "Last name")
-                                .bool("enabled", "Can log in (default true)").def(true)
-                                .bool("emailVerified", "Mark email as verified (default false)")
-                                .string("password", "Initial password; set temporary=true to force a change at first login")
-                                .bool("temporary", "Password must be changed at next login (default false)"))
-                        .handler(this::create)
-                        .roles("manage-users")
-                        .api(post(R + "/users").body("UserRepresentation", "username", "email", "firstName", "lastName", "enabled", "emailVerified", "credentials"))
-                        .build(),
-                tool("keycloak_user_update")
-                        .title("Update user")
-                        .description("Change email, first/last name, enabled, emailVerified or attributes; omitted fields stay.")
-                        .category(Category.USERS).write().idempotent(true)
-                        .synonyms("edit", "modify", "rename", "change email", "set attribute")
-                        .schema(schema()
-                                .string("id", USER_ID).required()
-                                .string("email", "New email address")
-                                .string("firstName", "New first name")
-                                .string("lastName", "New last name")
-                                .bool("enabled", "New enabled state")
-                                .bool("emailVerified", "New email verified state")
-                                .stringMap("attributes", "Custom attributes to set (merged into existing ones)"))
-                        .handler(this::update)
-                        .roles("manage-users")
-                        .api(put(R + "/users/{user-id}").path("user-id", "id").body("UserRepresentation", "email", "firstName", "lastName", "enabled", "emailVerified", "attributes"))
-                        .build(),
-                tool("keycloak_user_set_enabled")
-                        .title("Enable or disable user")
-                        .description("Enable (true) or disable (false) a user's account.")
-                        .category(Category.USERS).write().idempotent(true)
-                        .synonyms("disable", "block", "lock", "deactivate", "activate", "unlock", "suspend", "ban")
-                        .schema(schema()
-                                .string("id", USER_ID).required()
-                                .bool("enabled", "true to enable, false to disable").required())
-                        .handler(this::setEnabled)
-                        .roles("manage-users")
-                        .api(put(R + "/users/{user-id}").path("user-id", "id").body("UserRepresentation", "enabled"))
-                        .build(),
-                tool("keycloak_user_delete")
-                        .title("Delete user")
-                        .description("Permanently delete a user; username must match the id as a safety check.")
-                        .category(Category.USERS).destructive()
-                        .synonyms("remove", "purge", "erase", "offboard")
-                        .schema(schema()
-                                .string("id", "User id (UUID)").required()
-                                .string("username", "Username of that user, must match").required())
-                        .handler(this::delete)
-                        .roles("manage-users")
-                        .api(delete(R + "/users/{user-id}").path("user-id", "id"))
-                        .build(),
-                tool("keycloak_user_reset_password")
-                        .title("Reset user password")
-                        .description("Set a new password; temporary=true forces a change at next login.")
-                        .category(Category.USERS).destructive()
-                        .synonyms("credential", "set password", "change password", "new password", "pwd")
-                        .schema(schema()
-                                .string("id", USER_ID).required()
-                                .string("password", "New password").required()
-                                .bool("temporary", "User must change it at next login (default false)"))
-                        .handler(this::resetPassword)
-                        .roles("manage-users")
-                        .api(put(R + "/users/{user-id}/reset-password").path("user-id", "id").body("CredentialRepresentation", "type", "value", "temporary"))
-                        .build(),
-                tool("keycloak_user_send_action_email")
-                        .title("Send action email")
-                        .description("Email the user a link to perform actions such as UPDATE_PASSWORD or VERIFY_EMAIL.")
-                        .category(Category.USERS).write()
-                        .synonyms("verify email", "password reset link", "forgot password", "invite", "mail", "otp setup",
-                                "required action")
-                        .schema(schema()
-                                .string("id", USER_ID).required()
-                                .stringArray("actions", "Actions, e.g. [\"UPDATE_PASSWORD\"]; also VERIFY_EMAIL, "
-                                        + "UPDATE_PROFILE, CONFIGURE_TOTP, webauthn-register, webauthn-register-passwordless")
-                                .required()
-                                .integer("lifespan", "Link validity in seconds (default 12h)").min(60)
-                                .string("clientId", "Client the link should redirect back to")
-                                .string("redirectUri", "Redirect URI after completing the actions"))
-                        .handler(this::sendActionEmail)
-                        .roles("manage-users")
-                        .api(put(R + "/users/{user-id}/execute-actions-email").path("user-id", "id").queryAs("client_id", "clientId").queryAs("redirect_uri", "redirectUri").query("lifespan"))
-                        .build(),
-                tool("keycloak_user_sessions_list")
-                        .title("List user sessions")
-                        .description("Active sessions of a user with IP, start, last access and clients.")
-                        .category(Category.SESSIONS).read()
-                        .synonyms("logged in", "online", "login", "active", "where", "devices")
-                        .schema(schema().string("id", USER_ID).required())
-                        .handler(this::sessions)
-                        .roles("view-users")
-                        .api(get(R + "/users/{user-id}/sessions").path("user-id", "id"))
-                        .build(),
-                tool("keycloak_user_logout")
-                        .title("Log out user")
-                        .description("Revoke all sessions of a user so they must sign in again.")
-                        .category(Category.SESSIONS).destructive()
-                        .synonyms("kick", "sign out", "signout", "revoke sessions", "terminate", "force logout")
-                        .schema(schema().string("id", USER_ID).required())
-                        .handler(this::logout)
-                        .roles("manage-users")
-                        .api(post(R + "/users/{user-id}/logout").path("user-id", "id"))
-                        .build());
+                tool("keycloak_user_search").title("Search users")
+                    .description("Find users by free text, username or email; returns id, username, email, enabled.")
+                    .category(Category.USERS)
+                    .read()
+                    .hot()
+                    .synonyms("find", "lookup", "list users", "account", "who", "email", "login name", "exists")
+                    .schema(schema().string("search", "Free text over username, email, first and last name")
+                        .string("username", "Exact username")
+                        .string("email", "Exact email address")
+                        .bool("enabled", "Only enabled (true) or disabled (false) users")
+                        .pagination())
+                    .handler(this::search)
+                    .roles("query-users")
+                    .api(get(R + "/users").query("search", "username", "email", "enabled", "first", "max"))
+                    .build(),
+                tool("keycloak_user_get").title("Get user")
+                    .description("Full details of one user including attributes, required actions and groups.")
+                    .category(Category.USERS)
+                    .read()
+                    .hot()
+                    .synonyms("show", "details", "profile", "attributes", "info")
+                    .schema(schema().string("id", USER_ID).required())
+                    .handler(this::get)
+                    .roles("view-users")
+                    .api(get(R + "/users/{user-id}").path("user-id", "id"),
+                            get(R + "/users/{user-id}/groups").path("user-id", "id"))
+                    .build(),
+                tool("keycloak_user_create").title("Create user")
+                    .description("Create a user; optionally set email, names, enabled and emailVerified.")
+                    .category(Category.USERS)
+                    .write()
+                    .synonyms("add", "new", "register", "onboard", "account")
+                    .schema(schema().string("username", "Username, unique in the realm")
+                        .required()
+                        .string("email", "Email address")
+                        .string("firstName", "First name")
+                        .string("lastName", "Last name")
+                        .bool("enabled", "Can log in (default true)")
+                        .def(true)
+                        .bool("emailVerified", "Mark email as verified (default false)")
+                        .string("password", "Initial password; set temporary=true to force a change at first login")
+                        .bool("temporary", "Password must be changed at next login (default false)"))
+                    .handler(this::create)
+                    .roles("manage-users")
+                    .api(post(R + "/users").body("UserRepresentation", "username", "email", "firstName", "lastName",
+                            "enabled", "emailVerified", "credentials"))
+                    .build(),
+                tool("keycloak_user_update").title("Update user")
+                    .description(
+                            "Change email, first/last name, enabled, emailVerified or attributes; omitted fields stay.")
+                    .category(Category.USERS)
+                    .write()
+                    .idempotent(true)
+                    .synonyms("edit", "modify", "rename", "change email", "set attribute")
+                    .schema(schema().string("id", USER_ID)
+                        .required()
+                        .string("email", "New email address")
+                        .string("firstName", "New first name")
+                        .string("lastName", "New last name")
+                        .bool("enabled", "New enabled state")
+                        .bool("emailVerified", "New email verified state")
+                        .stringMap("attributes", "Custom attributes to set (merged into existing ones)"))
+                    .handler(this::update)
+                    .roles("manage-users")
+                    .api(put(R + "/users/{user-id}").path("user-id", "id")
+                        .body("UserRepresentation", "email", "firstName", "lastName", "enabled", "emailVerified",
+                                "attributes"))
+                    .build(),
+                tool("keycloak_user_set_enabled").title("Enable or disable user")
+                    .description("Enable (true) or disable (false) a user's account.")
+                    .category(Category.USERS)
+                    .write()
+                    .idempotent(true)
+                    .synonyms("disable", "block", "lock", "deactivate", "activate", "unlock", "suspend", "ban")
+                    .schema(schema().string("id", USER_ID)
+                        .required()
+                        .bool("enabled", "true to enable, false to disable")
+                        .required())
+                    .handler(this::setEnabled)
+                    .roles("manage-users")
+                    .api(put(R + "/users/{user-id}").path("user-id", "id").body("UserRepresentation", "enabled"))
+                    .build(),
+                tool("keycloak_user_delete").title("Delete user")
+                    .description("Permanently delete a user; username must match the id as a safety check.")
+                    .category(Category.USERS)
+                    .destructive()
+                    .synonyms("remove", "purge", "erase", "offboard")
+                    .schema(schema().string("id", "User id (UUID)")
+                        .required()
+                        .string("username", "Username of that user, must match")
+                        .required())
+                    .handler(this::delete)
+                    .roles("manage-users")
+                    .api(delete(R + "/users/{user-id}").path("user-id", "id"))
+                    .build(),
+                tool("keycloak_user_reset_password").title("Reset user password")
+                    .description("Set a new password; temporary=true forces a change at next login.")
+                    .category(Category.USERS)
+                    .destructive()
+                    .synonyms("credential", "set password", "change password", "new password", "pwd")
+                    .schema(schema().string("id", USER_ID)
+                        .required()
+                        .string("password", "New password")
+                        .required()
+                        .bool("temporary", "User must change it at next login (default false)"))
+                    .handler(this::resetPassword)
+                    .roles("manage-users")
+                    .api(put(R + "/users/{user-id}/reset-password").path("user-id", "id")
+                        .body("CredentialRepresentation", "type", "value", "temporary"))
+                    .build(),
+                tool("keycloak_user_send_action_email").title("Send action email")
+                    .description("Email the user a link to perform actions such as UPDATE_PASSWORD or VERIFY_EMAIL.")
+                    .category(Category.USERS)
+                    .write()
+                    .synonyms("verify email", "password reset link", "forgot password", "invite", "mail", "otp setup",
+                            "required action")
+                    .schema(schema().string("id", USER_ID)
+                        .required()
+                        .stringArray("actions", "Actions, e.g. [\"UPDATE_PASSWORD\"]; also VERIFY_EMAIL, "
+                                + "UPDATE_PROFILE, CONFIGURE_TOTP, webauthn-register, webauthn-register-passwordless")
+                        .required()
+                        .integer("lifespan", "Link validity in seconds (default 12h)")
+                        .min(60)
+                        .string("clientId", "Client the link should redirect back to")
+                        .string("redirectUri", "Redirect URI after completing the actions"))
+                    .handler(this::sendActionEmail)
+                    .roles("manage-users")
+                    .api(put(R + "/users/{user-id}/execute-actions-email").path("user-id", "id")
+                        .queryAs("client_id", "clientId")
+                        .queryAs("redirect_uri", "redirectUri")
+                        .query("lifespan"))
+                    .build(),
+                tool("keycloak_user_sessions_list").title("List user sessions")
+                    .description("Active sessions of a user with IP, start, last access and clients.")
+                    .category(Category.SESSIONS)
+                    .read()
+                    .synonyms("logged in", "online", "login", "active", "where", "devices")
+                    .schema(schema().string("id", USER_ID).required())
+                    .handler(this::sessions)
+                    .roles("view-users")
+                    .api(get(R + "/users/{user-id}/sessions").path("user-id", "id"))
+                    .build(),
+                tool("keycloak_user_logout").title("Log out user")
+                    .description("Revoke all sessions of a user so they must sign in again.")
+                    .category(Category.SESSIONS)
+                    .destructive()
+                    .synonyms("kick", "sign out", "signout", "revoke sessions", "terminate", "force logout")
+                    .schema(schema().string("id", USER_ID).required())
+                    .handler(this::logout)
+                    .roles("manage-users")
+                    .api(post(R + "/users/{user-id}/logout").path("user-id", "id"))
+                    .build());
     }
 
-    // ---- handlers -----------------------------------------------------------------------------------------------
+    // ---- handlers
+    // -----------------------------------------------------------------------------------------------
 
     ToolResult search(ToolCall call) {
         UsersResource users = call.kc().realm(call.realm()).users();
@@ -199,15 +218,21 @@ public class UserToolProvider extends AbstractToolProvider {
         List<UserRepresentation> found;
         if (hasUsername && !hasSearch && !hasEmail) {
             found = users.searchByUsername(call.str("username"), true);
-        } else if (hasEmail && !hasSearch && !hasUsername) {
+        }
+        else if (hasEmail && !hasSearch && !hasUsername) {
             found = users.searchByEmail(call.str("email"), true);
-        } else {
+        }
+        else {
             found = users.search(call.str("search"), call.bool("enabled"), call.first(), call.max());
             if (hasUsername) {
-                found = found.stream().filter(u -> Objects.requireNonNull(call.str("username")).equalsIgnoreCase(u.getUsername())).toList();
+                found = found.stream()
+                    .filter(u -> Objects.requireNonNull(call.str("username")).equalsIgnoreCase(u.getUsername()))
+                    .toList();
             }
             if (hasEmail) {
-                found = found.stream().filter(u -> Objects.requireNonNull(call.str("email")).equalsIgnoreCase(u.getEmail())).toList();
+                found = found.stream()
+                    .filter(u -> Objects.requireNonNull(call.str("email")).equalsIgnoreCase(u.getEmail()))
+                    .toList();
             }
         }
         if (call.has("enabled")) {
@@ -221,10 +246,19 @@ public class UserToolProvider extends AbstractToolProvider {
         UserRepresentation u = call.kc().findUser(call.realm(), call.str("id"));
         Map<String, Object> view = Views.userDetail(u);
         try {
-            view.put("groups", call.kc().realm(call.realm()).users().get(u.getId()).groups(0, 50).stream()
-                    .map(GroupRepresentation::getPath).toList());
-        } catch (RuntimeException e) {
-            // groups are optional detail; a missing view-users role on groups should not fail the call
+            view.put("groups",
+                    call.kc()
+                        .realm(call.realm())
+                        .users()
+                        .get(u.getId())
+                        .groups(0, 50)
+                        .stream()
+                        .map(GroupRepresentation::getPath)
+                        .toList());
+        }
+        catch (RuntimeException e) {
+            // groups are optional detail; a missing view-users role on groups should not
+            // fail the call
         }
         return ToolResult.ok(view);
     }
@@ -287,12 +321,15 @@ public class UserToolProvider extends AbstractToolProvider {
         res.update(u);
         if (call.has("attributes")) {
             Map<String, List<String>> stored = res.toRepresentation().getAttributes();
-            List<String> dropped = Objects.requireNonNull(call.stringMap("attributes")).keySet().stream()
-                    .filter(k -> stored == null || !stored.containsKey(k)).toList();
+            List<String> dropped = Objects.requireNonNull(call.stringMap("attributes"))
+                .keySet()
+                .stream()
+                .filter(k -> stored == null || !stored.containsKey(k))
+                .toList();
             if (!dropped.isEmpty()) {
-                return ToolResult.done("User updated", "id", u.getId(), "changed", changed,
-                        "warning", "Attributes " + dropped + " were not stored: the realm's user profile only keeps "
-                                + "declared attributes. Enable unmanaged attributes or declare them in the user profile.");
+                return ToolResult.done("User updated", "id", u.getId(), "changed", changed, "warning", "Attributes "
+                        + dropped + " were not stored: the realm's user profile only keeps "
+                        + "declared attributes. Enable unmanaged attributes or declare them in the user profile.");
             }
         }
         return ToolResult.done("User updated", "id", u.getId(), "changed", changed);
@@ -303,19 +340,20 @@ public class UserToolProvider extends AbstractToolProvider {
         UserRepresentation u = res.toRepresentation();
         u.setEnabled(call.bool("enabled"));
         res.update(u);
-        return ToolResult.done(Boolean.TRUE.equals(u.isEnabled()) ? "User enabled" : "User disabled",
-                "id", u.getId(), "username", u.getUsername(), "enabled", u.isEnabled());
+        return ToolResult.done(Boolean.TRUE.equals(u.isEnabled()) ? "User enabled" : "User disabled", "id", u.getId(),
+                "username", u.getUsername(), "enabled", u.isEnabled());
     }
 
     ToolResult delete(ToolCall call) {
         String id = call.str("id");
         if (!KeycloakAdmin.isUuid(id)) {
-            throw new ToolException("invalid_arguments", "id must be the user's UUID; look it up with keycloak_user_search.");
+            throw new ToolException("invalid_arguments",
+                    "id must be the user's UUID; look it up with keycloak_user_search.");
         }
         UserRepresentation u = call.kc().findUser(call.realm(), id);
         if (!u.getUsername().equalsIgnoreCase(call.str("username"))) {
-            throw new ToolException("username_mismatch", "User " + id + " is '" + u.getUsername()
-                    + "', not '" + call.str("username") + "'. Nothing deleted.");
+            throw new ToolException("username_mismatch", "User " + id + " is '" + u.getUsername() + "', not '"
+                    + call.str("username") + "'. Nothing deleted.");
         }
         call.kc().realm(call.realm()).users().get(u.getId()).remove();
         return ToolResult.done("User deleted", "id", u.getId(), "username", u.getUsername());
@@ -339,7 +377,8 @@ public class UserToolProvider extends AbstractToolProvider {
         }
         if (call.has("clientId") || call.has("redirectUri") || call.has("lifespan")) {
             res.executeActionsEmail(call.str("clientId"), call.str("redirectUri"), call.integer("lifespan"), actions);
-        } else {
+        }
+        else {
             res.executeActionsEmail(actions);
         }
         return ToolResult.done("Action email sent", "actions", actions);

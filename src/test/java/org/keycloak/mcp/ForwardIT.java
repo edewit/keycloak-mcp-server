@@ -1,12 +1,5 @@
 package org.keycloak.mcp;
 
-import static io.restassured.RestAssured.given;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.Test;
 
 import io.quarkus.test.common.QuarkusTestResource;
@@ -15,10 +8,17 @@ import io.restassured.response.Response;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import static io.restassured.RestAssured.given;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
- * Delegation mode {@code forward} against a real Keycloak: the endpoint challenges anonymous clients the way the
- * MCP authorization spec expects, and every admin call runs with the caller's own roles. Run with
- * {@code ./mvnw verify -DskipITs=false}.
+ * Delegation mode {@code forward} against a real Keycloak: the endpoint challenges
+ * anonymous clients the way the MCP authorization spec expects, and every admin call runs
+ * with the caller's own roles. Run with {@code ./mvnw verify -DskipITs=false}.
  */
 @QuarkusTest
 @QuarkusTestResource(value = ForwardTestResource.class, restrictToAnnotatedClass = true)
@@ -31,13 +31,16 @@ class ForwardIT {
     @Test
     void anonymousRequestsGetTheOAuthChallenge() {
         Response r = given().header("Accept", "application/json, text/event-stream")
-                .header("Content-Type", "application/json")
-                .body(new JsonObject().put("jsonrpc", "2.0").put("id", 1).put("method", "initialize")
-                        .put("params", new JsonObject().put("protocolVersion", "2025-06-18")
-                                .put("capabilities", new JsonObject())
-                                .put("clientInfo", new JsonObject().put("name", "t").put("version", "1")))
-                        .encode())
-                .post("/mcp");
+            .header("Content-Type", "application/json")
+            .body(new JsonObject().put("jsonrpc", "2.0")
+                .put("id", 1)
+                .put("method", "initialize")
+                .put("params",
+                        new JsonObject().put("protocolVersion", "2025-06-18")
+                            .put("capabilities", new JsonObject())
+                            .put("clientInfo", new JsonObject().put("name", "t").put("version", "1")))
+                .encode())
+            .post("/mcp");
         assertEquals(401, r.statusCode());
         String challenge = r.header("WWW-Authenticate");
         assertNotNull(challenge, "WWW-Authenticate");
@@ -57,21 +60,24 @@ class ForwardIT {
     void adminUserActsWithHerOwnToken() {
         McpClient alice = as("alice");
         assertFalse(alice.listTools().isEmpty());
-        JsonObject found = McpClient.text(alice.callTool("keycloak_user_search", new JsonObject().put("search", "carol")));
+        JsonObject found = McpClient
+            .text(alice.callTool("keycloak_user_search", new JsonObject().put("search", "carol")));
         assertEquals("carol", found.getJsonArray("items").getJsonObject(0).getString("username"), found.encode());
         JsonObject updated = alice.callTool("keycloak_user_update",
                 new JsonObject().put("id", "carol").put("lastName", "Danvers"));
         assertFalse(updated.getBoolean("isError", false), McpClient.text(updated).encode());
         assertEquals("Danvers", McpClient.text(alice.callTool("keycloak_user_get", new JsonObject().put("id", "carol")))
-                .getString("lastName"));
+            .getString("lastName"));
     }
 
     @Test
     void viewerIsLimitedByHerOwnRoles() {
         McpClient carol = as("carol");
-        JsonObject found = McpClient.text(carol.callTool("keycloak_user_search", new JsonObject().put("search", "alice")));
+        JsonObject found = McpClient
+            .text(carol.callTool("keycloak_user_search", new JsonObject().put("search", "alice")));
         assertEquals("alice", found.getJsonArray("items").getJsonObject(0).getString("username"), found.encode());
-        JsonObject denied = carol.callTool("keycloak_user_update", new JsonObject().put("id", "alice").put("lastName", "X"));
+        JsonObject denied = carol.callTool("keycloak_user_update",
+                new JsonObject().put("id", "alice").put("lastName", "X"));
         assertTrue(denied.getBoolean("isError", false));
         JsonObject body = McpClient.text(denied);
         assertEquals("forbidden", body.getString("error"), body.encode());
@@ -82,9 +88,14 @@ class ForwardIT {
     @Test
     void viewerIsToldUpFrontWhatSheMayDo() {
         McpClient carol = as("carol");
-        JsonObject search = McpClient.text(carol.callTool("search_tools", new JsonObject().put("query", "disable user")));
-        JsonObject disable = search.getJsonArray("tools").stream().map(t -> (JsonObject) t)
-                .filter(t -> t.getString("name").equals("keycloak_user_set_enabled")).findFirst().orElseThrow();
+        JsonObject search = McpClient
+            .text(carol.callTool("search_tools", new JsonObject().put("query", "disable user")));
+        JsonObject disable = search.getJsonArray("tools")
+            .stream()
+            .map(t -> (JsonObject) t)
+            .filter(t -> t.getString("name").equals("keycloak_user_set_enabled"))
+            .findFirst()
+            .orElseThrow();
         assertEquals(false, disable.getBoolean("allowed"), disable.encode());
         assertTrue(disable.getJsonArray("missingRoles").contains("manage-users"), disable.encode());
         assertTrue(search.getString("hint").contains("whoami"), search.encode());

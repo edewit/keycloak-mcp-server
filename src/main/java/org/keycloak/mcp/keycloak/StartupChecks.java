@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -20,9 +19,10 @@ import org.keycloak.mcp.guard.RoleDiscovery;
 import io.quarkus.runtime.StartupEvent;
 
 /**
- * Verifies at startup, per Keycloak system, that the credentials reach every allowed realm and discovers the
- * token's roles. {@code kc-mcp.startup-check=off|warn|fail}: {@code warn} (default) runs in the background and logs,
- * {@code fail} runs synchronously and aborts startup on 401/403 or an unreachable realm.
+ * Verifies at startup, per Keycloak system, that the credentials reach every allowed
+ * realm and discovers the token's roles. {@code kc-mcp.startup-check=off|warn|fail}:
+ * {@code warn} (default) runs in the background and logs, {@code fail} runs synchronously
+ * and aborts startup on 401/403 or an unreachable realm.
  */
 @ApplicationScoped
 public class StartupChecks {
@@ -50,7 +50,8 @@ public class StartupChecks {
             default -> Thread.ofVirtual().name("kc-mcp-startup-check").start(() -> {
                 try {
                     run();
-                } catch (RuntimeException e) {
+                }
+                catch (RuntimeException e) {
                     LOG.warnf("Startup check skipped: %s", e.toString());
                 }
             });
@@ -77,7 +78,8 @@ public class StartupChecks {
         GrantedRoles granted;
         try {
             granted = roles.get(sys);
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             problems.add("[" + sys + "] cannot obtain an admin token: " + root(e));
             LOG.errorf("[%s] Keycloak at %s: cannot obtain an admin token (%s)", sys, admin.system().url(), root(e));
             return problems;
@@ -93,13 +95,15 @@ public class StartupChecks {
                 admin.realm(r).toRepresentation();
                 LOG.infof("[%s] realm '%s' reachable%s", sys, r, granted.known() && !granted.superAdmin()
                         ? " with roles " + granted.byRealm().getOrDefault(r, Set.of()) : "");
-            } catch (WebApplicationException e) {
+            }
+            catch (WebApplicationException e) {
                 int status = e.getResponse().getStatus();
                 String msg = "[" + sys + "] realm '" + r + "' answered HTTP " + status
                         + (status == 401 || status == 403 ? " (credentials lack access)" : "");
                 problems.add(msg);
                 LOG.error("Keycloak startup check: " + msg);
-            } catch (ProcessingException e) {
+            }
+            catch (ProcessingException e) {
                 problems.add("[" + sys + "] realm '" + r + "' unreachable: " + root(e));
                 LOG.errorf("Keycloak startup check: [%s] realm '%s' unreachable (%s)", sys, r, root(e));
             }
@@ -107,7 +111,8 @@ public class StartupChecks {
         if (granted.known() && !granted.superAdmin()) {
             for (String r : realms) {
                 if (!granted.reaches(r)) {
-                    String msg = "[" + sys + "] token has no admin roles in realm '" + r + "' (has: " + granted.realms() + ")";
+                    String msg = "[" + sys + "] token has no admin roles in realm '" + r + "' (has: " + granted.realms()
+                            + ")";
                     problems.add(msg);
                     LOG.error("Keycloak startup check: " + msg);
                 }

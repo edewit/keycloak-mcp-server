@@ -9,7 +9,10 @@ import org.keycloak.mcp.keycloak.KeycloakSystems;
  */
 public interface ToolProviderContext {
 
-    /** Admin client of the default system; handlers should prefer {@code ToolCall.kc()} (the call's system). */
+    /**
+     * Admin client of the default system; handlers should prefer {@code ToolCall.kc()}
+     * (the call's system).
+     */
     KeycloakAdmin keycloak();
 
     /** All configured Keycloak systems. */

@@ -10,8 +10,9 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
- * Hand-rolled validator for the flat schemas produced by {@link InputSchema}. Besides checking it also coerces the
- * sloppy values small models produce ("true" -> true, "5" -> 5, 5.0 -> 5, "a,b" -> ["a","b"]) and applies defaults.
+ * Hand-rolled validator for the flat schemas produced by {@link InputSchema}. Besides
+ * checking it also coerces the sloppy values small models produce ("true" -> true, "5" ->
+ * 5, 5.0 -> 5, "a,b" -> ["a","b"]) and applies defaults.
  */
 public final class ArgumentValidator {
 
@@ -52,7 +53,8 @@ public final class ArgumentValidator {
             if (value == null) {
                 if (required.contains(name)) {
                     problems.add(new Problem(name, "is required", describe(prop)));
-                } else if (prop.containsKey("default")) {
+                }
+                else if (prop.containsKey("default")) {
                     out.put(name, prop.getValue("default"));
                 }
                 continue;
@@ -72,9 +74,11 @@ public final class ArgumentValidator {
                 String s;
                 if (value instanceof String str) {
                     s = str;
-                } else if (value instanceof Number || value instanceof Boolean) {
+                }
+                else if (value instanceof Number || value instanceof Boolean) {
                     s = String.valueOf(value);
-                } else {
+                }
+                else {
                     problems.add(new Problem(name, "must be a string", describe(prop)));
                     return null;
                 }
@@ -151,25 +155,29 @@ public final class ArgumentValidator {
                             items.add(String.valueOf(o));
                         }
                     }
-                } else if (value instanceof String s) {
+                }
+                else if (value instanceof String s) {
                     String t = s.trim();
                     if (t.startsWith("[") && t.endsWith("]")) {
                         try {
                             for (Object o : new JsonArray(t)) {
                                 items.add(String.valueOf(o));
                             }
-                        } catch (RuntimeException e) {
+                        }
+                        catch (RuntimeException e) {
                             problems.add(new Problem(name, "must be an array of strings", describe(prop)));
                             return null;
                         }
-                    } else if (!t.isEmpty()) {
+                    }
+                    else if (!t.isEmpty()) {
                         for (String part : t.split(",")) {
                             if (!part.isBlank()) {
                                 items.add(part.trim());
                             }
                         }
                     }
-                } else {
+                }
+                else {
                     problems.add(new Problem(name, "must be an array of strings", describe(prop)));
                     return null;
                 }
@@ -179,19 +187,23 @@ public final class ArgumentValidator {
                 Map<String, Object> map;
                 if (value instanceof JsonObject jo) {
                     map = jo.getMap();
-                } else if (value instanceof Map<?, ?> m) {
+                }
+                else if (value instanceof Map<?, ?> m) {
                     map = new LinkedHashMap<>();
                     for (Map.Entry<?, ?> e : m.entrySet()) {
                         map.put(String.valueOf(e.getKey()), e.getValue());
                     }
-                } else if (value instanceof String s && s.trim().startsWith("{")) {
+                }
+                else if (value instanceof String s && s.trim().startsWith("{")) {
                     try {
                         map = new JsonObject(s).getMap();
-                    } catch (RuntimeException e) {
+                    }
+                    catch (RuntimeException e) {
                         problems.add(new Problem(name, "must be an object", describe(prop)));
                         return null;
                     }
-                } else {
+                }
+                else {
                     problems.add(new Problem(name, "must be an object", describe(prop)));
                     return null;
                 }
@@ -224,7 +236,8 @@ public final class ArgumentValidator {
         if (value instanceof String s) {
             try {
                 return Long.parseLong(s.trim());
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
                 Double d = toDouble(s);
                 return d != null && d == Math.rint(d) ? (Long) d.longValue() : null;
             }
@@ -239,7 +252,8 @@ public final class ArgumentValidator {
         if (value instanceof String s) {
             try {
                 return Double.parseDouble(s.trim());
-            } catch (NumberFormatException e) {
+            }
+            catch (NumberFormatException e) {
                 return null;
             }
         }

@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
-
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 
@@ -25,9 +24,9 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
 /**
- * {@link RealmDirectory} backed by the admin client. Effective roles = realm-level effective roles (already
- * group- and composite-expanded by Keycloak) + direct and group-inherited client roles, with composites expanded
- * through {@code roles-by-id}.
+ * {@link RealmDirectory} backed by the admin client. Effective roles = realm-level
+ * effective roles (already group- and composite-expanded by Keycloak) + direct and
+ * group-inherited client roles, with composites expanded through {@code roles-by-id}.
  */
 public class KeycloakDirectory implements RealmDirectory {
 
@@ -46,7 +45,8 @@ public class KeycloakDirectory implements RealmDirectory {
         try {
             UserRepresentation u = kc.findUser(realm, subjectOrUsername);
             return Optional.ofNullable(u.getId());
-        } catch (ToolException | WebApplicationException e) {
+        }
+        catch (ToolException | WebApplicationException e) {
             return Optional.empty();
         }
     }
@@ -74,7 +74,8 @@ public class KeycloakDirectory implements RealmDirectory {
                 case REALM -> kc.realm(realm).roles().get(ref.role()).toRepresentation();
                 default -> kc.clientResource(realm, ref.client()).roles().get(ref.role()).toRepresentation();
             };
-        } catch (NotFoundException | ToolException e) {
+        }
+        catch (NotFoundException | ToolException e) {
             return Set.of();
         }
         Set<String> out = new TreeSet<>();
@@ -84,15 +85,21 @@ public class KeycloakDirectory implements RealmDirectory {
 
     @Override
     public List<String> groupPaths(String realm, String userId) {
-        return kc.realm(realm).users().get(userId).groups(0, 500, true).stream().map(GroupRepresentation::getPath)
-                .toList();
+        return kc.realm(realm)
+            .users()
+            .get(userId)
+            .groups(0, 500, true)
+            .stream()
+            .map(GroupRepresentation::getPath)
+            .toList();
     }
 
     @Override
     public Optional<String> groupPath(String realm, String groupRef) {
         try {
             return Optional.ofNullable(kc.findGroup(realm, groupRef).getPath());
-        } catch (ToolException | WebApplicationException e) {
+        }
+        catch (ToolException | WebApplicationException e) {
             return Optional.empty();
         }
     }
@@ -112,12 +119,16 @@ public class KeycloakDirectory implements RealmDirectory {
                 ids.add(o.getId());
             }
             return ids;
-        } catch (WebApplicationException e) {
+        }
+        catch (WebApplicationException e) {
             return Set.of();
         }
     }
 
-    /** Organization groups carry the organization id in the {@code kc.org} attribute (own or inherited). */
+    /**
+     * Organization groups carry the organization id in the {@code kc.org} attribute (own
+     * or inherited).
+     */
     @Override
     public Set<String> organizationsOfGroup(String realm, String groupPath) {
         Set<String> ids = new TreeSet<>();
@@ -127,14 +138,16 @@ public class KeycloakDirectory implements RealmDirectory {
                 if (g.getAttributes() != null && g.getAttributes().get("kc.org") != null) {
                     ids.addAll(g.getAttributes().get("kc.org"));
                 }
-            } catch (WebApplicationException e) {
+            }
+            catch (WebApplicationException e) {
                 // ignore unreadable ancestors
             }
         }
         return ids;
     }
 
-    // ---- helpers ------------------------------------------------------------------------------------------------
+    // ---- helpers
+    // ------------------------------------------------------------------------------------------------
 
     static List<String> ancestorPaths(String path) {
         List<String> out = new ArrayList<>();
@@ -161,7 +174,8 @@ public class KeycloakDirectory implements RealmDirectory {
                     out.addAll(m.getRealmMappings());
                 }
                 addClientMappings(m, out);
-            } catch (WebApplicationException e) {
+            }
+            catch (WebApplicationException e) {
                 // unreadable ancestor: skip
             }
         }
@@ -189,7 +203,8 @@ public class KeycloakDirectory implements RealmDirectory {
                 try {
                     expand(realm, new ArrayList<>(kc.realm(realm).rolesById().getRoleComposites(role.getId())), out,
                             visited);
-                } catch (WebApplicationException e) {
+                }
+                catch (WebApplicationException e) {
                     // composites unreadable: keep what we have
                 }
             }
@@ -201,7 +216,8 @@ public class KeycloakDirectory implements RealmDirectory {
             String clientId = clientIdByUuid.computeIfAbsent(role.getContainerId(), uuid -> {
                 try {
                     return kc.realm(realm).clients().get(uuid).toRepresentation().getClientId();
-                } catch (WebApplicationException e) {
+                }
+                catch (WebApplicationException e) {
                     return uuid;
                 }
             });

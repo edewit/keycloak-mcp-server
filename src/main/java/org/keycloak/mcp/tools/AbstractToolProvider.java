@@ -4,11 +4,11 @@ import org.keycloak.mcp.catalog.ApiOperation;
 import org.keycloak.mcp.catalog.InputSchema;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.spi.ToolProvider;
-import org.keycloak.mcp.spi.ToolProviderContext;
 
 /**
- * Base class for the built-in providers: shared schema snippets and API binding shorthands. Handlers take the admin
- * client of the call's Keycloak system from {@code call.kc()}.
+ * Base class for the built-in providers: shared schema snippets and API binding
+ * shorthands. Handlers take the admin client of the call's Keycloak system from
+ * {@code call.kc()}.
  */
 public abstract class AbstractToolProvider implements ToolProvider {
 

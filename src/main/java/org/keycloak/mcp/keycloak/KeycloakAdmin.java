@@ -7,13 +7,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
-
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.core.Response;
 
 import org.jboss.logging.Logger;
-import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
@@ -30,17 +28,21 @@ import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
 /**
- * Lazily built Keycloak admin client for one {@link KeycloakSystem} plus the lookup helpers every tool area needs.
- * Identifier arguments are forgiving: a user may be given by id or username, a client by id or clientId, a group by
- * id, path or name. Instances are managed by {@link KeycloakSystems}.
+ * Lazily built Keycloak admin client for one {@link KeycloakSystem} plus the lookup
+ * helpers every tool area needs. Identifier arguments are forgiving: a user may be given
+ * by id or username, a client by id or clientId, a group by id, path or name. Instances
+ * are managed by {@link KeycloakSystems}.
  */
 public class KeycloakAdmin implements AccessTokenSource {
 
     private static final Logger LOG = Logger.getLogger(KeycloakAdmin.class);
     private static final Pattern UUID = Pattern
-            .compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+        .compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
-    /** Upper bound of cached per-caller clients; beyond it the cache is dropped and rebuilt on demand. */
+    /**
+     * Upper bound of cached per-caller clients; beyond it the cache is dropped and
+     * rebuilt on demand.
+     */
     static final int MAX_DELEGATES = 256;
 
     private record Delegate(KeycloakAdmin admin, long expiresAt) {
@@ -67,8 +69,9 @@ public class KeycloakAdmin implements AccessTokenSource {
     }
 
     /**
-     * An admin client of the same system that sends the given caller token instead of the server's credentials
-     * (delegation mode {@code forward}). Instances are cached per token until the token expires.
+     * An admin client of the same system that sends the given caller token instead of the
+     * server's credentials (delegation mode {@code forward}). Instances are cached per
+     * token until the token expires.
      */
     public KeycloakAdmin forToken(String bearerToken) {
         if (bearerToken == null || bearerToken.isBlank()) {
@@ -81,7 +84,8 @@ public class KeycloakAdmin implements AccessTokenSource {
         }
         if (delegates.size() >= MAX_DELEGATES) {
             purgeDelegates(now, true);
-        } else if (d != null) {
+        }
+        else if (d != null) {
             purgeDelegates(now, false);
         }
         return delegates.compute(bearerToken, (k, old) -> {
@@ -92,16 +96,19 @@ public class KeycloakAdmin implements AccessTokenSource {
                 old.admin().close();
             }
             Keycloak k2 = KeycloakBuilder.builder()
-                    .serverUrl(system.url())
-                    .realm(system.authRealm())
-                    .clientId(system.clientId().filter(v -> !v.isBlank()).orElse("keycloak-mcp-server"))
-                    .authorization(bearerToken)
-                    .build();
+                .serverUrl(system.url())
+                .realm(system.authRealm())
+                .clientId(system.clientId().filter(v -> !v.isBlank()).orElse("keycloak-mcp-server"))
+                .authorization(bearerToken)
+                .build();
             return new Delegate(new KeycloakAdmin(system, jwtKeys, k2, bearerToken), expiryOf(bearerToken, now));
         }).admin();
     }
 
-    /** Whether this instance forwards a caller's token rather than using the server's credentials. */
+    /**
+     * Whether this instance forwards a caller's token rather than using the server's
+     * credentials.
+     */
     public boolean isDelegated() {
         return forwardedToken != null;
     }
@@ -116,7 +123,10 @@ public class KeycloakAdmin implements AccessTokenSource {
         }
     }
 
-    /** {@code exp} of a JWT in millis; tokens without a readable {@code exp} are kept for five minutes. */
+    /**
+     * {@code exp} of a JWT in millis; tokens without a readable {@code exp} are kept for
+     * five minutes.
+     */
     static long expiryOf(String jwt, long now) {
         try {
             String[] parts = jwt.split("\\.");
@@ -128,7 +138,8 @@ public class KeycloakAdmin implements AccessTokenSource {
                     return exp * 1000;
                 }
             }
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             LOG.debugf("Cannot read token expiry: %s", e.toString());
         }
         return now + 5 * 60_000L;
@@ -142,7 +153,10 @@ public class KeycloakAdmin implements AccessTokenSource {
         return system.name();
     }
 
-    /** Lazily builds the client; uses a lock rather than {@code synchronized} so virtual threads are not pinned. */
+    /**
+     * Lazily builds the client; uses a lock rather than {@code synchronized} so virtual
+     * threads are not pinned.
+     */
     public Keycloak client() {
         Keycloak k = keycloak;
         if (k != null) {
@@ -156,7 +170,8 @@ public class KeycloakAdmin implements AccessTokenSource {
                 keycloak = k;
             }
             return k;
-        } finally {
+        }
+        finally {
             initLock.unlock();
         }
     }
@@ -170,8 +185,9 @@ public class KeycloakAdmin implements AccessTokenSource {
             throw new IllegalStateException("Missing configuration: the client_credentials grant needs "
                     + "'kc-mcp.client-secret' or a private_key_jwt key ('kc-mcp.jwt.key-file' / 'kc-mcp.jwt.keystore-file')");
         }
-        String clientId = system.clientId().filter(v -> !v.isBlank())
-                .orElseGet(() -> grant == GrantType.PASSWORD && auth == ClientAuth.NONE ? "admin-cli" : null);
+        String clientId = system.clientId()
+            .filter(v -> !v.isBlank())
+            .orElseGet(() -> grant == GrantType.PASSWORD && auth == ClientAuth.NONE ? "admin-cli" : null);
         if (clientId == null) {
             throw new IllegalStateException("Missing configuration 'kc-mcp.client-id'");
         }
@@ -179,21 +195,25 @@ public class KeycloakAdmin implements AccessTokenSource {
         String password = grant == GrantType.PASSWORD ? require(system.password(), "kc-mcp.password") : null;
 
         KeycloakBuilder builder = KeycloakBuilder.builder()
-                .serverUrl(system.url())
-                .realm(system.authRealm())
-                .clientId(clientId);
+            .serverUrl(system.url())
+            .realm(system.authRealm())
+            .clientId(clientId);
         switch (auth) {
             case NONE -> builder.grantType(grant.oauthValue()).username(username).password(password);
-            case CLIENT_SECRET -> builder.grantType(grant.oauthValue()).username(username).password(password)
-                    .clientSecret(require(system.clientSecret(), "kc-mcp.client-secret"));
+            case CLIENT_SECRET -> builder.grantType(grant.oauthValue())
+                .username(username)
+                .password(password)
+                .clientSecret(require(system.clientSecret(), "kc-mcp.client-secret"));
             case PRIVATE_KEY_JWT -> {
                 Client restClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
                 Client tokenClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
                 jwtTokens = new ClientAssertionTokenManager(tokenClient, system.url(), system.authRealm(), clientId,
                         jwtKeys.signer(), jwtKeys.assertionLifespan(), grant, username, password);
                 restClient.register(new PrivateKeyJwtAuthFilter(jwtTokens));
-                // A fixed placeholder token makes the admin client skip its own TokenManager; the filter above
-                // runs later in the chain and replaces the Authorization header with a real token.
+                // A fixed placeholder token makes the admin client skip its own
+                // TokenManager; the filter above
+                // runs later in the chain and replaces the Authorization header with a
+                // real token.
                 builder.resteasyClient(restClient).authorization(PrivateKeyJwtAuthFilter.PLACEHOLDER);
             }
         }
@@ -201,11 +221,14 @@ public class KeycloakAdmin implements AccessTokenSource {
     }
 
     private static String require(java.util.Optional<String> value, String key) {
-        return value.filter(v -> !v.isBlank()).orElseThrow(
-                () -> new IllegalStateException("Missing configuration '" + key + "' for auth mode"));
+        return value.filter(v -> !v.isBlank())
+            .orElseThrow(() -> new IllegalStateException("Missing configuration '" + key + "' for auth mode"));
     }
 
-    /** Current admin access token (triggers a login on first use); the caller's token for a delegated instance. */
+    /**
+     * Current admin access token (triggers a login on first use); the caller's token for
+     * a delegated instance.
+     */
     @Override
     public String accessToken() {
         if (forwardedToken != null) {
@@ -224,7 +247,10 @@ public class KeycloakAdmin implements AccessTokenSource {
         return system.authRealm();
     }
 
-    /** Scope evaluation endpoints (no admin client binding exists); authenticated like every other call. */
+    /**
+     * Scope evaluation endpoints (no admin client binding exists); authenticated like
+     * every other call.
+     */
     public ScopeEvaluation scopeEvaluation() {
         return client().proxy(ScopeEvaluation.class, java.net.URI.create(system.url()));
     }
@@ -237,7 +263,8 @@ public class KeycloakAdmin implements AccessTokenSource {
         return s != null && UUID.matcher(s).matches();
     }
 
-    // ---- users --------------------------------------------------------------------------------------------------
+    // ---- users
+    // --------------------------------------------------------------------------------------------------
 
     /** Resolves a user by id or username. */
     public UserRepresentation findUser(String realm, String idOrUsername) {
@@ -245,7 +272,8 @@ public class KeycloakAdmin implements AccessTokenSource {
         if (isUuid(idOrUsername)) {
             try {
                 return r.users().get(idOrUsername).toRepresentation();
-            } catch (NotFoundException e) {
+            }
+            catch (NotFoundException e) {
                 // fall through to username lookup
             }
         }
@@ -266,7 +294,8 @@ public class KeycloakAdmin implements AccessTokenSource {
         return realm(realm).users().get(findUser(realm, idOrUsername).getId());
     }
 
-    // ---- clients ------------------------------------------------------------------------------------------------
+    // ---- clients
+    // ------------------------------------------------------------------------------------------------
 
     /** Resolves a client by internal id or clientId. */
     public ClientRepresentation findClient(String realm, String idOrClientId) {
@@ -274,7 +303,8 @@ public class KeycloakAdmin implements AccessTokenSource {
         if (isUuid(idOrClientId)) {
             try {
                 return r.clients().get(idOrClientId).toRepresentation();
-            } catch (NotFoundException e) {
+            }
+            catch (NotFoundException e) {
                 // fall through
             }
         }
@@ -289,7 +319,8 @@ public class KeycloakAdmin implements AccessTokenSource {
         return realm(realm).clients().get(findClient(realm, idOrClientId).getId());
     }
 
-    // ---- groups -------------------------------------------------------------------------------------------------
+    // ---- groups
+    // -------------------------------------------------------------------------------------------------
 
     /** Resolves a group by id, full path ({@code /parent/child}) or unique name. */
     public GroupRepresentation findGroup(String realm, String idOrPathOrName) {
@@ -297,18 +328,21 @@ public class KeycloakAdmin implements AccessTokenSource {
         if (isUuid(idOrPathOrName)) {
             try {
                 return r.groups().group(idOrPathOrName).toRepresentation();
-            } catch (NotFoundException e) {
+            }
+            catch (NotFoundException e) {
                 // fall through
             }
         }
         if (idOrPathOrName != null && idOrPathOrName.startsWith("/")) {
             try {
                 return r.getGroupByPath(idOrPathOrName);
-            } catch (NotFoundException e) {
+            }
+            catch (NotFoundException e) {
                 throw ToolException.notFound("Group", idOrPathOrName);
             }
         }
-        // search returns the top-level ancestors with matching subgroups nested underneath: flatten first
+        // search returns the top-level ancestors with matching subgroups nested
+        // underneath: flatten first
         List<GroupRepresentation> found = new java.util.ArrayList<>();
         flatten(r.groups().groups(idOrPathOrName, true, 0, 20, false), found);
         List<GroupRepresentation> exact = found.stream().filter(g -> idOrPathOrName.equals(g.getName())).toList();
@@ -316,8 +350,8 @@ public class KeycloakAdmin implements AccessTokenSource {
             return exact.get(0);
         }
         if (exact.size() > 1) {
-            throw new ToolException("ambiguous", "Several groups are named '" + idOrPathOrName
-                    + "'; pass the group id or full path instead.");
+            throw new ToolException("ambiguous",
+                    "Several groups are named '" + idOrPathOrName + "'; pass the group id or full path instead.");
         }
         throw ToolException.notFound("Group", idOrPathOrName);
     }
@@ -336,9 +370,13 @@ public class KeycloakAdmin implements AccessTokenSource {
         return realm(realm).groups().group(findGroup(realm, idOrPathOrName).getId());
     }
 
-    // ---- misc ---------------------------------------------------------------------------------------------------
+    // ---- misc
+    // ---------------------------------------------------------------------------------------------------
 
-    /** Extracts the id from a 201 response or turns an error response into a {@link ToolException}. */
+    /**
+     * Extracts the id from a 201 response or turns an error response into a
+     * {@link ToolException}.
+     */
     public static String created(Response response) {
         try (response) {
             if (response.getStatus() >= 400) {
@@ -363,7 +401,8 @@ public class KeycloakAdmin implements AccessTokenSource {
         if (k != null) {
             try {
                 k.close();
-            } catch (RuntimeException e) {
+            }
+            catch (RuntimeException e) {
                 LOG.debug("Closing admin client failed", e);
             }
         }

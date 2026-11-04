@@ -5,7 +5,8 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import io.vertx.core.json.JsonObject;
 
 /**
- * Decides whether a DESTRUCTIVE tool may run. Same instance used by direct tools and {@code execute_tool}.
+ * Decides whether a DESTRUCTIVE tool may run. Same instance used by direct tools and
+ * {@code execute_tool}.
  */
 public interface Confirmer {
 

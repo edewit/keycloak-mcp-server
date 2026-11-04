@@ -9,20 +9,12 @@ import org.keycloak.mcp.config.GrantType;
 import org.keycloak.mcp.config.McpServerConfig;
 
 /**
- * Resolved connection settings of one Keycloak system (per-system values with top-level fallbacks).
+ * Resolved connection settings of one Keycloak system (per-system values with top-level
+ * fallbacks).
  */
-public record KeycloakSystem(
-        String name,
-        String url,
-        GrantType grantType,
-        ClientAuth clientAuth,
-        String authRealm,
-        Optional<String> clientId,
-        Optional<String> clientSecret,
-        Optional<String> username,
-        Optional<String> password,
-        Optional<String> defaultRealm,
-        Set<String> allowedRealms) {
+public record KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+        Optional<String> clientId, Optional<String> clientSecret, Optional<String> username, Optional<String> password,
+        Optional<String> defaultRealm, Set<String> allowedRealms) {
 
     public static final String DEFAULT_NAME = "default";
 
@@ -41,15 +33,12 @@ public record KeycloakSystem(
             }
             return ClientAuth.NONE;
         });
-        List<String> realms = pick(s == null ? Optional.empty() : s.allowedRealms(), c.allowedRealms()).orElse(List.of());
-        return new KeycloakSystem(
-                name,
-                s == null ? c.url() : s.url().orElse(c.url()),
-                s == null ? c.grantType() : s.grantType().orElse(c.grantType()),
-                auth,
+        List<String> realms = pick(s == null ? Optional.empty() : s.allowedRealms(), c.allowedRealms())
+            .orElse(List.of());
+        return new KeycloakSystem(name, s == null ? c.url() : s.url().orElse(c.url()),
+                s == null ? c.grantType() : s.grantType().orElse(c.grantType()), auth,
                 s == null ? c.authRealm() : s.authRealm().orElse(c.authRealm()),
-                pick(s == null ? Optional.empty() : s.clientId(), c.clientId()),
-                clientSecret,
+                pick(s == null ? Optional.empty() : s.clientId(), c.clientId()), clientSecret,
                 pick(s == null ? Optional.empty() : s.username(), c.username()),
                 pick(s == null ? Optional.empty() : s.password(), c.password()),
                 pick(s == null ? Optional.empty() : s.defaultRealm(), c.defaultRealm()),
@@ -60,7 +49,10 @@ public record KeycloakSystem(
         return specific.isPresent() ? specific : fallback;
     }
 
-    /** Whether the settings contain something to log in with (a secret / key for client_credentials, a user for password). */
+    /**
+     * Whether the settings contain something to log in with (a secret / key for
+     * client_credentials, a user for password).
+     */
     public boolean hasCredentials() {
         return switch (grantType) {
             case CLIENT_CREDENTIALS -> clientAuth != ClientAuth.NONE;

@@ -1,9 +1,5 @@
 package org.keycloak.mcp.guard;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
 import java.util.Map;
 
@@ -14,6 +10,10 @@ import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 
 import io.vertx.core.json.JsonObject;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ToolInvokerTest {
 
@@ -35,8 +35,8 @@ class ToolInvokerTest {
     @Test
     void happyPathResolvesRealmAndClampsMax() {
         ToolSpec spec = catalog.get("keycloak_user_search").orElseThrow();
-        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED))
-                .invoke(spec, Map.of("realm", "demo", "max", 999, "search", "bob"), false, ctx);
+        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec,
+                Map.of("realm", "demo", "max", 999, "search", "bob"), false, ctx);
         assertFalse(r.isError(), r.toJson());
         String json = r.toJson();
         assertTrue(json.contains("\"realm\":\"demo\""), json);
@@ -46,13 +46,14 @@ class ToolInvokerTest {
     @Test
     void realmRequiredWithoutDefault() {
         ToolSpec spec = catalog.get("keycloak_user_search").orElseThrow();
-        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec, Map.of(), false, ctx);
+        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec, Map.of(), false,
+                ctx);
         assertTrue(r.isError());
         assertEquals("invalid_arguments", payload(r).get("error"));
         ToolCatalog withDefault = Fixtures.catalog("demo");
         ToolResult ok = new ToolInvoker(withDefault, new AccessPolicy(false, List.of()),
                 fixed(Confirmer.Decision.CONFIRMED), 50)
-                .invoke(withDefault.get("keycloak_user_search").orElseThrow(), Map.of(), false, ctx);
+            .invoke(withDefault.get("keycloak_user_search").orElseThrow(), Map.of(), false, ctx);
         assertFalse(ok.isError());
         assertTrue(ok.toJson().contains("\"realm\":\"demo\""));
     }
@@ -60,8 +61,8 @@ class ToolInvokerTest {
     @Test
     void realmAllowList() {
         ToolSpec spec = catalog.get("keycloak_user_search").orElseThrow();
-        ToolResult r = invoker(false, List.of("a", "b"), fixed(Confirmer.Decision.CONFIRMED))
-                .invoke(spec, Map.of("realm", "c"), false, ctx);
+        ToolResult r = invoker(false, List.of("a", "b"), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec,
+                Map.of("realm", "c"), false, ctx);
         assertTrue(r.isError());
         assertEquals("realm_not_allowed", payload(r).get("error"));
         assertEquals(List.of("a", "b"), ((List<?>) payload(r).get("allowed")).stream().sorted().toList());
@@ -70,19 +71,19 @@ class ToolInvokerTest {
     @Test
     void readOnlyBlocksWrites() {
         ToolSpec spec = catalog.get("keycloak_user_set_enabled").orElseThrow();
-        ToolResult r = invoker(true, List.of(), fixed(Confirmer.Decision.CONFIRMED))
-                .invoke(spec, Map.of("realm", "demo", "id", "1", "enabled", false), false, ctx);
+        ToolResult r = invoker(true, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec,
+                Map.of("realm", "demo", "id", "1", "enabled", false), false, ctx);
         assertEquals("read_only_mode", payload(r).get("error"));
         ToolResult read = invoker(true, List.of(), fixed(Confirmer.Decision.CONFIRMED))
-                .invoke(catalog.get("keycloak_user_search").orElseThrow(), Map.of("realm", "demo"), false, ctx);
+            .invoke(catalog.get("keycloak_user_search").orElseThrow(), Map.of("realm", "demo"), false, ctx);
         assertFalse(read.isError());
     }
 
     @Test
     void invalidArgumentsReturnProblemsAndSchema() {
         ToolSpec spec = catalog.get("keycloak_user_set_enabled").orElseThrow();
-        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED))
-                .invoke(spec, Map.of("realm", "demo", "id", "1"), false, ctx);
+        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec,
+                Map.of("realm", "demo", "id", "1"), false, ctx);
         Map<String, Object> p = payload(r);
         assertEquals("invalid_arguments", p.get("error"));
         assertEquals("enabled", ((Map<?, ?>) ((List<?>) p.get("problems")).get(0)).get("field"));
@@ -95,10 +96,11 @@ class ToolInvokerTest {
         Map<String, Object> args = Map.of("realm", "demo", "id", "1");
         assertEquals("confirmation_required",
                 payload(invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMATION_REQUIRED)).invoke(spec, args,
-                        false, ctx)).get("error"));
+                        false, ctx))
+                    .get("error"));
         assertEquals("cancelled",
                 payload(invoker(false, List.of(), fixed(Confirmer.Decision.DECLINED)).invoke(spec, args, false, ctx))
-                        .get("error"));
+                    .get("error"));
         ToolResult ok = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec, args, false, ctx);
         assertFalse(ok.isError());
         assertEquals("deleted", payload(ok).get("message"));
@@ -116,14 +118,18 @@ class ToolInvokerTest {
 
     @Test
     void handlerExceptionsBecomeStructuredErrors() {
-        ToolSpec failing = ToolSpec.builder("keycloak_boom").title("Boom").description("fails")
-                .category(org.keycloak.mcp.catalog.Category.REALM).global()
-                .handler(call -> {
-                    throw new ToolException("not_found", "nope");
-                }).build();
+        ToolSpec failing = ToolSpec.builder("keycloak_boom")
+            .title("Boom")
+            .description("fails")
+            .category(org.keycloak.mcp.catalog.Category.REALM)
+            .global()
+            .handler(call -> {
+                throw new ToolException("not_found", "nope");
+            })
+            .build();
         ToolCatalog c = new ToolCatalog(List.of(failing), null, 10, List.of());
         ToolResult r = new ToolInvoker(c, new AccessPolicy(false, List.of()), fixed(Confirmer.Decision.CONFIRMED), 10)
-                .invoke(failing, Map.of(), false, ctx);
+            .invoke(failing, Map.of(), false, ctx);
         assertTrue(r.isError());
         assertEquals("not_found", payload(r).get("error"));
         assertEquals("nope", payload(r).get("message"));
@@ -138,14 +144,19 @@ class ToolInvokerTest {
         org.keycloak.mcp.keycloak.KeycloakSystem b = new org.keycloak.mcp.keycloak.KeycloakSystem("b", "http://b",
                 org.keycloak.mcp.config.GrantType.PASSWORD, org.keycloak.mcp.config.ClientAuth.NONE, "master",
                 java.util.Optional.empty(), java.util.Optional.empty(), java.util.Optional.of("admin"),
-                java.util.Optional.of("admin"), java.util.Optional.of("b-default"), java.util.Set.of("only-b", "b-default"));
+                java.util.Optional.of("admin"), java.util.Optional.of("b-default"),
+                java.util.Set.of("only-b", "b-default"));
         org.keycloak.mcp.keycloak.KeycloakSystems systems = new org.keycloak.mcp.keycloak.KeycloakSystems(List.of(a, b),
                 "a", null);
-        ToolSpec echo = ToolSpec.builder("keycloak_echo").title("e").description("d")
-                .category(org.keycloak.mcp.catalog.Category.REALM)
-                .handler(call -> ToolResult.ok(Map.of("system", call.system(), "admin", call.kc().name(),
-                        "realm", call.realm()))).build();
-        // both systems have a default realm, so the realm argument is optional and resolved per system
+        ToolSpec echo = ToolSpec.builder("keycloak_echo")
+            .title("e")
+            .description("d")
+            .category(org.keycloak.mcp.catalog.Category.REALM)
+            .handler(call -> ToolResult
+                .ok(Map.of("system", call.system(), "admin", call.kc().name(), "realm", call.realm())))
+            .build();
+        // both systems have a default realm, so the realm argument is optional and
+        // resolved per system
         ToolCatalog cat = new ToolCatalog(List.of(echo), "(per system)", 10, List.of(), "", List.of("a", "b"), "a");
         AccessPolicy policy = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(),
                 name -> systems.get(name).system().allowedRealms());
@@ -158,17 +169,19 @@ class ToolInvokerTest {
         Map<String, Object> viaB = payload(inv.invoke(spec, Map.of("system", "b", "realm", "only-b"), false, ctx));
         assertEquals("b", viaB.get("admin"));
         assertEquals("b-default", payload(inv.invoke(spec, Map.of("system", "b"), false, ctx)).get("realm"));
-        assertEquals("realm_not_allowed", payload(inv.invoke(spec, Map.of("system", "b", "realm", "x"), false, ctx))
-                .get("error"));
-        assertEquals("invalid_arguments", payload(inv.invoke(spec, Map.of("system", "nope", "realm", "x"), false, ctx))
-                .get("error"), "enum rejects unknown systems before dispatch");
+        assertEquals("realm_not_allowed",
+                payload(inv.invoke(spec, Map.of("system", "b", "realm", "x"), false, ctx)).get("error"));
+        assertEquals("invalid_arguments",
+                payload(inv.invoke(spec, Map.of("system", "nope", "realm", "x"), false, ctx)).get("error"),
+                "enum rejects unknown systems before dispatch");
 
         org.keycloak.mcp.keycloak.KeycloakSystems noDefault = new org.keycloak.mcp.keycloak.KeycloakSystems(
                 List.of(a, b), null, null);
         ToolCatalog cat2 = new ToolCatalog(List.of(echo), null, 10, List.of(), "", List.of("a", "b"), null);
         ToolInvoker inv2 = new ToolInvoker(cat2, policy, fixed(Confirmer.Decision.CONFIRMED), 10, noDefault);
-        assertEquals("invalid_arguments", payload(inv2.invoke(cat2.get("keycloak_echo").orElseThrow(),
-                Map.of("realm", "demo"), false, ctx)).get("error"),
+        assertEquals("invalid_arguments",
+                payload(inv2.invoke(cat2.get("keycloak_echo").orElseThrow(), Map.of("realm", "demo"), false, ctx))
+                    .get("error"),
                 "system is required in the schema when there is no default");
     }
 }

@@ -13,7 +13,8 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
 
 /**
- * Compact JSON views of Keycloak representations. Only fields a model needs; nulls omitted.
+ * Compact JSON views of Keycloak representations. Only fields a model needs; nulls
+ * omitted.
  */
 public final class Views {
 
@@ -99,7 +100,8 @@ public final class Views {
         return m;
     }
 
-    public static <T> List<Map<String, Object>> list(List<T> items, java.util.function.Function<T, Map<String, Object>> f) {
+    public static <T> List<Map<String, Object>> list(List<T> items,
+            java.util.function.Function<T, Map<String, Object>> f) {
         List<Map<String, Object>> out = new ArrayList<>(items.size());
         for (T t : items) {
             out.add(f.apply(t));
@@ -107,7 +109,9 @@ public final class Views {
         return out;
     }
 
-    /** {@code {"items":[...],"count":n}} plus {@code "more":true} when the page was full. */
+    /**
+     * {@code {"items":[...],"count":n}} plus {@code "more":true} when the page was full.
+     */
     public static Map<String, Object> page(List<Map<String, Object>> items, int max) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("items", items);

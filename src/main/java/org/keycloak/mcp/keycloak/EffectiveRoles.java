@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-
 import jakarta.ws.rs.WebApplicationException;
 
 import org.keycloak.admin.client.resource.RealmResource;
@@ -22,9 +21,10 @@ import org.keycloak.representations.idm.MappingsRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 
 /**
- * Resolves the effective roles of a user or group <em>with provenance</em>: direct, inherited from a group (or a
- * parent group), or expanded from a composite. The realm's {@code default-roles-<realm>} composite and the roles
- * reachable only through it are reported separately so they do not drown the interesting ones.
+ * Resolves the effective roles of a user or group <em>with provenance</em>: direct,
+ * inherited from a group (or a parent group), or expanded from a composite. The realm's
+ * {@code default-roles-<realm>} composite and the roles reachable only through it are
+ * reported separately so they do not drown the interesting ones.
  */
 public final class EffectiveRoles {
 
@@ -75,7 +75,8 @@ public final class EffectiveRoles {
             try {
                 GroupRepresentation g = rr.getGroupByPath(p);
                 collect(rr.groups().group(g.getId()).roles(), "group:" + p, seeds, false);
-            } catch (WebApplicationException e) {
+            }
+            catch (WebApplicationException e) {
                 // unreadable ancestor: skip
             }
         }
@@ -106,7 +107,8 @@ public final class EffectiveRoles {
 
     private void expand(List<Seed> seeds) {
         Deque<Seed> queue = new ArrayDeque<>(seeds);
-        Map<String, Boolean> seen = new HashMap<>(); // role id -> reached via non-default path
+        Map<String, Boolean> seen = new HashMap<>(); // role id -> reached via non-default
+                                                     // path
         while (!queue.isEmpty()) {
             Seed s = queue.poll();
             RoleRepresentation role = s.role();
@@ -135,15 +137,17 @@ public final class EffectiveRoles {
                         boolean childViaDefaults = s.viaDefaults() || role.getName().equals(defaultRole);
                         queue.add(new Seed(child, "composite:" + role.getName(), childViaDefaults));
                     }
-                } catch (WebApplicationException e) {
+                }
+                catch (WebApplicationException e) {
                     // composites unreadable: keep what we have
                 }
             }
         }
         // a role reached both via defaults and via a real path is not "only via defaults"
         for (Map.Entry<String, Set<String>> e : sources.entrySet()) {
-            boolean realPath = e.getValue().stream().anyMatch(src -> !src.equals("composite:" + defaultRole)
-                    && !isDefaultDescendant(src));
+            boolean realPath = e.getValue()
+                .stream()
+                .anyMatch(src -> !src.equals("composite:" + defaultRole) && !isDefaultDescendant(src));
             if (realPath) {
                 onlyViaDefaults.remove(e.getKey());
             }
@@ -163,7 +167,8 @@ public final class EffectiveRoles {
             String clientId = clientIdByUuid.computeIfAbsent(role.getContainerId(), uuid -> {
                 try {
                     return kc.realm(realm).clients().get(uuid).toRepresentation().getClientId();
-                } catch (WebApplicationException e) {
+                }
+                catch (WebApplicationException e) {
                     return uuid;
                 }
             });
@@ -184,7 +189,8 @@ public final class EffectiveRoles {
         return out;
     }
 
-    // ---- views --------------------------------------------------------------------------------------------------
+    // ---- views
+    // --------------------------------------------------------------------------------------------------
 
     public Set<String> directRealmRoles() {
         return directRealm;
@@ -198,7 +204,10 @@ public final class EffectiveRoles {
         return groups;
     }
 
-    /** Effective realm roles without the realm's default composite and its exclusive members. */
+    /**
+     * Effective realm roles without the realm's default composite and its exclusive
+     * members.
+     */
     public Set<String> effectiveRealmRoles() {
         Set<String> out = new TreeSet<>();
         for (String k : sources.keySet()) {
@@ -221,12 +230,18 @@ public final class EffectiveRoles {
         return out;
     }
 
-    /** Roles every user has through {@code default-roles-<realm>} (realm and client roles). */
+    /**
+     * Roles every user has through {@code default-roles-<realm>} (realm and client
+     * roles).
+     */
     public Set<String> defaultRoles() {
         return new TreeSet<>(onlyViaDefaults);
     }
 
-    /** Where each effective role comes from: {@code direct}, {@code group:/path}, {@code composite:<role>}. */
+    /**
+     * Where each effective role comes from: {@code direct}, {@code group:/path},
+     * {@code composite:<role>}.
+     */
     public Map<String, List<String>> sources() {
         Map<String, List<String>> out = new LinkedHashMap<>();
         for (Map.Entry<String, Set<String>> e : sources.entrySet()) {

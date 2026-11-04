@@ -2,7 +2,6 @@ package org.keycloak.mcp.spi;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
-
 import jakarta.annotation.Priority;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Alternative;
@@ -17,10 +16,11 @@ import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.vertx.core.json.JsonObject;
 
 /**
- * Test-only caller source: the MCP client names the caller in {@code _meta} of the tools/call request
- * ({@code kc-mcp/test-caller}, optional {@code kc-mcp/test-caller-realm}, {@code kc-mcp/test-caller-roles} csv).
- * Without such a hint it behaves like the default provider (request's {@code SecurityIdentity}), so the OIDC
- * integration test sees real callers.
+ * Test-only caller source: the MCP client names the caller in {@code _meta} of the
+ * tools/call request ({@code kc-mcp/test-caller}, optional
+ * {@code kc-mcp/test-caller-realm}, {@code kc-mcp/test-caller-roles} csv). Without such a
+ * hint it behaves like the default provider (request's {@code SecurityIdentity}), so the
+ * OIDC integration test sees real callers.
  */
 @Alternative
 @Priority(1)
@@ -62,7 +62,8 @@ public class MetaCallerProvider implements CallerProvider {
     private boolean identityAvailable() {
         try {
             return identities.isResolvable() && Arc.container().requestContext().isActive();
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             return false;
         }
     }

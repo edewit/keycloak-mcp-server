@@ -1,7 +1,6 @@
 package org.keycloak.mcp.guard;
 
 import java.util.Map;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -20,9 +19,10 @@ import org.keycloak.mcp.keycloak.KeycloakSystems;
 import io.vertx.core.json.JsonObject;
 
 /**
- * The single execution path for every tool, whether called directly or through {@code execute_tool}:
- * policy -> validation -> realm -> confirmation -> handler -> audit. In delegation mode {@code forward} the
- * caller's token replaces the server's credentials for the handler and the role checks.
+ * The single execution path for every tool, whether called directly or through
+ * {@code execute_tool}: policy -> validation -> realm -> confirmation -> handler ->
+ * audit. In delegation mode {@code forward} the caller's token replaces the server's
+ * credentials for the handler and the role checks.
  */
 @ApplicationScoped
 public class ToolInvoker {
@@ -71,17 +71,21 @@ public class ToolInvoker {
             if (delegation == DelegationMode.FORWARD && ctx.callerToken() == null) {
                 result = ToolResult.error("caller_required", "This server runs every Keycloak call with the caller's "
                         + "own token; connect through an authenticated (OAuth) MCP session first.");
-            } else if (delegation == DelegationMode.FORWARD && !ctx.caller().delegated()) {
+            }
+            else if (delegation == DelegationMode.FORWARD && !ctx.caller().delegated()) {
                 return invoke(spec, rawArgs, confirmFlag, ctx.withCaller(ctx.caller().asDelegated()));
-            } else if (!policy.permits(spec)) {
+            }
+            else if (!policy.permits(spec)) {
                 result = policy.forbids(spec, null).orElseThrow();
-            } else {
+            }
+            else {
                 ArgumentValidator.Outcome outcome = ArgumentValidator.validate(spec.inputSchema(), rawArgs);
                 if (!outcome.valid()) {
                     result = ToolResult.error("invalid_arguments", "Arguments do not match the tool schema.",
                             "problems", outcome.problems().stream().map(ArgumentValidator.Problem::toMap).toList(),
                             "inputSchema", spec.inputSchema().getMap());
-                } else {
+                }
+                else {
                     Map<String, Object> args = outcome.values();
                     KeycloakAdmin admin = null;
                     ToolResult systemError = null;
@@ -89,12 +93,14 @@ public class ToolInvoker {
                         String requested = (String) args.get(InputSchema.SYSTEM);
                         system = requested != null ? requested : systems.defaultName().orElse(null);
                         if (system == null) {
-                            systemError = ToolResult.error("system_required", "Pass the system argument.",
-                                    "systems", systems.names());
-                        } else if (systems.find(system).isEmpty()) {
-                            systemError = ToolResult.error("unknown_system", "No Keycloak system named '" + system + "'.",
-                                    "systems", systems.names());
-                        } else {
+                            systemError = ToolResult.error("system_required", "Pass the system argument.", "systems",
+                                    systems.names());
+                        }
+                        else if (systems.find(system).isEmpty()) {
+                            systemError = ToolResult.error("unknown_system",
+                                    "No Keycloak system named '" + system + "'.", "systems", systems.names());
+                        }
+                        else {
                             admin = systems.get(system);
                             if (delegation == DelegationMode.FORWARD) {
                                 admin = admin.forToken(ctx.callerToken());
@@ -109,16 +115,19 @@ public class ToolInvoker {
                     }
                     if (systemError != null) {
                         result = systemError;
-                    } else if (spec.realmScoped() && realm == null) {
+                    }
+                    else if (spec.realmScoped() && realm == null) {
                         result = ToolResult.error("realm_required", "Pass the realm argument.");
-                    } else {
+                    }
+                    else {
                         java.util.Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin);
                         result = denied.isPresent() ? denied.get()
                                 : runWithConfirmation(spec, system, admin, realm, args, confirmFlag, ctx);
                     }
                 }
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             LOG.debugf(e, "Tool %s failed", spec.name());
             result = ErrorMapper.map(e);
         }
@@ -136,8 +145,8 @@ public class ToolInvoker {
                 }
                 case CONFIRMATION_REQUIRED -> {
                     return ToolResult.error("confirmation_required",
-                            spec.title() + " is destructive and needs confirmation.",
-                            "howTo", "Ask the user, then call again with the same arguments plus confirm: true.");
+                            spec.title() + " is destructive and needs confirmation.", "howTo",
+                            "Ask the user, then call again with the same arguments plus confirm: true.");
                 }
                 default -> {
                     // confirmed
@@ -154,12 +163,13 @@ public class ToolInvoker {
         String outcome = "ok";
         if (result.isError() && result.payload() instanceof Map<?, ?> m && m.get("error") != null) {
             outcome = String.valueOf(m.get("error"));
-        } else if (result.isError()) {
+        }
+        else if (result.isError()) {
             outcome = "error";
         }
         AUDIT.infof("tool=%s level=%s system=%s realm=%s outcome=%s via=%s caller=%s%s client=%s conn=%s ms=%d",
-                spec.name(), spec.level(), system == null ? "-" : system, realm == null ? "-" : realm, outcome, ctx.via(),
-                ctx.caller().isAnonymous() ? "-" : ctx.caller().name() + "(" + ctx.caller().subject() + ")",
+                spec.name(), spec.level(), system == null ? "-" : system, realm == null ? "-" : realm, outcome,
+                ctx.via(), ctx.caller().isAnonymous() ? "-" : ctx.caller().name() + "(" + ctx.caller().subject() + ")",
                 ctx.caller().delegated() ? " delegated" : "", ctx.clientName(), ctx.connectionId(), nanos / 1_000_000);
     }
 }

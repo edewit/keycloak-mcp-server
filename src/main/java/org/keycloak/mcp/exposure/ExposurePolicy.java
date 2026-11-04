@@ -9,8 +9,9 @@ import org.keycloak.mcp.config.McpServerConfig;
 import org.keycloak.mcp.meta.MetaTools;
 
 /**
- * Decides which registered tools appear in {@code tools/list} for a given connection. READ_ONLY filtering is not
- * done here: tools that the {@link org.keycloak.mcp.guard.AccessPolicy} forbids are never registered at all.
+ * Decides which registered tools appear in {@code tools/list} for a given connection.
+ * READ_ONLY filtering is not done here: tools that the
+ * {@link org.keycloak.mcp.guard.AccessPolicy} forbids are never registered at all.
  */
 @ApplicationScoped
 public class ExposurePolicy {

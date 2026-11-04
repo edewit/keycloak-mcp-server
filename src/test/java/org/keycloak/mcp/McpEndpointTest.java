@@ -1,10 +1,5 @@
 package org.keycloak.mcp;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,8 +9,14 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
- * End-to-end over streamable HTTP, without a Keycloak: listing, search, dispatch, validation and the error shapes.
+ * End-to-end over streamable HTTP, without a Keycloak: listing, search, dispatch,
+ * validation and the error shapes.
  */
 @QuarkusTest
 class McpEndpointTest {
@@ -30,19 +31,19 @@ class McpEndpointTest {
     @Test
     void corsAllowsLocalOriginsOnly() {
         io.restassured.RestAssured.given()
-                .header("Origin", "http://localhost:5173")
-                .header("Access-Control-Request-Method", "POST")
-                .header("Access-Control-Request-Headers", "content-type,mcp-session-id,mcp-protocol-version")
-                .options("/mcp")
-                .then()
-                .header("Access-Control-Allow-Origin", "http://localhost:5173")
-                .header("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsStringIgnoringCase("mcp-session-id"));
+            .header("Origin", "http://localhost:5173")
+            .header("Access-Control-Request-Method", "POST")
+            .header("Access-Control-Request-Headers", "content-type,mcp-session-id,mcp-protocol-version")
+            .options("/mcp")
+            .then()
+            .header("Access-Control-Allow-Origin", "http://localhost:5173")
+            .header("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsStringIgnoringCase("mcp-session-id"));
         io.restassured.RestAssured.given()
-                .header("Origin", "https://evil.example")
-                .header("Access-Control-Request-Method", "POST")
-                .options("/mcp")
-                .then()
-                .header("Access-Control-Allow-Origin", org.hamcrest.Matchers.nullValue());
+            .header("Origin", "https://evil.example")
+            .header("Access-Control-Request-Method", "POST")
+            .options("/mcp")
+            .then()
+            .header("Access-Control-Allow-Origin", org.hamcrest.Matchers.nullValue());
     }
 
     @Test
@@ -51,10 +52,13 @@ class McpEndpointTest {
         List<String> names = tools.stream().map(t -> ((JsonObject) t).getString("name")).sorted().toList();
         assertEquals(List.of("execute_tool", "keycloak_realm_get_config", "keycloak_server_info", "keycloak_user_get",
                 "keycloak_user_search", "search_tools", "whoami"), names);
-        JsonObject search = tools.stream().map(t -> (JsonObject) t)
-                .filter(t -> t.getString("name").equals("keycloak_user_search")).findFirst().orElseThrow();
-        assertEquals("realm", search.getJsonObject("inputSchema").getJsonObject("properties").fieldNames().iterator()
-                .next());
+        JsonObject search = tools.stream()
+            .map(t -> (JsonObject) t)
+            .filter(t -> t.getString("name").equals("keycloak_user_search"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("realm",
+                search.getJsonObject("inputSchema").getJsonObject("properties").fieldNames().iterator().next());
         assertTrue(search.getJsonObject("annotations").getBoolean("readOnlyHint"));
     }
 
@@ -70,8 +74,8 @@ class McpEndpointTest {
 
     @Test
     void executeToolDispatchesToExtensionWithProviderConfig() {
-        JsonObject result = mcp.callTool("execute_tool", new JsonObject()
-                .put("name", "acme_ping").put("arguments", new JsonObject().put("name", "Tom")));
+        JsonObject result = mcp.callTool("execute_tool",
+                new JsonObject().put("name", "acme_ping").put("arguments", new JsonObject().put("name", "Tom")));
         assertFalse(result.getBoolean("isError", false));
         JsonObject r = McpClient.text(result);
         assertEquals("hello from config", r.getString("greeting"));
@@ -80,9 +84,11 @@ class McpEndpointTest {
 
     @Test
     void callerIsResolvedPerRequest() {
-        assertEquals("anonymous", McpClient.text(mcp.callTool("keycloak_acme_ping", new JsonObject())).getString("caller"));
+        assertEquals("anonymous",
+                McpClient.text(mcp.callTool("keycloak_acme_ping", new JsonObject())).getString("caller"));
         JsonObject meta = new JsonObject().put("kc-mcp/test-caller", "alice");
-        assertEquals("alice", McpClient.text(mcp.callTool("keycloak_acme_ping", new JsonObject(), meta)).getString("caller"));
+        assertEquals("alice",
+                McpClient.text(mcp.callTool("keycloak_acme_ping", new JsonObject(), meta)).getString("caller"));
     }
 
     @Test
@@ -107,14 +113,14 @@ class McpEndpointTest {
 
     @Test
     void validationErrorsViaExecuteTool() {
-        JsonObject result = mcp.callTool("execute_tool", new JsonObject()
-                .put("name", "keycloak_user_set_enabled").put("arguments", new JsonObject().put("realm", "demo")));
+        JsonObject result = mcp.callTool("execute_tool", new JsonObject().put("name", "keycloak_user_set_enabled")
+            .put("arguments", new JsonObject().put("realm", "demo")));
         assertTrue(result.getBoolean("isError"));
         JsonObject r = McpClient.text(result);
         assertEquals("invalid_arguments", r.getString("error"));
         assertNotNull(r.getJsonObject("inputSchema"));
-        JsonObject unknown = McpClient.text(mcp.callTool("execute_tool", new JsonObject()
-                .put("name", "keycloak_user_serach").put("arguments", new JsonObject())));
+        JsonObject unknown = McpClient.text(mcp.callTool("execute_tool",
+                new JsonObject().put("name", "keycloak_user_serach").put("arguments", new JsonObject())));
         assertEquals("unknown_tool", unknown.getString("error"));
         assertEquals("keycloak_user_search", unknown.getJsonArray("didYouMean").getJsonObject(0).getString("name"));
     }

@@ -1,9 +1,5 @@
 package org.keycloak.mcp;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,9 +10,14 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
- * "realm-manager" access level: client_credentials against a service account holding only view-users and
- * view-clients in realm demo. Tools needing other roles must be hidden and refused before reaching Keycloak.
+ * "realm-manager" access level: client_credentials against a service account holding only
+ * view-users and view-clients in realm demo. Tools needing other roles must be hidden and
+ * refused before reaching Keycloak.
  */
 @QuarkusTest
 @QuarkusTestResource(value = RealmManagerTestResource.class, restrictToAnnotatedClass = true)
@@ -54,8 +55,8 @@ class RealmManagerIT {
 
     @Test
     void toolsBeyondTheRolesAreRefusedLocally() {
-        JsonObject result = mcp.callTool("keycloak_user_set_enabled", new JsonObject().put("id", "bob")
-                .put("enabled", false));
+        JsonObject result = mcp.callTool("keycloak_user_set_enabled",
+                new JsonObject().put("id", "bob").put("enabled", false));
         assertTrue(result.getBoolean("isError"));
         JsonObject r = McpClient.text(result);
         assertEquals("forbidden", r.getString("error"));
@@ -64,7 +65,7 @@ class RealmManagerIT {
         assertEquals("forbidden", cfg.getString("error"));
         // bob is still enabled
         assertEquals(true, McpClient.text(mcp.callTool("keycloak_user_get", new JsonObject().put("id", "bob")))
-                .getBoolean("enabled"));
+            .getBoolean("enabled"));
     }
 
     @Test
@@ -73,7 +74,8 @@ class RealmManagerIT {
         List<String> names = s.getJsonArray("tools").stream().map(t -> ((JsonObject) t).getString("name")).toList();
         assertFalse(names.contains("keycloak_user_set_enabled"), names.toString());
         assertTrue(names.contains("keycloak_user_search"), names.toString());
-        JsonObject other = McpClient.text(mcp.callTool("keycloak_user_search", new JsonObject().put("realm", "master")));
+        JsonObject other = McpClient
+            .text(mcp.callTool("keycloak_user_search", new JsonObject().put("realm", "master")));
         assertEquals("realm_not_allowed", other.getString("error"));
     }
 }

@@ -22,7 +22,8 @@ import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RequiredActionProviderRepresentation;
 
 /**
- * AUTH_FLOWS: flows, executions, sub-flows, bindings, authenticator providers and required actions.
+ * AUTH_FLOWS: flows, executions, sub-flows, bindings, authenticator providers and
+ * required actions.
  */
 public class AuthFlowToolProvider extends AbstractToolProvider {
 
@@ -54,169 +55,196 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
     @Override
     public List<ToolSpec> tools(ToolProviderContext context) {
         return List.of(
-                tool("keycloak_auth_flows_list")
-                        .title("List authentication flows")
-                        .description("All flows with alias, built-in flag and which realm binding uses them.")
-                        .category(Category.AUTH_FLOWS).read()
-                        .synonyms("login flow", "browser flow", "mfa", "otp", "2fa", "passkey", "webauthn",
-                                "authentication", "which flow is bound")
-                        .handler(this::flows)
-                        .roles("view-realm")
-                        .api(get(R + "/authentication/flows"), get(R))
-                        .build(),
-                tool("keycloak_auth_flow_executions_list")
-                        .title("List flow executions")
-                        .description("Steps of a flow: id, requirement, provider, level, sub-flow markers.")
-                        .category(Category.AUTH_FLOWS).read()
-                        .synonyms("steps", "authenticators in flow", "requirement", "conditional otp", "flow structure")
-                        .schema(schema().string("flowAlias", "Flow alias, e.g. browser").required())
-                        .handler(this::executions)
-                        .roles("view-realm")
-                        .api(get(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias"))
-                        .build(),
-                tool("keycloak_auth_authenticator_providers_list")
-                        .title("List authenticator providers")
-                        .description("Provider ids that can be added as executions, e.g. auth-otp-form.")
-                        .category(Category.AUTH_FLOWS).read()
-                        .synonyms("available authenticators", "webauthn-authenticator", "conditional-user-configured",
-                                "provider id")
-                        .schema(schema().enumeration("type", "Provider kind (default authenticator)", "authenticator",
-                                "form-action", "client-authenticator").def("authenticator"))
-                        .handler(this::providers)
-                        .roles("view-realm")
-                        .api(get(R + "/authentication/authenticator-providers"), get(R + "/authentication/form-action-providers"), get(R + "/authentication/client-authenticator-providers"))
-                        .build(),
-                tool("keycloak_auth_flow_create")
-                        .title("Create authentication flow")
-                        .description("Create an empty top-level flow to fill with executions and sub-flows.")
-                        .category(Category.AUTH_FLOWS).write()
-                        .synonyms("new flow", "custom login", "passkey only flow", "empty flow")
-                        .schema(schema()
-                                .string("alias", "Alias of the new flow, e.g. 'passkey-browser'").required()
-                                .string("description", "Description"))
-                        .handler(this::flowCreate)
-                        .roles("manage-realm")
-                        .api(post(R + "/authentication/flows").body("AuthenticationFlowRepresentation", "alias", "description", "providerId", "topLevel", "builtIn"))
-                        .build(),
-                tool("keycloak_auth_flow_copy")
-                        .title("Copy authentication flow")
-                        .description("Duplicate a flow (built-in flows must be copied before editing).")
-                        .category(Category.AUTH_FLOWS).write()
-                        .synonyms("duplicate flow", "clone browser flow", "customize built-in")
-                        .schema(schema()
-                                .string("flowAlias", "Source flow alias, e.g. browser").required()
-                                .string("newName", "Alias of the copy").required())
-                        .handler(this::flowCopy)
-                        .roles("manage-realm")
-                        .api(post(R + "/authentication/flows/{flowAlias}/copy").path("flowAlias", "flowAlias"))
-                        .build(),
-                tool("keycloak_auth_flow_bind")
-                        .title("Bind flow to realm")
-                        .description("Make a flow the realm's browser, registration, direct grant, ... flow.")
-                        .category(Category.AUTH_FLOWS).destructive().idempotent(true)
-                        .synonyms("activate flow", "set browser flow", "use flow for login", "binding")
-                        .schema(schema()
-                                .enumeration("binding", "Realm slot to bind", BINDINGS).required()
-                                .string("flowAlias", "Alias of the flow to bind").required())
-                        .handler(this::flowBind)
-                        .delegation(Delegation.FORBIDDEN)
-                        .roles("manage-realm")
-                        .api(put(R).body("RealmRepresentation", "browserFlow", "registrationFlow", "directGrantFlow", "resetCredentialsFlow", "clientAuthenticationFlow", "dockerAuthenticationFlow", "firstBrokerLoginFlow"))
-                        .build(),
-                tool("keycloak_auth_flow_execution_add")
-                        .title("Add execution to flow")
-                        .description("Append an authenticator (by provider id) to a flow or sub-flow.")
-                        .category(Category.AUTH_FLOWS).write()
-                        .synonyms("add otp", "add webauthn", "add step", "add authenticator", "conditional")
-                        .schema(schema()
-                                .string("flowAlias", "Flow or sub-flow alias").required()
-                                .string("providerId", "Authenticator provider id, e.g. auth-otp-form").required()
-                                .enumeration("requirement", "Requirement to set right away", REQUIREMENTS))
-                        .handler(this::executionAdd)
-                        .roles("manage-realm")
-                        .api(post(R + "/authentication/flows/{flowAlias}/executions/execution").path("flowAlias", "flowAlias"), put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
-                        .build(),
-                tool("keycloak_auth_flow_subflow_add")
-                        .title("Add sub-flow")
-                        .description("Create a nested sub-flow inside a flow.")
-                        .category(Category.AUTH_FLOWS).write()
-                        .synonyms("nested flow", "forms subflow", "conditional subflow", "add flow step")
-                        .schema(schema()
-                                .string("parentFlowAlias", "Alias of the containing flow").required()
-                                .string("alias", "Alias of the new sub-flow").required()
-                                .string("description", "Description")
-                                .enumeration("type", "basic-flow (default) or form-flow", "basic-flow", "form-flow")
-                                .enumeration("requirement", "Requirement to set right away", REQUIREMENTS))
-                        .handler(this::subflowAdd)
-                        .roles("manage-realm")
-                        .api(post(R + "/authentication/flows/{flowAlias}/executions/flow").path("flowAlias", "parentFlowAlias"), put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "parentFlowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
-                        .build(),
-                tool("keycloak_auth_flow_execution_update")
-                        .title("Set execution requirement")
-                        .description("Change a step to REQUIRED, ALTERNATIVE, CONDITIONAL or DISABLED.")
-                        .category(Category.AUTH_FLOWS).write().idempotent(true)
-                        .synonyms("make otp required", "disable step", "alternative", "requirement")
-                        .schema(schema()
-                                .string("flowAlias", "Flow alias that contains the execution").required()
-                                .string("executionId", EXECUTION_ID).required()
-                                .enumeration("requirement", "New requirement", REQUIREMENTS).required())
-                        .handler(this::executionUpdate)
-                        .roles("manage-realm")
-                        .api(put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias").body("AuthenticationExecutionInfoRepresentation", "requirement"))
-                        .build(),
-                tool("keycloak_auth_flow_execution_raise_priority")
-                        .title("Move execution up")
-                        .description("Move a step one position up in its flow.")
-                        .category(Category.AUTH_FLOWS).write()
-                        .synonyms("reorder", "move up", "priority", "order of steps")
-                        .schema(schema().string("executionId", EXECUTION_ID).required())
-                        .handler(this::raise)
-                        .roles("manage-realm")
-                        .api(post(R + "/authentication/executions/{executionId}/raise-priority").path("executionId", "executionId"))
-                        .build(),
-                tool("keycloak_auth_flow_execution_lower_priority")
-                        .title("Move execution down")
-                        .description("Move a step one position down in its flow.")
-                        .category(Category.AUTH_FLOWS).write()
-                        .synonyms("reorder", "move down", "priority", "order of steps")
-                        .schema(schema().string("executionId", EXECUTION_ID).required())
-                        .handler(this::lower)
-                        .roles("manage-realm")
-                        .api(post(R + "/authentication/executions/{executionId}/lower-priority").path("executionId", "executionId"))
-                        .build(),
-                tool("keycloak_auth_flow_execution_delete")
-                        .title("Delete execution")
-                        .description("Remove a step (or sub-flow) from a flow.")
-                        .category(Category.AUTH_FLOWS).destructive()
-                        .synonyms("remove step", "remove authenticator", "delete subflow")
-                        .schema(schema().string("executionId", EXECUTION_ID).required())
-                        .handler(this::executionDelete)
-                        .roles("manage-realm")
-                        .api(delete(R + "/authentication/executions/{executionId}").path("executionId", "executionId"))
-                        .build(),
-                tool("keycloak_auth_required_actions_list")
-                        .title("List required actions")
-                        .description("Required actions (verify email, configure OTP, ...) with enabled/default flags.")
-                        .category(Category.AUTH_FLOWS).read()
-                        .synonyms("update password", "configure otp", "terms and conditions", "webauthn register",
-                                "default action")
-                        .handler(this::requiredActions)
-                        .roles("view-realm")
-                        .api(get(R + "/authentication/required-actions"))
-                        .build(),
-                tool("keycloak_auth_required_action_set_enabled")
-                        .title("Enable or disable required action")
-                        .description("Toggle a required action; optionally make it a default for new users.")
-                        .category(Category.AUTH_FLOWS).write().idempotent(true)
-                        .synonyms("enable otp setup", "disable terms", "default action", "force password change")
-                        .schema(schema()
-                                .string("alias", "Required action alias, e.g. CONFIGURE_TOTP").required()
-                                .bool("enabled", "true to enable, false to disable").required()
-                                .bool("defaultAction", "Also set/unset as default action for new users"))
-                        .handler(this::requiredActionSetEnabled)
-                        .roles("manage-realm")
-                        .api(put(R + "/authentication/required-actions/{alias}").path("alias", "alias").body("RequiredActionProviderRepresentation", "enabled", "defaultAction"))
-                        .build());
+                tool("keycloak_auth_flows_list").title("List authentication flows")
+                    .description("All flows with alias, built-in flag and which realm binding uses them.")
+                    .category(Category.AUTH_FLOWS)
+                    .read()
+                    .synonyms("login flow", "browser flow", "mfa", "otp", "2fa", "passkey", "webauthn",
+                            "authentication", "which flow is bound")
+                    .handler(this::flows)
+                    .roles("view-realm")
+                    .api(get(R + "/authentication/flows"), get(R))
+                    .build(),
+                tool("keycloak_auth_flow_executions_list").title("List flow executions")
+                    .description("Steps of a flow: id, requirement, provider, level, sub-flow markers.")
+                    .category(Category.AUTH_FLOWS)
+                    .read()
+                    .synonyms("steps", "authenticators in flow", "requirement", "conditional otp", "flow structure")
+                    .schema(schema().string("flowAlias", "Flow alias, e.g. browser").required())
+                    .handler(this::executions)
+                    .roles("view-realm")
+                    .api(get(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias"))
+                    .build(),
+                tool("keycloak_auth_authenticator_providers_list").title("List authenticator providers")
+                    .description("Provider ids that can be added as executions, e.g. auth-otp-form.")
+                    .category(Category.AUTH_FLOWS)
+                    .read()
+                    .synonyms("available authenticators", "webauthn-authenticator", "conditional-user-configured",
+                            "provider id")
+                    .schema(schema()
+                        .enumeration("type", "Provider kind (default authenticator)", "authenticator", "form-action",
+                                "client-authenticator")
+                        .def("authenticator"))
+                    .handler(this::providers)
+                    .roles("view-realm")
+                    .api(get(R + "/authentication/authenticator-providers"),
+                            get(R + "/authentication/form-action-providers"),
+                            get(R + "/authentication/client-authenticator-providers"))
+                    .build(),
+                tool("keycloak_auth_flow_create").title("Create authentication flow")
+                    .description("Create an empty top-level flow to fill with executions and sub-flows.")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .synonyms("new flow", "custom login", "passkey only flow", "empty flow")
+                    .schema(schema().string("alias", "Alias of the new flow, e.g. 'passkey-browser'")
+                        .required()
+                        .string("description", "Description"))
+                    .handler(this::flowCreate)
+                    .roles("manage-realm")
+                    .api(post(R + "/authentication/flows").body("AuthenticationFlowRepresentation", "alias",
+                            "description", "providerId", "topLevel", "builtIn"))
+                    .build(),
+                tool("keycloak_auth_flow_copy").title("Copy authentication flow")
+                    .description("Duplicate a flow (built-in flows must be copied before editing).")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .synonyms("duplicate flow", "clone browser flow", "customize built-in")
+                    .schema(schema().string("flowAlias", "Source flow alias, e.g. browser")
+                        .required()
+                        .string("newName", "Alias of the copy")
+                        .required())
+                    .handler(this::flowCopy)
+                    .roles("manage-realm")
+                    .api(post(R + "/authentication/flows/{flowAlias}/copy").path("flowAlias", "flowAlias"))
+                    .build(),
+                tool("keycloak_auth_flow_bind").title("Bind flow to realm")
+                    .description("Make a flow the realm's browser, registration, direct grant, ... flow.")
+                    .category(Category.AUTH_FLOWS)
+                    .destructive()
+                    .idempotent(true)
+                    .synonyms("activate flow", "set browser flow", "use flow for login", "binding")
+                    .schema(schema().enumeration("binding", "Realm slot to bind", BINDINGS)
+                        .required()
+                        .string("flowAlias", "Alias of the flow to bind")
+                        .required())
+                    .handler(this::flowBind)
+                    .delegation(Delegation.FORBIDDEN)
+                    .roles("manage-realm")
+                    .api(put(R).body("RealmRepresentation", "browserFlow", "registrationFlow", "directGrantFlow",
+                            "resetCredentialsFlow", "clientAuthenticationFlow", "dockerAuthenticationFlow",
+                            "firstBrokerLoginFlow"))
+                    .build(),
+                tool("keycloak_auth_flow_execution_add").title("Add execution to flow")
+                    .description("Append an authenticator (by provider id) to a flow or sub-flow.")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .synonyms("add otp", "add webauthn", "add step", "add authenticator", "conditional")
+                    .schema(schema().string("flowAlias", "Flow or sub-flow alias")
+                        .required()
+                        .string("providerId", "Authenticator provider id, e.g. auth-otp-form")
+                        .required()
+                        .enumeration("requirement", "Requirement to set right away", REQUIREMENTS))
+                    .handler(this::executionAdd)
+                    .roles("manage-realm")
+                    .api(post(R + "/authentication/flows/{flowAlias}/executions/execution").path("flowAlias",
+                            "flowAlias"),
+                            put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias")
+                                .body("AuthenticationExecutionInfoRepresentation", "requirement"))
+                    .build(),
+                tool("keycloak_auth_flow_subflow_add").title("Add sub-flow")
+                    .description("Create a nested sub-flow inside a flow.")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .synonyms("nested flow", "forms subflow", "conditional subflow", "add flow step")
+                    .schema(schema().string("parentFlowAlias", "Alias of the containing flow")
+                        .required()
+                        .string("alias", "Alias of the new sub-flow")
+                        .required()
+                        .string("description", "Description")
+                        .enumeration("type", "basic-flow (default) or form-flow", "basic-flow", "form-flow")
+                        .enumeration("requirement", "Requirement to set right away", REQUIREMENTS))
+                    .handler(this::subflowAdd)
+                    .roles("manage-realm")
+                    .api(post(R + "/authentication/flows/{flowAlias}/executions/flow").path("flowAlias",
+                            "parentFlowAlias"),
+                            put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "parentFlowAlias")
+                                .body("AuthenticationExecutionInfoRepresentation", "requirement"))
+                    .build(),
+                tool("keycloak_auth_flow_execution_update").title("Set execution requirement")
+                    .description("Change a step to REQUIRED, ALTERNATIVE, CONDITIONAL or DISABLED.")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .idempotent(true)
+                    .synonyms("make otp required", "disable step", "alternative", "requirement")
+                    .schema(schema().string("flowAlias", "Flow alias that contains the execution")
+                        .required()
+                        .string("executionId", EXECUTION_ID)
+                        .required()
+                        .enumeration("requirement", "New requirement", REQUIREMENTS)
+                        .required())
+                    .handler(this::executionUpdate)
+                    .roles("manage-realm")
+                    .api(put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias")
+                        .body("AuthenticationExecutionInfoRepresentation", "requirement"))
+                    .build(),
+                tool("keycloak_auth_flow_execution_raise_priority").title("Move execution up")
+                    .description("Move a step one position up in its flow.")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .synonyms("reorder", "move up", "priority", "order of steps")
+                    .schema(schema().string("executionId", EXECUTION_ID).required())
+                    .handler(this::raise)
+                    .roles("manage-realm")
+                    .api(post(R + "/authentication/executions/{executionId}/raise-priority").path("executionId",
+                            "executionId"))
+                    .build(),
+                tool("keycloak_auth_flow_execution_lower_priority").title("Move execution down")
+                    .description("Move a step one position down in its flow.")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .synonyms("reorder", "move down", "priority", "order of steps")
+                    .schema(schema().string("executionId", EXECUTION_ID).required())
+                    .handler(this::lower)
+                    .roles("manage-realm")
+                    .api(post(R + "/authentication/executions/{executionId}/lower-priority").path("executionId",
+                            "executionId"))
+                    .build(),
+                tool("keycloak_auth_flow_execution_delete").title("Delete execution")
+                    .description("Remove a step (or sub-flow) from a flow.")
+                    .category(Category.AUTH_FLOWS)
+                    .destructive()
+                    .synonyms("remove step", "remove authenticator", "delete subflow")
+                    .schema(schema().string("executionId", EXECUTION_ID).required())
+                    .handler(this::executionDelete)
+                    .roles("manage-realm")
+                    .api(delete(R + "/authentication/executions/{executionId}").path("executionId", "executionId"))
+                    .build(),
+                tool("keycloak_auth_required_actions_list").title("List required actions")
+                    .description("Required actions (verify email, configure OTP, ...) with enabled/default flags.")
+                    .category(Category.AUTH_FLOWS)
+                    .read()
+                    .synonyms("update password", "configure otp", "terms and conditions", "webauthn register",
+                            "default action")
+                    .handler(this::requiredActions)
+                    .roles("view-realm")
+                    .api(get(R + "/authentication/required-actions"))
+                    .build(),
+                tool("keycloak_auth_required_action_set_enabled").title("Enable or disable required action")
+                    .description("Toggle a required action; optionally make it a default for new users.")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .idempotent(true)
+                    .synonyms("enable otp setup", "disable terms", "default action", "force password change")
+                    .schema(schema().string("alias", "Required action alias, e.g. CONFIGURE_TOTP")
+                        .required()
+                        .bool("enabled", "true to enable, false to disable")
+                        .required()
+                        .bool("defaultAction", "Also set/unset as default action for new users"))
+                    .handler(this::requiredActionSetEnabled)
+                    .roles("manage-realm")
+                    .api(put(R + "/authentication/required-actions/{alias}").path("alias", "alias")
+                        .body("RequiredActionProviderRepresentation", "enabled", "defaultAction"))
+                    .build());
     }
 
     private static AuthenticationManagementResource flowsOf(ToolCall call) {
@@ -233,7 +261,10 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         throw ToolException.notFound("Authentication flow", alias);
     }
 
-    /** Top-level flow or sub-flow alias; sub-flows are not in {@code getFlows()} but accept execution calls. */
+    /**
+     * Top-level flow or sub-flow alias; sub-flows are not in {@code getFlows()} but
+     * accept execution calls.
+     */
     private String flowOrSubflow(ToolCall call, String alias) {
         for (AuthenticationFlowRepresentation f : flowsOf(call).getFlows()) {
             if (f.getAlias().equals(alias)) {
@@ -243,7 +274,8 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         try {
             flowsOf(call).getExecutions(alias);
             return alias;
-        } catch (jakarta.ws.rs.NotFoundException | jakarta.ws.rs.BadRequestException e) {
+        }
+        catch (jakarta.ws.rs.NotFoundException | jakarta.ws.rs.BadRequestException e) {
             throw ToolException.notFound("Authentication flow", alias);
         }
     }
@@ -269,8 +301,11 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
             Views.put(v, "description", f.getDescription());
             v.put("providerId", f.getProviderId());
             v.put("builtIn", f.isBuiltIn());
-            List<String> usedBy = bound.entrySet().stream().filter(e -> f.getAlias().equals(e.getValue()))
-                    .map(Map.Entry::getKey).toList();
+            List<String> usedBy = bound.entrySet()
+                .stream()
+                .filter(e -> f.getAlias().equals(e.getValue()))
+                .map(Map.Entry::getKey)
+                .toList();
             if (!usedBy.isEmpty()) {
                 v.put("boundAs", usedBy);
             }
@@ -301,7 +336,8 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
     ToolResult executions(ToolCall call) {
         String alias = flowOrSubflow(call, call.str("flowAlias"));
         List<AuthenticationExecutionInfoRepresentation> execs = flowsOf(call).getExecutions(alias);
-        Map<String, Object> page = Views.page(Views.list(execs, AuthFlowToolProvider::executionView), Integer.MAX_VALUE);
+        Map<String, Object> page = Views.page(Views.list(execs, AuthFlowToolProvider::executionView),
+                Integer.MAX_VALUE);
         page.put("flowAlias", alias);
         return ToolResult.ok(page);
     }
@@ -338,7 +374,8 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
 
     ToolResult flowCopy(ToolCall call) {
         AuthenticationFlowRepresentation source = findFlow(call, call.str("flowAlias"));
-        KeycloakAdmin.ok(flowsOf(call).copy(source.getAlias(), Map.of("newName", Objects.requireNonNull(call.str("newName")))));
+        KeycloakAdmin
+            .ok(flowsOf(call).copy(source.getAlias(), Map.of("newName", Objects.requireNonNull(call.str("newName")))));
         return ToolResult.done("Flow copied", "from", source.getAlias(), "alias", call.str("newName"));
     }
 
@@ -355,14 +392,16 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
             case "clientAuthenticationFlow" -> r.setClientAuthenticationFlow(flow.getAlias());
             case "dockerAuthenticationFlow" -> r.setDockerAuthenticationFlow(flow.getAlias());
             case "firstBrokerLoginFlow" -> r.setFirstBrokerLoginFlow(flow.getAlias());
-            case null -> {}
+            case null -> {
+            }
             default -> throw new ToolException("invalid_arguments", "Unknown binding " + binding);
         }
         call.kc().realm(call.realm()).update(r);
         return ToolResult.done("Flow bound", "binding", binding, "flowAlias", flow.getAlias(), "previous", previous);
     }
 
-    private AuthenticationExecutionInfoRepresentation findExecution(ToolCall call, String flowAlias, String executionId) {
+    private AuthenticationExecutionInfoRepresentation findExecution(ToolCall call, String flowAlias,
+            String executionId) {
         for (AuthenticationExecutionInfoRepresentation e : flowsOf(call).getExecutions(flowAlias)) {
             if (e.getId().equals(executionId)) {
                 return e;
@@ -402,9 +441,9 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         if (added != null && call.has("requirement")) {
             setRequirement(call, flowAlias, added, call.str("requirement"));
         }
-        return ToolResult.done("Execution added", "flowAlias", flowAlias, "providerId", providerId,
-                "executionId", added == null ? null : added.getId(),
-                "requirement", added == null ? null : call.str("requirement", added.getRequirement()));
+        return ToolResult.done("Execution added", "flowAlias", flowAlias, "providerId", providerId, "executionId",
+                added == null ? null : added.getId(), "requirement",
+                added == null ? null : call.str("requirement", added.getRequirement()));
     }
 
     ToolResult subflowAdd(ToolCall call) {
@@ -424,8 +463,8 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         if (added != null && call.has("requirement")) {
             setRequirement(call, parentAlias, added, call.str("requirement"));
         }
-        return ToolResult.done("Sub-flow added", "parentFlowAlias", parentAlias, "alias", alias,
-                "executionId", added == null ? null : added.getId());
+        return ToolResult.done("Sub-flow added", "parentFlowAlias", parentAlias, "alias", alias, "executionId",
+                added == null ? null : added.getId());
     }
 
     ToolResult executionUpdate(ToolCall call) {
@@ -433,8 +472,8 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         AuthenticationExecutionInfoRepresentation e = findExecution(call, flowAlias, call.str("executionId"));
         String requirement = call.str("requirement");
         if (e.getRequirementChoices() != null && !e.getRequirementChoices().contains(requirement)) {
-            throw new ToolException("invalid_arguments", "Execution '" + e.getDisplayName() + "' allows only "
-                    + e.getRequirementChoices());
+            throw new ToolException("invalid_arguments",
+                    "Execution '" + e.getDisplayName() + "' allows only " + e.getRequirementChoices());
         }
         setRequirement(call, flowAlias, e, requirement);
         return ToolResult.done("Requirement set", "executionId", e.getId(), "displayName", e.getDisplayName(),
@@ -475,7 +514,8 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         RequiredActionProviderRepresentation a;
         try {
             a = flows.getRequiredAction(call.str("alias"));
-        } catch (jakarta.ws.rs.NotFoundException e) {
+        }
+        catch (jakarta.ws.rs.NotFoundException e) {
             throw ToolException.notFound("Required action", call.str("alias"));
         }
         a.setEnabled(Boolean.TRUE.equals(call.bool("enabled")));

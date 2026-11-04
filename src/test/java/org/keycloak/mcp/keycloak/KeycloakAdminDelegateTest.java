@@ -1,10 +1,5 @@
 package org.keycloak.mcp.keycloak;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
@@ -17,13 +12,22 @@ import org.keycloak.mcp.config.GrantType;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
 
-/** Quarkus test only because the admin client needs the REST client provider the extension registers. */
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Quarkus test only because the admin client needs the REST client provider the extension
+ * registers.
+ */
 @QuarkusTest
 class KeycloakAdminDelegateTest {
 
     private static String jwt(long exp) {
-        String payload = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(new JsonObject().put("exp", exp).put("sub", "u").encode().getBytes(StandardCharsets.UTF_8));
+        String payload = Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(new JsonObject().put("exp", exp).put("sub", "u").encode().getBytes(StandardCharsets.UTF_8));
         return "eyJhbGciOiJub25lIn0." + payload + ".sig";
     }
 

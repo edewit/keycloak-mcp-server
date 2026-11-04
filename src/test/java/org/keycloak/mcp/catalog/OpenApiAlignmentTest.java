@@ -1,7 +1,5 @@
 package org.keycloak.mcp.catalog;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -11,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-
 import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Test;
@@ -21,16 +18,20 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
- * Checks every tool's {@link ApiOperation} bindings against the Keycloak Admin REST OpenAPI document of a concrete
- * server version ({@code src/test/resources/openapi/keycloak-<version>.json}, pick with
+ * Checks every tool's {@link ApiOperation} bindings against the Keycloak Admin REST
+ * OpenAPI document of a concrete server version
+ * ({@code src/test/resources/openapi/keycloak-<version>.json}, pick with
  * {@code -Dkeycloak.openapi.version=...}):
  * <ul>
  * <li>operation exists and is not deprecated,</li>
  * <li>every path template parameter is bound to an existing tool argument,</li>
- * <li>every bound query parameter exists in the spec, with a compatible type and enum,</li>
- * <li>every body field exists in the referenced schema, with a compatible type when the tool has an argument of
- * the same name.</li>
+ * <li>every bound query parameter exists in the spec, with a compatible type and
+ * enum,</li>
+ * <li>every body field exists in the referenced schema, with a compatible type when the
+ * tool has an argument of the same name.</li>
  * </ul>
  * Spec query parameters the tool does not expose are reported, not failed.
  */
@@ -88,7 +89,8 @@ class OpenApiAlignmentTest {
                     String toolArg = op.pathParams().get(templateParam);
                     if (toolArg == null) {
                         problems.add(where + ": path parameter {" + templateParam + "} not bound");
-                    } else if (!ApiOperation.DERIVED.equals(toolArg) && !toolProps.containsKey(toolArg)) {
+                    }
+                    else if (!ApiOperation.DERIVED.equals(toolArg) && !toolProps.containsKey(toolArg)) {
                         problems.add(where + ": path parameter {" + templateParam + "} bound to unknown tool argument '"
                                 + toolArg + "'");
                     }
@@ -157,11 +159,12 @@ class OpenApiAlignmentTest {
             }
         }
 
-        System.out.println("OpenAPI " + VERSION + ": " + operations + " operations checked across "
-                + catalog.size() + " tools");
+        System.out.println(
+                "OpenAPI " + VERSION + ": " + operations + " operations checked across " + catalog.size() + " tools");
         unspecified.forEach(u -> System.out.println("  not in spec: " + u));
         unexposed.forEach((t, ps) -> System.out.println("  " + t + " does not expose " + ps));
-        assertTrue(problems.isEmpty(), "OpenAPI " + VERSION + " alignment problems:\n  " + String.join("\n  ", problems));
+        assertTrue(problems.isEmpty(),
+                "OpenAPI " + VERSION + " alignment problems:\n  " + String.join("\n  ", problems));
     }
 
     private static void collectParams(JsonArray params, Map<String, JsonObject> out) {
@@ -189,7 +192,10 @@ class OpenApiAlignmentTest {
         return ref == null ? null : ref.substring(ref.lastIndexOf('/') + 1);
     }
 
-    /** Resolves {@code $ref} and compares the JSON types; a string tool argument may feed an array-of-strings. */
+    /**
+     * Resolves {@code $ref} and compares the JSON types; a string tool argument may feed
+     * an array-of-strings.
+     */
     private static void checkType(String where, JsonObject toolParam, JsonObject specSchema, JsonObject schemas,
             List<String> problems) {
         if (specSchema == null) {
@@ -229,8 +235,12 @@ class OpenApiAlignmentTest {
 
     private static String nearest(JsonObject paths, String path) {
         String prefix = path.substring(0, Math.max(path.lastIndexOf('/'), 1));
-        List<String> candidates = paths.fieldNames().stream().filter(p -> p.startsWith(prefix)).sorted().limit(6)
-                .toList();
+        List<String> candidates = paths.fieldNames()
+            .stream()
+            .filter(p -> p.startsWith(prefix))
+            .sorted()
+            .limit(6)
+            .toList();
         return candidates.isEmpty() ? "" : "; similar: " + candidates;
     }
 

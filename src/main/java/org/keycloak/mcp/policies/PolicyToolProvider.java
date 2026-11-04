@@ -8,10 +8,11 @@ import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 
 /**
- * Built-in policies: no tools, only access checks. Configure with {@code kc-mcp.spi.policies.*}:
- * {@code group-scope=off|group|organization}, {@code manager-role=realm:group-manager}, {@code no-escalation=true},
- * {@code anonymous=allow|deny}, {@code super-roles=...}. Both checks only act for authenticated callers unless
- * {@code anonymous=deny}.
+ * Built-in policies: no tools, only access checks. Configure with
+ * {@code kc-mcp.spi.policies.*}: {@code group-scope=off|group|organization},
+ * {@code manager-role=realm:group-manager}, {@code no-escalation=true},
+ * {@code anonymous=allow|deny}, {@code super-roles=...}. Both checks only act for
+ * authenticated callers unless {@code anonymous=deny}.
  */
 public class PolicyToolProvider implements ToolProvider {
 
@@ -53,7 +54,8 @@ public class PolicyToolProvider implements ToolProvider {
             java.util.Map<String, RealmDirectory> cache = new java.util.concurrent.ConcurrentHashMap<>();
             directories = ctx -> {
                 if (ctx.keycloak() != null && ctx.keycloak().isDelegated()) {
-                    // delegated call: look things up with the caller's own token, the server may have none
+                    // delegated call: look things up with the caller's own token, the
+                    // server may have none
                     return new KeycloakDirectory(ctx.keycloak());
                 }
                 String system = ctx.system();

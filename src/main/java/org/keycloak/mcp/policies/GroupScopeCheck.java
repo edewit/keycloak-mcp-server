@@ -7,19 +7,17 @@ import java.util.Set;
 import org.keycloak.mcp.spi.AccessCheck;
 
 /**
- * A caller may only manage a group they are a member of (or a subgroup of such a group), or, in organization
- * mode, a group that belongs to one of the caller's organizations. Optionally requires a manager role.
+ * A caller may only manage a group they are a member of (or a subgroup of such a group),
+ * or, in organization mode, a group that belongs to one of the caller's organizations.
+ * Optionally requires a manager role.
  */
 public final class GroupScopeCheck implements AccessCheck {
 
     /** tool name -> argument naming the target group */
-    static final java.util.Map<String, String> GROUP_ARG = java.util.Map.of(
-            "keycloak_group_delete", "id",
-            "keycloak_group_members_list", "groupId",
-            "keycloak_group_member_add", "groupId",
-            "keycloak_group_member_remove", "groupId",
-            "keycloak_group_role_assign", "groupId",
-            "keycloak_group_create", "parentId");
+    static final java.util.Map<String, String> GROUP_ARG = java.util.Map.of("keycloak_group_delete", "id",
+            "keycloak_group_members_list", "groupId", "keycloak_group_member_add", "groupId",
+            "keycloak_group_member_remove", "groupId", "keycloak_group_role_assign", "groupId", "keycloak_group_create",
+            "parentId");
 
     private final java.util.function.Function<Context, RealmDirectory> directories;
     private final PolicySettings settings;
@@ -48,8 +46,8 @@ public final class GroupScopeCheck implements AccessCheck {
             return CallerContext.unknownCaller(ctx);
         }
         if (!CallerContext.hasEffectiveRole(directory, ctx.realm(), userId, ctx.caller(), settings.managerRole())) {
-            return Decision.deny("manager_role_required", "Managing groups requires the role "
-                    + settings.managerRole() + ".");
+            return Decision.deny("manager_role_required",
+                    "Managing groups requires the role " + settings.managerRole() + ".");
         }
         String groupRef = ctx.arg(GROUP_ARG.get(ctx.tool().name()));
         if (groupRef == null) {
@@ -74,8 +72,8 @@ public final class GroupScopeCheck implements AccessCheck {
                 return Decision.allow();
             }
         }
-        return Decision.deny("group_out_of_scope", "Caller '" + ctx.caller().name() + "' is not a member of "
-                + target + " or one of its parent groups.");
+        return Decision.deny("group_out_of_scope",
+                "Caller '" + ctx.caller().name() + "' is not a member of " + target + " or one of its parent groups.");
     }
 
     private Decision inOwnOrganizations(RealmDirectory directory, Context ctx, String userId, String target) {
@@ -86,7 +84,7 @@ public final class GroupScopeCheck implements AccessCheck {
                 return Decision.allow();
             }
         }
-        return Decision.deny("group_out_of_scope", "Group " + target + " does not belong to an organization of caller '"
-                + ctx.caller().name() + "'.");
+        return Decision.deny("group_out_of_scope",
+                "Group " + target + " does not belong to an organization of caller '" + ctx.caller().name() + "'.");
     }
 }

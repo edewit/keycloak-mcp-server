@@ -4,7 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -36,13 +35,15 @@ public class KeycloakSystems {
         }
         if (defaultSystem != null) {
             if (!admins.containsKey(defaultSystem)) {
-                throw new IllegalStateException("kc-mcp.default-system '" + defaultSystem + "' is not one of "
-                        + admins.keySet());
+                throw new IllegalStateException(
+                        "kc-mcp.default-system '" + defaultSystem + "' is not one of " + admins.keySet());
             }
             this.defaultName = defaultSystem;
-        } else if (admins.size() == 1) {
+        }
+        else if (admins.size() == 1) {
             this.defaultName = admins.keySet().iterator().next();
-        } else {
+        }
+        else {
             this.defaultName = admins.containsKey(KeycloakSystem.DEFAULT_NAME) ? KeycloakSystem.DEFAULT_NAME : null;
         }
         ErrorMapper.register(KeycloakErrors::map);
@@ -52,8 +53,12 @@ public class KeycloakSystems {
         if (config.systems().isEmpty()) {
             return List.of(KeycloakSystem.fromTopLevel(config));
         }
-        return config.systems().entrySet().stream().sorted(Map.Entry.comparingByKey())
-                .map(e -> KeycloakSystem.resolve(e.getKey(), config, e.getValue())).toList();
+        return config.systems()
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(e -> KeycloakSystem.resolve(e.getKey(), config, e.getValue()))
+            .toList();
     }
 
     /** System names, default first, then alphabetical. */
@@ -70,7 +75,10 @@ public class KeycloakSystems {
         return admins.size() > 1;
     }
 
-    /** Name of the system used when none is given; empty when several systems exist and none is the default. */
+    /**
+     * Name of the system used when none is given; empty when several systems exist and
+     * none is the default.
+     */
     public Optional<String> defaultName() {
         return Optional.ofNullable(defaultName);
     }

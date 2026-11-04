@@ -1,7 +1,6 @@
 package org.keycloak.mcp.guard;
 
 import java.time.Duration;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -15,8 +14,8 @@ import io.quarkiverse.mcp.server.ElicitationResponse;
 import io.vertx.core.json.JsonObject;
 
 /**
- * 1. If the client supports form-mode elicitation, ask the human and accept only an explicit ACCEPT + true.
- * 2. Otherwise require {@code confirm: true} in the arguments.
+ * 1. If the client supports form-mode elicitation, ask the human and accept only an
+ * explicit ACCEPT + true. 2. Otherwise require {@code confirm: true} in the arguments.
  */
 @ApplicationScoped
 public class DefaultConfirmer implements Confirmer {
@@ -41,7 +40,8 @@ public class DefaultConfirmer implements Confirmer {
         if (elicitation != null) {
             try {
                 canElicit = elicitation.isFormModeSupported();
-            } catch (RuntimeException e) {
+            }
+            catch (RuntimeException e) {
                 canElicit = false;
             }
         }
@@ -56,17 +56,18 @@ public class DefaultConfirmer implements Confirmer {
                 + "?\n" + spec.name() + " " + args.encode();
         try {
             ElicitationResponse response = elicitation.requestBuilder()
-                    .setMessage(message)
-                    .addSchemaProperty("confirm", new BooleanSchema("Confirm", "Proceed with " + spec.name(), false, true))
-                    .setTimeout(timeout)
-                    .build()
-                    .sendAndAwait();
+                .setMessage(message)
+                .addSchemaProperty("confirm", new BooleanSchema("Confirm", "Proceed with " + spec.name(), false, true))
+                .setTimeout(timeout)
+                .build()
+                .sendAndAwait();
             if (!response.actionAccepted()) {
                 return Decision.DECLINED;
             }
             Boolean yes = response.content().getBoolean("confirm");
             return Boolean.TRUE.equals(yes) ? Decision.CONFIRMED : Decision.DECLINED;
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e) {
             LOG.warnf("Elicitation for %s failed: %s", spec.name(), e.toString());
             return Decision.DECLINED;
         }

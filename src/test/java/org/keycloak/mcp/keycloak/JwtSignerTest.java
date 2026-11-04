@@ -1,9 +1,5 @@
 package org.keycloak.mcp.keycloak;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -14,6 +10,10 @@ import java.util.Base64;
 import org.junit.jupiter.api.Test;
 
 import io.vertx.core.json.JsonObject;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JwtSignerTest {
 
@@ -54,7 +54,8 @@ class JwtSignerTest {
                 + Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(kp.getPrivate().getEncoded())
                 + "\n-----END PRIVATE KEY-----\n";
         assertEquals(kp.getPrivate(), JwtSigner.parsePem(pem));
-        assertThrows(Exception.class, () -> JwtSigner.parsePem("-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----"));
+        assertThrows(Exception.class,
+                () -> JwtSigner.parsePem("-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----"));
     }
 
     @Test
@@ -65,7 +66,8 @@ class JwtSignerTest {
         for (String base : new String[] { "https://sso.example.com/auth", "https://sso.example.com/auth/" }) {
             ClientAssertionTokenManager tm = new ClientAssertionTokenManager(null, base, "master", "c", signer, 60,
                     org.keycloak.mcp.config.GrantType.CLIENT_CREDENTIALS, null, null);
-            assertEquals("https://sso.example.com/auth/realms/master/protocol/openid-connect/token", tm.tokenEndpoint());
+            assertEquals("https://sso.example.com/auth/realms/master/protocol/openid-connect/token",
+                    tm.tokenEndpoint());
             assertEquals("https://sso.example.com/auth/realms/master", tm.audience());
         }
     }

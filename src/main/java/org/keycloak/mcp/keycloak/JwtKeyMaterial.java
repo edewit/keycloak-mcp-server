@@ -1,7 +1,6 @@
 package org.keycloak.mcp.keycloak;
 
 import java.util.concurrent.locks.ReentrantLock;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -12,7 +11,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
- * The {@code private_key_jwt} signing key, loaded once and shared by the token manager and the JWKS endpoint.
+ * The {@code private_key_jwt} signing key, loaded once and shared by the token manager
+ * and the JWKS endpoint.
  */
 @ApplicationScoped
 public class JwtKeyMaterial {
@@ -46,7 +46,8 @@ public class JwtKeyMaterial {
                 signer = JwtSigner.fromConfig(config.jwt());
             }
             return signer;
-        } finally {
+        }
+        finally {
             lock.unlock();
         }
     }

@@ -7,16 +7,14 @@ import java.util.Locale;
  */
 public enum Category {
     USERS("Find, create, update, enable/disable, delete users; passwords, action emails, role mappings"),
-    GROUPS("Groups, group membership and group role mappings"),
-    ROLES("Realm roles and client roles"),
+    GROUPS("Groups, group membership and group role mappings"), ROLES("Realm roles and client roles"),
     CLIENTS("OIDC/SAML clients: list, create, update, delete, secrets, mappers, client roles"),
     CLIENT_SCOPES("Client scopes and their assignment to clients"),
     IDP("Identity providers (Google, GitHub, SAML, OIDC brokers) and their mappers"),
     ORGS("Organizations (tenants) and their identity provider links"),
     FEDERATION("User federation providers (LDAP, Active Directory, Kerberos) and sync"),
     AUTH_FLOWS("Authentication flows, executions, required actions, authenticator providers"),
-    EVENTS("Login events and admin events"),
-    REALM("Realm configuration, SMTP, WebAuthn, server info"),
+    EVENTS("Login events and admin events"), REALM("Realm configuration, SMTP, WebAuthn, server info"),
     SESSIONS("User sessions and logout");
 
     private final String blurb;

@@ -15,7 +15,8 @@ import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolSpec;
 
 /**
- * Deterministic lexical index over the tool catalog. See implementation-plan.md §5 for the scoring table.
+ * Deterministic lexical index over the tool catalog. See implementation-plan.md §5 for
+ * the scoring table.
  */
 public class ToolIndex {
 
@@ -38,15 +39,13 @@ public class ToolIndex {
     public ToolIndex(Collection<ToolSpec> specs) {
         for (ToolSpec spec : specs) {
             String shortName = spec.name().startsWith("keycloak_") ? spec.name().substring(9) : spec.name();
-            Doc doc = new Doc(spec,
-                    new HashSet<>(Tokenizer.tokens(shortName)),
-                    new HashSet<>(Tokenizer.tokens(spec.title())),
-                    synonymTokens(spec.synonyms()),
-                    // the category blurb lists verbs ("find, create, delete users") and is only weak evidence
+            Doc doc = new Doc(spec, new HashSet<>(Tokenizer.tokens(shortName)),
+                    new HashSet<>(Tokenizer.tokens(spec.title())), synonymTokens(spec.synonyms()),
+                    // the category blurb lists verbs ("find, create, delete users") and
+                    // is only weak evidence
                     new HashSet<>(Tokenizer.tokens(spec.description() + " " + spec.category().blurb())),
                     new HashSet<>(Tokenizer.tokens(String.join(" ", spec.parameterNames()))),
-                    new HashSet<>(Tokenizer.tokens(spec.category().name())),
-                    shortName);
+                    new HashSet<>(Tokenizer.tokens(spec.category().name())), shortName);
             docs.add(doc);
             byName.put(spec.name(), doc);
         }
@@ -76,7 +75,8 @@ public class ToolIndex {
                 hits.add(new SearchHit(doc.spec, score));
             }
         }
-        // ties: reads before writes, then the tool whose name the query covers best ("assign role to user" ->
+        // ties: reads before writes, then the tool whose name the query covers best
+        // ("assign role to user" ->
         // user_role_assign rather than user_client_role_assign), then the name
         Map<String, Integer> unmatched = new HashMap<>();
         for (SearchHit h : hits) {
@@ -89,10 +89,11 @@ public class ToolIndex {
             }
             unmatched.put(h.spec().name(), n);
         }
-        hits.sort(Comparator.comparingInt(SearchHit::score).reversed()
-                .thenComparing(h -> h.spec().level())
-                .thenComparingInt(h -> unmatched.get(h.spec().name()))
-                .thenComparing(h -> h.spec().name()));
+        hits.sort(Comparator.comparingInt(SearchHit::score)
+            .reversed()
+            .thenComparing(h -> h.spec().level())
+            .thenComparingInt(h -> unmatched.get(h.spec().name()))
+            .thenComparing(h -> h.spec().name()));
         return hits.size() > limit ? new ArrayList<>(hits.subList(0, limit)) : hits;
     }
 
@@ -111,7 +112,8 @@ public class ToolIndex {
             for (String t : qTokens) {
                 if (doc.nameTokens.contains(t)) {
                     score += NAME_TOKEN;
-                } else if (doc.synonymTokens.contains(t) || doc.titleTokens.contains(t)) {
+                }
+                else if (doc.synonymTokens.contains(t) || doc.titleTokens.contains(t)) {
                     score += TITLE_TOKEN;
                 }
             }
@@ -128,7 +130,8 @@ public class ToolIndex {
         if (!qName.isEmpty()) {
             if (qName.equals(doc.spec.name()) || qName.equals(doc.shortName)) {
                 score += EXACT_NAME;
-            } else if (qName.length() >= 6) {
+            }
+            else if (qName.length() >= 6) {
                 String qShort = qName.startsWith("keycloak_") ? qName.substring(9) : qName;
                 if (Fuzzy.distance(qShort, doc.shortName, 2) <= 2) {
                     score += FUZZY_NAME;
@@ -136,24 +139,31 @@ public class ToolIndex {
             }
         }
         for (String t : qTokens) {
-            // each query token counts once, at the strongest field it occurs in; summing fields let tools with
-            // verbose titles, synonyms or descriptions outrank the tool whose name says exactly that
+            // each query token counts once, at the strongest field it occurs in; summing
+            // fields let tools with
+            // verbose titles, synonyms or descriptions outrank the tool whose name says
+            // exactly that
             int best = 0;
             if (doc.nameTokens.contains(t)) {
                 best = NAME_TOKEN;
-            } else if (doc.titleTokens.contains(t)) {
+            }
+            else if (doc.titleTokens.contains(t)) {
                 best = TITLE_TOKEN;
-            } else if (doc.synonymTokens.contains(t)) {
+            }
+            else if (doc.synonymTokens.contains(t)) {
                 best = SYNONYM_TOKEN;
-            } else if (doc.categoryTokens.contains(t)) {
+            }
+            else if (doc.categoryTokens.contains(t)) {
                 best = CATEGORY_TOKEN;
-            } else if (doc.descriptionTokens.contains(t) || doc.paramTokens.contains(t)) {
+            }
+            else if (doc.descriptionTokens.contains(t) || doc.paramTokens.contains(t)) {
                 best = DESCRIPTION_TOKEN;
             }
             score += best;
             boolean matched = best > 0;
             if (!matched && t.length() >= 4) {
-                // prefix match on name/title tokens: "auth" ~ "authenticator", "fed" ~ "federation"
+                // prefix match on name/title tokens: "auth" ~ "authenticator", "fed" ~
+                // "federation"
                 for (String nt : doc.nameTokens) {
                     if (nt.startsWith(t) || t.startsWith(nt) && nt.length() >= 4) {
                         score += PREFIX_TOKEN;

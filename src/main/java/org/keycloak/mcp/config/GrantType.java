@@ -26,8 +26,8 @@ public enum GrantType {
         return switch (v) {
             case "CLIENT_CREDENTIALS" -> CLIENT_CREDENTIALS;
             case "PASSWORD" -> PASSWORD;
-            default -> throw new IllegalArgumentException("Unknown grant type '" + value
-                    + "', expected client_credentials or password");
+            default -> throw new IllegalArgumentException(
+                    "Unknown grant type '" + value + "', expected client_credentials or password");
         };
     }
 
