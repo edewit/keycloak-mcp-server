@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.GrantedRoles;
+import org.keycloak.mcp.keycloak.KeycloakAdmin;
 
 /**
  * Additional access predicate, evaluated per call after the static policy, realm allow-list and role checks and
@@ -21,14 +22,21 @@ public interface AccessCheck {
      * @param system Keycloak system name ({@code null} in single-system unit tests)
      * @param realm  resolved target realm ({@code null} for global tools)
      * @param args   validated arguments
-     * @param roles  what the server's own token can do
-     * @param caller who is acting through the connection
+     * @param roles    what the token behind this call can do: the server's own, or the caller's under delegation
+     * @param caller   who is acting through the connection
+     * @param keycloak the admin client the call will run with (the caller's own under delegation); {@code null} in
+     *                 unit tests
      */
     record Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
-            Caller caller) {
+            Caller caller, KeycloakAdmin keycloak) {
+
+        public Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
+                Caller caller) {
+            this(tool, system, realm, args, roles, caller, null);
+        }
 
         public Context(ToolSpec tool, String realm, Map<String, Object> args, GrantedRoles roles, Caller caller) {
-            this(tool, null, realm, args, roles, caller);
+            this(tool, null, realm, args, roles, caller, null);
         }
 
         public String arg(String name) {

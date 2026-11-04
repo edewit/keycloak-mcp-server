@@ -67,6 +67,7 @@ The real boundary is always the service account's roles in Keycloak; the server 
 | full admin     | client in `master` with `admin`, or the admin user via `admin-cli` | nothing to set |
 | realm admin    | confidential client **in the realm** with `realm-admin` | `KC_MCP_ALLOWED_REALMS=<realm>`, `KC_MCP_DEFAULT_REALM=<realm>` |
 | realm manager  | client in the realm with just the `realm-management` roles needed, e.g. `view-users`, `manage-users` | same as realm admin; role filtering hides the rest automatically. Narrow further with `KC_MCP_DENIED_TOOLS=keycloak_user_delete` or `KC_MCP_READ_ONLY=true` |
+| user (forward) | the *human* holds the roles; a public PKCE client the MCP client logs them in with, whose tokens carry the server's audience | `KC_MCP_DELEGATION=forward` + `QUARKUS_OIDC_TENANT_ENABLED=true`; no server credentials at all (see §Callers) |
 
 A client in `master` can also manage other realms through the `<realm>-realm` client roles; the role filter
 understands both layouts.
@@ -90,10 +91,10 @@ returned as `{"error": <code>, "message": ...}`. A `ToolProvider` can also contr
 tool through `accessChecks(...)`, as can any CDI bean implementing `AccessCheck`.
 
 `Delegation` says whether a tool may run when the server acts on behalf of a user instead of with its own service
-account (see `sketch/notes/delegated-auth.md`). Until the endpoint authenticates callers, the `Caller` is anonymous
-and not delegated, so `FORBIDDEN` tools behave normally and `REQUIRED` tools are refused. Tools that reveal secrets
-or reshape the realm default to `FORBIDDEN`: `client_get_secret`, `client_regenerate_secret`, `realm_update`,
-`auth_flow_bind`, `federation_sync`.
+account. With `KC_MCP_DELEGATION=forward` every call is delegated (`Caller.delegated()`), so `FORBIDDEN` tools are
+refused and `REQUIRED` tools become usable; with the default service account it is the other way round. Tools that
+reveal secrets or reshape the realm default to `FORBIDDEN`: `client_get_secret`, `client_regenerate_secret`,
+`realm_update`, `auth_flow_bind`, `federation_sync`.
 
 ### Built-in policies: group scope and no escalation
 
@@ -114,11 +115,27 @@ Effective roles are computed from Keycloak (direct, group-inherited and composit
 
 ### Callers
 
-Who is acting comes from the request's Quarkus `SecurityIdentity`: with the MCP endpoint protected by
-`quarkus-mcp-server-oidc`, the caller's token provides subject, username, issuing realm and roles
-(`CallerProvider`). Until then the caller is anonymous. Delegated execution (token exchange, acting with the
-caller's own permissions) is prepared through `Caller.delegated()` and the per-tool `Delegation` setting but not
-wired yet.
+Who is acting comes from the request's Quarkus `SecurityIdentity` (`CallerProvider`): subject, username, issuing
+realm and roles of the bearer token. The OIDC tenant is off by default, so the endpoint is anonymous. Switch it on
+with `QUARKUS_OIDC_TENANT_ENABLED=true`; tokens of `KC_MCP_URL/realms/KC_MCP_AUTH_REALM` are then verified
+(`quarkus.oidc.auth-server-url` to change that, `QUARKUS_OIDC_TOKEN_AUDIENCE` to accept only tokens issued for this
+server). Two modes build on that:
+
+| | `KC_MCP_DELEGATION=off` (default) | `KC_MCP_DELEGATION=forward` |
+|---|---|---|
+| admin calls run as | the server's service account | the caller, with their own access token |
+| roles that count | the service account's (role filter) | the caller's `realm-management` roles, read from their token per call; Keycloak enforces them again |
+| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` | refused with `401` + `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` |
+| server credentials | required | optional (only the policies provider's lookups fall back to them when the caller's token cannot read something) |
+
+The `401` challenge and the protected-resource metadata are what OAuth-capable MCP clients (LM Studio, Claude)
+act on: they discover the realm, open the browser, let the user log in (authorization code + PKCE) and retry with
+the token. Keycloak side: a public client for that login whose tokens carry an audience the server accepts (an
+*Audience* mapper, see `example/realms/demo-realm.json` → `mcp-consumer`), and `realm-management` roles on the
+humans who may administer (groups are the natural place). The audit line then reads `caller=alice(<sub>) delegated`.
+The caller's token is kept out of `Caller` (policies, logs) and only travels in the invoker; per-caller admin
+clients are cached until the token expires. Token exchange (acting with narrowed, consented permissions) is
+sketched in `sketch/notes/delegated-auth.md` and not implemented.
 
 ## Several Keycloak systems
 
@@ -164,6 +181,11 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.jwt.public-key-file`    | derived                     | public key / certificate PEM to publish; derived from the private key when unset |
 | `kc-mcp.jwt.jwks-enabled` / `jwks-path` | `true` / `/.well-known/jwks.json` | serve the public key as a JWK Set |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
+| `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
+| `kc-mcp.require-caller`         | `false`                     | refuse anonymous MCP requests with the OAuth challenge even with `delegation=off` |
+| `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens on the MCP endpoint; issuer defaults to `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
+| `quarkus.oidc.token.audience`   |                             | accept only tokens whose `aud` contains this value (recommended with `forward`) |
+| `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is an internal address (Docker) |
 | `kc-mcp.default-realm`          |                             | makes the `realm` argument optional |
 | `kc-mcp.systems.<name>.*`       |                             | per-system `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms` |
 | `kc-mcp.default-system`         | the only system             | system used when the `system` argument is omitted |
@@ -262,7 +284,8 @@ Two endpoints we use are missing from the published document (server info, user 
 ./mvnw package && java -jar target/quarkus-app/quarkus-run.jar
 ```
 
-LM Studio (`mcp.json`):
+LM Studio (`mcp.json`); with the OIDC tenant on add `"auth": { "CLIENT_ID": "mcp-consumer" }` so LM Studio logs the
+user in with that pre-registered client (`example/mcp-oauth.json`):
 
 ```json
 { "mcpServers": { "keycloak": { "url": "http://localhost:8081/mcp" } } }

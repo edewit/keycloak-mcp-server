@@ -12,6 +12,7 @@ import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.WebApplicationException;
 
 import org.jboss.logging.Logger;
+import org.keycloak.mcp.config.DelegationMode;
 import org.keycloak.mcp.config.McpServerConfig;
 import org.keycloak.mcp.guard.GrantedRoles;
 import org.keycloak.mcp.guard.RoleDiscovery;
@@ -68,6 +69,11 @@ public class StartupChecks {
     List<String> run(KeycloakAdmin admin) {
         String sys = admin.name();
         List<String> problems = new ArrayList<>();
+        if (config.delegation() == DelegationMode.FORWARD && !admin.system().hasCredentials()) {
+            LOG.infof("[%s] delegation=forward without server credentials: every admin call uses the caller's token,"
+                    + " startup check skipped", sys);
+            return problems;
+        }
         GrantedRoles granted;
         try {
             granted = roles.get(sys);

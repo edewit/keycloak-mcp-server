@@ -21,14 +21,14 @@ public final class GroupScopeCheck implements AccessCheck {
             "keycloak_group_role_assign", "groupId",
             "keycloak_group_create", "parentId");
 
-    private final java.util.function.Function<String, RealmDirectory> directories;
+    private final java.util.function.Function<Context, RealmDirectory> directories;
     private final PolicySettings settings;
 
     public GroupScopeCheck(RealmDirectory directory, PolicySettings settings) {
-        this(system -> directory, settings);
+        this(ctx -> directory, settings);
     }
 
-    public GroupScopeCheck(java.util.function.Function<String, RealmDirectory> directories, PolicySettings settings) {
+    public GroupScopeCheck(java.util.function.Function<Context, RealmDirectory> directories, PolicySettings settings) {
         this.directories = directories;
         this.settings = settings;
     }
@@ -42,7 +42,7 @@ public final class GroupScopeCheck implements AccessCheck {
         if (pre.isPresent()) {
             return pre.get();
         }
-        RealmDirectory directory = directories.apply(ctx.system());
+        RealmDirectory directory = directories.apply(ctx);
         String userId = CallerContext.callerUserId(directory, ctx);
         if (userId == null) {
             return CallerContext.unknownCaller(ctx);

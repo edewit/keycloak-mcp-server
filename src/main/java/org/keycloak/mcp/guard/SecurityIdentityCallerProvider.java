@@ -16,6 +16,7 @@ import org.keycloak.mcp.spi.CallerProvider;
 import io.quarkiverse.mcp.server.FeatureManager.FeatureArguments;
 import io.quarkus.arc.Arc;
 import io.quarkus.arc.DefaultBean;
+import io.quarkus.security.credential.TokenCredential;
 import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.quarkus.security.identity.SecurityIdentity;
 
@@ -43,6 +44,31 @@ public class SecurityIdentityCallerProvider implements CallerProvider {
             LOG.debugf("No caller identity available: %s", e.toString());
             return Caller.NONE;
         }
+    }
+
+    @Override
+    public String accessToken(FeatureArguments args) {
+        try {
+            if (!identities.isResolvable() || !Arc.container().requestContext().isActive()) {
+                return null;
+            }
+            return tokenOf(identities.get().getIdentity());
+        } catch (RuntimeException e) {
+            LOG.debugf("No caller token available: %s", e.toString());
+            return null;
+        }
+    }
+
+    /** The bearer token behind an identity: the OIDC credential, or the JWT principal's raw form. */
+    public static String tokenOf(SecurityIdentity identity) {
+        if (identity == null || identity.isAnonymous()) {
+            return null;
+        }
+        TokenCredential credential = identity.getCredential(TokenCredential.class);
+        if (credential != null && credential.getToken() != null) {
+            return credential.getToken();
+        }
+        return identity.getPrincipal() instanceof JsonWebToken jwt ? jwt.getRawToken() : null;
     }
 
     public static Caller fromIdentity(SecurityIdentity identity) {

@@ -12,6 +12,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
+import org.keycloak.mcp.config.DelegationMode;
 import org.keycloak.mcp.config.McpServerConfig;
 import org.keycloak.mcp.keycloak.KeycloakSystems;
 
@@ -38,7 +39,8 @@ public class RoleDiscovery {
 
     @Inject
     public RoleDiscovery(KeycloakSystems systems, McpServerConfig config) {
-        this(systems.names(), systems::get, config.roleFilter());
+        // in forward mode the caller's token decides per call; the server may not even have credentials
+        this(systems.names(), systems::get, config.roleFilter() && config.delegation() == DelegationMode.OFF);
     }
 
     /** Single system, mostly for tests. */

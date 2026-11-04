@@ -9,4 +9,12 @@ import io.quarkiverse.mcp.server.FeatureManager.FeatureArguments;
 public interface CallerProvider {
 
     Caller current(FeatureArguments args);
+
+    /**
+     * The caller's raw access token, forwarded to Keycloak in delegation mode {@code forward}; {@code null} when
+     * the caller is anonymous or the provider has no token.
+     */
+    default String accessToken(FeatureArguments args) {
+        return null;
+    }
 }

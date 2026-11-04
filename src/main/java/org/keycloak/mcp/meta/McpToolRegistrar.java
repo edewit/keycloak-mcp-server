@@ -49,6 +49,8 @@ public class McpToolRegistrar {
     ExposurePolicy exposure;
     @Inject
     org.keycloak.mcp.spi.CallerProvider callers;
+    @Inject
+    org.keycloak.mcp.guard.CallerAuth callerAuth;
 
     void onStart(@Observes StartupEvent event) {
         registerMetaTools();
@@ -60,8 +62,9 @@ public class McpToolRegistrar {
             registerCatalogTool(spec);
             registered++;
         }
-        LOG.infof("Keycloak MCP %s: %d/%d tools registered, exposure=%s, readOnly=%s", buildVersion(), registered,
-                catalog.size(), exposure.mode(), policy.readOnly());
+        LOG.infof("Keycloak MCP %s: %d/%d tools registered, exposure=%s, readOnly=%s, delegation=%s, callers=%s",
+                buildVersion(), registered, catalog.size(), exposure.mode(), policy.readOnly(), callerAuth.delegation(),
+                callerAuth.required() ? "required" : callerAuth.oidcEnabled() ? "optional" : "anonymous");
     }
 
     /** Version and build time from the jar manifest, so a stale deployment is visible in the first log line. */
@@ -95,7 +98,8 @@ public class McpToolRegistrar {
                     Map<String, Object> a = args.args();
                     return toResponse(metaTools.execute(str(a, "name"), mapOf(a.get("arguments")),
                             boolOf(a.get(InputSchema.CONFIRM)),
-                            InvocationContext.of(args, MetaTools.EXECUTE_TOOL).withCaller(callers.current(args))));
+                            InvocationContext.of(args, MetaTools.EXECUTE_TOOL)
+                                    .withCaller(callers.current(args), callers.accessToken(args))));
                 }, VIRTUAL_THREADS)
                 .register();
     }
@@ -111,7 +115,7 @@ public class McpToolRegistrar {
                     Map<String, Object> a = args.args();
                     boolean confirm = Boolean.TRUE.equals(boolOf(a.get(InputSchema.CONFIRM)));
                     return toResponse(invoker.invoke(spec, a, confirm,
-                            InvocationContext.of(args, "direct").withCaller(callers.current(args))));
+                            InvocationContext.of(args, "direct").withCaller(callers.current(args), callers.accessToken(args))));
                 }, VIRTUAL_THREADS)
                 .register();
     }

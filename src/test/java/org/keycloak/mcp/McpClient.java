@@ -15,6 +15,13 @@ public class McpClient {
 
     private final AtomicInteger ids = new AtomicInteger();
     private String sessionId;
+    private String bearer;
+
+    /** Sends {@code Authorization: Bearer <token>} with every request (OIDC-protected endpoint). */
+    public McpClient bearer(String token) {
+        this.bearer = token;
+        return this;
+    }
 
     public McpClient initialize(boolean elicitation) {
         JsonObject caps = new JsonObject();
@@ -84,6 +91,9 @@ public class McpClient {
                 .header("Mcp-Protocol-Version", "2025-06-18");
         if (sessionId != null) {
             spec = spec.header("Mcp-Session-Id", sessionId);
+        }
+        if (bearer != null) {
+            spec = spec.header("Authorization", "Bearer " + bearer);
         }
         Response r = spec.body(body.encode()).post("/mcp");
         if (r.statusCode() >= 400) {

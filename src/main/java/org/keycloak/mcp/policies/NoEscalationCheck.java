@@ -29,14 +29,14 @@ public final class NoEscalationCheck implements AccessCheck {
             java.util.Map.entry("keycloak_group_member_add", "userId"),
             java.util.Map.entry("keycloak_group_member_remove", "userId"));
 
-    private final java.util.function.Function<String, RealmDirectory> directories;
+    private final java.util.function.Function<Context, RealmDirectory> directories;
     private final PolicySettings settings;
 
     public NoEscalationCheck(RealmDirectory directory, PolicySettings settings) {
-        this(system -> directory, settings);
+        this(ctx -> directory, settings);
     }
 
-    public NoEscalationCheck(java.util.function.Function<String, RealmDirectory> directories, PolicySettings settings) {
+    public NoEscalationCheck(java.util.function.Function<Context, RealmDirectory> directories, PolicySettings settings) {
         this.directories = directories;
         this.settings = settings;
     }
@@ -51,7 +51,7 @@ public final class NoEscalationCheck implements AccessCheck {
         if (pre.isPresent()) {
             return pre.get();
         }
-        RealmDirectory directory = directories.apply(ctx.system());
+        RealmDirectory directory = directories.apply(ctx);
         String callerId = CallerContext.callerUserId(directory, ctx);
         if (callerId == null) {
             return CallerContext.unknownCaller(ctx);

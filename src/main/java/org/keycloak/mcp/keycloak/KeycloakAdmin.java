@@ -1,6 +1,10 @@
 package org.keycloak.mcp.keycloak;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
@@ -36,15 +40,98 @@ public class KeycloakAdmin implements AccessTokenSource {
     private static final Pattern UUID = Pattern
             .compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
+    /** Upper bound of cached per-caller clients; beyond it the cache is dropped and rebuilt on demand. */
+    static final int MAX_DELEGATES = 256;
+
+    private record Delegate(KeycloakAdmin admin, long expiresAt) {
+    }
+
     private final KeycloakSystem system;
     private final JwtKeyMaterial jwtKeys;
     private final ReentrantLock initLock = new ReentrantLock();
     private volatile Keycloak keycloak;
     private volatile ClientAssertionTokenManager jwtTokens;
+    /** Set on instances returned by {@link #forToken}: the forwarded caller token. */
+    private final String forwardedToken;
+    private final Map<String, Delegate> delegates = new ConcurrentHashMap<>();
 
     public KeycloakAdmin(KeycloakSystem system, JwtKeyMaterial jwtKeys) {
+        this(system, jwtKeys, null, null);
+    }
+
+    private KeycloakAdmin(KeycloakSystem system, JwtKeyMaterial jwtKeys, Keycloak prebuilt, String forwardedToken) {
         this.system = system;
         this.jwtKeys = jwtKeys;
+        this.keycloak = prebuilt;
+        this.forwardedToken = forwardedToken;
+    }
+
+    /**
+     * An admin client of the same system that sends the given caller token instead of the server's credentials
+     * (delegation mode {@code forward}). Instances are cached per token until the token expires.
+     */
+    public KeycloakAdmin forToken(String bearerToken) {
+        if (bearerToken == null || bearerToken.isBlank()) {
+            throw new IllegalArgumentException("caller token required");
+        }
+        long now = System.currentTimeMillis();
+        Delegate d = delegates.get(bearerToken);
+        if (d != null && d.expiresAt() > now) {
+            return d.admin();
+        }
+        if (delegates.size() >= MAX_DELEGATES) {
+            purgeDelegates(now, true);
+        } else if (d != null) {
+            purgeDelegates(now, false);
+        }
+        return delegates.compute(bearerToken, (k, old) -> {
+            if (old != null && old.expiresAt() > now) {
+                return old;
+            }
+            if (old != null) {
+                old.admin().close();
+            }
+            Keycloak k2 = KeycloakBuilder.builder()
+                    .serverUrl(system.url())
+                    .realm(system.authRealm())
+                    .clientId(system.clientId().filter(v -> !v.isBlank()).orElse("keycloak-mcp-server"))
+                    .authorization(bearerToken)
+                    .build();
+            return new Delegate(new KeycloakAdmin(system, jwtKeys, k2, bearerToken), expiryOf(bearerToken, now));
+        }).admin();
+    }
+
+    /** Whether this instance forwards a caller's token rather than using the server's credentials. */
+    public boolean isDelegated() {
+        return forwardedToken != null;
+    }
+
+    private void purgeDelegates(long now, boolean all) {
+        for (Map.Entry<String, Delegate> e : delegates.entrySet()) {
+            if (all || e.getValue().expiresAt() <= now) {
+                if (delegates.remove(e.getKey(), e.getValue())) {
+                    e.getValue().admin().close();
+                }
+            }
+        }
+    }
+
+    /** {@code exp} of a JWT in millis; tokens without a readable {@code exp} are kept for five minutes. */
+    static long expiryOf(String jwt, long now) {
+        try {
+            String[] parts = jwt.split("\\.");
+            if (parts.length >= 2) {
+                var payload = new io.vertx.core.json.JsonObject(
+                        new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
+                Long exp = payload.getLong("exp");
+                if (exp != null) {
+                    return exp * 1000;
+                }
+            }
+        } catch (RuntimeException e) {
+            LOG.debugf("Cannot read token expiry: %s", e.toString());
+        }
+        return now + 5 * 60_000L;
     }
 
     public KeycloakSystem system() {
@@ -118,9 +205,12 @@ public class KeycloakAdmin implements AccessTokenSource {
                 () -> new IllegalStateException("Missing configuration '" + key + "' for auth mode"));
     }
 
-    /** Current admin access token (triggers a login on first use). */
+    /** Current admin access token (triggers a login on first use); the caller's token for a delegated instance. */
     @Override
     public String accessToken() {
+        if (forwardedToken != null) {
+            return forwardedToken;
+        }
         Keycloak k = client();
         ClientAssertionTokenManager jwt = jwtTokens;
         if (jwt != null) {
@@ -263,6 +353,7 @@ public class KeycloakAdmin implements AccessTokenSource {
     }
 
     public void close() {
+        purgeDelegates(Long.MAX_VALUE, true);
         Keycloak k = keycloak;
         if (k != null) {
             try {

@@ -15,7 +15,7 @@ import org.keycloak.mcp.spi.ToolProviderContext;
  */
 public class PolicyToolProvider implements ToolProvider {
 
-    private java.util.function.Function<String, RealmDirectory> directories;
+    private java.util.function.Function<AccessCheck.Context, RealmDirectory> directories;
     private PolicySettings settings = PolicySettings.DISABLED;
 
     public PolicyToolProvider() {
@@ -23,7 +23,7 @@ public class PolicyToolProvider implements ToolProvider {
 
     /** For tests: fixed directory and settings. */
     public PolicyToolProvider(RealmDirectory directory, PolicySettings settings) {
-        this.directories = system -> directory;
+        this.directories = ctx -> directory;
         this.settings = settings;
     }
 
@@ -51,8 +51,15 @@ public class PolicyToolProvider implements ToolProvider {
     public void init(ToolProviderContext context) {
         if (directories == null) {
             java.util.Map<String, RealmDirectory> cache = new java.util.concurrent.ConcurrentHashMap<>();
-            directories = system -> cache.computeIfAbsent(system == null ? "" : system,
-                    s -> new KeycloakDirectory(s.isEmpty() ? context.keycloak() : context.keycloak(s)));
+            directories = ctx -> {
+                if (ctx.keycloak() != null && ctx.keycloak().isDelegated()) {
+                    // delegated call: look things up with the caller's own token, the server may have none
+                    return new KeycloakDirectory(ctx.keycloak());
+                }
+                String system = ctx.system();
+                return cache.computeIfAbsent(system == null ? "" : system,
+                        s -> new KeycloakDirectory(s.isEmpty() ? context.keycloak() : context.keycloak(s)));
+            };
             settings = PolicySettings.from(context.config());
         }
     }

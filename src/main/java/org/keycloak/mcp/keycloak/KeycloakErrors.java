@@ -48,8 +48,8 @@ public final class KeycloakErrors {
             default -> status >= 500 ? "keycloak_error" : "request_failed";
         };
         String message = switch (status) {
-            case 401 -> "Keycloak rejected the server's credentials.";
-            case 403 -> "The service account lacks the realm-management role for this operation.";
+            case 401 -> "Keycloak rejected the credentials used for this call.";
+            case 403 -> "The credentials used for this call lack the realm-management role for this operation.";
             case 404 -> "Not found.";
             case 409 -> "Already exists or conflicts with existing data.";
             default -> "Keycloak returned HTTP " + status + ".";

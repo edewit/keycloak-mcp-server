@@ -60,6 +60,14 @@ public record KeycloakSystem(
         return specific.isPresent() ? specific : fallback;
     }
 
+    /** Whether the settings contain something to log in with (a secret / key for client_credentials, a user for password). */
+    public boolean hasCredentials() {
+        return switch (grantType) {
+            case CLIENT_CREDENTIALS -> clientAuth != ClientAuth.NONE;
+            case PASSWORD -> username.filter(v -> !v.isBlank()).isPresent();
+        };
+    }
+
     public boolean realmAllowed(String realm) {
         return allowedRealms.isEmpty() || allowedRealms.contains(realm);
     }

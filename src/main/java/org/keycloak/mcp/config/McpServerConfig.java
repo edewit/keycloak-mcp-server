@@ -65,6 +65,23 @@ public interface McpServerConfig {
     /** Key settings for {@link ClientAuth#PRIVATE_KEY_JWT}. */
     Jwt jwt();
 
+    /**
+     * {@code off} (default): admin calls use the server's own credentials; {@code forward}: the caller's access
+     * token is forwarded to the Admin API, so Keycloak enforces the user's own roles. {@code forward} requires the
+     * MCP endpoint to authenticate callers ({@code quarkus.oidc.tenant-enabled=true}) and makes the server
+     * credentials optional.
+     */
+    @WithDefault("off")
+    @WithConverter(DelegationMode.Converter.class)
+    DelegationMode delegation();
+
+    /**
+     * Refuse unauthenticated MCP requests with a 401 challenge even when the server acts with its own credentials
+     * (the caller then only matters for policies and the audit log). Implied by {@code delegation=forward}.
+     */
+    @WithDefault("false")
+    boolean requireCaller();
+
     /** If set, the {@code realm} tool argument becomes optional and defaults to this realm. */
     Optional<String> defaultRealm();
 

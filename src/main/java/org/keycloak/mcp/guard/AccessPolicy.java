@@ -16,6 +16,7 @@ import org.keycloak.mcp.catalog.ToolCatalog;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.config.McpServerConfig;
+import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.KeycloakSystems;
 import org.keycloak.mcp.spi.AccessCheck;
 import org.keycloak.mcp.spi.Delegation;
@@ -144,6 +145,15 @@ public class AccessPolicy {
      */
     public Optional<ToolResult> forbids(ToolSpec spec, String system, String realm, Map<String, Object> args,
             InvocationContext ctx) {
+        return forbids(spec, system, realm, args, ctx, null);
+    }
+
+    /**
+     * @param admin the admin client the call will run with (the caller's own under delegation), handed to the
+     *              access checks; {@code null} when unknown
+     */
+    public Optional<ToolResult> forbids(ToolSpec spec, String system, String realm, Map<String, Object> args,
+            InvocationContext ctx, KeycloakAdmin admin) {
         if (!permits(spec)) {
             if (readOnly && !spec.isReadOnly()) {
                 return Optional.of(ToolResult.error("read_only_mode", "This server runs in read-only mode; "
@@ -156,20 +166,23 @@ public class AccessPolicy {
                     + (system != null ? " in system '" + system + "'." : "."),
                     "allowed", List.copyOf(allowedRealms(system))));
         }
-        if (roles != null && realm != null) {
-            GrantedRoles granted = system == null ? roles.get() : roles.get(system);
-            if (!granted.reaches(realm)) {
-                return Optional.of(ToolResult.error("forbidden", "The server's credentials have no admin roles in realm '"
-                        + realm + "'.", "realmsWithRoles", List.copyOf(granted.realms())));
+        boolean delegated = ctx.caller().delegated();
+        GrantedRoles granted = grantedFor(system, ctx);
+        if (granted != null && realm != null) {
+            String who = delegated ? "caller '" + ctx.caller().name() + "' has" : "the server's credentials have";
+            // an unknown server token disables filtering; a caller token without any admin role simply cannot act
+            if (!granted.reaches(realm) || (delegated && !granted.known())) {
+                return Optional.of(ToolResult.error("forbidden", Character.toUpperCase(who.charAt(0)) + who.substring(1)
+                        + " no admin roles in realm '" + realm + "'.", "realmsWithRoles", List.copyOf(granted.realms())));
             }
             Set<String> missing = granted.missing(realm, spec.requiredRoles());
             if (!missing.isEmpty()) {
                 return Optional.of(ToolResult.error("forbidden", spec.name() + " needs the realm-management role(s) "
-                        + missing + " in realm '" + realm + "', which the server's credentials lack.",
+                        + missing + " in realm '" + realm + "', which " + (delegated
+                                ? "caller '" + ctx.caller().name() + "' lacks." : "the server's credentials lack."),
                         "missingRoles", List.copyOf(missing)));
             }
         }
-        boolean delegated = ctx.caller().delegated();
         if (delegated && spec.delegation() == Delegation.FORBIDDEN) {
             return Optional.of(ToolResult.error("delegation_not_allowed",
                     spec.name() + " cannot be used on behalf of a user; it needs the server's own service account."));
@@ -179,8 +192,8 @@ public class AccessPolicy {
                     spec.name() + " may only run on behalf of an authenticated user."));
         }
         if (!globalChecks.isEmpty() || !spec.accessChecks().isEmpty()) {
-            GrantedRoles granted = roles == null ? GrantedRoles.UNKNOWN : system == null ? roles.get() : roles.get(system);
-            AccessCheck.Context context = new AccessCheck.Context(spec, system, realm, args, granted, ctx.caller());
+            AccessCheck.Context context = new AccessCheck.Context(spec, system, realm, args,
+                    granted == null ? GrantedRoles.UNKNOWN : granted, ctx.caller(), admin);
             for (AccessCheck check : globalChecks) {
                 Optional<ToolResult> denied = evaluate(check, context);
                 if (denied.isPresent()) {
@@ -195,6 +208,20 @@ public class AccessPolicy {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Roles that decide this call: the caller's own (parsed from the forwarded token) when the call is delegated,
+     * otherwise the server token's as discovered; {@code null} when role checks are off.
+     */
+    private GrantedRoles grantedFor(String system, InvocationContext ctx) {
+        if (ctx.caller().delegated() && ctx.callerToken() != null) {
+            return GrantedRoles.fromToken(ctx.callerToken(), ctx.caller().realm());
+        }
+        if (roles == null) {
+            return null;
+        }
+        return system == null ? roles.get() : roles.get(system);
     }
 
     private static Optional<ToolResult> evaluate(AccessCheck check, AccessCheck.Context context) {

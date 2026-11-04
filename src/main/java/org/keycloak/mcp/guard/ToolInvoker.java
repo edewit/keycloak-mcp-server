@@ -12,6 +12,7 @@ import org.keycloak.mcp.catalog.ToolCall;
 import org.keycloak.mcp.catalog.ToolCatalog;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
+import org.keycloak.mcp.config.DelegationMode;
 import org.keycloak.mcp.config.McpServerConfig;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.KeycloakSystems;
@@ -20,7 +21,8 @@ import io.vertx.core.json.JsonObject;
 
 /**
  * The single execution path for every tool, whether called directly or through {@code execute_tool}:
- * policy -> validation -> realm -> confirmation -> handler -> audit.
+ * policy -> validation -> realm -> confirmation -> handler -> audit. In delegation mode {@code forward} the
+ * caller's token replaces the server's credentials for the handler and the role checks.
  */
 @ApplicationScoped
 public class ToolInvoker {
@@ -33,24 +35,31 @@ public class ToolInvoker {
     private final Confirmer confirmer;
     private final int maxItems;
     private final KeycloakSystems systems;
+    private final DelegationMode delegation;
 
     @Inject
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, McpServerConfig config,
             KeycloakSystems systems) {
-        this(catalog, policy, confirmer, config.resultMaxItems(), systems);
+        this(catalog, policy, confirmer, config.resultMaxItems(), systems, config.delegation());
     }
 
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems) {
-        this(catalog, policy, confirmer, maxItems, null);
+        this(catalog, policy, confirmer, maxItems, null, DelegationMode.OFF);
     }
 
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems,
             KeycloakSystems systems) {
+        this(catalog, policy, confirmer, maxItems, systems, DelegationMode.OFF);
+    }
+
+    public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems,
+            KeycloakSystems systems, DelegationMode delegation) {
         this.catalog = catalog;
         this.policy = policy;
         this.confirmer = confirmer;
         this.maxItems = maxItems;
         this.systems = systems;
+        this.delegation = delegation == null ? DelegationMode.OFF : delegation;
     }
 
     public ToolResult invoke(ToolSpec spec, Map<String, Object> rawArgs, boolean confirmFlag, InvocationContext ctx) {
@@ -59,7 +68,12 @@ public class ToolInvoker {
         String realm = null;
         String system = null;
         try {
-            if (!policy.permits(spec)) {
+            if (delegation == DelegationMode.FORWARD && ctx.callerToken() == null) {
+                result = ToolResult.error("caller_required", "This server runs every Keycloak call with the caller's "
+                        + "own token; connect through an authenticated (OAuth) MCP session first.");
+            } else if (delegation == DelegationMode.FORWARD && !ctx.caller().delegated()) {
+                return invoke(spec, rawArgs, confirmFlag, ctx.withCaller(ctx.caller().asDelegated()));
+            } else if (!policy.permits(spec)) {
                 result = policy.forbids(spec, null).orElseThrow();
             } else {
                 ArgumentValidator.Outcome outcome = ArgumentValidator.validate(spec.inputSchema(), rawArgs);
@@ -82,6 +96,9 @@ public class ToolInvoker {
                                     "systems", systems.names());
                         } else {
                             admin = systems.get(system);
+                            if (delegation == DelegationMode.FORWARD) {
+                                admin = admin.forToken(ctx.callerToken());
+                            }
                         }
                     }
                     if (spec.realmScoped()) {
@@ -95,7 +112,7 @@ public class ToolInvoker {
                     } else if (spec.realmScoped() && realm == null) {
                         result = ToolResult.error("realm_required", "Pass the realm argument.");
                     } else {
-                        java.util.Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx);
+                        java.util.Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin);
                         result = denied.isPresent() ? denied.get()
                                 : runWithConfirmation(spec, system, admin, realm, args, confirmFlag, ctx);
                     }
