@@ -7,6 +7,8 @@ import org.keycloak.mcp.spi.AccessCheck;
 import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 
+import com.google.auto.service.AutoService;
+
 /**
  * Built-in policies: no tools, only access checks. Configure with
  * {@code kc-mcp.spi.policies.*}: {@code group-scope=off|group|organization},
@@ -14,6 +16,7 @@ import org.keycloak.mcp.spi.ToolProviderContext;
  * {@code anonymous=allow|deny}, {@code super-roles=...}. Both checks only act for
  * authenticated callers unless {@code anonymous=deny}.
  */
+@AutoService(ToolProvider.class)
 public class PolicyToolProvider implements ToolProvider {
 
     private java.util.function.Function<AccessCheck.Context, RealmDirectory> directories;

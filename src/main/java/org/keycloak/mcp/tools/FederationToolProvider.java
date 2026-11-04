@@ -14,13 +14,17 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.Delegation;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.ComponentRepresentation;
 import org.keycloak.representations.idm.SynchronizationResultRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * FEDERATION: user storage providers (LDAP, Active Directory, Kerberos) and sync.
  */
+@AutoService(ToolProvider.class)
 public class FederationToolProvider extends AbstractToolProvider {
 
     static final String PROVIDER_TYPE = "org.keycloak.storage.UserStorageProvider";

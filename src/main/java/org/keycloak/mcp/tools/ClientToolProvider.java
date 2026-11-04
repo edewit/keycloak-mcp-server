@@ -17,6 +17,7 @@ import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.ScopeEvaluation;
 import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.Delegation;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ClientScopeRepresentation;
@@ -26,9 +27,12 @@ import org.keycloak.representations.idm.authorization.PolicyRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceRepresentation;
 import org.keycloak.representations.idm.authorization.ScopeRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * CLIENTS and CLIENT_SCOPES.
  */
+@AutoService(ToolProvider.class)
 public class ClientToolProvider extends AbstractToolProvider {
 
     static final String SCOPE_TYPE_DESC = "default (always in the token) or optional (requested via scope param); default: default";

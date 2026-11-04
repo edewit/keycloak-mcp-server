@@ -12,14 +12,18 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.keycloak.EffectiveRoles;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * GROUPS: list/create/delete, membership, group role mappings.
  */
+@AutoService(ToolProvider.class)
 public class GroupToolProvider extends AbstractToolProvider {
 
     @Override

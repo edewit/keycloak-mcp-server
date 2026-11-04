@@ -13,16 +13,20 @@ import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.Delegation;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.info.FeatureRepresentation;
 import org.keycloak.representations.info.ServerInfoRepresentation;
 import org.keycloak.representations.info.ThemeInfoRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * REALM: server info, realm configuration and realm updates (login options, tokens, SMTP,
  * WebAuthn passwordless).
  */
+@AutoService(ToolProvider.class)
 public class RealmToolProvider extends AbstractToolProvider {
 
     @Override

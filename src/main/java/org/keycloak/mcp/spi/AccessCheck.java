@@ -10,9 +10,10 @@ import org.keycloak.mcp.keycloak.KeycloakAdmin;
  * Additional access predicate, evaluated per call after the static policy, realm
  * allow-list and role checks and before confirmation. Attach to one tool with
  * {@code ToolSpec.builder(...).access(check)} or contribute globally from
- * {@link ToolProvider#accessChecks(ToolProviderContext)} (or as a CDI bean). Checks run
- * on the handler's virtual thread and may call Keycloak; only the {@code tools/list}
- * filter must not block.
+ * {@link ToolProvider#accessChecks(ToolProviderContext)}, as a CDI bean, or on its own
+ * via the ServiceLoader ({@code @AutoService(AccessCheck.class)}). Checks run on the
+ * handler's virtual thread and may call Keycloak; only the {@code tools/list} filter must
+ * not block.
  */
 @FunctionalInterface
 public interface AccessCheck {

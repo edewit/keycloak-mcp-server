@@ -21,6 +21,7 @@
         <build.timestamp>${maven.build.timestamp}</build.timestamp>
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
         <spotless-maven-plugin.version>3.10.4</spotless-maven-plugin.version>
+        <auto-service.version>1.1.1</auto-service.version>
     </properties>
 
     <dependencyManagement>
@@ -74,6 +75,13 @@
             <artifactId>testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <!-- @AutoService generates the META-INF/services entries of the SPI implementations -->
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+            <version>${auto-service.version}</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -117,6 +125,13 @@
                 <version>${compiler-plugin.version}</version>
                 <configuration>
                     <parameters>true</parameters>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>com.google.auto.service</groupId>
+                            <artifactId>auto-service</artifactId>
+                            <version>${auto-service.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>

@@ -12,14 +12,18 @@ import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.EffectiveRoles;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * ROLES: realm roles, client roles and their mappings to users.
  */
+@AutoService(ToolProvider.class)
 public class RoleToolProvider extends AbstractToolProvider {
 
     @Override

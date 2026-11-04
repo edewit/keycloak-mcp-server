@@ -99,6 +99,13 @@ class McpEndpointTest {
     }
 
     @Test
+    void serviceLoaderAccessChecksApply() {
+        JsonObject result = mcp.callTool("keycloak_acme_ping", new JsonObject().put("name", "standalone"));
+        assertTrue(result.getBoolean("isError"));
+        assertEquals("standalone_denied", McpClient.text(result).getString("error"));
+    }
+
+    @Test
     void hiddenToolsAreStillCallableDirectly() {
         JsonObject result = mcp.callTool("keycloak_acme_ping", new JsonObject());
         assertEquals("world", McpClient.text(result).getString("name"));

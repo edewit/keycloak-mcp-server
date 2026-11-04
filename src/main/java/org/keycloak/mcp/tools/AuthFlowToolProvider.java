@@ -15,16 +15,20 @@ import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.Delegation;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
 import org.keycloak.representations.idm.AuthenticationFlowRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RequiredActionProviderRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * AUTH_FLOWS: flows, executions, sub-flows, bindings, authenticator providers and
  * required actions.
  */
+@AutoService(ToolProvider.class)
 public class AuthFlowToolProvider extends AbstractToolProvider {
 
     static final String[] BINDINGS = { "browserFlow", "registrationFlow", "directGrantFlow", "resetCredentialsFlow",

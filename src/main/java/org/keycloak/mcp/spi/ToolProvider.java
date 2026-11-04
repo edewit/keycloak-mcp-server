@@ -10,8 +10,9 @@ import org.keycloak.mcp.catalog.ToolSpec;
  * <p>
  * Providers are discovered in two ways:
  * <ul>
- * <li>{@link java.util.ServiceLoader}: list the implementation class in
- * {@code META-INF/services/org.keycloak.mcp.spi.ToolProvider} of any jar on the
+ * <li>{@link java.util.ServiceLoader}: annotate the implementation with
+ * {@code @AutoService(ToolProvider.class)} (or list it by hand in
+ * {@code META-INF/services/org.keycloak.mcp.spi.ToolProvider}) in any jar on the
  * classpath. Jars dropped into the {@code providers/} directory next to the packaged
  * application are picked up at startup, like Keycloak's own {@code providers/}
  * folder.</li>

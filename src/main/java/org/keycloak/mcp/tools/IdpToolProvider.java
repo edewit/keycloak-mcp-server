@@ -15,13 +15,17 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.IdentityProviderMapperRepresentation;
 import org.keycloak.representations.idm.IdentityProviderRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * IDP: identity provider brokers (social, OIDC, SAML) and their mappers.
  */
+@AutoService(ToolProvider.class)
 public class IdpToolProvider extends AbstractToolProvider {
 
     static final Set<String> SECRET_KEYS = Set.of("clientSecret", "client_secret", "privateKey", "encryptionKey");

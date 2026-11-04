@@ -15,15 +15,19 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * USERS and SESSIONS: search/get/create/update/enable/delete, passwords, action emails,
  * sessions, logout.
  */
+@AutoService(ToolProvider.class)
 public class UserToolProvider extends AbstractToolProvider {
 
     static final String[] ACTIONS = { "UPDATE_PASSWORD", "VERIFY_EMAIL", "UPDATE_PROFILE", "CONFIGURE_TOTP",

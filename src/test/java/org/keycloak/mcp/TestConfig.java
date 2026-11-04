@@ -5,6 +5,8 @@ import java.util.Set;
 
 import org.eclipse.microprofile.config.spi.ConfigSource;
 
+import com.google.auto.service.AutoService;
+
 /**
  * Baseline configuration of every test, pinned above the environment (ordinal 350: above
  * env vars at 300, below the system properties at 400 that {@code QuarkusTestProfile}s
@@ -13,6 +15,7 @@ import org.eclipse.microprofile.config.spi.ConfigSource;
  * {@code QUARKUS_OIDC_TENANT_ENABLED}, ...) must not change what the tests see. Empty
  * values clear a leaked setting: SmallRye treats them as absent for optional properties.
  */
+@AutoService(ConfigSource.class)
 public class TestConfig implements ConfigSource {
 
     private static final Map<String, String> VALUES = Map.ofEntries(

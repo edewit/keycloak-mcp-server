@@ -261,11 +261,16 @@ public class AcmeToolProvider implements ToolProvider {
 }
 ```
 
-Register it in `META-INF/services/org.keycloak.mcp.spi.ToolProvider` (or make it a CDI bean). Jars placed in
-`target/quarkus-app/providers/` are picked up at startup (`quarkus.package.jar.user-providers-directory`).
+Annotate it with `@AutoService(ToolProvider.class)` (Google AutoService generates the
+`META-INF/services/org.keycloak.mcp.spi.ToolProvider` entry at compile time; writing that file by hand or making
+the class a CDI bean works too). Jars placed in `target/quarkus-app/providers/` are picked up at startup
+(`quarkus.package.jar.user-providers-directory`).
 Provider tools automatically get search, exposure modes, validation, realm checks, confirmation and the audit log.
 The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`,
 `realm`) use the same SPI and can be switched off with `kc-mcp.spi.<id>.enabled=false`.
+
+Global `AccessCheck`s (see §Per-tool access checks) are extension points of their own: `@AutoService(AccessCheck.class)`
+on the class, a CDI bean, or `ToolProvider.accessChecks(...)` all register a check that runs on every call.
 
 ## Keeping the tools aligned with a Keycloak version
 

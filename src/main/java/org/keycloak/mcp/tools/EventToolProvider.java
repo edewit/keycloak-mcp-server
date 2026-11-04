@@ -12,14 +12,18 @@ import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.AdminEventRepresentation;
 import org.keycloak.representations.idm.EventRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * EVENTS: login events and admin events.
  */
+@AutoService(ToolProvider.class)
 public class EventToolProvider extends AbstractToolProvider {
 
     static final String DATE = "yyyy-MM-dd";

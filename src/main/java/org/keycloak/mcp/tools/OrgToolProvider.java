@@ -16,14 +16,18 @@ import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 import org.keycloak.mcp.keycloak.Views;
+import org.keycloak.mcp.spi.ToolProvider;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.representations.idm.OrganizationDomainRepresentation;
 import org.keycloak.representations.idm.OrganizationRepresentation;
 
+import com.google.auto.service.AutoService;
+
 /**
  * ORGS: Keycloak organizations (multi-tenancy) and their identity provider links.
  */
+@AutoService(ToolProvider.class)
 public class OrgToolProvider extends AbstractToolProvider {
 
     static final String ORG_ID = "Organization id (UUID); the alias or exact name is accepted too";

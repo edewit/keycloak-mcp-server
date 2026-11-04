@@ -4,7 +4,10 @@ import java.util.List;
 
 import org.keycloak.mcp.catalog.ToolSpec;
 
+import com.google.auto.service.AutoService;
+
 /** Disabled through kc-mcp.spi.disabled-demo.enabled=false; must never be initialised. */
+@AutoService(ToolProvider.class)
 public class DisabledDemoToolProvider implements ToolProvider {
 
     @Override

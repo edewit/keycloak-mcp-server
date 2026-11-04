@@ -8,9 +8,12 @@ import org.keycloak.mcp.catalog.InputSchema;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 
+import com.google.auto.service.AutoService;
+
 /**
  * Example third-party provider, registered via META-INF/services in src/test/resources.
  */
+@AutoService(ToolProvider.class)
 public class AcmeToolProvider implements ToolProvider {
 
     private String greeting;

@@ -33,10 +33,19 @@ public class ToolProviderRegistry {
     @Inject
     public ToolProviderRegistry(Instance<ToolProvider> cdiProviders, KeycloakSystems systems,
             McpServerConfig serverConfig) {
-        this(discover(cdiProviders), systems, serverConfig);
+        this(discover(cdiProviders), systems, serverConfig, discover(AccessCheck.class));
     }
 
     public ToolProviderRegistry(List<ToolProvider> candidates, KeycloakSystems systems, McpServerConfig serverConfig) {
+        this(candidates, systems, serverConfig, List.of());
+    }
+
+    /**
+     * @param standaloneChecks global {@link AccessCheck}s registered on their own
+     * (ServiceLoader), evaluated after the providers' checks
+     */
+    public ToolProviderRegistry(List<ToolProvider> candidates, KeycloakSystems systems, McpServerConfig serverConfig,
+            List<AccessCheck> standaloneChecks) {
         Map<String, ToolProvider> byId = new LinkedHashMap<>();
         for (ToolProvider p : candidates) {
             ToolProvider existing = byId.get(p.id());
@@ -68,20 +77,33 @@ public class ToolProviderRegistry {
             checks.addAll(p.accessChecks(ctx));
             active.add(p);
         }
+        for (AccessCheck c : standaloneChecks) {
+            LOG.infof("Access check %s registered", c.getClass().getName());
+            checks.add(c);
+        }
         this.providers = List.copyOf(active);
         this.specs = List.copyOf(all);
         this.accessChecks = List.copyOf(checks);
     }
 
-    static List<ToolProvider> discover(Instance<ToolProvider> cdiProviders) {
-        List<ToolProvider> found = new ArrayList<>();
+    /**
+     * ServiceLoader lookup of an SPI on the context class loader (jars in
+     * {@code providers/} included).
+     */
+    static <T> List<T> discover(Class<T> spi) {
+        List<T> found = new ArrayList<>();
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         if (cl == null) {
             cl = ToolProviderRegistry.class.getClassLoader();
         }
-        for (ToolProvider p : ServiceLoader.load(ToolProvider.class, cl)) {
-            found.add(p);
+        for (T t : ServiceLoader.load(spi, cl)) {
+            found.add(t);
         }
+        return found;
+    }
+
+    static List<ToolProvider> discover(Instance<ToolProvider> cdiProviders) {
+        List<ToolProvider> found = discover(ToolProvider.class);
         if (cdiProviders != null) {
             for (ToolProvider p : cdiProviders) {
                 found.add(p);
@@ -98,7 +120,7 @@ public class ToolProviderRegistry {
         return specs;
     }
 
-    /** Global access checks contributed by providers. */
+    /** Global access checks contributed by providers or registered on their own. */
     public List<AccessCheck> accessChecks() {
         return accessChecks;
     }
