@@ -51,6 +51,23 @@ public class McpClient {
         return parse(post(msg));
     }
 
+    public JsonArray listPrompts() {
+        return request("prompts/list", new JsonObject()).getJsonObject("result").getJsonArray("prompts");
+    }
+
+    /** The text of the first message of a prompt. */
+    public String getPrompt(String name, JsonObject arguments) {
+        JsonObject r = request("prompts/get", new JsonObject().put("name", name).put("arguments", arguments));
+        if (r.containsKey("error")) {
+            throw new IllegalStateException(r.getJsonObject("error").encode());
+        }
+        return r.getJsonObject("result")
+            .getJsonArray("messages")
+            .getJsonObject(0)
+            .getJsonObject("content")
+            .getString("text");
+    }
+
     /** All tools across result pages. */
     public JsonArray listTools() {
         JsonArray all = new JsonArray();

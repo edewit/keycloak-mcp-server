@@ -31,6 +31,10 @@ public class ToolProviderRegistry {
 
     private static final Logger LOG = Logger.getLogger(ToolProviderRegistry.class);
 
+    private final KeycloakSystems systems;
+
+    private final McpServerConfig serverConfig;
+
     private final List<ToolProvider> providers;
     private final List<ToolSpec> specs;
     private final List<AccessCheck> accessChecks;
@@ -51,6 +55,8 @@ public class ToolProviderRegistry {
      */
     public ToolProviderRegistry(List<ToolProvider> candidates, KeycloakSystems systems, McpServerConfig serverConfig,
             List<AccessCheck> standaloneChecks) {
+        this.systems = systems;
+        this.serverConfig = serverConfig;
         Map<String, ToolProvider> byId = new LinkedHashMap<>();
         for (ToolProvider p : candidates) {
             ToolProvider existing = byId.get(p.id());
@@ -115,6 +121,14 @@ public class ToolProviderRegistry {
             }
         }
         return found;
+    }
+
+    /**
+     * A provider context for an id, e.g. for prompt providers
+     * ({@code kc-mcp.spi.<id>.*}).
+     */
+    public ToolProviderContext context(String providerId) {
+        return new Context(systems, serverConfig, new ProviderConfig(providerId, serverConfig.spi().get(providerId)));
     }
 
     public List<ToolProvider> providers() {

@@ -297,6 +297,34 @@ public class SiemAuditListener implements AuditListener {
 }
 ```
 
+## Prompts: recipes with their tools attached
+
+`prompts/list` offers task recipes (`PromptSpec`, contributed by `PromptProvider`s, discovered like tool providers).
+A prompt names the catalog tools it relies on; the rendered text ends with those tools' names, levels, descriptions
+and parameters, so the model runs the recipe without a `search_tools` round trip, and in `progressive` mode the
+tools are surfaced in `tools/list` for that connection. Tools that are disabled on the server (read-only mode,
+denied tools) are dropped from the recipe; a prompt that loses all its tools is not registered. Built in:
+
+| prompt | arguments | does |
+|---|---|---|
+| `keycloak_onboard_user` | `username`, `email`, `realm?`, `firstName?`, `lastName?`, `groups?`, `actions?` | duplicate check, create, group membership, account setup email, verification |
+| `keycloak_login_troubleshoot` | `username`, `realm?`, `client?` | read-only investigation: account state, failed login events, brute force, realm and client settings, proposed fix |
+
+```java
+@AutoService(PromptProvider.class)
+public class AcmePrompts implements PromptProvider {
+    public String id() { return "acme-prompts"; }
+    public List<PromptSpec> prompts(ToolProviderContext ctx) {
+        return List.of(PromptSpec.builder("acme_offboard_user")
+                .title("Offboard a user").description("Disable, log out and remove from groups.")
+                .required("username", "Who leaves")
+                .tools("keycloak_user_set_enabled", "keycloak_user_logout", "keycloak_user_groups_list", "keycloak_group_member_remove")
+                .handler(a -> "Offboard " + a.get("username") + ": disable the account, end sessions, leave all groups, report.")
+                .build());
+    }
+}
+```
+
 ## Keeping the tools aligned with a Keycloak version
 
 Every tool declares the Admin REST operations it relies on (`ToolSpec.api(...)`, see `ApiOperation`): method and

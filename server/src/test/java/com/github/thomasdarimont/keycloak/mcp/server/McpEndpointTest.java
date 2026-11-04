@@ -131,6 +131,44 @@ class McpEndpointTest {
     }
 
     @Test
+    void promptsCarryTheirTools() {
+        List<String> names = mcp.listPrompts().stream().map(p -> ((JsonObject) p).getString("name")).sorted().toList();
+        assertEquals(List.of("keycloak_login_troubleshoot", "keycloak_onboard_user"), names);
+        JsonObject onboard = mcp.listPrompts()
+            .stream()
+            .map(p -> (JsonObject) p)
+            .filter(p -> p.getString("name").equals("keycloak_onboard_user"))
+            .findFirst()
+            .orElseThrow();
+        assertTrue(onboard.getString("description").contains("keycloak_user_create"), onboard.encode());
+        assertTrue(
+                onboard.getJsonArray("arguments")
+                    .stream()
+                    .map(a -> (JsonObject) a)
+                    .anyMatch(a -> a.getString("name").equals("username") && a.getBoolean("required")),
+                onboard.encode());
+
+        String text = mcp.getPrompt("keycloak_onboard_user",
+                new JsonObject().put("username", "nina").put("email", "nina@example.com").put("groups", "/staff/devs"));
+        assertTrue(text.contains("nina (nina@example.com)"), text);
+        assertTrue(text.contains("UPDATE_PASSWORD"), "default action applied: " + text);
+        assertTrue(text.contains("/staff/devs"), text);
+        // the tools follow with their parameters, so no search_tools round trip is needed
+        assertTrue(text.contains("- keycloak_user_create (write):"), text);
+        assertTrue(text.contains("username*"), text);
+        assertTrue(text.contains("- keycloak_user_send_action_email (write):"), text);
+
+        String why = mcp.getPrompt("keycloak_login_troubleshoot",
+                new JsonObject().put("username", "bob").put("client", "demo-app"));
+        assertTrue(why.contains("client demo-app"), why);
+        assertTrue(why.contains("- keycloak_client_evaluate_scopes (read):"), why);
+        assertTrue(mcp
+            .request("prompts/get",
+                    new JsonObject().put("name", "keycloak_onboard_user").put("arguments", new JsonObject()))
+            .containsKey("error"), "required arguments are enforced");
+    }
+
+    @Test
     void hiddenToolsAreStillCallableDirectly() {
         JsonObject result = mcp.callTool("keycloak_acme_ping", new JsonObject());
         assertEquals("world", McpClient.text(result).getString("name"));
