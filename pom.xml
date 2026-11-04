@@ -26,12 +26,22 @@
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
         <spotless-maven-plugin.version>3.10.4</spotless-maven-plugin.version>
+        <!-- pinned above the Quarkus platform's 2.21.7 for the jackson-databind CVE fix; drop once the platform catches up -->
+        <jackson.version>2.21.8</jackson.version>
         <auto-service.version>1.1.1</auto-service.version>
         <jandex-maven-plugin.version>3.4.0</jandex-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <!-- imported first so its versions win over the platform BOM for every Jackson module -->
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>${quarkus.platform.artifact-id}</artifactId>
@@ -66,6 +76,10 @@
                     <groupId>${quarkus.platform.group-id}</groupId>
                     <artifactId>quarkus-maven-plugin</artifactId>
                     <version>${quarkus.platform.version}</version>
+                    <configuration>
+                        <!-- `quarkus:dev -pl server -am` also visits the api module, which is a plain library -->
+                        <warnIfBuildGoalMissing>false</warnIfBuildGoalMissing>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <artifactId>maven-resources-plugin</artifactId>
