@@ -22,7 +22,7 @@ import io.vertx.core.json.JsonObject;
  * @param api Admin REST operations the tool relies on (checked against the OpenAPI
  * document in tests)
  * @param requiredRoles {@code realm-management} roles the caller needs (any one of them
- * suffices per entry group, see {@link org.keycloak.mcp.guard.GrantedRoles}); empty = no
+ * suffices per entry group, see {@link org.keycloak.mcp.spi.GrantedRoles}); empty = no
  * realm role needed
  * @param accessChecks extra per-call predicates, evaluated after roles and before
  * confirmation

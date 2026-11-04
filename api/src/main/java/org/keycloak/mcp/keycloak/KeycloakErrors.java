@@ -4,8 +4,8 @@ import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 
+import org.keycloak.mcp.catalog.ToolException;
 import org.keycloak.mcp.catalog.ToolResult;
-import org.keycloak.mcp.guard.ToolException;
 
 import io.vertx.core.json.JsonObject;
 

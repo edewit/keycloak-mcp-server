@@ -3,7 +3,6 @@ package org.keycloak.mcp.spi;
 import java.util.Map;
 
 import org.keycloak.mcp.catalog.ToolSpec;
-import org.keycloak.mcp.guard.GrantedRoles;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
 
 /**
