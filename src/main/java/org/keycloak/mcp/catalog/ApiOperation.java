@@ -89,6 +89,14 @@ public record ApiOperation(
         return unspecified == null;
     }
 
+    /** Marker for a path parameter the handler derives itself (e.g. the realm's internal id). */
+    public static final String DERIVED = "(derived)";
+
+    /** A path template parameter the handler fills from a lookup rather than from a tool argument. */
+    public ApiOperation derivedPath(String specParam) {
+        return path(specParam, DERIVED);
+    }
+
     /** Binds a path template parameter to a tool argument, e.g. {@code path("user-id", "id")}. */
     public ApiOperation path(String specParam, String toolArg) {
         Map<String, String> m = new LinkedHashMap<>(pathParams);

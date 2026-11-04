@@ -24,9 +24,10 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
 
 * `search_tools(query, category?, limit?)` – lexical search over names, titles, descriptions, parameters and a
   hand-maintained synonym table ("kick" → logout, "ldap" → federation, …). Umlauts and accents are folded and
-  German query words are translated before matching ("Benutzer abmelden" → `user logout`,
-  "Identitätsanbieter anlegen" → `identity provider create`; see `search/QueryTranslations.java`); the
-  instructions ask the model to search in English for other languages. Returns name, description and the
+  German and French query words are translated before matching ("Benutzer abmelden" → `user logout`,
+  "Identitätsanbieter anlegen" → `identity provider create`, "supprimez cet utilisateur" → `delete user`; one
+  stop-word list, dictionary and set of inflection rules per language in `search/QueryTranslations.java`, so
+  another language is a table away); the instructions ask the model to search in English for other languages. Returns name, description and the
   input schema, so the model can call `execute_tool` in the next turn. Without arguments it lists the categories.
 * `execute_tool(name, arguments, confirm?)` – dispatches through the same invoker as direct calls:
   policy → argument validation/coercion → realm check → confirmation → handler → audit log.
@@ -307,7 +308,7 @@ user in with that pre-registered client (`example/mcp-oauth.json`):
 | users, sessions | search, get, create, update, set_enabled, delete, reset_password, send_action_email, sessions_list, logout |
 | groups          | list (search matches subgroups), get (roles a group grants, incl. inherited), create, delete, members_list, member_add, member_remove, user_groups_list, role_assign |
 | roles           | role_list, client_roles_list, user_roles_get (direct + effective realm and client roles, groups, and the source of each role), user_role_assign/unassign, user_client_roles_get, user_client_role_assign/unassign |
-| clients, scopes | list, get, get_secret, regenerate_secret, create, update, delete, mappers_list, scopes_list, default_scopes_get, scope_assign/unassign |
+| clients, scopes | list, get, get_secret, regenerate_secret, create, update, delete, mappers_list, scopes_list, default_scopes_get, scope_assign/unassign, example_token (access/ID token, userinfo or SAML response a user would get, like the admin console's *Evaluate* tab), evaluate_scopes (effective mappers and realm roles), authz_resources_list, authz_policies_list, authz_permissions_list |
 | idp             | list, get, mappers_list, create, delete |
 | orgs            | list, get, create, delete, idp_list, idp_link, idp_unlink |
 | federation      | list, get, sync |

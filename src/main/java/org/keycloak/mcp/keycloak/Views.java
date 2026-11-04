@@ -80,6 +80,9 @@ public final class Views {
         put(m, "enabled", c.isEnabled());
         put(m, "publicClient", c.isPublicClient());
         put(m, "serviceAccountsEnabled", c.isServiceAccountsEnabled());
+        if (Boolean.TRUE.equals(c.getAuthorizationServicesEnabled())) {
+            m.put("authorizationServicesEnabled", true);
+        }
         return m;
     }
 

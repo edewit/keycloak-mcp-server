@@ -96,7 +96,7 @@ class CatalogLintTest {
                 ours.add(s.name());
             }
         }
-        Set<String> extras = Set.of("keycloak_group_get");
+        Set<String> extras = Set.of("keycloak_group_get", "keycloak_client_example_token", "keycloak_client_evaluate_scopes");
         Set<String> unknown = new TreeSet<>(ours);
         unknown.removeAll(reference);
         unknown.removeAll(extras);
@@ -105,7 +105,7 @@ class CatalogLintTest {
         missing.removeAll(ours);
         System.out.println("Reference coverage: " + ours.size() + "/" + reference.size() + ", missing: " + missing);
         assertTrue(missing.isEmpty(), "reference tools not ported: " + missing);
-        assertEquals(72 + extras.size(), ours.size());
+        assertEquals(75 + extras.size(), ours.size());
     }
 
     static Set<String> referenceNames() throws IOException {

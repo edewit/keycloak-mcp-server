@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Lower-case, fold accents and umlauts, split on non-alphanumerics and camelCase, drop stop words, translate
- * known German words into their English equivalents ({@link QueryTranslations}), light suffix stripping.
+ * known German and French words into their English equivalents ({@link QueryTranslations}), light suffix stripping.
  */
 public final class Tokenizer {
 
@@ -24,6 +24,7 @@ public final class Tokenizer {
      */
     private static final Map<List<String>, String> ALIASES = Map.of(
             List.of("identity", "provider"), "idp",
+            List.of("provider", "identity"), "idp", // French word order: fournisseur d'identité
             List.of("organization"), "org",
             List.of("authentication"), "auth");
 

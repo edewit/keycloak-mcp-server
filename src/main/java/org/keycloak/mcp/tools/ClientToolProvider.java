@@ -7,12 +7,14 @@ import java.util.Map;
 
 import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.mcp.catalog.ApiOperation;
 import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolCall;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
 import org.keycloak.mcp.guard.ToolException;
 import org.keycloak.mcp.keycloak.KeycloakAdmin;
+import org.keycloak.mcp.keycloak.ScopeEvaluation;
 import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.Delegation;
 import org.keycloak.mcp.spi.ToolProviderContext;
@@ -20,6 +22,9 @@ import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ClientScopeRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.ProtocolMapperRepresentation;
+import org.keycloak.representations.idm.authorization.PolicyRepresentation;
+import org.keycloak.representations.idm.authorization.ResourceRepresentation;
+import org.keycloak.representations.idm.authorization.ScopeRepresentation;
 
 /**
  * CLIENTS and CLIENT_SCOPES.
@@ -137,6 +142,83 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .roles("view-clients")
                         .api(get(R + "/clients/{client-uuid}/protocol-mappers/models").path("client-uuid", "clientId"))
                         .build(),
+                tool("keycloak_client_example_token")
+                        .title("Generate an example token")
+                        .description("What a client's access token, ID token, userinfo or SAML response would contain "
+                                + "for a user and optional scopes (unsigned example).")
+                        .category(Category.CLIENTS).read()
+                        .synonyms("evaluate scopes", "preview token", "token claims", "which claims", "sample token",
+                                "example access token", "id token", "userinfo", "saml response", "assertion",
+                                "why is claim missing", "token content")
+                        .schema(schema()
+                                .string("clientId", CLIENT_ID).required()
+                                .string("userId", USER_ID).required()
+                                .enumeration("type", "What to generate", "access_token", "id_token", "userinfo",
+                                        "saml_response").def("access_token")
+                                .string("scope", "Optional client scopes to add, space separated, e.g. \"offline_access phone\"")
+                                .string("audience", "Target client for the audience claim (optional)"))
+                        .handler(this::exampleToken)
+                        .roles("view-clients", "view-users")
+                        .api(get(R + "/clients/{client-uuid}/evaluate-scopes/generate-example-access-token").path("client-uuid", "clientId"),
+                                get(R + "/clients/{client-uuid}/evaluate-scopes/generate-example-id-token").path("client-uuid", "clientId"),
+                                get(R + "/clients/{client-uuid}/evaluate-scopes/generate-example-userinfo").path("client-uuid", "clientId"),
+                                get(R + "/clients/{client-uuid}/evaluate-scopes/generate-example-saml-response").path("client-uuid", "clientId"))
+                        .build(),
+                tool("keycloak_client_evaluate_scopes")
+                        .title("Evaluate client scopes")
+                        .description("Effective protocol mappers (and where they come from) and realm roles a client's "
+                                + "tokens get for given optional scopes.")
+                        .category(Category.CLIENTS).read()
+                        .synonyms("evaluate scopes", "effective mappers", "effective roles", "scope mappings",
+                                "which scopes", "role scope", "full scope", "granted roles")
+                        .schema(schema()
+                                .string("clientId", CLIENT_ID).required()
+                                .string("scope", "Optional client scopes to add, space separated, e.g. \"offline_access phone\""))
+                        .handler(this::evaluateScopes)
+                        .roles("view-clients")
+                        .api(get(R + "/clients/{client-uuid}/evaluate-scopes/protocol-mappers").path("client-uuid", "clientId"),
+                                get(R + "/clients/{client-uuid}/evaluate-scopes/scope-mappings/{roleContainerId}/granted")
+                                        .path("client-uuid", "clientId").derivedPath("roleContainerId"),
+                                get(R + "/clients/{client-uuid}/evaluate-scopes/scope-mappings/{roleContainerId}/not-granted")
+                                        .path("client-uuid", "clientId").derivedPath("roleContainerId"))
+                        .build(),
+                tool("keycloak_authz_resources_list")
+                        .title("List authorization resources")
+                        .description("Resources protected by a client's authorization services (fine-grained permissions): "
+                                + "name, type, URIs, scopes.")
+                        .category(Category.CLIENTS).read()
+                        .synonyms("authorization", "authz", "uma", "protected resources", "resource server",
+                                "fine grained permissions")
+                        .schema(schema().string("clientId", CLIENT_ID).required().pagination())
+                        .handler(this::authzResources)
+                        .roles("view-authorization")
+                        .api(get(R + "/clients/{client-uuid}/authz/resource-server/resource").path("client-uuid", "clientId"))
+                        .build(),
+                tool("keycloak_authz_policies_list")
+                        .title("List authorization policies")
+                        .description("Policies of a client's authorization services (role, user, group, client, time, "
+                                + "JS, aggregate rules) with their logic and decision strategy.")
+                        .category(Category.CLIENTS).read()
+                        .synonyms("authorization", "authz", "uma", "policy", "rules", "resource server",
+                                "fine grained permissions")
+                        .schema(schema().string("clientId", CLIENT_ID).required().pagination())
+                        .handler(this::authzPolicies)
+                        .roles("view-authorization")
+                        .api(get(R + "/clients/{client-uuid}/authz/resource-server/policy").path("client-uuid", "clientId"))
+                        .build(),
+                tool("keycloak_authz_permissions_list")
+                        .title("List authorization permissions")
+                        .description("Permissions of a client's authorization services: which resources or scopes are "
+                                + "guarded by which policies.")
+                        .category(Category.CLIENTS).read()
+                        .synonyms("authorization", "authz", "uma", "permission", "resource server",
+                                "fine grained permissions", "who may access")
+                        .schema(schema().string("clientId", CLIENT_ID).required().pagination())
+                        .handler(this::authzPermissions)
+                        .roles("view-authorization")
+                        .api(get(R + "/clients/{client-uuid}/authz/resource-server/policy").path("client-uuid", "clientId"),
+                                policySub("associated-policies"), policySub("resources"), policySub("scopes"))
+                        .build(),
                 tool("keycloak_client_scopes_list")
                         .title("List client scopes")
                         .description("Client scopes of the realm with protocol and realm-level default/optional flags.")
@@ -184,6 +266,12 @@ public class ClientToolProvider extends AbstractToolProvider {
                         .build());
     }
 
+    /** The policy sub-resources are served by PolicyResourceService, which the published OpenAPI document omits. */
+    private static ApiOperation policySub(String tail) {
+        return ApiOperation.unspecified("get", R + "/clients/{client-uuid}/authz/resource-server/policy/{policy-id}/" + tail,
+                "policy sub-resources are not part of the published OpenAPI document");
+    }
+
     private static org.keycloak.mcp.catalog.InputSchema.Builder clientFields(org.keycloak.mcp.catalog.InputSchema.Builder b) {
         return b.string("name", "Display name")
                 .string("description", "Description")
@@ -198,7 +286,9 @@ public class ClientToolProvider extends AbstractToolProvider {
                 .bool("directAccessGrantsEnabled", "Resource owner password grant")
                 .bool("serviceAccountsEnabled", "Client credentials grant / service account")
                 .bool("pkce", "Require PKCE with S256")
-                .bool("bearerOnly", "Bearer-only (resource server, no login)");
+                .bool("bearerOnly", "Bearer-only (resource server, no login)")
+                .bool("authorizationServicesEnabled", "Authorization services (fine-grained permissions, UMA); "
+                        + "needs a confidential client");
     }
 
     // ---- handlers -----------------------------------------------------------------------------------------------
@@ -340,6 +430,10 @@ public class ClientToolProvider extends AbstractToolProvider {
             c.setBearerOnly(call.bool("bearerOnly"));
             changed.add("bearerOnly");
         }
+        if (call.has("authorizationServicesEnabled")) {
+            c.setAuthorizationServicesEnabled(call.bool("authorizationServicesEnabled"));
+            changed.add("authorizationServicesEnabled");
+        }
         if (call.has("pkce")) {
             Map<String, String> attrs = c.getAttributes() == null ? new LinkedHashMap<>()
                     : new LinkedHashMap<>(c.getAttributes());
@@ -378,6 +472,185 @@ public class ClientToolProvider extends AbstractToolProvider {
         Map<String, Object> page = Views.page(items, Integer.MAX_VALUE);
         page.put("clientId", c.getClientId());
         return ToolResult.ok(page);
+    }
+
+    // ---- scope evaluation ---------------------------------------------------------------------------------------
+
+    ToolResult exampleToken(ToolCall call) {
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        org.keycloak.representations.idm.UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        String type = call.str("type", "access_token");
+        boolean saml = "saml".equals(c.getProtocol());
+        if (saml != "saml_response".equals(type)) {
+            throw new ToolException("wrong_protocol", "Client '" + c.getClientId() + "' uses the "
+                    + (saml ? "saml" : "openid-connect") + " protocol; " + (saml ? "only saml_response"
+                            : "access_token, id_token and userinfo") + " can be generated for it.");
+        }
+        String scope = call.str("scope");
+        String audience = call.str("audience");
+        ScopeEvaluation eval = call.kc().scopeEvaluation();
+        Map<String, Object> generated = switch (type) {
+            case "id_token" -> eval.idToken(call.realm(), c.getId(), scope, u.getId(), audience);
+            case "userinfo" -> eval.userinfo(call.realm(), c.getId(), scope, u.getId());
+            case "saml_response" -> eval.samlResponse(call.realm(), c.getId(), scope, u.getId(), audience);
+            default -> eval.accessToken(call.realm(), c.getId(), scope, u.getId(), audience);
+        };
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("clientId", c.getClientId());
+        out.put("user", u.getUsername());
+        out.put("type", type);
+        Views.put(out, "scope", scope);
+        Views.put(out, "audience", audience);
+        if ("saml_response".equals(type)) {
+            out.put("samlResponse", generated.get("samlResponse"));
+        } else {
+            out.put("claims", generated);
+        }
+        out.put("note", "Example only: unsigned, not a usable credential.");
+        return ToolResult.ok(out);
+    }
+
+    ToolResult evaluateScopes(ToolCall call) {
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        String scope = call.str("scope");
+        ScopeEvaluation eval = call.kc().scopeEvaluation();
+        List<Map<String, Object>> mappers = new ArrayList<>();
+        for (Map<String, Object> m : eval.protocolMappers(call.realm(), c.getId(), scope)) {
+            Map<String, Object> v = new LinkedHashMap<>();
+            v.put("name", m.get("mapperName"));
+            v.put("type", m.get("protocolMapper"));
+            v.put("from", m.get("containerType") + " " + m.get("containerName"));
+            mappers.add(v);
+        }
+        mappers.sort(java.util.Comparator.comparing(m -> String.valueOf(m.get("from")) + m.get("name")));
+        // the role container is the realm itself, which Keycloak addresses by name here (clients by internal id)
+        List<String> granted = eval.grantedRoles(call.realm(), c.getId(), call.realm(), scope).stream()
+                .map(org.keycloak.representations.idm.RoleRepresentation::getName).sorted().toList();
+        List<String> notGranted = eval.notGrantedRoles(call.realm(), c.getId(), call.realm(), scope).stream()
+                .map(org.keycloak.representations.idm.RoleRepresentation::getName).sorted().toList();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("clientId", c.getClientId());
+        Views.put(out, "scope", scope);
+        out.put("fullScopeAllowed", Boolean.TRUE.equals(c.isFullScopeAllowed()));
+        out.put("protocolMappers", mappers);
+        out.put("realmRolesGranted", granted);
+        out.put("realmRolesNotGranted", notGranted);
+        return ToolResult.ok(out);
+    }
+
+    // ---- authorization services ---------------------------------------------------------------------------------
+
+    /** The client's resource server, or an error result when authorization services are off. */
+    private static org.keycloak.admin.client.resource.AuthorizationResource authz(ToolCall call, ClientRepresentation c) {
+        if (!Boolean.TRUE.equals(c.getAuthorizationServicesEnabled())) {
+            throw new ToolException("authorization_disabled", "Client '" + c.getClientId()
+                    + "' has authorization services disabled; enable them with keycloak_client_update "
+                    + "(authorizationServicesEnabled: true) first.");
+        }
+        return call.kc().realm(call.realm()).clients().get(c.getId()).authorization();
+    }
+
+    private static ToolResult authzPage(ClientRepresentation c, List<Map<String, Object>> items, ToolCall call) {
+        Map<String, Object> page = Views.page(items, call.max());
+        page.put("clientId", c.getClientId());
+        return ToolResult.ok(page);
+    }
+
+    ToolResult authzResources(ToolCall call) {
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (ResourceRepresentation r : authz(call, c).resources().resources()) {
+            Map<String, Object> v = new LinkedHashMap<>();
+            v.put("id", r.getId());
+            v.put("name", r.getName());
+            Views.put(v, "displayName", r.getDisplayName());
+            Views.put(v, "type", r.getType());
+            if (r.getUris() != null && !r.getUris().isEmpty()) {
+                v.put("uris", List.copyOf(r.getUris()));
+            }
+            if (r.getScopes() != null && !r.getScopes().isEmpty()) {
+                v.put("scopes", r.getScopes().stream().map(ScopeRepresentation::getName).sorted().toList());
+            }
+            if (r.getOwner() != null && r.getOwner().getName() != null && !c.getClientId().equals(r.getOwner().getName())) {
+                v.put("owner", r.getOwner().getName());
+            }
+            items.add(v);
+        }
+        return authzPage(c, items, call);
+    }
+
+    ToolResult authzPolicies(ToolCall call) {
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (PolicyRepresentation p : authz(call, c).policies().policies()) {
+            if (isPermission(p)) {
+                continue; // Keycloak lists permissions as policies too; they have their own tool
+            }
+            items.add(policyView(p));
+        }
+        return authzPage(c, items, call);
+    }
+
+    ToolResult authzPermissions(ToolCall call) {
+        ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
+        List<Map<String, Object>> items = new ArrayList<>();
+        org.keycloak.admin.client.resource.PoliciesResource policies = authz(call, c).policies();
+        for (PolicyRepresentation p : policies.policies()) {
+            if (!isPermission(p)) {
+                continue;
+            }
+            Map<String, Object> v = policyView(p);
+            // the listing carries no associations; one small call each tells what the permission guards and by what
+            org.keycloak.admin.client.resource.PolicyResource one = policies.policy(p.getId());
+            if (!v.containsKey("resources")) {
+                List<String> names = one.resources().stream().map(ResourceRepresentation::getName).sorted().toList();
+                if (!names.isEmpty()) {
+                    v.put("resources", names);
+                }
+            }
+            if (!v.containsKey("scopes")) {
+                List<String> names = one.scopes().stream().map(ScopeRepresentation::getName).sorted().toList();
+                if (!names.isEmpty()) {
+                    v.put("scopes", names);
+                }
+            }
+            if (!v.containsKey("policies")) {
+                List<String> names = one.associatedPolicies().stream().map(PolicyRepresentation::getName).sorted().toList();
+                if (!names.isEmpty()) {
+                    v.put("policies", names);
+                }
+            }
+            items.add(v);
+        }
+        return authzPage(c, items, call);
+    }
+
+    private static boolean isPermission(PolicyRepresentation p) {
+        return "resource".equals(p.getType()) || "scope".equals(p.getType());
+    }
+
+    private static Map<String, Object> policyView(PolicyRepresentation p) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        v.put("id", p.getId());
+        v.put("name", p.getName());
+        v.put("type", p.getType());
+        Views.put(v, "description", p.getDescription());
+        Views.put(v, "logic", p.getLogic() == null ? null : p.getLogic().name().toLowerCase());
+        Views.put(v, "decisionStrategy",
+                p.getDecisionStrategy() == null ? null : p.getDecisionStrategy().name().toLowerCase());
+        if (p.getResources() != null && !p.getResources().isEmpty()) {
+            v.put("resources", p.getResources().stream().sorted().toList());
+        }
+        if (p.getScopes() != null && !p.getScopes().isEmpty()) {
+            v.put("scopes", p.getScopes().stream().sorted().toList());
+        }
+        if (p.getPolicies() != null && !p.getPolicies().isEmpty()) {
+            v.put("policies", p.getPolicies().stream().sorted().toList());
+        }
+        if (p.getConfig() != null && !p.getConfig().isEmpty()) {
+            v.put("config", p.getConfig());
+        }
+        return v;
     }
 
     ToolResult scopesList(ToolCall call) {

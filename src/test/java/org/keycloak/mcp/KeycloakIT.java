@@ -7,12 +7,23 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Set;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+
+import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.KeycloakBuilder;
+import org.keycloak.admin.client.resource.AuthorizationResource;
+import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.representations.idm.authorization.ResourcePermissionRepresentation;
+import org.keycloak.representations.idm.authorization.ResourceRepresentation;
+import org.keycloak.representations.idm.authorization.ScopeRepresentation;
+import org.keycloak.representations.idm.authorization.UserPolicyRepresentation;
 
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -37,6 +48,33 @@ class KeycloakIT {
     void connect() {
         if (mcp == null) {
             mcp = new McpClient().initialize(false);
+        }
+    }
+
+    @ConfigProperty(name = "kc-mcp.url")
+    String keycloakUrl;
+
+    /** One resource with a scope, one user policy and one resource permission tying them together. */
+    void seedAuthorization(String clientId) {
+        try (Keycloak admin = KeycloakBuilder.builder().serverUrl(keycloakUrl).realm("master").clientId("admin-cli")
+                .username("admin").password("admin").build()) {
+            RealmResource realm = admin.realm(REALM);
+            String id = realm.clients().findByClientId(clientId).get(0).getId();
+            AuthorizationResource authz = realm.clients().get(id).authorization();
+            ScopeRepresentation read = new ScopeRepresentation("read");
+            authz.scopes().create(read).close();
+            ResourceRepresentation document = new ResourceRepresentation("Document", Set.of(read), "/documents/*",
+                    "urn:my-app:document");
+            String resourceId = authz.resources().create(document).readEntity(ResourceRepresentation.class).getId();
+            UserPolicyRepresentation admins = new UserPolicyRepresentation();
+            admins.setName("Admins only");
+            admins.addUser("admin");
+            String policyId = authz.policies().user().create(admins).readEntity(UserPolicyRepresentation.class).getId();
+            ResourcePermissionRepresentation permission = new ResourcePermissionRepresentation();
+            permission.setName("Read documents");
+            permission.addResource(resourceId);
+            permission.addPolicy(policyId);
+            authz.permissions().resource().create(permission).close();
         }
     }
 
@@ -244,6 +282,49 @@ class KeycloakIT {
 
         JsonObject mappers = call("keycloak_client_mappers_list", new JsonObject().put("clientId", "my-app"));
         assertEquals("my-app", mappers.getString("clientId"));
+
+        JsonObject token = call("keycloak_client_example_token", new JsonObject().put("clientId", "my-app")
+                .put("userId", "admin").put("scope", "offline_access"));
+        JsonObject claims = token.getJsonObject("claims");
+        assertEquals("admin", claims.getString("preferred_username"), token.encode());
+        assertEquals("my-app", claims.getString("azp"), token.encode());
+        assertTrue(claims.getString("scope").contains("offline_access"), token.encode());
+        JsonObject idToken = call("keycloak_client_example_token", new JsonObject().put("clientId", "my-app")
+                .put("userId", "admin").put("type", "id_token"));
+        assertEquals("ID", idToken.getJsonObject("claims").getString("typ"), idToken.encode());
+        JsonObject userinfo = call("keycloak_client_example_token", new JsonObject().put("clientId", "my-app")
+                .put("userId", "admin").put("type", "userinfo"));
+        assertEquals("admin", userinfo.getJsonObject("claims").getString("preferred_username"), userinfo.encode());
+        assertEquals("wrong_protocol", error("keycloak_client_example_token", new JsonObject().put("clientId", "my-app")
+                .put("userId", "admin").put("type", "saml_response")).getString("error"));
+        JsonObject evaluated = call("keycloak_client_evaluate_scopes", new JsonObject().put("clientId", "my-app"));
+        assertTrue(evaluated.getJsonArray("protocolMappers").stream().map(m -> (JsonObject) m)
+                .anyMatch(m -> "username".equals(m.getString("name"))), evaluated.encode());
+        assertTrue(evaluated.getJsonArray("realmRolesGranted").contains("admin"), evaluated.encode());
+
+        JsonObject noAuthz = error("keycloak_authz_resources_list", new JsonObject().put("clientId", "my-app"));
+        assertEquals("authorization_disabled", noAuthz.getString("error"), noAuthz.encode());
+        call("keycloak_client_update", new JsonObject().put("clientId", "my-app").put("authorizationServicesEnabled", true));
+        assertEquals(true, call("keycloak_client_get", new JsonObject().put("clientId", "my-app"))
+                .getBoolean("authorizationServicesEnabled"));
+        // Keycloak 26 creates no default resource/policy/permission any more, so define a small model directly
+        seedAuthorization("my-app");
+        JsonObject resources = call("keycloak_authz_resources_list", new JsonObject().put("clientId", "my-app"));
+        JsonObject resource = resources.getJsonArray("items").getJsonObject(0);
+        assertEquals("Document", resource.getString("name"), resources.encode());
+        assertTrue(resource.getJsonArray("uris").contains("/documents/*"), resources.encode());
+        assertTrue(resource.getJsonArray("scopes").contains("read"), resources.encode());
+        JsonObject policies = call("keycloak_authz_policies_list", new JsonObject().put("clientId", "my-app"));
+        JsonObject policy = policies.getJsonArray("items").getJsonObject(0);
+        assertEquals("Admins only", policy.getString("name"), policies.encode());
+        assertEquals("user", policy.getString("type"), policies.encode());
+        assertEquals("positive", policy.getString("logic"), policies.encode());
+        JsonObject permissions = call("keycloak_authz_permissions_list", new JsonObject().put("clientId", "my-app"));
+        JsonObject permission = permissions.getJsonArray("items").getJsonObject(0);
+        assertEquals("Read documents", permission.getString("name"), permissions.encode());
+        assertEquals("resource", permission.getString("type"), permissions.encode());
+        assertEquals(List.of("Admins only"), permission.getJsonArray("policies").getList(), permissions.encode());
+        assertEquals(List.of("Document"), permission.getJsonArray("resources").getList(), permissions.encode());
         assertEquals("not_found", error("keycloak_client_get", new JsonObject().put("clientId", "nope")).getString("error"));
         assertEquals("public_client", error("keycloak_client_get_secret", new JsonObject().put("clientId", "admin-cli"))
                 .getString("error"));
@@ -435,7 +516,7 @@ class KeycloakIT {
     @Order(12)
     void secondSystemIsSelectable() {
         JsonArray tools = mcp.listTools();
-        assertEquals(75, tools.size(), "direct mode lists every tool across pages, plus whoami");
+        assertEquals(80, tools.size(), "direct mode lists every tool across pages, plus whoami");
         JsonObject search = tools.stream().map(t -> (JsonObject) t)
                 .filter(t -> t.getString("name").equals("keycloak_user_search")).findFirst().orElseThrow();
         JsonObject props = search.getJsonObject("inputSchema").getJsonObject("properties");

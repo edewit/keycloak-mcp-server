@@ -88,7 +88,7 @@ class OpenApiAlignmentTest {
                     String toolArg = op.pathParams().get(templateParam);
                     if (toolArg == null) {
                         problems.add(where + ": path parameter {" + templateParam + "} not bound");
-                    } else if (!toolProps.containsKey(toolArg)) {
+                    } else if (!ApiOperation.DERIVED.equals(toolArg) && !toolProps.containsKey(toolArg)) {
                         problems.add(where + ": path parameter {" + templateParam + "} bound to unknown tool argument '"
                                 + toolArg + "'");
                     }

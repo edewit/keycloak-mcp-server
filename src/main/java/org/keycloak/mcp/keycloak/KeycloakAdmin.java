@@ -224,6 +224,11 @@ public class KeycloakAdmin implements AccessTokenSource {
         return system.authRealm();
     }
 
+    /** Scope evaluation endpoints (no admin client binding exists); authenticated like every other call. */
+    public ScopeEvaluation scopeEvaluation() {
+        return client().proxy(ScopeEvaluation.class, java.net.URI.create(system.url()));
+    }
+
     public RealmResource realm(String realm) {
         return client().realm(realm);
     }

@@ -125,6 +125,11 @@ only at the end of a URI). A token obtained for `demo-app` is rejected with `401
 12. With `other` realm: "List users in realm other" (realm_not_allowed).
 13. With `user-forward.env` as carol: "Which users are in the demo realm?" (works), "Disable dave" (forbidden, her
     token lacks `manage-users`); as alice the same prompt succeeds and the audit log shows `caller=alice`.
+14. "What would alice's access token for demo-app contain with the offline_access scope?" / "...her ID token" /
+    "...the userinfo response" (the admin console's *Evaluate* tab; unsigned examples), then "Which mappers and
+    realm roles does demo-app get?".
+15. "Quels rôles a l'utilisateur bob ?" or "Désactiver l'utilisateur dave" (French queries are translated for the
+    tool search like German ones).
 
 ## Reset
 
