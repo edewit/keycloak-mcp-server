@@ -1,7 +1,11 @@
 package org.keycloak.mcp.guard;
 
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
@@ -98,9 +102,58 @@ public class SecurityIdentityCallerProvider implements CallerProvider {
                     addRoles(roles, ra.get(client), client + ".");
                 }
             }
-            return Caller.of(jwt.getSubject(), name, realmOf(jwt.getIssuer()), roles);
+            return Caller.of(jwt.getSubject(), name, realmOf(jwt.getIssuer()), roles)
+                .withToken(tokenOf(identity), claimsOf(jwt));
         }
         return Caller.of(principal.getName(), principal.getName(), null, roles);
+    }
+
+    /** Every claim as plain Java values, so access checks need no JSON-P types. */
+    static Map<String, Object> claimsOf(JsonWebToken jwt) {
+        Map<String, Object> claims = new LinkedHashMap<>();
+        Set<String> names = jwt.getClaimNames();
+        if (names == null) {
+            return claims;
+        }
+        for (String n : names) {
+            if ("raw_token".equals(n)) {
+                continue;
+            }
+            Object v = jwt.getClaim(n);
+            if (v != null) {
+                claims.put(n, plain(v));
+            }
+        }
+        return claims;
+    }
+
+    private static Object plain(Object v) {
+        if (v instanceof jakarta.json.JsonString s) {
+            return s.getString();
+        }
+        if (v instanceof jakarta.json.JsonNumber n) {
+            return n.isIntegral() ? (Object) n.longValue() : (Object) n.doubleValue();
+        }
+        if (v instanceof jakarta.json.JsonObject o) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            o.forEach((k, x) -> m.put(k, plain(x)));
+            return m;
+        }
+        if (v instanceof jakarta.json.JsonArray a) {
+            List<Object> l = new ArrayList<>();
+            a.forEach(x -> l.add(plain(x)));
+            return l;
+        }
+        if (v == jakarta.json.JsonValue.TRUE) {
+            return Boolean.TRUE;
+        }
+        if (v == jakarta.json.JsonValue.FALSE) {
+            return Boolean.FALSE;
+        }
+        if (v == jakarta.json.JsonValue.NULL) {
+            return null;
+        }
+        return v;
     }
 
     private static void addRoles(Set<String> roles, Object access, String prefix) {

@@ -1,5 +1,6 @@
 package org.keycloak.mcp.guard;
 
+import java.util.List;
 import java.util.Map;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -28,7 +29,6 @@ import io.vertx.core.json.JsonObject;
 public class ToolInvoker {
 
     private static final Logger LOG = Logger.getLogger(ToolInvoker.class);
-    private static final Logger AUDIT = Logger.getLogger("org.keycloak.mcp.audit");
 
     private final ToolCatalog catalog;
     private final AccessPolicy policy;
@@ -36,11 +36,12 @@ public class ToolInvoker {
     private final int maxItems;
     private final KeycloakSystems systems;
     private final DelegationMode delegation;
+    private final AuditLog audit;
 
     @Inject
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, McpServerConfig config,
-            KeycloakSystems systems) {
-        this(catalog, policy, confirmer, config.resultMaxItems(), systems, config.delegation());
+            KeycloakSystems systems, AuditLog audit) {
+        this(catalog, policy, confirmer, config.resultMaxItems(), systems, config.delegation(), audit);
     }
 
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems) {
@@ -54,12 +55,18 @@ public class ToolInvoker {
 
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems,
             KeycloakSystems systems, DelegationMode delegation) {
+        this(catalog, policy, confirmer, maxItems, systems, delegation, new AuditLog(List.of(AuditLog.LOG_LINE)));
+    }
+
+    public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems,
+            KeycloakSystems systems, DelegationMode delegation, AuditLog audit) {
         this.catalog = catalog;
         this.policy = policy;
         this.confirmer = confirmer;
         this.maxItems = maxItems;
         this.systems = systems;
         this.delegation = delegation == null ? DelegationMode.OFF : delegation;
+        this.audit = audit;
     }
 
     public ToolResult invoke(ToolSpec spec, Map<String, Object> rawArgs, boolean confirmFlag, InvocationContext ctx) {
@@ -131,7 +138,7 @@ public class ToolInvoker {
             LOG.debugf(e, "Tool %s failed", spec.name());
             result = ErrorMapper.map(e);
         }
-        audit(spec, system, realm, result, ctx, System.nanoTime() - start);
+        audit.record(spec, system, realm, rawArgs, result, ctx, System.nanoTime() - start);
         return result;
     }
 
@@ -158,18 +165,4 @@ public class ToolInvoker {
         return r == null ? ToolResult.done("ok") : r;
     }
 
-    private void audit(ToolSpec spec, String system, String realm, ToolResult result, InvocationContext ctx,
-            long nanos) {
-        String outcome = "ok";
-        if (result.isError() && result.payload() instanceof Map<?, ?> m && m.get("error") != null) {
-            outcome = String.valueOf(m.get("error"));
-        }
-        else if (result.isError()) {
-            outcome = "error";
-        }
-        AUDIT.infof("tool=%s level=%s system=%s realm=%s outcome=%s via=%s caller=%s%s client=%s conn=%s ms=%d",
-                spec.name(), spec.level(), system == null ? "-" : system, realm == null ? "-" : realm, outcome,
-                ctx.via(), ctx.caller().isAnonymous() ? "-" : ctx.caller().name() + "(" + ctx.caller().subject() + ")",
-                ctx.caller().delegated() ? " delegated" : "", ctx.clientName(), ctx.connectionId(), nanos / 1_000_000);
-    }
 }

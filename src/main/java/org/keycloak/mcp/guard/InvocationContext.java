@@ -23,6 +23,7 @@ public record InvocationContext(McpConnection connection, Elicitation elicitatio
 
     public InvocationContext {
         caller = caller == null ? Caller.NONE : caller;
+        callerToken = callerToken != null ? callerToken : caller.rawToken();
     }
 
     public InvocationContext(McpConnection connection, Elicitation elicitation, McpLog log, String via, Caller caller) {

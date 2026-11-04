@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.keycloak.mcp.spi.AuditListener;
+import org.keycloak.mcp.spi.RecordingAuditListener;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonArray;
@@ -103,6 +105,28 @@ class McpEndpointTest {
         JsonObject result = mcp.callTool("keycloak_acme_ping", new JsonObject().put("name", "standalone"));
         assertTrue(result.getBoolean("isError"));
         assertEquals("standalone_denied", McpClient.text(result).getString("error"));
+    }
+
+    @Test
+    void auditListenersSeeEveryCall() {
+        RecordingAuditListener.EVENTS.clear();
+        mcp.callTool("keycloak_acme_ping", new JsonObject().put("name", "mallory"));
+        mcp.callTool("keycloak_user_reset_password",
+                new JsonObject().put("realm", "demo").put("id", "u1").put("password", "hunter2").put("confirm", true));
+        List<AuditListener.Event> events = RecordingAuditListener.EVENTS;
+        assertEquals(2, events.size(), events.toString());
+        AuditListener.Event denied = events.get(0);
+        assertEquals("keycloak_acme_ping", denied.tool());
+        assertEquals("blocked_name", denied.outcome());
+        assertEquals("direct", denied.via());
+        assertEquals("mallory", denied.args().get("name"));
+        assertFalse(denied.succeeded());
+        AuditListener.Event reset = events.get(1);
+        assertEquals("destructive", reset.level().name().toLowerCase());
+        assertEquals("demo", reset.realm());
+        assertEquals("***", reset.args().get("password"), "passwords never reach a listener");
+        assertEquals("keycloak_unreachable", reset.outcome());
+        assertTrue(reset.duration().toNanos() >= 0);
     }
 
     @Test

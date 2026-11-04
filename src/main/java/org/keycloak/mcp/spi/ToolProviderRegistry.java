@@ -90,7 +90,7 @@ public class ToolProviderRegistry {
      * ServiceLoader lookup of an SPI on the context class loader (jars in
      * {@code providers/} included).
      */
-    static <T> List<T> discover(Class<T> spi) {
+    public static <T> List<T> discover(Class<T> spi) {
         List<T> found = new ArrayList<>();
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         if (cl == null) {

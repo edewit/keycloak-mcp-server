@@ -51,7 +51,8 @@ class SecurityIdentityCallerProviderTest {
     @Test
     void jwtIdentityCarriesSubjectRealmAndRoles() {
         JsonWebToken token = jwt(Map.of("sub", "1234-5678", "upn", "alice@example.com", "preferred_username", "alice",
-                "iss", "https://sso.example.com/auth/realms/demo", "realm_access",
+                "raw_token", "eyJhbGciOiJub25lIn0.e30.sig", "iss", "https://sso.example.com/auth/realms/demo",
+                "realm_access",
                 Json.createObjectBuilder().add("roles", Json.createArrayBuilder().add("group-manager")).build(),
                 "resource_access",
                 Json.createObjectBuilder()
@@ -68,6 +69,16 @@ class SecurityIdentityCallerProviderTest {
         assertFalse(c.delegated());
         assertTrue(c.hasRole("realm:group-manager"));
         assertTrue(c.hasRole("my-app.auditor"));
+        // the token and its claims travel along for access checks, as plain Java values
+        assertEquals("eyJhbGciOiJub25lIn0.e30.sig", c.rawToken());
+        assertEquals("alice", c.claim("preferred_username"));
+        assertEquals(java.util.List.of("group-manager"), ((Map<?, ?>) c.claim("realm_access")).get("roles"));
+        assertFalse(c.claims().containsKey("raw_token"));
+        assertFalse(c.toString().contains("eyJ"), c.toString());
+        assertTrue(c.toString().contains("token=present"), c.toString());
+        assertFalse(c.withoutToken().hasToken());
+        assertEquals("alice", c.withoutToken().claim("preferred_username"));
+        assertTrue(c.asDelegated().hasToken());
     }
 
     @Test

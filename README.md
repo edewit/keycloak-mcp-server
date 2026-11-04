@@ -66,7 +66,9 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
   elicitation when the client supports it; otherwise they require `confirm: true` and explain that in the error.
 * `keycloak_user_delete` additionally requires the matching `username`; `keycloak_realm_update` and
   `keycloak_auth_flow_bind` count as destructive because they can lock people out.
-* One audit log line per executed tool (`org.keycloak.mcp.audit`).
+* One audit log line per executed tool (`org.keycloak.mcp.audit`), and an `AuditListener` SPI that receives the
+  same event (tool, level, system, realm, redacted arguments, outcome, caller, client, duration) for shipping to a
+  SIEM or database; see §Extending.
 
 ## Access levels
 
@@ -143,8 +145,9 @@ act on: they discover the realm, open the browser, let the user log in (authoriz
 the token. Keycloak side: a public client for that login whose tokens carry an audience the server accepts (an
 *Audience* mapper, see `example/realms/demo-realm.json` → `mcp-consumer`), and `realm-management` roles on the
 humans who may administer (groups are the natural place). The audit line then reads `caller=alice(<sub>) delegated`.
-The caller's token is kept out of `Caller` (policies, logs) and only travels in the invoker; per-caller admin
-clients are cached until the token expires. Token exchange (acting with narrowed, consented permissions) is
+`Caller` carries the token for access checks that need more than roles: `claims()` / `claim("department")` give the
+parsed payload as plain Java values and `rawToken()` the bearer token; `toString()` never prints it and audit
+events get a `withoutToken()` copy. Per-caller admin clients are cached until the token expires. Token exchange (acting with narrowed, consented permissions) is
 sketched in `sketch/notes/delegated-auth.md` and not implemented.
 
 ## Several Keycloak systems
@@ -271,6 +274,23 @@ The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `feder
 
 Global `AccessCheck`s (see §Per-tool access checks) are extension points of their own: `@AutoService(AccessCheck.class)`
 on the class, a CDI bean, or `ToolProvider.accessChecks(...)` all register a check that runs on every call.
+
+`org.keycloak.mcp.spi.AuditListener` receives one event per finished call, whatever the outcome
+(`@AutoService(AuditListener.class)` or a CDI bean). The built-in listener writes the log line; yours can forward
+to a SIEM, a database or a queue. Password-like arguments arrive as `***`. Listeners run synchronously on the
+handler's virtual thread, so hand slow deliveries to your own executor; an exception is logged and never changes
+the tool result:
+
+```java
+@AutoService(AuditListener.class)
+public class SiemAuditListener implements AuditListener {
+    public void onToolCall(Event e) {
+        if (!e.succeeded() || e.level() != ToolLevel.READ) {
+            siem.send(e.tool(), e.realm(), e.caller().name(), e.outcome(), e.args());
+        }
+    }
+}
+```
 
 ## Keeping the tools aligned with a Keycloak version
 
