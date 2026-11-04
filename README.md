@@ -242,7 +242,12 @@ The server listens on port 8081 (`quarkus.http.port`) so a local Keycloak can ke
 
 ## Extending: tool providers
 
-Tools come from `org.keycloak.mcp.spi.ToolProvider` implementations, discovered like Keycloak providers:
+Extensions depend on `org.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
+`AccessCheck`, `AuditListener`, `Caller`), the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
+`InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client
+with the forgiving lookups, `GrantedRoles`, `Views`, `AbstractToolProvider` and the server configuration interface.
+It brings the Keycloak admin client and Vert.x JSON, but no Quarkus. Tools come from `ToolProvider`
+implementations, discovered like Keycloak providers:
 
 ```java
 public class AcmeToolProvider implements ToolProvider {
@@ -303,7 +308,7 @@ expose are printed as a drift report. To check another version:
 
 ```shell
 curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org/docs-api/26.9.0/rest-api/openapi.json
-./mvnw test -Dtest=OpenApiAlignmentTest -Dkeycloak.openapi.version=26.9.0
+./mvnw test -Dtest=OpenApiAlignmentTest -Dsurefire.failIfNoSpecifiedTests=false -Dkeycloak.openapi.version=26.9.0
 ```
 
 Two endpoints we use are missing from the published document (server info, user storage sync); they are marked
@@ -313,12 +318,16 @@ Two endpoints we use are missing from the published document (server info, user 
 ## Running
 
 ```shell
-./mvnw quarkus:dev                     # dev mode, MCP endpoint on http://localhost:8081/mcp
+./mvnw quarkus:dev -pl server -am      # dev mode, MCP endpoint on http://localhost:8081/mcp
 ./mvnw test                            # unit + in-process MCP endpoint tests (no Keycloak needed)
 ./mvnw verify -DskipITs=false          # + Testcontainers Keycloak 26.8.1 integration test
-./mvnw package && java -jar target/quarkus-app/quarkus-run.jar
+./mvnw package && java -jar server/target/quarkus-app/quarkus-run.jar
 ./mvnw spotless:apply                  # format the Java sources; `verify` fails on unformatted code
 ```
+
+Two Maven modules: `api` (`org.keycloak:keycloak-mcp-server-api`, what extensions compile against, no Quarkus
+dependency) and `server` (the Quarkus application). Dev mode needs `-pl server -am` so the api is built in the
+same reactor; every other goal runs from the root.
 
 Formatting is checked with [Spotless](https://github.com/diffplug/spotless) using the
 [Spring Java Format](https://github.com/spring-io/spring-javaformat) conventions with spaces

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Generates IntelliJ run configurations (.run/*.run.xml, shared via git) from the env files in example/env:
-# one "quarkus:dev (<scenario>)" Maven configuration per env file with the file's variables as environment,
+# one "quarkus:dev (<scenario>)" Maven configuration per env file (quarkus:dev -pl server -am, so the api module is
+# built in the same reactor) with the file's variables as environment,
 # plus two shell configurations for the demo stack. Re-run after changing an env file.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -38,7 +39,7 @@ for f in example/env/*.env; do
     echo '      <option name="myRunnerParameters">'
     echo '        <MavenRunnerParameters>'
     echo '          <option name="profiles"><set /></option>'
-    echo '          <option name="goals"><list><option value="quarkus:dev" /></list></option>'
+    echo '          <option name="goals"><list><option value="quarkus:dev" /><option value="-pl" /><option value="server" /><option value="-am" /></list></option>'
     echo '          <option name="pomFileName" value="pom.xml" />'
     echo '          <option name="profilesMap"><map /></option>'
     echo '          <option name="resolveToWorkspace" value="false" />'
