@@ -314,7 +314,7 @@ user in with that pre-registered client (`example/mcp-oauth.json`):
 | federation      | list, get, sync |
 | auth flows      | flows_list, executions_list, authenticator_providers_list, flow_create/copy/bind, execution_add/update/raise/lower/delete, subflow_add, required_actions_list, required_action_set_enabled |
 | events          | events_login, events_admin |
-| realm           | server_info, realm_get_config, realm_update |
+| realm           | server_info (version per system), server_features (all feature flags with type and status, or one by name), realm_get_config, realm_update |
 
 ## Roadmap
 

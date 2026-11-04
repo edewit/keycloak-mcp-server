@@ -96,7 +96,8 @@ class CatalogLintTest {
                 ours.add(s.name());
             }
         }
-        Set<String> extras = Set.of("keycloak_group_get", "keycloak_client_example_token", "keycloak_client_evaluate_scopes");
+        Set<String> extras = Set.of("keycloak_group_get", "keycloak_client_example_token", "keycloak_client_evaluate_scopes",
+                "keycloak_server_features");
         Set<String> unknown = new TreeSet<>(ours);
         unknown.removeAll(reference);
         unknown.removeAll(extras);

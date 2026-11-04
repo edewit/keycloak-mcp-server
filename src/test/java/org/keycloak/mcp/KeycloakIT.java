@@ -96,6 +96,20 @@ class KeycloakIT {
     void serverInfoAndRealmConfig() {
         JsonObject info = McpClient.text(mcp.callTool("keycloak_server_info", new JsonObject()));
         assertTrue(info.getString("version").startsWith("26."), info.encode());
+        JsonObject features = McpClient.text(mcp.callTool("keycloak_server_features", new JsonObject()));
+        assertTrue(features.getInteger("total") > 20, features.encode());
+        assertTrue(features.getJsonArray("items").stream().map(f -> (JsonObject) f)
+                .anyMatch(f -> "organization".equals(f.getString("name")) && f.getBoolean("enabled")), features.encode());
+        JsonObject preview = McpClient.text(mcp.callTool("keycloak_server_features",
+                new JsonObject().put("type", "preview").put("enabled", false)));
+        assertTrue(preview.getJsonArray("items").stream().map(f -> (JsonObject) f)
+                .allMatch(f -> "preview".equals(f.getString("type")) && !f.getBoolean("enabled")), preview.encode());
+        JsonObject one = McpClient.text(mcp.callTool("keycloak_server_features", new JsonObject().put("name", "Organizations")));
+        assertEquals("organization", one.getString("name"), one.encode());
+        assertEquals(true, one.getBoolean("enabled"), one.encode());
+        assertTrue(one.getString("version").startsWith("26."), one.encode());
+        JsonObject unknown = McpClient.text(mcp.callTool("keycloak_server_features", new JsonObject().put("name", "warp-drive")));
+        assertEquals("not_found", unknown.getString("error"), unknown.encode());
         JsonObject cfg = call("keycloak_realm_get_config", new JsonObject());
         assertEquals("master", cfg.getString("realm"));
         assertEquals("browser", cfg.getJsonObject("flows").getString("browserFlow"));
@@ -516,7 +530,7 @@ class KeycloakIT {
     @Order(12)
     void secondSystemIsSelectable() {
         JsonArray tools = mcp.listTools();
-        assertEquals(80, tools.size(), "direct mode lists every tool across pages, plus whoami");
+        assertEquals(81, tools.size(), "direct mode lists every tool across pages, plus whoami");
         JsonObject search = tools.stream().map(t -> (JsonObject) t)
                 .filter(t -> t.getString("name").equals("keycloak_user_search")).findFirst().orElseThrow();
         JsonObject props = search.getJsonObject("inputSchema").getJsonObject("properties");

@@ -11,6 +11,7 @@ import org.keycloak.mcp.catalog.Category;
 import org.keycloak.mcp.catalog.ToolCall;
 import org.keycloak.mcp.catalog.ToolResult;
 import org.keycloak.mcp.catalog.ToolSpec;
+import org.keycloak.mcp.keycloak.Views;
 import org.keycloak.mcp.spi.Delegation;
 import org.keycloak.mcp.spi.ToolProviderContext;
 import org.keycloak.representations.idm.RealmRepresentation;
@@ -52,6 +53,21 @@ public class RealmToolProvider extends AbstractToolProvider {
                         .category(Category.REALM).read().global().hot()
                         .synonyms("version", "health", "which keycloak", "features", "about")
                         .handler(this::serverInfo)
+                        .api(ApiOperation.unspecified("get", "/admin/serverinfo", "ServerInfoAdminResource is not part of the published OpenAPI document"))
+                        .build(),
+                tool("keycloak_server_features")
+                        .title("Server features")
+                        .description("Keycloak feature flags with type (default, preview, experimental, deprecated) "
+                                + "and enabled status; filter, or check one feature by name.")
+                        .category(Category.REALM).read().global()
+                        .synonyms("feature", "feature flag", "preview features", "is feature enabled", "organizations enabled",
+                                "passkeys", "experimental", "deprecated", "enabled features", "capabilities")
+                        .schema(schema()
+                                .string("name", "One feature to check, e.g. organization or passkeys (optional)")
+                                .enumeration("type", "Only features of this type", "default", "preview", "experimental",
+                                        "deprecated", "disabled_by_default")
+                                .bool("enabled", "Only enabled (true) or disabled (false) features"))
+                        .handler(this::serverFeatures)
                         .api(ApiOperation.unspecified("get", "/admin/serverinfo", "ServerInfoAdminResource is not part of the published OpenAPI document"))
                         .build(),
                 tool("keycloak_realm_get_config")
@@ -197,6 +213,83 @@ public class RealmToolProvider extends AbstractToolProvider {
             m.put("themes", themes);
         }
         return ToolResult.ok(m);
+    }
+
+    ToolResult serverFeatures(ToolCall call) {
+        ServerInfoRepresentation info = call.kc().client().serverInfo().getInfo();
+        String version = info.getSystemInfo() == null ? null : info.getSystemInfo().getVersion();
+        List<FeatureRepresentation> all = info.getFeatures() == null ? List.of() : info.getFeatures();
+        String name = call.str("name");
+        if (name != null && !name.isBlank()) {
+            String wanted = normalizeFeature(name);
+            FeatureRepresentation f = all.stream().filter(x -> normalizeFeature(x.getName()).equals(wanted)
+                    || (x.getLabel() != null && normalizeFeature(x.getLabel()).equals(wanted))).findFirst().orElse(null);
+            if (f == null) {
+                // "Organizations" or "passkey" resolve when exactly one feature name contains or is contained in them
+                List<FeatureRepresentation> similar = all.stream()
+                        .filter(x -> normalizeFeature(x.getName()).contains(wanted) || wanted.contains(normalizeFeature(x.getName())))
+                        .sorted(java.util.Comparator.comparing(FeatureRepresentation::getName)).toList();
+                if (similar.size() != 1) {
+                    return ToolResult.error("not_found", "No feature named '" + name + "'.",
+                            "didYouMean", similar.isEmpty() ? null : similar.stream().map(RealmToolProvider::cliName).toList(),
+                            "hint", "Call without a name to list all features.");
+                }
+                f = similar.get(0);
+            }
+            Map<String, Object> m = feature(f);
+            Views.put(m, "label", f.getLabel());
+            if (f.getDependencies() != null && !f.getDependencies().isEmpty()) {
+                m.put("dependencies", f.getDependencies().stream().sorted().toList());
+            }
+            Views.put(m, "version", version);
+            m.put("howToChange", f.isEnabled()
+                    ? "Disable at startup with --features-disabled=" + cliName(f) + " (KC_FEATURES_DISABLED)."
+                    : "Enable at startup with --features=" + cliName(f) + " (KC_FEATURES); a restart is required.");
+            return ToolResult.ok(m);
+        }
+        String type = call.str("type");
+        Boolean enabled = call.bool("enabled");
+        List<Map<String, Object>> items = new ArrayList<>();
+        int enabledCount = 0;
+        for (FeatureRepresentation f : all.stream().sorted(java.util.Comparator.comparing(FeatureRepresentation::getName)).toList()) {
+            if (f.isEnabled()) {
+                enabledCount++;
+            }
+            if (type != null && (f.getType() == null || !f.getType().name().equalsIgnoreCase(type))) {
+                continue;
+            }
+            if (enabled != null && enabled != f.isEnabled()) {
+                continue;
+            }
+            items.add(feature(f));
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        Views.put(m, "version", version);
+        m.put("total", all.size());
+        m.put("enabled", enabledCount);
+        m.put("items", items);
+        return ToolResult.ok(m);
+    }
+
+    private static Map<String, Object> feature(FeatureRepresentation f) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", cliName(f));
+        Views.put(m, "type", f.getType() == null ? null : f.getType().name().toLowerCase());
+        m.put("enabled", f.isEnabled());
+        if (Boolean.TRUE.equals(f.isDeprecated())) {
+            m.put("deprecated", true);
+        }
+        return m;
+    }
+
+    /** Keycloak reports {@code TOKEN_EXCHANGE}; the CLI and docs say {@code token-exchange}. */
+    private static String cliName(FeatureRepresentation f) {
+        return f.getName().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+    }
+
+    /** {@code Organizations}, {@code organization}, {@code ORGANIZATION} and {@code passkeys-v2} compare alike. */
+    private static String normalizeFeature(String s) {
+        return s.toLowerCase(java.util.Locale.ROOT).replace('-', '_').replace(' ', '_');
     }
 
     ToolResult realmConfig(ToolCall call) {
