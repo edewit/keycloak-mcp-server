@@ -27,6 +27,10 @@ class ToolIndexTest {
             "ldap, keycloak_federation_sync",
             "active directory sync, keycloak_federation_sync",
             "which keycloak version, keycloak_server_info",
+            "Benutzer deaktivieren, keycloak_user_set_enabled",
+            "Benutzer löschen, keycloak_user_delete",
+            "Nutzer suchen, keycloak_user_search",
+            "LDAP Verzeichnis abgleichen, keycloak_federation_sync",
     })
     void topHit(String query, String expected) {
         List<SearchHit> hits = index.search(query, null, 5, s -> true);
@@ -79,5 +83,26 @@ class ToolIndexTest {
     void tokenizer() {
         assertEquals(List.of("user", "disabl", "group"), Tokenizer.tokens("the users: disabled, Groups"));
         assertEquals(List.of("redirect", "uri"), Tokenizer.tokens("redirectUris"));
+        // name abbreviations are added next to the spelled out phrase
+        assertEquals(List.of("list", "identity", "provider", "idp"), Tokenizer.tokens("list identity providers"));
+    }
+
+    @Test
+    void foldsUmlautsAndAccents() {
+        assertEquals("identitaetsanbieter loeschen", Tokenizer.fold("Identitätsanbieter löschen"));
+        assertEquals("strasse jose", Tokenizer.fold("Straße José"));
+        // an umlaut must not split the word
+        assertEquals(List.of("identity", "provider", "delet", "idp"), Tokenizer.tokens("Identitätsanbieter löschen"));
+    }
+
+    @Test
+    void translatesGermanQueryTerms() {
+        assertEquals(List.of("user", "logout"), Tokenizer.tokens("Benutzer abmelden"));
+        assertEquals(List.of("user", "logout"), Tokenizer.tokens("bitte alle Benutzer ausloggen"));
+        assertEquals(List.of("group", "role"), Tokenizer.tokens("Gruppen und Rollen"));
+        assertEquals(List.of("user", "disabl"), Tokenizer.tokens("Benutzern deaktivieren"));
+        assertEquals(List.of("password", "reset"), Tokenizer.tokens("Passwort zurücksetzen"));
+        // unknown words pass through unchanged, English is untouched
+        assertEquals(List.of("foobar", "user"), Tokenizer.tokens("foobar users"));
     }
 }

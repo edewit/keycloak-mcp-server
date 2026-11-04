@@ -25,7 +25,6 @@ public class ToolIndex {
     static final int TITLE_TOKEN = 6;
     static final int SYNONYM_TOKEN = 6;
     static final int DESCRIPTION_TOKEN = 2;
-    static final int PARAM_TOKEN = 2;
     static final int CATEGORY_TOKEN = 4;
     static final int PREFIX_TOKEN = 3;
 
@@ -43,9 +42,10 @@ public class ToolIndex {
                     new HashSet<>(Tokenizer.tokens(shortName)),
                     new HashSet<>(Tokenizer.tokens(spec.title())),
                     synonymTokens(spec.synonyms()),
-                    new HashSet<>(Tokenizer.tokens(spec.description())),
+                    // the category blurb lists verbs ("find, create, delete users") and is only weak evidence
+                    new HashSet<>(Tokenizer.tokens(spec.description() + " " + spec.category().blurb())),
                     new HashSet<>(Tokenizer.tokens(String.join(" ", spec.parameterNames()))),
-                    new HashSet<>(Tokenizer.tokens(spec.category().name() + " " + spec.category().blurb())),
+                    new HashSet<>(Tokenizer.tokens(spec.category().name())),
                     shortName);
             docs.add(doc);
             byName.put(spec.name(), doc);
@@ -76,8 +76,22 @@ public class ToolIndex {
                 hits.add(new SearchHit(doc.spec, score));
             }
         }
+        // ties: reads before writes, then the tool whose name the query covers best ("assign role to user" ->
+        // user_role_assign rather than user_client_role_assign), then the name
+        Map<String, Integer> unmatched = new HashMap<>();
+        for (SearchHit h : hits) {
+            Doc doc = byName.get(h.spec().name());
+            int n = 0;
+            for (String nt : doc.nameTokens) {
+                if (!qTokens.contains(nt)) {
+                    n++;
+                }
+            }
+            unmatched.put(h.spec().name(), n);
+        }
         hits.sort(Comparator.comparingInt(SearchHit::score).reversed()
                 .thenComparing(h -> h.spec().level())
+                .thenComparingInt(h -> unmatched.get(h.spec().name()))
                 .thenComparing(h -> h.spec().name()));
         return hits.size() > limit ? new ArrayList<>(hits.subList(0, limit)) : hits;
     }
@@ -122,31 +136,22 @@ public class ToolIndex {
             }
         }
         for (String t : qTokens) {
-            boolean matched = false;
+            // each query token counts once, at the strongest field it occurs in; summing fields let tools with
+            // verbose titles, synonyms or descriptions outrank the tool whose name says exactly that
+            int best = 0;
             if (doc.nameTokens.contains(t)) {
-                score += NAME_TOKEN;
-                matched = true;
+                best = NAME_TOKEN;
+            } else if (doc.titleTokens.contains(t)) {
+                best = TITLE_TOKEN;
+            } else if (doc.synonymTokens.contains(t)) {
+                best = SYNONYM_TOKEN;
+            } else if (doc.categoryTokens.contains(t)) {
+                best = CATEGORY_TOKEN;
+            } else if (doc.descriptionTokens.contains(t) || doc.paramTokens.contains(t)) {
+                best = DESCRIPTION_TOKEN;
             }
-            if (doc.titleTokens.contains(t)) {
-                score += TITLE_TOKEN;
-                matched = true;
-            }
-            if (doc.synonymTokens.contains(t)) {
-                score += SYNONYM_TOKEN;
-                matched = true;
-            }
-            if (doc.categoryTokens.contains(t)) {
-                score += CATEGORY_TOKEN;
-                matched = true;
-            }
-            if (doc.descriptionTokens.contains(t)) {
-                score += DESCRIPTION_TOKEN;
-                matched = true;
-            }
-            if (doc.paramTokens.contains(t)) {
-                score += PARAM_TOKEN;
-                matched = true;
-            }
+            score += best;
+            boolean matched = best > 0;
             if (!matched && t.length() >= 4) {
                 // prefix match on name/title tokens: "auth" ~ "authenticator", "fed" ~ "federation"
                 for (String nt : doc.nameTokens) {

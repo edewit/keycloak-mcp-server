@@ -21,7 +21,10 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
 | `progressive` | hybrid + whatever the last `search_tools` surfaced, per connection (needs clients that honour `tools/list_changed`) |
 
 * `search_tools(query, category?, limit?)` – lexical search over names, titles, descriptions, parameters and a
-  hand-maintained synonym table ("kick" → logout, "ldap" → federation, …). Returns name, description and the
+  hand-maintained synonym table ("kick" → logout, "ldap" → federation, …). Umlauts and accents are folded and
+  German query words are translated before matching ("Benutzer abmelden" → `user logout`,
+  "Identitätsanbieter anlegen" → `identity provider create`; see `search/QueryTranslations.java`); the
+  instructions ask the model to search in English for other languages. Returns name, description and the
   input schema, so the model can call `execute_tool` in the next turn. Without arguments it lists the categories.
 * `execute_tool(name, arguments, confirm?)` – dispatches through the same invoker as direct calls:
   policy → argument validation/coercion → realm check → confirmation → handler → audit log.
