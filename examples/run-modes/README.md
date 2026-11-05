@@ -1,6 +1,6 @@
 # Demo setup for keycloak-mcp-server
 
-A ready-to-run Keycloak 26.8.1 with a `demo` realm shaped for the tool surface, plus Mailpit to catch the
+A ready-to-run Keycloak 26.8.2 with a `demo` realm shaped for the tool surface, plus Mailpit to catch the
 action emails. Everything is throw-away (`docker compose down -v` resets it).
 
 ## Start

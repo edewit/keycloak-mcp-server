@@ -1,4 +1,4 @@
-# Demo stack for keycloak-mcp-server: Keycloak 26.8.1 + PostgreSQL + Mailpit (+ optional MCP server).
+# Demo stack for keycloak-mcp-server: Keycloak 26.8.2 + PostgreSQL + Mailpit (+ optional MCP server).
 #
 #   docker compose up -d                 # Keycloak on http://localhost:8080 (admin / admin), Mailpit on :8025
 #   docker compose --profile mcp up -d --build   # also runs the MCP server from ../modules/backend/target/quarkus-app on :8081
@@ -19,7 +19,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.8.1
+    image: quay.io/keycloak/keycloak:26.8.2
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin

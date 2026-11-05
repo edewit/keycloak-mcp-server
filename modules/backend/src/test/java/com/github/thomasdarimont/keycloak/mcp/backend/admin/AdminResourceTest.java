@@ -54,7 +54,7 @@ class AdminResourceTest {
             .put("issuer", "https://sso.example.com/realms/master")
             .put("defaultRealm", "acme-dev")
             .put("allowedRealms", new JsonArray().add("acme-dev").add("acme-prod"))
-            .put("version", "26.8.1");
+            .put("version", "26.8.2");
         String response = admin().body(body.encode())
             .put("/admin/systems/acme")
             .then()

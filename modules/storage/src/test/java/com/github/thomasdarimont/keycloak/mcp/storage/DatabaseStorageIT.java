@@ -72,7 +72,7 @@ class DatabaseStorageIT {
         return new KeycloakSystem(alias, url, GrantType.CLIENT_CREDENTIALS,
                 secret.isPresent() ? ClientAuth.CLIENT_SECRET : ClientAuth.PRIVATE_KEY_JWT, "master",
                 Optional.of("keycloak-mcp-server"), secret, Optional.empty(), Optional.empty(), Optional.of("tenant"),
-                realms, Optional.of("26.8.1"), Optional.of("https://sso.example.com/realms/master"));
+                realms, Optional.of("26.8.2"), Optional.of("https://sso.example.com/realms/master"));
     }
 
     @Test

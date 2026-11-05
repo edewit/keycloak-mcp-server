@@ -12,7 +12,7 @@
         "realm-a-1",
         "realm-a-2"
       ],
-      "version": "26.8.1"
+      "version": "26.8.2"
     },
     {
       "name": "tenant-b",
@@ -25,7 +25,7 @@
       "allowedRealms": [
         "realm-b-1"
       ],
-      "version": "26.8.1"
+      "version": "26.8.2"
     }
   ]
 }

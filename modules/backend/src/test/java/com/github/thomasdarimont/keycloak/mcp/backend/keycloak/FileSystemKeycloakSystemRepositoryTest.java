@@ -29,7 +29,7 @@ class FileSystemKeycloakSystemRepositoryTest {
                 {"systems": [
                   {"name": "tenant-a", "url": "http://keycloak:8080", "authRealm": "tenant-a",
                    "issuer": "https://sso.example.com/realms/tenant-a",
-                   "defaultRealm": "tenant-a", "allowedRealms": ["tenant-a", "shared"], "version": "26.8.1"},
+                   "defaultRealm": "tenant-a", "allowedRealms": ["tenant-a", "shared"], "version": "26.8.2"},
                   {"name": "legacy", "url": "https://old.example.com", "grantType": "password",
                    "clientAuth": "none", "clientId": "admin-cli", "username": "admin", "password": "admin"}
                 ]}
@@ -42,7 +42,7 @@ class FileSystemKeycloakSystemRepositoryTest {
         assertEquals(Optional.of(FileSystemKeycloakSystemRepository.DEFAULT_CLIENT_ID), a.clientId());
         assertEquals("tenant-a", a.authRealm());
         assertEquals(Set.of("tenant-a", "shared"), a.allowedRealms());
-        assertEquals(Optional.of("26.8.1"), a.version());
+        assertEquals(Optional.of("26.8.2"), a.version());
         assertEquals("https://sso.example.com/realms/tenant-a", a.assertionAudience(), "the public issuer");
         assertEquals("https://sso.example.com", a.publicUrl(), "where browsers reach it");
         assertEquals("https://old.example.com", source.find("legacy").orElseThrow().publicUrl());

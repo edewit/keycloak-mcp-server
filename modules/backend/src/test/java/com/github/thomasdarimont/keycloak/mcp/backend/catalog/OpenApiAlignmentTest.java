@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @QuarkusTest
 class OpenApiAlignmentTest {
 
-    static final String VERSION = System.getProperty("keycloak.openapi.version", "26.8.1");
+    static final String VERSION = System.getProperty("keycloak.openapi.version", "26.8.2");
 
     @Inject
     ToolCatalog catalog;

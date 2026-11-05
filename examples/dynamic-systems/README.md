@@ -36,7 +36,7 @@ curl -s -X PUT localhost:8091/admin/systems/acme \
     "clientAuth": "private_key_jwt",
     "defaultRealm": "acme-dev",
     "allowedRealms": ["acme-dev"],
-    "version": "26.8.1",
+    "version": "26.8.2",
     "signingKey": "generate"
   }' | jq .
 ```

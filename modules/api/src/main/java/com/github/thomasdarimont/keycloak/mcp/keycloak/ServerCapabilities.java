@@ -14,7 +14,7 @@ import org.keycloak.representations.info.ServerInfoRepresentation;
  * admin server info or configured ({@code kc-mcp.version}). {@link #UNKNOWN} when neither
  * is available; checks against unknown capabilities pass.
  *
- * @param version the server version ({@code 26.8.1}), {@code null} when unknown
+ * @param version the server version ({@code 26.8.2}), {@code null} when unknown
  * @param features enabled features by their CLI name ({@code organization},
  * {@code passkeys}), empty when unknown
  * @param featuresKnown whether {@code features} was read from the server
@@ -73,7 +73,7 @@ public record ServerCapabilities(String version, Set<String> features, boolean f
 
     /**
      * Whether the version is at most {@code maximum}, inclusive at the precision given:
-     * {@code atMost("26")} accepts 26.8.1, {@code atMost("26.8")} accepts 26.8.3 but not
+     * {@code atMost("26")} accepts 26.8.2, {@code atMost("26.8")} accepts 26.8.3 but not
      * 26.9.0; {@code false} when unknown.
      */
     public boolean atMost(String maximum) {
@@ -99,7 +99,7 @@ public record ServerCapabilities(String version, Set<String> features, boolean f
         return name.trim().toLowerCase(Locale.ROOT).replace('_', '-').replace(' ', '-');
     }
 
-    /** Numeric segment comparison: {@code 26.10.0 > 26.8.1}, {@code 26.8 == 26.8.0}. */
+    /** Numeric segment comparison: {@code 26.10.0 > 26.8.2}, {@code 26.8 == 26.8.0}. */
     public static int compareVersions(String a, String b) {
         int[] x = segments(a);
         int[] y = segments(b);

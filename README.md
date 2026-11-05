@@ -626,7 +626,7 @@ client sees must not depend on which of several systems a call ends up on.
 Every tool declares the Admin REST operations it relies on (`ToolSpec.api(...)`, see `ApiOperation`): method and
 path, which tool argument fills which path or query parameter, and which fields of the request body it writes.
 `OpenApiAlignmentTest` checks all of that against the published OpenAPI document of a concrete server version in
-`src/test/resources/openapi/keycloak-<version>.json` (26.8.1 is checked in): the operation must exist and not be
+`src/test/resources/openapi/keycloak-<version>.json` (26.8.2 is checked in): the operation must exist and not be
 deprecated, parameters and body fields must exist with compatible types and enums. Spec parameters a tool does not
 expose are printed as a drift report. To check another version:
 
@@ -655,7 +655,7 @@ Two endpoints we use are missing from the published document (server info, user 
 ```shell
 ./mvnw quarkus:dev -pl modules/backend -am      # dev mode, MCP endpoint on http://localhost:8081/mcp
 ./mvnw test                            # unit + in-process MCP endpoint tests (no Keycloak needed)
-./mvnw verify -DskipITs=false          # + Testcontainers Keycloak 26.8.1 integration test
+./mvnw verify -DskipITs=false          # + Testcontainers Keycloak 26.8.2 integration test
 ./mvnw package && java -jar modules/backend/target/quarkus-app/quarkus-run.jar
 ./mvnw spotless:apply                  # format the Java sources; `verify` fails on unformatted code
 ```

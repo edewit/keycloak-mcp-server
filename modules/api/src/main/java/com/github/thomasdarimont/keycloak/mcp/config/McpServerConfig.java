@@ -44,7 +44,7 @@ public interface McpServerConfig {
     Explanations explanations();
 
     /**
-     * Keycloak version of the (default) system, e.g. {@code 26.8.1}, when the server info
+     * Keycloak version of the (default) system, e.g. {@code 26.8.2}, when the server info
      * endpoint is not readable or should be overridden. Tools that need a newer version
      * are refused with {@code unsupported}; unknown means unchecked.
      */

@@ -215,7 +215,7 @@ class AccessPolicyTest {
             .build();
 
         AccessPolicy without = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(),
-                null, CapabilityDiscovery.fixed(CapabilityTest.caps("26.8.1", "passkeys")));
+                null, CapabilityDiscovery.fixed(CapabilityTest.caps("26.8.2", "passkeys")));
         Map<String, Object> denied = payload(without.forbids(orgs, "demo").orElseThrow());
         assertEquals("unsupported", denied.get("error"));
         assertTrue(String.valueOf(denied.get("message")).contains("KC_FEATURE_ORGANIZATION=enabled"),
@@ -243,7 +243,7 @@ class AccessPolicyTest {
             .maxVersion("26")
             .handler(call -> ToolResult.ok(List.of()))
             .build();
-        assertTrue(without.forbids(legacy, "demo").isEmpty(), "26.8.1 still has it");
+        assertTrue(without.forbids(legacy, "demo").isEmpty(), "26.8.2 still has it");
         Map<String, Object> gone = payload(with.forbids(legacy, "demo").orElseThrow());
         assertEquals("unsupported", gone.get("error"));
         assertTrue(String.valueOf(gone.get("message")).contains("up to 26;"), gone.toString());
@@ -265,7 +265,7 @@ class AccessPolicyTest {
             .requiresFeatures("organization")
             .handler(call -> ToolResult.ok(List.of()))
             .build();
-        CapabilityDiscovery noOrgs = CapabilityDiscovery.fixed(CapabilityTest.caps("26.8.1", "passkeys"));
+        CapabilityDiscovery noOrgs = CapabilityDiscovery.fixed(CapabilityTest.caps("26.8.2", "passkeys"));
 
         AccessPolicy users = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(), null,
                 noOrgs, Explanations.USERS);

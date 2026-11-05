@@ -344,7 +344,7 @@ class MetaToolsTest {
 
     @Test
     void searchMarksToolsTheServerCannotServe() {
-        ServerCapabilities noOrgs = new ServerCapabilities("26.8.1", Set.of("passkeys"), true);
+        ServerCapabilities noOrgs = new ServerCapabilities("26.8.2", Set.of("passkeys"), true);
         Map<String, Object> p = payload(withCapabilities(featureCatalog(), noOrgs).search("organizations", null, 5,
                 "c1", ExposureMode.HYBRID, InvocationContext.none()));
         Map<?, ?> orgs = ((List<?>) p.get("tools")).stream()
@@ -361,7 +361,7 @@ class MetaToolsTest {
                 Map.of("realm", "demo"), null, InvocationContext.none()));
         assertEquals("unsupported", exec.get("error"));
 
-        ServerCapabilities withOrgs = new ServerCapabilities("26.8.1", Set.of("organization"), true);
+        ServerCapabilities withOrgs = new ServerCapabilities("26.8.2", Set.of("organization"), true);
         Map<String, Object> ok = payload(withCapabilities(featureCatalog(), withOrgs).search("organizations", null, 5,
                 "c1", ExposureMode.HYBRID, InvocationContext.none()));
         assertTrue(((List<?>) ok.get("tools")).stream().noneMatch(t -> ((Map<?, ?>) t).containsKey("allowed")));

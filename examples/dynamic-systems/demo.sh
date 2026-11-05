@@ -40,7 +40,7 @@ SYSTEM=$(admin -X PUT "$MCP/admin/systems/acme" -d @- <<'JSON'
   "clientAuth": "private_key_jwt",
   "defaultRealm": "acme-dev",
   "allowedRealms": ["acme-dev"],
-  "version": "26.8.1",
+  "version": "26.8.2",
   "signingKey": "generate"
 }
 JSON
@@ -48,7 +48,7 @@ JSON
 echo "$SYSTEM" | jq .
 if echo "$SYSTEM" | jq -e '.error == "signing_key_exists"' >/dev/null; then
   echo "(already registered with a key; replacing the settings, keeping the key)"
-  SYSTEM=$(admin -X PUT "$MCP/admin/systems/acme" -d "$(echo '{}' | jq '. + {"displayName":"ACME Corp.","url":"http://keycloak:8080","issuer":"http://localhost:8090/realms/master","defaultRealm":"acme-dev","allowedRealms":["acme-dev"],"version":"26.8.1","signingKey":"existing"}')")
+  SYSTEM=$(admin -X PUT "$MCP/admin/systems/acme" -d "$(echo '{}' | jq '. + {"displayName":"ACME Corp.","url":"http://keycloak:8080","issuer":"http://localhost:8090/realms/master","defaultRealm":"acme-dev","allowedRealms":["acme-dev"],"version":"26.8.2","signingKey":"existing"}')")
 fi
 JWKS_PATH=$(echo "$SYSTEM" | jq -r .signingKey.jwksPath)
 JWKS_URL="$MCP_INTERNAL$JWKS_PATH"
@@ -136,7 +136,7 @@ admin -X PUT "$MCP/admin/systems/acme-cs" -d @- <<'JSON' | jq -c '{alias, client
   "clientSecret": "vault:acme/client-secret",
   "defaultRealm": "acme-dev",
   "allowedRealms": ["acme-dev"],
-  "version": "26.8.1"
+  "version": "26.8.2"
 }
 JSON
 admin "$MCP/admin/secrets" | jq -c '{vault, writable, secrets: [.secrets[] | {name, usedBy}]}'
