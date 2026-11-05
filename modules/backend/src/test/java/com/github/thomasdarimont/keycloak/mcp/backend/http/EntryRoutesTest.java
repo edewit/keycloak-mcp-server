@@ -30,7 +30,8 @@ class EntryRoutesTest {
         assertTrue(EntryRoutes.resolveEntryBinding("/mcp/systems/", "/mcp").isEmpty());
         assertTrue(EntryRoutes.resolveEntryBinding("/mcp/systems/a/b/c", "/mcp").isEmpty());
         assertTrue(EntryRoutes.resolveEntryBinding("/mcp/systems/bad name", "/mcp").isEmpty());
-        assertEquals(Optional.of(new EntryBinding("x", null)), EntryRoutes.resolveEntryBinding("/api/systems/x", "api/"));
+        assertEquals(Optional.of(new EntryBinding("x", null)),
+                EntryRoutes.resolveEntryBinding("/api/systems/x", "api/"));
     }
 
     @Test

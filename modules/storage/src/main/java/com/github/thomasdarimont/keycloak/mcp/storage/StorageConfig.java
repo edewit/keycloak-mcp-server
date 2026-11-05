@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.storage;
 
+import java.util.List;
 import java.util.Optional;
 
 import io.smallrye.config.ConfigMapping;
@@ -30,4 +31,12 @@ public interface StorageConfig {
      * set; rows written with it need the same key.
      */
     Optional<String> secretKey();
+
+    /**
+     * Keys rotated away ({@code KC_MCP_STORAGE_PREVIOUS_SECRET_KEYS}, comma separated):
+     * they still decrypt values written under them, never encrypt. With one configured,
+     * {@code StorageRekey} rewrites every encrypted row under {@link #secretKey()} at
+     * startup; afterwards the old key can be removed.
+     */
+    Optional<List<String>> previousSecretKeys();
 }

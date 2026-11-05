@@ -32,6 +32,8 @@ import jakarta.ws.rs.core.UriInfo;
  * GET    /admin/secrets/{name}
  * PUT    /admin/secrets/{name}               store or replace (body: {"value": "..."}); referenced as vault:{name}
  * DELETE /admin/secrets/{name}               remove a secret no system refers to
+ * GET    /admin/storage                      encryption state: which key ids the stored values are under
+ * POST   /admin/storage/rekey                re-encrypt everything under the current kc-mcp.storage.secret-key
  * </pre>
  */
 @Path(AdminResource.PATH)
@@ -45,6 +47,9 @@ public class AdminResource {
 
     @Inject
     AdminSecrets secrets;
+
+    @Inject
+    AdminStorage storage;
 
     @GET
     @Path("systems")
@@ -112,6 +117,18 @@ public class AdminResource {
     public Response deleteSecret(@PathParam("name") String name) {
         secrets.delete(name);
         return Response.noContent().build();
+    }
+
+    @GET
+    @Path("storage")
+    public Map<String, Object> storage() {
+        return storage.status();
+    }
+
+    @POST
+    @Path("storage/rekey")
+    public Map<String, Object> rekey() {
+        return storage.rekey();
     }
 
     private static Response saved(Saved saved) {

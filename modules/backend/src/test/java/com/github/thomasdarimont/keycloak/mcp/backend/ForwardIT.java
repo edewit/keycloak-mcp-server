@@ -73,6 +73,11 @@ class ForwardIT {
             .statusCode(200)
             .body("vault", equalTo("file-key-vault"))
             .body("writable", equalTo(false));
+        given().header("Authorization", "Bearer " + ForwardTestResource.token("mcp-consumer", "alice", "alice"))
+            .get("/admin/storage")
+            .then()
+            .statusCode(503)
+            .body("error", equalTo("storage_disabled"));
     }
 
     @Test

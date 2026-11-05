@@ -123,6 +123,15 @@ public class SigningKeys {
         return config.jwt().assertionLifespan();
     }
 
+    /**
+     * The scope token requests ask for ({@code kc-mcp.admin-api-scope}), {@code null} for
+     * none.
+     */
+    public String adminApiScope() {
+        String scope = config.adminApiScope();
+        return scope == null || scope.isBlank() ? null : scope.trim();
+    }
+
     public KeyVault vault() {
         return vault;
     }

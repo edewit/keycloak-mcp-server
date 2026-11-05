@@ -156,6 +156,17 @@ public interface McpServerConfig {
     DelegationMode delegation();
 
     /**
+     * Scope requested with every token the server obtains for the Admin API and
+     * advertised to MCP clients in the protected resource metadata: Keycloak 26.8.2 and
+     * later only accept Admin API tokens that carry the audience the built-in
+     * {@code kc-admin-api} client scope adds. Older servers ignore an unknown scope; a
+     * server that answers {@code invalid_scope} is asked again without it. Blank: never
+     * request a scope.
+     */
+    @WithDefault("kc-admin-api")
+    String adminApiScope();
+
+    /**
      * Refuse unauthenticated MCP requests with a 401 challenge even when the server acts
      * with its own credentials (the caller then only matters for policies and the audit
      * log). Implied by {@code delegation=forward}.

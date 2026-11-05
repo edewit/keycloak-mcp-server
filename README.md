@@ -72,6 +72,14 @@ The real boundary is the service account's roles in Keycloak. Server flags are a
 
 A `master` client may also manage realms via `<realm>-realm` client roles; the filter understands both.
 
+Keycloak 26.8.2 and later check the audience of Admin REST API tokens: every client whose tokens reach the Admin API
+(the service account client, the public client users log in with) needs the built-in `kc-admin-api` client scope,
+default or optional. Without it every admin call answers `unauthorized`. The server requests that scope with every token
+(`kc-mcp.admin-api-scope`), advertises it to MCP clients in the protected resource metadata, and asks again without it
+when a Keycloak answers `invalid_scope`, so one configuration serves 26.8.1 and 26.8.2. The examples' realm and client
+files carry the scope; a 26.8.1 import drops the unknown name silently. The startup log warns when the server's own
+token lacks the audience on a 26.8.2+ server.
+
 ### Per-tool access checks and delegation
 
 ```java
@@ -204,6 +212,8 @@ Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. F
 - `PUT /admin/secrets/<name>` `{"value": "..."}`: stores a secret in the database vault (file vault, secrets manager:
   409 `vault_read_only`). Systems with `vault:<name>` pick it up on their next connection. `GET /admin/secrets[/<name>]`:
   names + `usedBy`, never values. `DELETE`: 409 `secret_in_use` while referenced.
+- `GET /admin/storage`: encryption on/off, current key id, key ids in use per table. `POST /admin/storage/rekey`:
+  re-encrypts under the current `kc-mcp.storage.secret-key` (§Database storage, key rotation).
 
 ### Database storage (optional)
 
@@ -228,7 +238,14 @@ KC_MCP_STORAGE_SECRET_KEY=$(openssl rand -base64 32) java -jar modules/backend/t
   dialect does not switch at runtime.
 - Share a database server with Keycloak, never its schema: tables are prefixed `kc_mcp_`.
 - `kc-mcp.storage.secret-key` (base64 of 32 bytes, or a passphrase via Argon2id): AES-256-GCM for private keys, client
-  secrets, passwords. Unset: plain text, startup warns.
+  secrets, passwords. Unset: plain text, startup warns. Values are `enc:v2:<key id>:<nonce>:<ciphertext>`; the key id
+  (8 hex digits of the key's SHA-256) names the key they were written with.
+- Key rotation: put the new key into `secret-key` and the old one into `previous-secret-keys` (decrypts only), roll
+  out to every instance, let the startup pass or `POST /admin/storage/rekey` rewrite the rows (idempotent; plain and
+  `enc:v1` values from older builds get encrypted too), check `GET /admin/storage` shows only the current key id, drop
+  the old key. Rows under a key configured nowhere are reported as `remaining`, never touched.
+- Pseudonyms are HMACs under `secret-key`, so a rotation changes them; `kc-mcp.spi.pii-audit-scrubber.pseudonym-key`
+  gives the scrubber a key of its own.
 - `kc_mcp_system`: `alias` = system name (`system` argument, `/mcp/systems/<alias>`), `name` = display label, UUID primary key;
   both changeable. `enabled=false`: kept, not served.
 - Snapshot cache: rows reloaded when older than `kc-mcp.spi.db-systems.cache-seconds` (10; local writes reload at once).
@@ -318,6 +335,8 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `quarkus.datasource.jdbc.url`   |                             | turns database storage on: `jdbc:h2:file:./data/kc-mcp`, or `jdbc:postgresql://...` in a `-Ppostgresql` build (+ `quarkus.datasource.username`/`password`) |
 | `kc-mcp.storage.enabled`        | `true` with a jdbc url      | force storage on or off |
 | `kc-mcp.storage.secret-key`     |                             | AES-256-GCM key for stored private keys, client secrets, passwords; base64 of 32 bytes or passphrase (Argon2id) |
+| `kc-mcp.storage.previous-secret-keys` |                       | rotated-away keys (csv) that still decrypt; rows are rewritten under `secret-key` at startup and by `POST /admin/storage/rekey` |
+| `kc-mcp.spi.pii-audit-scrubber.pseudonym-key` | `secret-key`   | HMAC key of the audit pseudonyms, independent of storage key rotation |
 | `kc-mcp.admin.enabled` / `token` / `issuer` / `audience` / `role` | `false` / / / / `realm:admin` | admin API at `/admin`: static token and/or trusted issuer with role |
 | `kc-mcp.spi.db-systems.cache-seconds` | `10`                  | snapshot age of stored systems |
 | `kc-mcp.spi.db-audit.retention-days` |                        | delete audit rows older than this (startup, then hourly); unset keeps all |
@@ -325,6 +344,7 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | `keep`, `pseudonymize`, `drop`; `pii-args` argument names, `targets` listeners (default `db-audit`) |
 | `kc-mcp.username` / `password`  |                             | password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; needs `quarkus.oidc.tenant-enabled=true` |
+| `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
 | `kc-mcp.require-caller`         | `false`                     | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
 | `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens; issuer `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
 | `quarkus.oidc.token.audience`   |                             | required `aud` (recommended with `forward`) |
@@ -361,7 +381,8 @@ kc-mcp.client-secret=...
 kc-mcp.client-id=mcp-admin
 kc-mcp.jwt.key-file=/etc/keycloak-mcp/mcp-admin.pem
 # Keycloak: client mcp-admin -> Credentials -> "Signed JWT", "Use JWKS URL" on,
-# JWKS URL = https://<this server>/.well-known/jwks.json (or import the key it prints)
+# JWKS URL = https://<this server>/.well-known/jwks.json (or import the key it prints);
+# Client scopes -> add kc-admin-api as default (Keycloak 26.8.2+)
 
 # local dev: admin user via admin-cli
 kc-mcp.grant-type=password
@@ -510,7 +531,8 @@ public class AcmePrompts implements PromptProvider {
 
 ## Supported Keycloak versions
 
-Baseline **Keycloak 26.8** (OpenAPI alignment, integration tests). Newer expected to work; older unchecked.
+Baseline **Keycloak 26.8** (OpenAPI alignment, integration tests). Newer expected to work; older unchecked. Since
+26.8.2 the Admin API requires the `kc-admin-api` client scope on the calling client (§Access levels).
 
 - At startup and every ten minutes: version and enabled features per system from the admin server info (server
   credentials), kept as a capability snapshot. `kc-mcp.version` / `kc-mcp.systems.<name>.version` override and fill in;

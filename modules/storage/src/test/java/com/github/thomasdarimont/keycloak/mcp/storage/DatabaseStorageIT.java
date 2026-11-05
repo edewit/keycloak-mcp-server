@@ -29,6 +29,7 @@ import com.github.thomasdarimont.keycloak.mcp.storage.audit.AuditRetention;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.DatabaseAuditListener;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.DatabaseKeyVault;
+import com.github.thomasdarimont.keycloak.mcp.storage.keys.SecretEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.SigningKeyEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.DatabaseKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.SystemEntity;
@@ -67,6 +68,12 @@ class DatabaseStorageIT {
 
     @Inject
     AuditRetention retention;
+
+    @Inject
+    StorageRekey rekey;
+
+    @Inject
+    StorageCrypto crypto;
 
     static KeycloakSystem system(String alias, String url, Optional<String> secret, Set<String> realms) {
         return new KeycloakSystem(alias, url, GrantType.CLIENT_CREDENTIALS,
@@ -227,6 +234,47 @@ class DatabaseStorageIT {
         List<AuditEventEntity> mine = audit.byCaller(subject, 10);
         assertEquals(1, mine.size());
         assertTrue(audit.count() >= 2);
+    }
+
+    @Test
+    void rekeyRewritesRowsUnderThePreviousKeyAndReportsUnknownOnes() {
+        DatabaseKeyVault vault = vaults.select(DatabaseKeyVault.class).get();
+        String current = crypto.currentKeyId().orElseThrow();
+        assertTrue(crypto.hasPreviousKeys(), "kc-mcp.storage.previous-secret-keys of the test configuration");
+        String fromOld = "rekey-old-" + UUID.randomUUID();
+        String fromStranger = "rekey-stranger-" + UUID.randomUUID();
+        String oldValue = new StorageCrypto("old-passphrase").protect("written before the rotation");
+        String strangerValue = new StorageCrypto("nobody-knows").protect("written with a lost key");
+        String strangerKid = StorageCrypto.keyIdOf(strangerValue).orElseThrow();
+        QuarkusTransaction.requiringNew().run(() -> {
+            for (String[] row : new String[][] { { fromOld, oldValue }, { fromStranger, strangerValue } }) {
+                SecretEntity e = new SecretEntity();
+                e.name = row[0];
+                e.value = row[1];
+                e.createdAt = e.updatedAt = System.currentTimeMillis();
+                e.persist();
+            }
+        });
+
+        assertEquals("written before the rotation", vault.findSecret(fromOld).orElseThrow(), "previous key decrypts");
+        assertThrows(IllegalStateException.class, () -> vault.findSecret(fromStranger), "unknown key does not");
+        StorageRekey.Status before = rekey.status();
+        assertTrue(before.encryption() && before.previousKeys());
+        assertEquals(current, before.currentKeyId());
+        assertTrue(before.keyIds().get("kc_mcp_secret").containsKey(strangerKid), before.keyIds().toString());
+
+        StorageRekey.Result result = rekey.rekey();
+        assertEquals(current, result.currentKeyId());
+        assertTrue(result.secrets() >= 1, result.toString());
+        assertEquals(1L, result.remaining().get(strangerKid), "the row under the lost key is reported, not touched");
+
+        SecretEntity rewritten = QuarkusTransaction.requiringNew().call(() -> SecretEntity.findById(fromOld));
+        assertEquals(current, StorageCrypto.keyIdOf(rewritten.value).orElseThrow(), "now under the current key");
+        assertEquals("written before the rotation", vault.findSecret(fromOld).orElseThrow());
+        assertEquals(0, rekey.rekey().secrets(), "idempotent");
+
+        QuarkusTransaction.requiringNew().run(() -> SecretEntity.deleteById(fromStranger));
+        assertTrue(vault.deleteSecret(fromOld));
     }
 
     @Test

@@ -95,6 +95,16 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
                     .put("standardFlowEnabled", true)
                     .put("directAccessGrantsEnabled", true)
                     .put("fullScopeAllowed", true)
+                    // Keycloak 26.8.2+: tokens that reach the Admin API need the
+                    // kc-admin-api audience
+                    .put("defaultClientScopes",
+                            new JsonArray().add("web-origins")
+                                .add("acr")
+                                .add("roles")
+                                .add("profile")
+                                .add("basic")
+                                .add("email")
+                                .add("kc-admin-api"))
                     .put("redirectUris", new JsonArray().add("http://127.0.0.1:*/*")));
     }
 

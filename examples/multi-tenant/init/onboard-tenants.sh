@@ -12,7 +12,7 @@ onboard() {
   local id
   id=$($KC get clients -r master -q clientId="$client" --fields id --format csv --noquotes | head -1 || true)
   if [ -z "$id" ]; then
-    id=$(printf '{"clientId":"%s","name":"MCP server for %s","enabled":true,"protocol":"openid-connect","publicClient":false,"serviceAccountsEnabled":true,"standardFlowEnabled":false,"directAccessGrantsEnabled":false,"fullScopeAllowed":false,"clientAuthenticatorType":"client-jwt","attributes":{"use.jwks.url":"true","jwks.url":"http://mcp:8081/auth/keys/%s/jwks.json","token.endpoint.auth.signing.alg":"RS256"}}' \
+    id=$(printf '{"clientId":"%s","name":"MCP server for %s","defaultClientScopes":["web-origins","acr","roles","profile","basic","email","service_account","kc-admin-api"],"enabled":true,"protocol":"openid-connect","publicClient":false,"serviceAccountsEnabled":true,"standardFlowEnabled":false,"directAccessGrantsEnabled":false,"fullScopeAllowed":false,"clientAuthenticatorType":"client-jwt","attributes":{"use.jwks.url":"true","jwks.url":"http://mcp:8081/auth/keys/%s/jwks.json","token.endpoint.auth.signing.alg":"RS256"}}' \
         "$client" "$tenant" "$tenant" | $KC create clients -r master -i -f -)
     echo "created client $client ($id) with JWKS URL http://mcp:8081/auth/keys/$tenant/jwks.json"
   else

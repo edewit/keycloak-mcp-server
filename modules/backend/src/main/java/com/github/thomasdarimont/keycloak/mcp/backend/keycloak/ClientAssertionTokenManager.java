@@ -41,6 +41,8 @@ public class ClientAssertionTokenManager implements AutoCloseable {
     private final ReentrantLock lock = new ReentrantLock();
     private String token;
     private long expiresAt;
+    private String scope;
+    private boolean scopeRefused;
 
     public ClientAssertionTokenManager(Client client, String serverUrl, String realm, String clientId, JwtSigner signer,
             int assertionLifespan, GrantType grantType, String username, String password) {
@@ -73,6 +75,24 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         this.grantType = grantType;
         this.username = username;
         this.password = password;
+    }
+
+    /**
+     * Asks for a scope with every token request (Keycloak 26.8.2+: {@code kc-admin-api},
+     * whose audience the Admin API demands). A server that answers {@code invalid_scope}
+     * is asked again without it and the scope is dropped from then on, so older Keycloak
+     * versions and clients without the scope keep working.
+     */
+    public ClientAssertionTokenManager scope(String scope) {
+        this.scope = scope == null || scope.isBlank() ? null : scope.trim();
+        return this;
+    }
+
+    /**
+     * The scope requested with tokens, {@code null} when none or after it was refused.
+     */
+    public String scope() {
+        return scopeRefused ? null : scope;
     }
 
     /**
@@ -129,11 +149,22 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         if (grantType == GrantType.PASSWORD) {
             form.param("username", username).param("password", password);
         }
+        boolean withScope = scope != null && !scopeRefused;
+        if (withScope) {
+            form.param("scope", scope);
+        }
         try (Response response = client.target(tokenEndpoint)
             .request(MediaType.APPLICATION_JSON_TYPE)
             .post(Entity.form(form))) {
             String body = response.hasEntity() ? response.readEntity(String.class) : "";
             if (response.getStatus() != 200) {
+                if (withScope && isInvalidScope(response.getStatus(), body)) {
+                    LOG.infof("Keycloak at %s does not know the scope '%s' (%s); requesting tokens without it",
+                            tokenEndpoint, scope, body.replaceAll("\\s+", " ").trim());
+                    scopeRefused = true;
+                    grant();
+                    return;
+                }
                 LOG.warnf("private_key_jwt token request failed: HTTP %d %s", response.getStatus(), body);
                 throw new ToolException("unauthorized",
                         "Keycloak rejected the client assertion (HTTP " + response.getStatus() + "): " + body);
@@ -143,6 +174,14 @@ public class ClientAssertionTokenManager implements AutoCloseable {
             long expiresIn = json.getLong("expires_in", 60L);
             expiresAt = now + expiresIn;
         }
+    }
+
+    /**
+     * Whether a token endpoint answer refuses the requested scope (RFC 6749
+     * {@code invalid_scope}).
+     */
+    static boolean isInvalidScope(int status, String body) {
+        return status == 400 && body != null && body.contains("invalid_scope");
     }
 
     @Override

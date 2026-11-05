@@ -325,6 +325,7 @@
   "clients": [
     {
       "clientId": "mcp-admin",
+      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "service_account", "kc-admin-api"],
       "name": "MCP server (realm admin)",
       "enabled": true,
       "protocol": "openid-connect",
@@ -342,6 +343,7 @@
     },
     {
       "clientId": "mcp-manager",
+      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "service_account", "kc-admin-api"],
       "name": "MCP server (realm manager)",
       "enabled": true,
       "protocol": "openid-connect",
@@ -359,6 +361,7 @@
     },
     {
       "clientId": "mcp-readonly",
+      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "service_account", "kc-admin-api"],
       "name": "MCP server (read-only)",
       "enabled": true,
       "protocol": "openid-connect",
@@ -401,6 +404,7 @@
     },
     {
       "clientId": "mcp-consumer",
+      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "kc-admin-api"],
       "name": "MCP consumer (LLM client)",
       "enabled": true,
       "protocol": "openid-connect",
@@ -439,6 +443,7 @@
     },
     {
       "clientId": "mcp-jwt",
+      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "service_account", "kc-admin-api"],
       "name": "MCP server (private_key_jwt)",
       "enabled": true,
       "protocol": "openid-connect",

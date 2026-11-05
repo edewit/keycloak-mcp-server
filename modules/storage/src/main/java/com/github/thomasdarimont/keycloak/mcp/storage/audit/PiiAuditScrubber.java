@@ -69,9 +69,16 @@ public class PiiAuditScrubber implements AuditScrubber {
         this(ProviderConfig.forExtension(ID, serverConfig.spi()), crypto);
     }
 
+    /**
+     * A HMAC key of the scrubber's own, so a storage key rotation keeps the pseudonyms
+     * stable.
+     */
+    public static final String PSEUDONYM_KEY = "pseudonym-key";
+
     PiiAuditScrubber(ProviderConfig config, StorageCrypto crypto) {
         this(Policy.parse(config.get("pii", "keep")), config.get("pii-args", DEFAULT_PII_ARGS),
-                config.get("targets", DatabaseAuditListener.ID), crypto);
+                config.get("targets", DatabaseAuditListener.ID),
+                config.get(PSEUDONYM_KEY).map(StorageCrypto::new).orElse(crypto));
     }
 
     /**

@@ -1,7 +1,9 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,8 +19,11 @@ import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessTokenSource;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 
 import io.quarkus.runtime.Startup;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 
 /**
  * Caches the {@link GrantedRoles} of the server's token per Keycloak system.
@@ -42,12 +47,16 @@ public class RoleDiscovery {
     private final Map<String, Snapshot> snapshots = new ConcurrentHashMap<>();
     private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
     private final Map<String, Boolean> warned = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> audienceWarned = new ConcurrentHashMap<>();
+    /** The last known server capabilities per system, for version dependent warnings. */
+    private volatile Function<String, ServerCapabilities> capabilities = system -> ServerCapabilities.UNKNOWN;
 
     @Inject
-    public RoleDiscovery(KeycloakSystems systems, McpServerConfig config) {
+    public RoleDiscovery(KeycloakSystems systems, McpServerConfig config, CapabilityDiscovery capabilities) {
         // in forward mode the caller's token decides per call; the server may not even
         // have credentials
         this(systems.names(), systems::get, config.roleFilter() && config.delegation() == DelegationMode.OFF);
+        this.capabilities = capabilities::get;
     }
 
     /** Single system, mostly for tests. */
@@ -106,7 +115,9 @@ public class RoleDiscovery {
                 return s.roles();
             }
             AccessTokenSource tokens = sources.apply(system);
-            GrantedRoles roles = GrantedRoles.fromToken(tokens.accessToken(), tokens.authRealm());
+            String jwt = tokens.accessToken();
+            GrantedRoles roles = GrantedRoles.fromToken(jwt, tokens.authRealm());
+            warnWithoutAdminApiAudience(system, jwt);
             if (!roles.known() && warned.putIfAbsent(system, Boolean.TRUE) == null) {
                 LOG.warnf("[%s] the admin token carries no realm-management roles; role based tool filtering is off."
                         + " Check the 'roles' client scope and the service account roles.", system);
@@ -126,6 +137,44 @@ public class RoleDiscovery {
         }
         finally {
             lock.unlock();
+        }
+    }
+
+    /**
+     * Keycloak 26.8.2 and later refuse Admin API calls whose token lacks the Admin API
+     * audience, which the built-in {@code kc-admin-api} client scope adds. The roles
+     * discovery already holds the token, so the misconfiguration is named at startup
+     * instead of as a 401 on the first tool call.
+     */
+    private void warnWithoutAdminApiAudience(String system, String jwt) {
+        if (jwt == null || hasAdminApiAudience(jwt) || !capabilities.apply(system).atLeast("26.8.2")) {
+            return;
+        }
+        if (audienceWarned.putIfAbsent(system, Boolean.TRUE) == null) {
+            LOG.warnf("[%s] the admin token carries no Admin API audience: Keycloak %s answers every admin call with"
+                    + " 401 until the client gets the kc-admin-api client scope (Clients -> Client scopes -> Add,"
+                    + " default)", system, capabilities.apply(system).version());
+        }
+    }
+
+    /**
+     * Whether a token's {@code aud} names an Admin API URL
+     * ({@code .../admin/realms/<realm>}).
+     */
+    static boolean hasAdminApiAudience(String jwt) {
+        String[] parts = jwt.split("\\.");
+        if (parts.length < 2) {
+            return false;
+        }
+        try {
+            JsonObject payload = new JsonObject(
+                    new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
+            Object aud = payload.getValue("aud");
+            List<Object> audiences = aud instanceof JsonArray a ? a.getList() : aud == null ? List.of() : List.of(aud);
+            return audiences.stream().anyMatch(a -> String.valueOf(a).contains("/admin/realms/"));
+        }
+        catch (RuntimeException e) {
+            return false;
         }
     }
 

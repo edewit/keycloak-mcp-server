@@ -13,6 +13,13 @@ docker compose up -d --build
 docker compose down -v                                            # drops databases, system and key
 ```
 
+Iterating on the server: `docker-compose.dev.yml` mounts `target/quarkus-app` into a plain JDK image, no image build.
+
+```
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+../../mvnw -f ../../pom.xml package -DskipTests -Ppostgresql && docker compose -f docker-compose.yml -f docker-compose.dev.yml restart mcp mcp-users
+```
+
 ## Steps
 
 ### 1. Register the system
@@ -58,7 +65,8 @@ curl -s localhost:8091/admin/systems \
 
 ### 2. Client in Keycloak's master realm
 
-- `clients/keycloak-mcp-server.json`: confidential, service account, authenticator `client-jwt`, `use.jwks.url=true`
+- `clients/keycloak-mcp-server.json`: confidential, service account, authenticator `client-jwt`, `use.jwks.url=true`,
+  default scope `kc-admin-api` (Keycloak 26.8.2+ Admin API audience check; `mcp-consumer` carries it too)
 - `kcadm` fills in the JWKS URL, grants the service account master `admin`, adds the role to the client's scope
   (full scope stays off)
 - Keycloak fetches the public key on the first token request

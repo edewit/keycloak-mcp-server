@@ -24,7 +24,8 @@ def login(spec, url):
     if not realm:
         parts = url.rstrip("/").split("/")
         realm = parts[-1] if "/systems/" in url and len(parts) >= 2 and parts[-3] == "systems" else "master"
-    form = f"grant_type=password&client_id=mcp-consumer&username={username}&password={password}"
+    # kc-admin-api: the scope Keycloak 26.8.2+ wants on Admin API tokens (older servers ignore it)
+    form = f"grant_type=password&client_id=mcp-consumer&scope=kc-admin-api&username={username}&password={password}"
     request = urllib.request.Request(f"http://localhost:8090/realms/{realm}/protocol/openid-connect/token",
                                      form.encode(), {"content-type": "application/x-www-form-urlencoded"})
     with urllib.request.urlopen(request) as response:

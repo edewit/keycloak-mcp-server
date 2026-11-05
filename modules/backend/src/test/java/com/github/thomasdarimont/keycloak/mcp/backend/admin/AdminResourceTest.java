@@ -1,5 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.admin;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -236,5 +238,25 @@ class AdminResourceTest {
         admin().delete("/admin/systems/by-secret").then().statusCode(204);
         admin().delete("/admin/secrets/acme/client-secret").then().statusCode(204);
         admin().get("/admin/secrets/acme/client-secret").then().statusCode(404);
+    }
+
+    @Test
+    @Order(6)
+    void theStorageReportsItsKeysAndReencryptsOnDemand() {
+        String kid = admin().get("/admin/storage")
+            .then()
+            .statusCode(200)
+            .body("encryption", equalTo(true))
+            .body("previousKeys", equalTo(false))
+            .body("keyIds", hasKey("kc_mcp_signing_key"))
+            .extract()
+            .path("currentKeyId");
+        assertTrue(kid != null && kid.length() == 8, kid);
+        admin().post("/admin/storage/rekey")
+            .then()
+            .statusCode(200)
+            .body("currentKeyId", equalTo(kid))
+            .body("rewritten.signingKeys", equalTo(0))
+            .body("remaining", equalTo(Map.of()));
     }
 }

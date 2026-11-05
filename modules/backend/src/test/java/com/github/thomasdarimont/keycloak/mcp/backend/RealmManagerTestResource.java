@@ -66,7 +66,18 @@ public class RealmManagerTestResource implements QuarkusTestResourceLifecycleMan
                     .put("publicClient", false)
                     .put("serviceAccountsEnabled", true)
                     .put("standardFlowEnabled", false)
-                    .put("directAccessGrantsEnabled", false));
+                    .put("directAccessGrantsEnabled", false)
+                    // Keycloak 26.8.2+: tokens that reach the Admin API need the
+                    // kc-admin-api audience
+                    .put("defaultClientScopes",
+                            new JsonArray().add("web-origins")
+                                .add("acr")
+                                .add("roles")
+                                .add("profile")
+                                .add("basic")
+                                .add("email")
+                                .add("service_account")
+                                .add("kc-admin-api")));
         String saUser = new JsonObject(get("/admin/realms/demo/clients/" + clientUuid + "/service-account-user"))
             .getString("id");
         String rm = new JsonArray(get("/admin/realms/demo/clients?clientId=realm-management")).getJsonObject(0)

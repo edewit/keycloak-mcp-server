@@ -40,6 +40,10 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     private final SigningKeys jwtKeys;
     private final ReentrantLock initLock = new ReentrantLock();
     private volatile Keycloak keycloak;
+    /**
+     * The token endpoint refused kc-mcp.admin-api-scope; tokens are requested without it.
+     */
+    private volatile boolean scopeRefused;
     private volatile ClientAssertionTokenManager jwtTokens;
     /** Set on instances returned by {@link #forToken}: the forwarded caller token. */
     private final String forwardedToken;
@@ -191,6 +195,12 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
             .serverUrl(system.url())
             .realm(system.authRealm())
             .clientId(clientId);
+        String scope = jwtKeys == null || scopeRefused ? null : jwtKeys.adminApiScope();
+        if (scope != null && auth != ClientAuth.PRIVATE_KEY_JWT) {
+            // Keycloak 26.8.2+ wants the kc-admin-api audience; older servers ignore the
+            // scope
+            builder.scope(scope);
+        }
         switch (auth) {
             case NONE -> builder.grantType(grant.oauthValue()).username(username).password(password);
             case CLIENT_SECRET -> builder.grantType(grant.oauthValue())
@@ -202,7 +212,8 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
                 Client tokenClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
                 jwtTokens = new ClientAssertionTokenManager(tokenClient, system.url(), system.authRealm(),
                         system.assertionAudience(), clientId, () -> jwtKeys.signerFor(system),
-                        jwtKeys.assertionLifespan(), grant, username, password);
+                        jwtKeys.assertionLifespan(), grant, username, password)
+                    .scope(scope);
                 restClient.register(new PrivateKeyJwtAuthFilter(jwtTokens));
                 // A fixed placeholder token makes the admin client skip its own
                 // TokenManager; the filter above
@@ -233,7 +244,33 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         if (jwt != null) {
             return jwt.accessToken();
         }
-        return k.tokenManager().getAccessTokenString();
+        try {
+            return k.tokenManager().getAccessTokenString();
+        }
+        catch (jakarta.ws.rs.BadRequestException e) {
+            // the admin client hides the body; a 400 on a token request that asked for a
+            // scope
+            // is retried once without it (RFC 6749 invalid_scope on servers without
+            // kc-admin-api)
+            if (scopeRefused || jwtKeys == null || jwtKeys.adminApiScope() == null) {
+                throw e;
+            }
+            LOG.infof("[%s] token request with the scope '%s' failed (HTTP 400); requesting tokens without it",
+                    system.name(), jwtKeys.adminApiScope());
+            scopeRefused = true;
+            initLock.lock();
+            try {
+                Keycloak stale = keycloak;
+                keycloak = null;
+                if (stale != null) {
+                    stale.close();
+                }
+            }
+            finally {
+                initLock.unlock();
+            }
+            return client().tokenManager().getAccessTokenString();
+        }
     }
 
     @Override

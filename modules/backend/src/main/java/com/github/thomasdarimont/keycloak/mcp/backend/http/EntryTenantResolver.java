@@ -128,7 +128,17 @@ public class EntryTenantResolver implements TenantConfigResolver {
             .resourceMetadata()
             .resource(entryPath)
             .authorizationServer(system.publicUrl() + "/realms/" + realm)
+            .scopes(adminApiScopes())
             .end()
             .build();
+    }
+
+    /**
+     * The scope MCP clients should ask for ({@code kc-mcp.admin-api-scope}), empty for
+     * none.
+     */
+    private java.util.Set<String> adminApiScopes() {
+        String scope = config.adminApiScope();
+        return scope == null || scope.isBlank() ? java.util.Set.of() : java.util.Set.of(scope.trim());
     }
 }
