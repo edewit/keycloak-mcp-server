@@ -1,6 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.server.spi;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 
 import com.google.auto.service.AutoService;
 

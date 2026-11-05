@@ -14,11 +14,11 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ArgumentValidator;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
 
 /**
  * The single execution path for every tool, whether called directly or through

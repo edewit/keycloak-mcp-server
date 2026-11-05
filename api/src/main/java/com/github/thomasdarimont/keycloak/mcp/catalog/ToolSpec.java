@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
-import com.github.thomasdarimont.keycloak.mcp.spi.Delegation;
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.Delegation;
 
 import io.vertx.core.json.JsonObject;
 
@@ -24,8 +24,8 @@ import io.vertx.core.json.JsonObject;
  * @param requires features or versions the Keycloak system must have
  * @param requiredRoles {@code realm-management} roles the caller needs (any one of them
  * suffices per entry group, see
- * {@link com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles}); empty = no realm role
- * needed
+ * {@link com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles}); empty = no realm
+ * role needed
  * @param accessChecks extra per-call predicates, evaluated after roles and before
  * confirmation
  * @param delegation whether the tool may run under delegated access

@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 
 /**
  * A caller may only manage a group they are a member of (or a subgroup of such a group),

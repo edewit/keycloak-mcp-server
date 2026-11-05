@@ -1,4 +1,4 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.access;
 
 /**
  * A role requirement, parsed from the strings given to {@code ToolSpec.roles(...)}:

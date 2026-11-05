@@ -11,6 +11,9 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.Delegation;
+import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Requirement;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
@@ -22,9 +25,6 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.spi.DefaultExtensionRegistry;
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
-import com.github.thomasdarimont.keycloak.mcp.spi.Delegation;
-import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
 
 /**
  * Who may do what:

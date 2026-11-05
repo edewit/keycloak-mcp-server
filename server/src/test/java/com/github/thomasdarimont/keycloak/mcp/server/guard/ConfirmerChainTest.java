@@ -5,11 +5,11 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer.Decision;
 import com.github.thomasdarimont.keycloak.mcp.server.Fixtures;
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer.Decision;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

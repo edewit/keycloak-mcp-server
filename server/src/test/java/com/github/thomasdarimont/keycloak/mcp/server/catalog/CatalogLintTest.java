@@ -50,9 +50,9 @@ class CatalogLintTest {
             if (spec.realmScoped() && spec.requiredRoles().isEmpty() && !spec.name().startsWith("keycloak_acme_")) {
                 problems.add(spec.name() + ": realm scoped tool without requiredRoles");
             }
-            List<com.github.thomasdarimont.keycloak.mcp.spi.RoleRef> refs = spec.requiredRoles()
+            List<com.github.thomasdarimont.keycloak.mcp.access.RoleRef> refs = spec.requiredRoles()
                 .stream()
-                .map(com.github.thomasdarimont.keycloak.mcp.spi.RoleRef::parse)
+                .map(com.github.thomasdarimont.keycloak.mcp.access.RoleRef::parse)
                 .toList();
             if (spec.isReadOnly()
                     && refs.stream().anyMatch(r -> r.isRealmManagement() && r.role().startsWith("manage-"))) {

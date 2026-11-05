@@ -12,16 +12,16 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 
 /**
  * The extensions found by {@link Extensions}, per type: deduplicated by id, minus the

@@ -3,7 +3,7 @@ package com.github.thomasdarimont.keycloak.mcp.server.spi;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.google.auto.service.AutoService;
 
 /**

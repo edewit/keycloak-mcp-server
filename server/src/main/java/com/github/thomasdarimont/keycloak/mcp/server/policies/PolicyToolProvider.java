@@ -2,10 +2,10 @@ package com.github.thomasdarimont.keycloak.mcp.server.policies;
 
 import java.util.List;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 import com.google.auto.service.AutoService;
 
 /**

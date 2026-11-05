@@ -6,6 +6,9 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
+import com.github.thomasdarimont.keycloak.mcp.access.Delegation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
@@ -14,9 +17,6 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessTokenSource;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
-import com.github.thomasdarimont.keycloak.mcp.spi.Delegation;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;

@@ -3,7 +3,7 @@ package com.github.thomasdarimont.keycloak.mcp.server.policies;
 import java.util.Optional;
 import java.util.Set;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 
 /**
  * Privilege ceiling: a caller may only grant roles (directly, via client roles, group

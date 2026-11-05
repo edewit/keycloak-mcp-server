@@ -14,7 +14,7 @@ import io.vertx.ext.web.RoutingContext;
  * requests when a caller is required, which makes Quarkus answer with the bearer
  * challenge ({@code WWW-Authenticate: Bearer resource_metadata="..."}) that OAuth-capable
  * MCP clients act on. Otherwise every request passes and the identity, if any, only feeds
- * the {@link com.github.thomasdarimont.keycloak.mcp.spi.Caller}.
+ * the {@link com.github.thomasdarimont.keycloak.mcp.access.Caller}.
  */
 @ApplicationScoped
 public class McpEndpointPolicy implements HttpSecurityPolicy {

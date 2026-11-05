@@ -9,7 +9,7 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
 /**

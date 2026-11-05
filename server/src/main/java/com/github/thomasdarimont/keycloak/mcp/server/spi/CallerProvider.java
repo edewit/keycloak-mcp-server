@@ -1,6 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.server.spi;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 
 import io.quarkiverse.mcp.server.FeatureManager.FeatureArguments;
 

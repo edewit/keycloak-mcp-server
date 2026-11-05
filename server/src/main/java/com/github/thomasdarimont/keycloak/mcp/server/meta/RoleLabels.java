@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
+import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
 
 /**
  * Human readable labels for Keycloak's {@code realm-management} roles (the wording of the

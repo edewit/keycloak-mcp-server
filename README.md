@@ -262,8 +262,12 @@ Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api
 `InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client
 with the forgiving lookups, `GrantedRoles`, `Views`, `AbstractToolProvider` and the server configuration interface.
 It brings the Keycloak admin client and Vert.x JSON, but no Quarkus; on the module path it is the automatic
-module `com.github.thomasdarimont.keycloak.mcp.api`. Tools come from `ToolProvider`
-implementations, discovered like Keycloak providers:
+module `com.github.thomasdarimont.keycloak.mcp.api`. Packages under `com.github.thomasdarimont.keycloak.mcp`:
+`spi` (`Extension`, `ExtensionRegistry`, `ExtensionContext`, `ProviderConfig`), `tools` (`ToolProvider`,
+`ToolProviderContext`, `AbstractToolProvider`), `prompts` (`PromptProvider`), `access` (`AccessCheck`, `Caller`,
+`GrantedRoles`, `RoleRef`, `Delegation`), `confirm` (`Confirmer`), `audit` (`AuditListener`), `catalog` (the tool
+and prompt descriptions), `keycloak` (admin facades, capabilities, host allow list) and `config`. Tools come from
+`ToolProvider` implementations, discovered like Keycloak providers:
 
 ```java
 public class AcmeToolProvider implements ToolProvider {
@@ -286,7 +290,7 @@ public class AcmeToolProvider implements ToolProvider {
 ```
 
 Annotate it with `@AutoService(ToolProvider.class)` (Google AutoService generates the
-`META-INF/services/com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider` entry at compile time; writing that file by hand or making
+`META-INF/services/com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider` entry at compile time; writing that file by hand or making
 the class a CDI bean works too).
 Provider tools automatically get search, exposure modes, validation, realm checks, confirmation and the audit log.
 The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`,
@@ -336,7 +340,7 @@ public class TicketConfirmer implements Confirmer {
 }
 ```
 
-`com.github.thomasdarimont.keycloak.mcp.spi.AuditListener` receives one event per finished call, whatever the outcome
+`com.github.thomasdarimont.keycloak.mcp.audit.AuditListener` receives one event per finished call, whatever the outcome
 (`@AutoService(AuditListener.class)` or a CDI bean). The built-in listener writes the log line; yours can forward
 to a SIEM, a database or a queue. Password-like arguments arrive as `***`. Listeners run synchronously on the
 handler's virtual thread, so hand slow deliveries to your own executor; an exception is logged and never changes

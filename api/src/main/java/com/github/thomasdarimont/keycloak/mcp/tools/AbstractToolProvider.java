@@ -1,4 +1,4 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.tools;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.ApiOperation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;

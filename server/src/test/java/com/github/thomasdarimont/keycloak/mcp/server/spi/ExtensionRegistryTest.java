@@ -5,13 +5,13 @@ import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
-import com.github.thomasdarimont.keycloak.mcp.spi.AuditListener;
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.prompts.PromptProvider;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
-import com.github.thomasdarimont.keycloak.mcp.spi.PromptProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 
 import io.quarkus.test.junit.QuarkusTest;
 

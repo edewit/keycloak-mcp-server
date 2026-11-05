@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
 
 /**
  * Validated, coerced input for a {@link ToolHandler}.

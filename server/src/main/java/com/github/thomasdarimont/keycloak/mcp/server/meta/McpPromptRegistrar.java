@@ -13,13 +13,13 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.catalog.PromptSpec;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
+import com.github.thomasdarimont.keycloak.mcp.prompts.PromptProvider;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionContext;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
-import com.github.thomasdarimont.keycloak.mcp.spi.PromptProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
 
 import io.quarkiverse.mcp.server.JsonRpcErrorCodes;
 import io.quarkiverse.mcp.server.McpException;
@@ -67,7 +67,7 @@ public class McpPromptRegistrar {
 
     void onStart(@Observes StartupEvent event) {
         for (PromptProvider p : registry.extensions(PromptProvider.class)) {
-            ToolProviderContext ctx = registry.context(p.id());
+            ExtensionContext ctx = registry.context(p.id());
             for (PromptSpec spec : p.prompts(ctx)) {
                 register(spec);
             }

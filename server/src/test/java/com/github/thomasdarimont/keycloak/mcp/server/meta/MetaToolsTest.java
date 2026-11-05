@@ -8,12 +8,14 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
@@ -23,8 +25,6 @@ import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.CapabilityDiscovery;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.ToolInvoker;
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;

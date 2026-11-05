@@ -1,8 +1,11 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.prompts;
 
 import java.util.List;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.PromptSpec;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionContext;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 
 /**
  * Contributes {@link PromptSpec}s, the task recipes a user can pick in their MCP client.
@@ -17,6 +20,6 @@ public interface PromptProvider extends Extension {
     @Override
     String id();
 
-    List<PromptSpec> prompts(ToolProviderContext context);
+    List<PromptSpec> prompts(ExtensionContext context);
 
 }

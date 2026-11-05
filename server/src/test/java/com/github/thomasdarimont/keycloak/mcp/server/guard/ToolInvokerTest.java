@@ -8,9 +8,9 @@ import org.junit.jupiter.api.Test;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.server.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
 
 import io.vertx.core.json.JsonObject;
 

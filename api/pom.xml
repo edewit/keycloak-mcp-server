@@ -9,7 +9,7 @@
     </parent>
     <artifactId>keycloak-mcp-server-api</artifactId>
     <name>Keycloak MCP Server API</name>
-    <description>SPI and tool catalog types for extending the Keycloak MCP server: ToolProvider, AccessCheck,
+    <description>SPI and tool catalog types for extending the Keycloak MCP server: ToolProvider, PromptProvider, AccessCheck, Confirmer,
         AuditListener, ToolSpec, ToolCall, the KeycloakAdmin facade. No Quarkus dependency.</description>
 
     <dependencies>

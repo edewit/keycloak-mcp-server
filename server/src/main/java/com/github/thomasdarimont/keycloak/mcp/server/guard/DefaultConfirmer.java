@@ -2,7 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.server.guard;
 
 import java.util.Optional;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 
 import io.vertx.core.json.JsonObject;
 

@@ -19,5 +19,5 @@ public interface ExtensionRegistry {
     }
 
     /** The context an extension works with: its configuration, the Keycloak systems. */
-    ToolProviderContext context(String extensionId);
+    ExtensionContext context(String extensionId);
 }

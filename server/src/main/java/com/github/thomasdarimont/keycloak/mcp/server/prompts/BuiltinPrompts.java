@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.PromptSpec;
-import com.github.thomasdarimont.keycloak.mcp.spi.PromptProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
+import com.github.thomasdarimont.keycloak.mcp.prompts.PromptProvider;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionContext;
 import com.google.auto.service.AutoService;
 
 /**
@@ -21,7 +21,7 @@ public class BuiltinPrompts implements PromptProvider {
     }
 
     @Override
-    public List<PromptSpec> prompts(ToolProviderContext context) {
+    public List<PromptSpec> prompts(ExtensionContext context) {
         String realmHint = context.serverConfig()
             .defaultRealm()
             .map(r -> "Realm (default " + r + ")")

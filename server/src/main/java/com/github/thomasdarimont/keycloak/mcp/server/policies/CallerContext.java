@@ -3,8 +3,8 @@ package com.github.thomasdarimont.keycloak.mcp.server.policies;
 import java.util.Optional;
 import java.util.Set;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 
 /**
  * Shared logic of the two checks: anonymous handling, resolving the caller in the target

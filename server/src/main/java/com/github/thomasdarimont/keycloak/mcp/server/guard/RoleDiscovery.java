@@ -12,11 +12,11 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessTokenSource;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
-import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
 
 /**
  * Caches the {@link GrantedRoles} of the server's token per Keycloak system.

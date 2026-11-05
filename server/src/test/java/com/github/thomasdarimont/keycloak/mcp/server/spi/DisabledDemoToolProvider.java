@@ -3,8 +3,8 @@ package com.github.thomasdarimont.keycloak.mcp.server.spi;
 import java.util.List;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 import com.google.auto.service.AutoService;
 
 /** Disabled through kc-mcp.spi.disabled-demo.enabled=false; must never be initialised. */

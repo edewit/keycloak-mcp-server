@@ -14,8 +14,8 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.server.spi.CallerProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
 
 import io.quarkiverse.mcp.server.FeatureManager.FeatureArguments;
 import io.quarkus.arc.Arc;

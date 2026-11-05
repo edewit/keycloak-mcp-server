@@ -16,9 +16,9 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.Views;
 import com.github.thomasdarimont.keycloak.mcp.server.keycloak.EffectiveRoles;
-import com.github.thomasdarimont.keycloak.mcp.spi.AbstractToolProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
+import com.github.thomasdarimont.keycloak.mcp.tools.AbstractToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 import com.google.auto.service.AutoService;
 
 /**

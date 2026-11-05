@@ -1,9 +1,11 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.confirm;
 
 import java.util.Map;
 import java.util.Optional;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 
 /**
  * Decides whether a destructive tool call may run. The built-in confirmer asks the human

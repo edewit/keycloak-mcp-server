@@ -1,4 +1,4 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.access;
 
 /**
  * Whether a tool may run when the server acts on behalf of a caller (delegated access)

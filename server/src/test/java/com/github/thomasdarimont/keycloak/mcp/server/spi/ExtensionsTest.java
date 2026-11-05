@@ -12,8 +12,8 @@ import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.AuditListener;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

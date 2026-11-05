@@ -8,8 +8,8 @@ import jakarta.enterprise.inject.Alternative;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.SecurityIdentityCallerProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
 
 import io.quarkiverse.mcp.server.FeatureManager.FeatureArguments;
 import io.quarkus.arc.Arc;

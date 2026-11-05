@@ -1,8 +1,10 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.tools;
 
 import java.util.List;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 
 /**
  * Extension point, modelled on Keycloak's {@code ProviderFactory}: one provider
@@ -12,7 +14,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
  * <ul>
  * <li>{@link java.util.ServiceLoader}: annotate the implementation with
  * {@code @AutoService(ToolProvider.class)} (or list it by hand in
- * {@code META-INF/services/com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider}) in
+ * {@code META-INF/services/com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider}) in
  * any jar on the classpath. Jars dropped into the {@code providers/} directory next to
  * the packaged application are picked up at startup, like Keycloak's own
  * {@code providers/} folder.</li>

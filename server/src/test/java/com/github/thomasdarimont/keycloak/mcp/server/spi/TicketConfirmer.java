@@ -1,6 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.server.spi;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.google.auto.service.AutoService;
 
 /**

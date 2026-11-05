@@ -20,9 +20,9 @@ import org.keycloak.representations.idm.OrganizationRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
+import com.github.thomasdarimont.keycloak.mcp.access.RoleRef;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
-import com.github.thomasdarimont.keycloak.mcp.spi.RoleRef;
 
 /**
  * {@link RealmDirectory} backed by the admin client. Effective roles = realm-level

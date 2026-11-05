@@ -7,7 +7,7 @@ import jakarta.json.Json;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.junit.jupiter.api.Test;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.runtime.QuarkusPrincipal;

@@ -1,10 +1,12 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.audit;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 
 /**
  * Receives one {@link Event} per tool call, after the call finished, whatever its outcome

@@ -1,5 +1,11 @@
 package com.github.thomasdarimont.keycloak.mcp.spi;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.prompts.PromptProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
+
 /**
  * What every extension point shares: {@link ToolProvider}, {@link PromptProvider},
  * {@link AccessCheck}, {@link Confirmer} and {@link AuditListener} are extensions. The id

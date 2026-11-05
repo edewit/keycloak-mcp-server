@@ -1,9 +1,12 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.access;
 
 import java.util.Map;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 
 /**
  * Additional access predicate, evaluated per call after the static policy, realm

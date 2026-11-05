@@ -5,8 +5,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.server.spi.RecordingAuditListener;
-import com.github.thomasdarimont.keycloak.mcp.spi.AuditListener;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonArray;

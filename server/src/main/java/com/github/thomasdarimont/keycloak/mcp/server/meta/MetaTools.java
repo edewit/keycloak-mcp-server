@@ -10,6 +10,8 @@ import java.util.TreeMap;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Caller;
+import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
@@ -27,8 +29,6 @@ import com.github.thomasdarimont.keycloak.mcp.server.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.ToolInvoker;
 import com.github.thomasdarimont.keycloak.mcp.server.search.SearchHit;
 import com.github.thomasdarimont.keycloak.mcp.server.search.ToolIndex;
-import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
-import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;

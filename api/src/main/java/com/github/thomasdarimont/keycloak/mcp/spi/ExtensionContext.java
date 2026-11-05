@@ -5,9 +5,10 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 
 /**
- * Everything a {@link ToolProvider} gets from the server.
+ * Everything an extension gets from the server: the Keycloak systems, the server
+ * configuration and its own settings ({@code kc-mcp.spi.<id>.*}).
  */
-public interface ToolProviderContext {
+public interface ExtensionContext {
 
     /**
      * Admin client of the default system; handlers should prefer {@code ToolCall.kc()}
@@ -25,6 +26,6 @@ public interface ToolProviderContext {
     /** Global server configuration. */
     McpServerConfig serverConfig();
 
-    /** Configuration scoped to this provider: {@code kc-mcp.spi.<id>.*}. */
+    /** Configuration scoped to this extension: {@code kc-mcp.spi.<id>.*}. */
     ProviderConfig config();
 }

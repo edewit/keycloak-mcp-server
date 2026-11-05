@@ -6,8 +6,8 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
-import com.github.thomasdarimont.keycloak.mcp.spi.RoleRef;
+import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
+import com.github.thomasdarimont.keycloak.mcp.access.RoleRef;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;

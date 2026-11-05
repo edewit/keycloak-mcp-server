@@ -5,7 +5,7 @@ import java.util.Optional;
 
 import org.jboss.logging.Logger;
 
-import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 
 import io.quarkiverse.mcp.server.Elicitation;
 import io.quarkiverse.mcp.server.ElicitationRequest.BooleanSchema;

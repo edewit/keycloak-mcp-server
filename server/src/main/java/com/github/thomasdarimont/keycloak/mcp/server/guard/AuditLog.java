@@ -12,9 +12,9 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
-import com.github.thomasdarimont.keycloak.mcp.spi.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
 /**

@@ -11,6 +11,7 @@ import org.keycloak.representations.info.FeatureRepresentation;
 import org.keycloak.representations.info.ServerInfoRepresentation;
 import org.keycloak.representations.info.ThemeInfoRepresentation;
 
+import com.github.thomasdarimont.keycloak.mcp.access.Delegation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ApiOperation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolCall;
@@ -18,10 +19,9 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.FeatureGuidance;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.Views;
-import com.github.thomasdarimont.keycloak.mcp.spi.AbstractToolProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.Delegation;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
-import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
+import com.github.thomasdarimont.keycloak.mcp.tools.AbstractToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 import com.google.auto.service.AutoService;
 
 /**

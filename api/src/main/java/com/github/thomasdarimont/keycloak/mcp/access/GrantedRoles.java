@@ -1,4 +1,4 @@
-package com.github.thomasdarimont.keycloak.mcp.spi;
+package com.github.thomasdarimont.keycloak.mcp.access;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;

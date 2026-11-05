@@ -14,6 +14,7 @@ import jakarta.ws.rs.WebApplicationException;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
@@ -24,7 +25,6 @@ import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.CapabilityDiscovery;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.RoleDiscovery;
-import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
 
 import io.quarkus.runtime.StartupEvent;
 
