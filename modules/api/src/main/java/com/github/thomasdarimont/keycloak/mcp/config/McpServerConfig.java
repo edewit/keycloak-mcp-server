@@ -305,6 +305,15 @@ public interface McpServerConfig {
          */
         @WithDefault("realm:admin")
         String role();
+
+        /**
+         * Whether the admin API registers systems it does not know yet. {@code false}
+         * freezes the set of systems: {@code PUT}/{@code POST} for a new alias answers
+         * 403 {@code registration_closed}, while known systems can still be updated and
+         * removed, keys rotated, secrets and storage managed.
+         */
+        @WithDefault("true")
+        boolean allowNewSystems();
     }
 
     interface SystemSettings {

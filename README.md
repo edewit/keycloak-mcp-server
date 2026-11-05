@@ -201,7 +201,9 @@ Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. F
   roles). One of token and issuer required.
 - `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `url`, `issuer`, `authRealm`, `clientId`,
   `clientAuth`, `defaultRealm`, `allowedRealms`, `version`, credentials) into the first `MutableKeycloakSystemRepository`.
-  `url` must pass `kc-mcp.allowed-hosts`.
+  `url` must pass `kc-mcp.allowed-hosts`. `kc-mcp.admin.allow-new-systems=false` freezes the set: unknown aliases answer
+  403 `registration_closed`, known systems stay changeable (reading stored systems only needs `kc-mcp.dynamic-systems`,
+  not the admin API).
 - `signingKey`: `generate` (new pair in a creating vault), `existing` (vault already has one), absent (existing, else generate).
 - `"clientSecret": "vault:<name>"`: checked on registration, resolved on every connection; rotating the secret needs no
   system change.
@@ -338,6 +340,7 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.storage.previous-secret-keys` |                       | rotated-away keys (csv) that still decrypt; rows are rewritten under `secret-key` at startup and by `POST /admin/storage/rekey` |
 | `kc-mcp.spi.pii-audit-scrubber.pseudonym-key` | `secret-key`   | HMAC key of the audit pseudonyms, independent of storage key rotation |
 | `kc-mcp.admin.enabled` / `token` / `issuer` / `audience` / `role` | `false` / / / / `realm:admin` | admin API at `/admin`: static token and/or trusted issuer with role |
+| `kc-mcp.admin.allow-new-systems` | `true`                     | `false`: the admin API changes known systems only, new aliases answer 403 `registration_closed` |
 | `kc-mcp.spi.db-systems.cache-seconds` | `10`                  | snapshot age of stored systems |
 | `kc-mcp.spi.db-audit.retention-days` |                        | delete audit rows older than this (startup, then hourly); unset keeps all |
 | `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the JWKS |

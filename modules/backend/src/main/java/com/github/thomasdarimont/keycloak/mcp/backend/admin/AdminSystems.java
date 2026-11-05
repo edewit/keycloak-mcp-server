@@ -73,8 +73,9 @@ public class AdminSystems {
         }
         String how = issuer.map(i -> "access tokens of " + i + " with role " + config.admin().role()).orElse("");
         how = token ? (how.isEmpty() ? "static token" : "static token or " + how) : how;
-        LOG.infof("Admin API at %s/systems (%s), systems go to %s", AdminResource.PATH, how,
-                systems.mutableRepository().map(KeycloakSystemRepository::id).orElse("<no mutable repository>"));
+        LOG.infof("Admin API at %s/systems (%s), systems go to %s%s", AdminResource.PATH, how,
+                systems.mutableRepository().map(KeycloakSystemRepository::id).orElse("<no mutable repository>"),
+                config.admin().allowNewSystems() ? "" : ", registration of new systems closed");
     }
 
     /** Every known system, static ones included. */
@@ -123,6 +124,10 @@ public class AdminSystems {
                     + " is not covered by kc-mcp.allowed-hosts " + systems.allowedHosts().patterns() + ".");
         }
         Optional<KeycloakSystemRepository> owner = systems.repositoryOf(system.name());
+        if (owner.isEmpty() && !config.admin().allowNewSystems()) {
+            throw new AdminException(403, "registration_closed", "The admin API registers no new systems"
+                    + " (kc-mcp.admin.allow-new-systems=false); known systems can still be changed.");
+        }
         if (owner.isPresent() && !(owner.get() instanceof MutableKeycloakSystemRepository)) {
             throw new AdminException(409, "system_configured", "'" + system.name() + "' is defined by the repository '"
                     + owner.get().id() + "', which the admin API cannot change.");
