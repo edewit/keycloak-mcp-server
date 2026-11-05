@@ -16,6 +16,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolCall;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.FeatureGuidance;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.Views;
 import com.github.thomasdarimont.keycloak.mcp.spi.AbstractToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.spi.Delegation;
@@ -347,9 +348,12 @@ public class RealmToolProvider extends AbstractToolProvider {
                 m.put("dependencies", f.getDependencies().stream().sorted().toList());
             }
             Views.put(m, "version", version);
-            m.put("howToChange", f.isEnabled()
-                    ? "Disable at startup with --features-disabled=" + cliName(f) + " (KC_FEATURES_DISABLED)."
-                    : "Enable at startup with --features=" + cliName(f) + " (KC_FEATURES); a restart is required.");
+            m.put("howToChange",
+                    "Set " + FeatureGuidance.envName(cliName(f)) + "=" + (f.isEnabled() ? "disabled" : "enabled")
+                            + " (or --feature-" + cliName(f) + "=" + (f.isEnabled() ? "disabled" : "enabled")
+                            + ") on every node and restart Keycloak; see " + FeatureGuidance.DOCS + ".");
+            m.put(f.isEnabled() ? "howToDisable" : "howToEnable",
+                    f.isEnabled() ? FeatureGuidance.howToDisable(cliName(f)) : FeatureGuidance.howToEnable(cliName(f)));
             return ToolResult.ok(m);
         }
         String type = call.str("type");

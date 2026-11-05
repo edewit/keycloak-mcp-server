@@ -57,6 +57,7 @@ public class OrgToolProvider extends AbstractToolProvider {
     public List<ToolSpec> tools(ToolProviderContext context) {
         return List.of(
                 tool("keycloak_org_list").title("List organizations")
+                    .requiresFeatures("organization")
                     .description("Organizations of the realm with alias, domains and enabled flag.")
                     .category(Category.ORGS)
                     .read()
@@ -67,6 +68,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                     .api(get(R + "/organizations").query("search", "first", "max"))
                     .build(),
                 tool("keycloak_org_get").title("Get organization")
+                    .requiresFeatures("organization")
                     .description("Details of one organization including domains, attributes and linked IdPs.")
                     .category(Category.ORGS)
                     .read()
@@ -78,6 +80,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                             get(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
                     .build(),
                 tool("keycloak_org_create").title("Create organization")
+                    .requiresFeatures("organization")
                     .description("Create an organization with optional verified email domains.")
                     .category(Category.ORGS)
                     .write()
@@ -95,6 +98,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                             "enabled", "redirectUrl", "domains"))
                     .build(),
                 tool("keycloak_org_delete").title("Delete organization")
+                    .requiresFeatures("organization")
                     .description("Delete an organization; members stay as realm users.")
                     .category(Category.ORGS)
                     .destructive()
@@ -105,6 +109,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                     .api(delete(R + "/organizations/{org-id}").path("org-id", "organizationId"))
                     .build(),
                 tool("keycloak_org_idp_list").title("List organization identity providers")
+                    .requiresFeatures("organization")
                     .description("Identity providers linked to an organization (used for domain routing).")
                     .category(Category.ORGS)
                     .read()
@@ -115,6 +120,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                     .api(get(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
                     .build(),
                 tool("keycloak_org_idp_link").title("Link identity provider to organization")
+                    .requiresFeatures("organization")
                     .description("Attach an existing identity provider to an organization.")
                     .category(Category.ORGS)
                     .write()
@@ -129,6 +135,7 @@ public class OrgToolProvider extends AbstractToolProvider {
                     .api(post(R + "/organizations/{org-id}/identity-providers").path("org-id", "organizationId"))
                     .build(),
                 tool("keycloak_org_idp_unlink").title("Unlink identity provider from organization")
+                    .requiresFeatures("organization")
                     .description("Detach an identity provider from an organization.")
                     .category(Category.ORGS)
                     .destructive()

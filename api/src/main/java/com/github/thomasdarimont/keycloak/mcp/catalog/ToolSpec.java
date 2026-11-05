@@ -21,6 +21,7 @@ import io.vertx.core.json.JsonObject;
  * @param realmScoped whether the tool takes a {@code realm} argument
  * @param api Admin REST operations the tool relies on (checked against the OpenAPI
  * document in tests)
+ * @param requires features or versions the Keycloak system must have
  * @param requiredRoles {@code realm-management} roles the caller needs (any one of them
  * suffices per entry group, see
  * {@link com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles}); empty = no realm role
@@ -31,8 +32,8 @@ import io.vertx.core.json.JsonObject;
  */
 public record ToolSpec(String name, String title, String description, Category category, ToolLevel level,
         boolean idempotent, JsonObject inputSchema, List<String> synonyms, boolean hot, boolean realmScoped,
-        List<ApiOperation> api, Set<String> requiredRoles, List<AccessCheck> accessChecks, Delegation delegation,
-        ToolHandler handler) {
+        List<ApiOperation> api, Set<String> requiredRoles, List<Requirement> requires, List<AccessCheck> accessChecks,
+        Delegation delegation, ToolHandler handler) {
 
     public ToolSpec {
         Objects.requireNonNull(name, "name");
@@ -45,6 +46,7 @@ public record ToolSpec(String name, String title, String description, Category c
         synonyms = List.copyOf(synonyms == null ? List.of() : synonyms);
         api = List.copyOf(api == null ? List.of() : api);
         requiredRoles = Set.copyOf(requiredRoles == null ? Set.of() : requiredRoles);
+        requires = List.copyOf(requires == null ? List.of() : requires);
         accessChecks = List.copyOf(accessChecks == null ? List.of() : accessChecks);
         delegation = delegation == null ? Delegation.ALLOWED : delegation;
     }
@@ -59,7 +61,7 @@ public record ToolSpec(String name, String title, String description, Category c
 
     public ToolSpec withInputSchema(JsonObject schema) {
         return new ToolSpec(name, title, description, category, level, idempotent, schema, synonyms, hot, realmScoped,
-                api, requiredRoles, accessChecks, delegation, handler);
+                api, requiredRoles, requires, accessChecks, delegation, handler);
     }
 
     public ToolSpec withName(String newName) {
@@ -67,12 +69,12 @@ public record ToolSpec(String name, String title, String description, Category c
             return this;
         }
         return new ToolSpec(newName, title, description, category, level, idempotent, inputSchema, synonyms, hot,
-                realmScoped, api, requiredRoles, accessChecks, delegation, handler);
+                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler);
     }
 
     public ToolSpec withHot(boolean hotFlag) {
         return new ToolSpec(name, title, description, category, level, idempotent, inputSchema, synonyms, hotFlag,
-                realmScoped, api, requiredRoles, accessChecks, delegation, handler);
+                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler);
     }
 
     /** Parameter names declared in the (effective) schema, in declaration order. */
@@ -98,6 +100,7 @@ public record ToolSpec(String name, String title, String description, Category c
         private boolean realmScoped = true;
         private final List<ApiOperation> api = new ArrayList<>();
         private final Set<String> requiredRoles = new LinkedHashSet<>();
+        private final List<Requirement> requires = new ArrayList<>();
         private final List<AccessCheck> accessChecks = new ArrayList<>();
         private Delegation delegation = Delegation.ALLOWED;
         private ToolHandler handler;
@@ -177,6 +180,39 @@ public record ToolSpec(String name, String title, String description, Category c
             return this;
         }
 
+        /**
+         * Keycloak features the system must have enabled, by CLI name
+         * ({@code organization}, {@code passkeys}). An unmet requirement refuses the call
+         * with {@code unsupported} and marks the tool in {@code search_tools}; unknown
+         * capabilities (no server info, no configured version) never block.
+         */
+        public Builder requiresFeatures(String... features) {
+            for (String f : features) {
+                requires.add(Requirement.feature(f));
+            }
+            return this;
+        }
+
+        /**
+         * The Keycloak version the system must run at least ({@code 26.9}); same rules.
+         */
+        public Builder minVersion(String minimum) {
+            requires.add(Requirement.minVersion(minimum));
+            return this;
+        }
+
+        /**
+         * The newest Keycloak version the tool works with, inclusive at the precision
+         * given ({@code "26"} covers every 26.x); unbounded by default. On a newer server
+         * the tool is refused with a message that says the dependency was removed,
+         * instead of "enable the feature". A handler that must serve several versions
+         * branches on {@link ToolCall#capabilities()} instead.
+         */
+        public Builder maxVersion(String maximum) {
+            requires.add(Requirement.maxVersion(maximum));
+            return this;
+        }
+
         /** Additional per-call access predicate; several are ANDed. */
         public Builder access(AccessCheck check) {
             accessChecks.add(check);
@@ -200,7 +236,7 @@ public record ToolSpec(String name, String title, String description, Category c
         public ToolSpec build() {
             boolean idem = idempotent != null ? idempotent : level == ToolLevel.READ;
             return new ToolSpec(name, title, description, category, level, idem, inputSchema, synonyms, hot,
-                    realmScoped, api, requiredRoles, accessChecks, delegation, handler);
+                    realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler);
         }
     }
 }

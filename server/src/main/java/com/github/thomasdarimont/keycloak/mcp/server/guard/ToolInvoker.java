@@ -168,7 +168,7 @@ public class ToolInvoker {
                 }
             }
         }
-        ToolCall call = new ToolCall(realm, args, maxItems, ctx.caller(), system, admin);
+        ToolCall call = new ToolCall(realm, args, maxItems, ctx.caller(), system, admin, policy.capabilities(system));
         ToolResult r = spec.handler().handle(call);
         return r == null ? ToolResult.done("ok") : r;
     }

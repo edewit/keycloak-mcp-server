@@ -91,11 +91,12 @@ understands both layouts.
 
 ### Per-tool access checks and delegation
 
-Beyond roles, a tool can carry extra predicates and a delegation rule:
+Beyond roles, a tool can carry extra predicates, server requirements and a delegation rule:
 
 ```java
 tool("keycloak_user_delete")
     .roles("manage-users")
+    .requiresFeatures("organization").minVersion("26.8")       // maxVersion("26") would bound it; see §Supported Keycloak versions
     .access(ctx -> ctx.arg("username").startsWith("svc-")
             ? AccessCheck.Decision.deny("protected_user", "service users are deleted by the platform team")
             : AccessCheck.Decision.allow())
@@ -205,7 +206,8 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `quarkus.oidc.token.audience`   |                             | accept only tokens whose `aud` contains this value (recommended with `forward`) |
 | `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is an internal address (Docker) |
 | `kc-mcp.default-realm`          |                             | makes the `realm` argument optional |
-| `kc-mcp.systems.<name>.*`       |                             | per-system `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms` |
+| `kc-mcp.systems.<name>.*`       |                             | per-system `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms`, `version` |
+| `kc-mcp.version`                | read from the server        | Keycloak version of the (default) system when the server info is not readable or should be overridden (see §Supported Keycloak versions) |
 | `kc-mcp.default-system`         | the only system             | system used when the `system` argument is omitted |
 | `kc-mcp.tool-prefix`            |                             | prefix for all tool names, e.g. `prod_` |
 | `kc-mcp.allowed-realms`         | all                         | csv allow-list |
@@ -366,6 +368,37 @@ public class AcmePrompts implements PromptProvider {
     }
 }
 ```
+
+## Supported Keycloak versions
+
+The baseline is **Keycloak 26.8**: the catalog is aligned with its OpenAPI document and the integration tests run
+against it. Newer servers are expected to work; older ones are not checked. At startup, and every ten minutes
+after, the server reads each system's version and enabled features from the admin server info (with the
+server's credentials) and keeps a capability snapshot per system. A configured `kc-mcp.version` (or
+`kc-mcp.systems.<name>.version`) wins over the reported version and fills in when the server info is not readable;
+a mismatch between the two is logged.
+
+A tool declares what it needs with `requiresFeatures("organization", ...)` (features by their CLI name, as
+`kc.sh --features` takes them), `minVersion("26.9")` and `maxVersion("26")` (the newest version the tool works
+with, inclusive at the precision given, unbounded by default; on a newer server the refusal says the dependency
+was removed instead of "enable the feature"). The organization tools carry the feature requirement. Unmet requirements do not hide a tool, they explain it:
+
+- `search_tools` marks the tool `allowed=false` with an `unsupported` reason,
+- a call is refused with the error `unsupported` and `howToFix`: how an administrator enables the feature for
+  each deployment form (`KC_FEATURE_ORGANIZATION=enabled`, `kc.sh start --feature-organization=enabled`,
+  `keycloak.conf`, container, Operator CR, the `--features=` list as alternative), that every node needs a
+  restart, a pointer to `keycloak_server_features` to verify afterwards and to <https://www.keycloak.org/server/features>,
+- `whoami` reports the `server` version, the baseline, the `unavailableTools` grouped by reason and the same
+  `howToFix` per requirement; `keycloak_server_features` carries `howToEnable` / `howToDisable` for one feature,
+- the startup check logs the version and the unavailable tools, and lists a server below the baseline as a
+  problem (`kc-mcp.startup-check=fail` aborts).
+
+Unknown capabilities (no server info and no configured version) never block a call; Keycloak then decides.
+Behavior that differs between versions under the same endpoint is handled inside the tool, not in the catalog:
+the handler reads `call.capabilities()` (`atLeast("26.9")`, `hasFeature(...)`) and branches, and the schema
+stays one schema, with version-specific parameters optional and their description saying since when they apply.
+There is deliberately no second `ToolSpec` with the same name for another version range: the tool list a
+client sees must not depend on which of several systems a call ends up on.
 
 ## Keeping the tools aligned with a Keycloak version
 

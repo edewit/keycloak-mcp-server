@@ -17,9 +17,11 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
+import com.github.thomasdarimont.keycloak.mcp.server.guard.CapabilityDiscovery;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.ToolInvoker;
 import com.github.thomasdarimont.keycloak.mcp.server.search.SearchHit;
@@ -44,6 +46,10 @@ public class MetaTools {
     static final String HINT = "Call execute_tool with name and arguments.";
     static final String FORBIDDEN_HINT = "Tools marked allowed=false need realm-management roles the current caller "
             + "does not hold: do not call them, tell the user which roles are missing (whoami shows the details).";
+
+    static final String UNSUPPORTED_HINT = "Tools marked unsupported need a Keycloak feature or version this server "
+            + "does not have: do not call them, tell the user what is missing and that an administrator has to"
+            + " enable the feature at Keycloak startup (whoami shows howToFix).";
 
     private final ToolCatalog catalog;
     private final ToolIndex index;
@@ -138,9 +144,11 @@ public class MetaTools {
         List<SearchHit> hits = index.search(query, category, limit, policy::visibleNow);
         GrantedRoles granted = policy.granted(catalog.defaultSystem(), ctx);
         boolean judge = granted != null && granted.known();
+        ServerCapabilities caps = policy.capabilities(catalog.defaultSystem());
         JsonArray tools = new JsonArray();
         List<String> names = new ArrayList<>();
         boolean anyForbidden = false;
+        boolean anyUnsupported = false;
         for (SearchHit hit : hits) {
             JsonObject tool = toolJson(hit.spec());
             if (judge) {
@@ -149,6 +157,11 @@ public class MetaTools {
                     tool.put("allowed", false).put("missingRoles", new JsonArray(List.copyOf(missing)));
                     anyForbidden = true;
                 }
+            }
+            Optional<String> unsupported = AccessPolicy.unsupported(hit.spec(), caps);
+            if (unsupported.isPresent()) {
+                tool.put("allowed", false).put("unsupported", unsupported.get());
+                anyUnsupported = true;
             }
             tools.add(tool);
             names.add(hit.spec().name());
@@ -159,7 +172,14 @@ public class MetaTools {
             out.put("hint", "No match. Try other words, or call search_tools without a query to see the categories.");
         }
         else {
-            out.put("hint", anyForbidden ? HINT + " " + FORBIDDEN_HINT : HINT);
+            String hint = HINT;
+            if (anyForbidden) {
+                hint += " " + FORBIDDEN_HINT;
+            }
+            if (anyUnsupported) {
+                hint += " " + UNSUPPORTED_HINT;
+            }
+            out.put("hint", hint);
         }
         if (mode == ExposureMode.PROGRESSIVE && connectionId != null && !names.isEmpty()) {
             if (progressive.surface(connectionId, names)) {
@@ -243,6 +263,8 @@ public class MetaTools {
         if (policy.readOnly()) {
             out.put("readOnly", true);
         }
+        ServerCapabilities caps = policy.capabilities(system);
+        out.put("server", serverJson(caps));
         GrantedRoles granted = policy.granted(system, ctx);
         if (granted == null || !granted.known()) {
             out.put("roles", "unknown");
@@ -250,7 +272,7 @@ public class MetaTools {
                     delegated
                             ? "The caller's token carries no realm-management roles; Keycloak will refuse admin calls."
                             : "The server's roles are not checked up front; Keycloak decides per call.");
-            out.put("tools", toolCounts(granted));
+            out.put("tools", toolCounts(granted, caps));
             return ToolResult.ok(out);
         }
         if (granted.superAdmin()) {
@@ -275,9 +297,38 @@ public class MetaTools {
                     "manage = read and write, view = read only, query = look up by id only, none = no access");
         }
         out.put("labelLanguage", language);
-        out.put("tools", toolCounts(granted));
+        out.put("tools", toolCounts(granted, caps));
         out.put("hint", "search_tools marks tools the caller may not use with allowed=false.");
         return ToolResult.ok(out);
+    }
+
+    /** Version, baseline and the permitted tools the server cannot serve, by reason. */
+    private Map<String, Object> serverJson(ServerCapabilities caps) {
+        Map<String, Object> server = new LinkedHashMap<>();
+        server.put("version", caps.versionKnown() ? caps.version() : "unknown");
+        server.put("baseline", CapabilityDiscovery.BASELINE_VERSION);
+        if (caps.versionKnown() && !caps.atLeast(CapabilityDiscovery.BASELINE_VERSION)) {
+            server.put("belowBaseline", true);
+        }
+        if (caps.featuresKnown()) {
+            server.put("enabledFeatures", caps.features().size());
+        }
+        Map<String, List<String>> unavailable = new TreeMap<>();
+        Map<String, Object> howToFix = new TreeMap<>();
+        for (ToolSpec spec : catalog.all()) {
+            if (!policy.permits(spec)) {
+                continue;
+            }
+            AccessPolicy.firstUnmet(spec, caps).ifPresent(r -> {
+                unavailable.computeIfAbsent(r.unmet(caps).orElseThrow(), k -> new ArrayList<>()).add(spec.name());
+                howToFix.putIfAbsent(r.describe(), r.guidance());
+            });
+        }
+        if (!unavailable.isEmpty()) {
+            server.put("unavailableTools", unavailable);
+            server.put("howToFix", howToFix);
+        }
+        return server;
     }
 
     private static Map<String, Object> roleJson(String role, String language) {
@@ -287,15 +338,22 @@ public class MetaTools {
         return m;
     }
 
-    /** How many permitted catalog tools the roles unlock, and how many they block. */
-    private Map<String, Object> toolCounts(GrantedRoles granted) {
+    /**
+     * How many permitted catalog tools the roles unlock, how many they block, and how
+     * many the server cannot serve.
+     */
+    private Map<String, Object> toolCounts(GrantedRoles granted, ServerCapabilities caps) {
         int allowed = 0;
         int forbidden = 0;
+        int unsupported = 0;
         for (ToolSpec spec : catalog.all()) {
             if (!policy.permits(spec)) {
                 continue;
             }
-            if (granted != null && granted.known() && !granted.permitsAnyRealm(spec.requiredRoles())) {
+            if (AccessPolicy.unsupported(spec, caps).isPresent()) {
+                unsupported++;
+            }
+            else if (granted != null && granted.known() && !granted.permitsAnyRealm(spec.requiredRoles())) {
                 forbidden++;
             }
             else {
@@ -305,6 +363,9 @@ public class MetaTools {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("allowed", allowed);
         m.put("forbidden", forbidden);
+        if (unsupported > 0) {
+            m.put("unsupported", unsupported);
+        }
         return m;
     }
 

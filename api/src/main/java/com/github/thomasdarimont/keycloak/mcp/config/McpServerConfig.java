@@ -34,6 +34,13 @@ public interface McpServerConfig {
     Optional<String> defaultSystem();
 
     /**
+     * Keycloak version of the (default) system, e.g. {@code 26.8.1}, when the server info
+     * endpoint is not readable or should be overridden. Tools that need a newer version
+     * are refused with {@code unsupported}; unknown means unchecked.
+     */
+    Optional<String> version();
+
+    /**
      * Optional prefix for every tool name, e.g. {@code prod_} ->
      * {@code prod_keycloak_user_search}.
      */
@@ -200,6 +207,9 @@ public interface McpServerConfig {
         Optional<String> defaultRealm();
 
         Optional<List<String>> allowedRealms();
+
+        /** Keycloak version of this system; see {@link McpServerConfig#version()}. */
+        Optional<String> version();
     }
 
     interface Jwt {

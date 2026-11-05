@@ -37,7 +37,7 @@ class KeycloakAdminDelegateTest {
     private static KeycloakAdmin admin() {
         return new DefaultKeycloakAdmin(new KeycloakSystem("default", "http://127.0.0.1:1",
                 GrantType.CLIENT_CREDENTIALS, ClientAuth.NONE, "demo", Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.of("demo"), Set.of()), null);
+                Optional.empty(), Optional.empty(), Optional.of("demo"), Set.of(), Optional.empty()), null);
     }
 
     @Test

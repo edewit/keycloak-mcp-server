@@ -14,11 +14,13 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
+import com.github.thomasdarimont.keycloak.mcp.server.guard.CapabilityDiscovery;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.ToolInvoker;
 import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
@@ -309,5 +311,83 @@ class MetaToolsTest {
     void executeRefusesMetaToolRecursion() {
         assertEquals("invalid_arguments",
                 payload(meta(false).execute("search_tools", Map.of(), null, InvocationContext.none())).get("error"));
+    }
+
+    /** A catalog with one tool that needs the organization feature. */
+    private static ToolCatalog featureCatalog() {
+        return new ToolCatalog(List.of(
+                ToolSpec.builder("keycloak_org_list")
+                    .title("List organizations")
+                    .description("List the organizations of a realm.")
+                    .category(Category.ORGS)
+                    .read()
+                    .requiresFeatures("organization")
+                    .handler(call -> ToolResult.ok(List.of()))
+                    .build(),
+                ToolSpec.builder("keycloak_user_search")
+                    .title("Search users")
+                    .description("Find users.")
+                    .category(Category.USERS)
+                    .read()
+                    .handler(call -> ToolResult.ok(List.of()))
+                    .build()),
+                "demo", 50, List.of());
+    }
+
+    private static MetaTools withCapabilities(ToolCatalog catalog, ServerCapabilities caps) {
+        AccessPolicy policy = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(), null,
+                CapabilityDiscovery.fixed(caps));
+        Confirmer confirmer = req -> Confirmer.Decision.CONFIRMED;
+        return new MetaTools(catalog, policy, new ToolInvoker(catalog, policy, confirmer, 50), new ProgressiveState(),
+                5);
+    }
+
+    @Test
+    void searchMarksToolsTheServerCannotServe() {
+        ServerCapabilities noOrgs = new ServerCapabilities("26.8.1", Set.of("passkeys"), true);
+        Map<String, Object> p = payload(withCapabilities(featureCatalog(), noOrgs).search("organizations", null, 5,
+                "c1", ExposureMode.HYBRID, InvocationContext.none()));
+        Map<?, ?> orgs = ((List<?>) p.get("tools")).stream()
+            .map(t -> (Map<?, ?>) t)
+            .filter(t -> t.get("name").equals("keycloak_org_list"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(false, orgs.get("allowed"));
+        assertTrue(String.valueOf(orgs.get("unsupported")).contains("KC_FEATURE_ORGANIZATION=enabled"),
+                orgs.toString());
+        assertTrue(String.valueOf(p.get("hint")).contains("unsupported"), String.valueOf(p.get("hint")));
+
+        Map<String, Object> exec = payload(withCapabilities(featureCatalog(), noOrgs).execute("keycloak_org_list",
+                Map.of("realm", "demo"), null, InvocationContext.none()));
+        assertEquals("unsupported", exec.get("error"));
+
+        ServerCapabilities withOrgs = new ServerCapabilities("26.8.1", Set.of("organization"), true);
+        Map<String, Object> ok = payload(withCapabilities(featureCatalog(), withOrgs).search("organizations", null, 5,
+                "c1", ExposureMode.HYBRID, InvocationContext.none()));
+        assertTrue(((List<?>) ok.get("tools")).stream().noneMatch(t -> ((Map<?, ?>) t).containsKey("allowed")));
+    }
+
+    @Test
+    void whoamiReportsTheServerVersionAndUnavailableTools() {
+        ServerCapabilities noOrgs = new ServerCapabilities("26.7.0", Set.of("passkeys"), true);
+        Map<String, Object> p = payload(
+                withCapabilities(featureCatalog(), noOrgs).whoami(null, null, InvocationContext.none()));
+        Map<?, ?> server = (Map<?, ?>) p.get("server");
+        assertEquals("26.7.0", server.get("version"));
+        assertEquals(CapabilityDiscovery.BASELINE_VERSION, server.get("baseline"));
+        assertEquals(true, server.get("belowBaseline"));
+        Map<?, ?> unavailable = (Map<?, ?>) server.get("unavailableTools");
+        assertEquals(1, unavailable.size(), unavailable.toString());
+        assertEquals(List.of("keycloak_org_list"), unavailable.values().iterator().next());
+        Map<?, ?> fix = (Map<?, ?>) ((Map<?, ?>) server.get("howToFix")).get("feature:organization");
+        assertEquals("bin/kc.sh start --feature-organization=enabled", fix.get("cli"), fix.toString());
+        Map<?, ?> tools = (Map<?, ?>) p.get("tools");
+        assertEquals(1, tools.get("unsupported"));
+        assertEquals(1, tools.get("allowed"));
+
+        Map<String, Object> unknown = payload(meta(false).whoami(null, null, InvocationContext.none()));
+        Map<?, ?> s = (Map<?, ?>) unknown.get("server");
+        assertEquals("unknown", s.get("version"));
+        assertFalse(s.containsKey("unavailableTools"));
     }
 }

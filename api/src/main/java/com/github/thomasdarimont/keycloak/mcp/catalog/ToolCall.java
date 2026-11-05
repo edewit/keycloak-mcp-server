@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
 
 /**
@@ -16,21 +17,30 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
  * @param caller who is acting ({@link Caller#NONE} when the endpoint is unauthenticated)
  * @param system name of the Keycloak system the call targets
  * @param keycloak admin client of that system ({@code null} only in unit tests)
+ * @param capabilities version and features of that system
+ * ({@link ServerCapabilities#UNKNOWN} when not read), for handlers whose behavior differs
+ * between Keycloak versions
  */
 public record ToolCall(String realm, Map<String, Object> args, int maxItems, Caller caller, String system,
-        KeycloakAdmin keycloak) {
+        KeycloakAdmin keycloak, ServerCapabilities capabilities) {
 
     public ToolCall {
         args = Map.copyOf(Objects.requireNonNullElse(args, Map.of()));
         caller = caller == null ? Caller.NONE : caller;
+        capabilities = capabilities == null ? ServerCapabilities.UNKNOWN : capabilities;
     }
 
     public ToolCall(String realm, Map<String, Object> args, int maxItems) {
-        this(realm, args, maxItems, Caller.NONE, null, null);
+        this(realm, args, maxItems, Caller.NONE, null, null, null);
     }
 
     public ToolCall(String realm, Map<String, Object> args, int maxItems, Caller caller) {
-        this(realm, args, maxItems, caller, null, null);
+        this(realm, args, maxItems, caller, null, null, null);
+    }
+
+    public ToolCall(String realm, Map<String, Object> args, int maxItems, Caller caller, String system,
+            KeycloakAdmin keycloak) {
+        this(realm, args, maxItems, caller, system, keycloak, null);
     }
 
     /** Admin client of the call's system. */

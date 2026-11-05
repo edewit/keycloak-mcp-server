@@ -12,11 +12,13 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
+import com.github.thomasdarimont.keycloak.mcp.catalog.Requirement;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.server.spi.ProviderRegistry;
@@ -49,6 +51,11 @@ public class AccessPolicy {
     public static final String WHOAMI_HINT = "Do not retry; tell the user which role is missing. "
             + "Call whoami to see what the current caller may do.";
 
+    /** Points the model at the server side cause instead of retrying. */
+    public static final String UNSUPPORTED_HINT = "Do not retry; the Keycloak server lacks the feature or version. "
+            + "Tell the user what is missing and how an administrator fixes it (howToFix); whoami shows the server"
+            + " version.";
+
     private final boolean readOnly;
     private final Set<String> allowedRealms;
     private final java.util.function.Function<String, Set<String>> allowedRealmsBySystem;
@@ -56,15 +63,16 @@ public class AccessPolicy {
     private final Set<String> deniedTools;
     private final Set<Category> allowedCategories;
     private final RoleDiscovery roles;
+    private final CapabilityDiscovery capabilities;
     private final List<AccessCheck> globalChecks;
 
     @Inject
-    public AccessPolicy(McpServerConfig config, RoleDiscovery roles, ProviderRegistry registry, Extensions extensions,
-            KeycloakSystems systems) {
+    public AccessPolicy(McpServerConfig config, RoleDiscovery roles, CapabilityDiscovery capabilities,
+            ProviderRegistry registry, Extensions extensions, KeycloakSystems systems) {
         this(config.readOnly(), config.allowedRealms().orElse(List.of()), config.allowedTools().orElse(List.of()),
                 config.deniedTools().orElse(List.of()), config.allowedCategories().orElse(List.of()), roles,
                 collectChecks(registry, extensions),
-                name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()));
+                name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()), capabilities);
     }
 
     /** The providers' checks first, then the ones registered on their own. */
@@ -95,7 +103,20 @@ public class AccessPolicy {
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
             List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem) {
+        this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
+                allowedRealmsBySystem, null);
+    }
+
+    /**
+     * @param capabilities version and features per system for the tools' requirements;
+     * {@code null} leaves them unchecked
+     */
+    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
+            List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
+            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            CapabilityDiscovery capabilities) {
         this.readOnly = readOnly;
+        this.capabilities = capabilities;
         this.allowedRealms = clean(allowedRealms);
         this.allowedRealmsBySystem = allowedRealmsBySystem;
         this.allowedTools = clean(allowedTools).stream().map(AccessPolicy::shortName).collect(Collectors.toSet());
@@ -197,6 +218,15 @@ public class AccessPolicy {
                     "Realm '" + realm + "' is not allowed" + (system != null ? " in system '" + system + "'." : "."),
                     "allowed", List.copyOf(allowedRealms(system))));
         }
+        ServerCapabilities caps = capabilities(system);
+        Optional<Requirement> unmet = firstUnmet(spec, caps);
+        if (unmet.isPresent()) {
+            return Optional.of(ToolResult.error("unsupported",
+                    spec.name() + " " + unmet.get().unmet(caps).orElseThrow()
+                            + (system != null ? " (system '" + system + "')" : ""),
+                    "requirements", spec.requires().stream().map(Requirement::describe).toList(), "howToFix",
+                    unmet.get().guidance(), "hint", UNSUPPORTED_HINT));
+        }
         boolean delegated = ctx.caller().delegated();
         GrantedRoles granted = granted(system, ctx);
         if (granted != null && realm != null) {
@@ -241,6 +271,34 @@ public class AccessPolicy {
                 if (denied.isPresent()) {
                     return denied;
                 }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Version and features of a system as currently cached or read;
+     * {@link ServerCapabilities#UNKNOWN} when checks are off.
+     *
+     * @param system Keycloak system name, or {@code null} for the single/default system
+     */
+    public ServerCapabilities capabilities(String system) {
+        if (capabilities == null) {
+            return ServerCapabilities.UNKNOWN;
+        }
+        return system == null ? capabilities.get() : capabilities.get(system);
+    }
+
+    /** The first unmet requirement of the tool against these capabilities. */
+    public static Optional<String> unsupported(ToolSpec spec, ServerCapabilities caps) {
+        return firstUnmet(spec, caps).flatMap(r -> r.unmet(caps));
+    }
+
+    /** The first requirement of the tool these capabilities do not meet. */
+    public static Optional<Requirement> firstUnmet(ToolSpec spec, ServerCapabilities caps) {
+        for (Requirement r : spec.requires()) {
+            if (r.unmet(caps).isPresent()) {
+                return Optional.of(r);
             }
         }
         return Optional.empty();

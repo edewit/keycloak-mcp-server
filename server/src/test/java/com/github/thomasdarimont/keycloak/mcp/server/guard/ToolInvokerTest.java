@@ -144,12 +144,13 @@ class ToolInvokerTest {
                 "a", "http://a", com.github.thomasdarimont.keycloak.mcp.config.GrantType.PASSWORD,
                 com.github.thomasdarimont.keycloak.mcp.config.ClientAuth.NONE, "master", java.util.Optional.empty(),
                 java.util.Optional.empty(), java.util.Optional.of("admin"), java.util.Optional.of("admin"),
-                java.util.Optional.of("demo"), java.util.Set.of());
+                java.util.Optional.of("demo"), java.util.Set.of(), java.util.Optional.empty());
         com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem b = new com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem(
                 "b", "http://b", com.github.thomasdarimont.keycloak.mcp.config.GrantType.PASSWORD,
                 com.github.thomasdarimont.keycloak.mcp.config.ClientAuth.NONE, "master", java.util.Optional.empty(),
                 java.util.Optional.empty(), java.util.Optional.of("admin"), java.util.Optional.of("admin"),
-                java.util.Optional.of("b-default"), java.util.Set.of("only-b", "b-default"));
+                java.util.Optional.of("b-default"), java.util.Set.of("only-b", "b-default"),
+                java.util.Optional.empty());
         com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems systems = new com.github.thomasdarimont.keycloak.mcp.server.keycloak.DefaultKeycloakSystems(
                 List.of(a, b), "a", null);
         ToolSpec echo = ToolSpec.builder("keycloak_echo")

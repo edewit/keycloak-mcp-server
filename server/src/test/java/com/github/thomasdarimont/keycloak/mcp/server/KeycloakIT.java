@@ -124,10 +124,25 @@ class KeycloakIT {
             .text(mcp.callTool("keycloak_server_features", new JsonObject().put("name", "Organizations")));
         assertEquals("organization", one.getString("name"), one.encode());
         assertEquals(true, one.getBoolean("enabled"), one.encode());
+        assertEquals("KC_FEATURE_ORGANIZATION=disabled", one.getJsonObject("howToDisable").getString("env"),
+                one.encode());
+        JsonObject off = McpClient.text(mcp.callTool("keycloak_server_features",
+                new JsonObject().put("type", "preview").put("enabled", false)));
+        JsonObject first = McpClient.text(mcp.callTool("keycloak_server_features",
+                new JsonObject().put("name", off.getJsonArray("items").getJsonObject(0).getString("name"))));
+        assertTrue(first.getJsonObject("howToEnable").getString("cli").startsWith("bin/kc.sh start --feature-"),
+                first.encode());
         assertTrue(one.getString("version").startsWith("26."), one.encode());
         JsonObject unknown = McpClient
             .text(mcp.callTool("keycloak_server_features", new JsonObject().put("name", "warp-drive")));
         assertEquals("not_found", unknown.getString("error"), unknown.encode());
+        // the capability snapshot: version known, organizations on, so nothing is
+        // unavailable
+        JsonObject who = McpClient.text(mcp.callTool("whoami", new JsonObject()));
+        JsonObject server = who.getJsonObject("server");
+        assertTrue(server.getString("version").startsWith("26."), who.encode());
+        assertFalse(server.containsKey("belowBaseline"), who.encode());
+        assertFalse(server.containsKey("unavailableTools"), who.encode());
         JsonObject cfg = call("keycloak_realm_get_config", new JsonObject());
         assertEquals("master", cfg.getString("realm"));
         assertEquals("browser", cfg.getJsonObject("flows").getString("browserFlow"));

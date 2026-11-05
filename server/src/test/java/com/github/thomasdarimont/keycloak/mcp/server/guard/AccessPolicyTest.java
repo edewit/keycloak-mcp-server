@@ -10,6 +10,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessTokenSource;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
@@ -191,5 +192,65 @@ class AccessPolicyTest {
         assertTrue(policy.forbids(required, "demo", Map.of(), delegated).isEmpty());
         assertTrue(policy.forbids(allowed, "demo", Map.of(), delegated).isEmpty());
         assertTrue(policy.forbids(allowed, "demo", Map.of(), serviceAccount).isEmpty());
+    }
+
+    @Test
+    void refusesToolsTheServerCannotServe() {
+        ToolSpec orgs = ToolSpec.builder("keycloak_org_list")
+            .title("List organizations")
+            .description("List organizations.")
+            .category(Category.ORGS)
+            .read()
+            .requiresFeatures("organization")
+            .handler(call -> ToolResult.ok(List.of()))
+            .build();
+        ToolSpec newer = ToolSpec.builder("keycloak_future")
+            .title("Future")
+            .description("Needs a newer server.")
+            .category(Category.REALM)
+            .read()
+            .minVersion("27.0")
+            .handler(call -> ToolResult.ok(List.of()))
+            .build();
+
+        AccessPolicy without = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(),
+                null, CapabilityDiscovery.fixed(CapabilityTest.caps("26.8.1", "passkeys")));
+        Map<String, Object> denied = payload(without.forbids(orgs, "demo").orElseThrow());
+        assertEquals("unsupported", denied.get("error"));
+        assertTrue(String.valueOf(denied.get("message")).contains("KC_FEATURE_ORGANIZATION=enabled"),
+                denied.toString());
+        assertEquals(List.of("feature:organization"), denied.get("requirements"));
+        Map<?, ?> fix = (Map<?, ?>) denied.get("howToFix");
+        assertEquals("KC_FEATURE_ORGANIZATION=enabled", fix.get("env"), fix.toString());
+        assertTrue(String.valueOf(fix.get("alternative")).contains("KC_FEATURES=organization"), fix.toString());
+        assertTrue(String.valueOf(fix.get("operator")).contains("spec.features.enabled"), fix.toString());
+        assertTrue(String.valueOf(denied.get("message")).contains("administrator"), denied.toString());
+        Map<String, Object> old = payload(without.forbids(newer, "demo").orElseThrow());
+        assertTrue(String.valueOf(old.get("message")).contains("27.0 or newer"), old.toString());
+        assertTrue(without.visible(orgs), "unsupported tools stay listed; the call explains");
+
+        AccessPolicy with = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(), null,
+                CapabilityDiscovery.fixed(CapabilityTest.caps("27.1.0", "organization")));
+        assertTrue(with.forbids(orgs, "demo").isEmpty());
+        assertTrue(with.forbids(newer, "demo").isEmpty());
+
+        ToolSpec legacy = ToolSpec.builder("keycloak_legacy")
+            .title("Legacy")
+            .description("Dropped after 26.")
+            .category(Category.REALM)
+            .read()
+            .maxVersion("26")
+            .handler(call -> ToolResult.ok(List.of()))
+            .build();
+        assertTrue(without.forbids(legacy, "demo").isEmpty(), "26.8.1 still has it");
+        Map<String, Object> gone = payload(with.forbids(legacy, "demo").orElseThrow());
+        assertEquals("unsupported", gone.get("error"));
+        assertTrue(String.valueOf(gone.get("message")).contains("up to 26;"), gone.toString());
+        assertEquals(List.of("version<=26"), gone.get("requirements"));
+        assertEquals("26", ((Map<?, ?>) gone.get("howToFix")).get("maxVersion"));
+
+        // nothing known: nothing refused
+        assertTrue(new AccessPolicy(false, List.of()).forbids(orgs, "demo").isEmpty());
+        assertEquals(ServerCapabilities.UNKNOWN, new AccessPolicy(false, List.of()).capabilities(null));
     }
 }

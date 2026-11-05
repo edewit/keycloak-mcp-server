@@ -14,7 +14,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
  */
 public record KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
         Optional<String> clientId, Optional<String> clientSecret, Optional<String> username, Optional<String> password,
-        Optional<String> defaultRealm, Set<String> allowedRealms) {
+        Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version) {
 
     public static final String DEFAULT_NAME = "default";
 
@@ -42,7 +42,9 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
                 pick(s == null ? Optional.empty() : s.username(), c.username()),
                 pick(s == null ? Optional.empty() : s.password(), c.password()),
                 pick(s == null ? Optional.empty() : s.defaultRealm(), c.defaultRealm()),
-                Set.copyOf(realms.stream().map(String::trim).filter(v -> !v.isEmpty()).toList()));
+                Set.copyOf(realms.stream().map(String::trim).filter(v -> !v.isEmpty()).toList()),
+                pick(s == null ? Optional.empty() : s.version(), c.version()).map(String::trim)
+                    .filter(v -> !v.isEmpty()));
     }
 
     private static <T> Optional<T> pick(Optional<T> specific, Optional<T> fallback) {

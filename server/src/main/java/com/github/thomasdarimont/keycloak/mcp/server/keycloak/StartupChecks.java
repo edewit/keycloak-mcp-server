@@ -3,7 +3,9 @@ package com.github.thomasdarimont.keycloak.mcp.server.keycloak;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -12,10 +14,15 @@ import jakarta.ws.rs.WebApplicationException;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
+import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
+import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
+import com.github.thomasdarimont.keycloak.mcp.server.guard.CapabilityDiscovery;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.RoleDiscovery;
 import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
 
@@ -38,6 +45,10 @@ public class StartupChecks {
     KeycloakSystems systems;
     @Inject
     RoleDiscovery roles;
+    @Inject
+    CapabilityDiscovery capabilities;
+    @Inject
+    ToolCatalog catalog;
 
     void onStart(@Observes StartupEvent event) {
         String mode = config.startupCheck().trim().toLowerCase(Locale.ROOT);
@@ -121,6 +132,27 @@ public class StartupChecks {
                 }
             }
         }
+        problems.addAll(checkCapabilities(sys));
+        return problems;
+    }
+
+    /** Version against the baseline, and which tools the server cannot serve. */
+    List<String> checkCapabilities(String sys) {
+        List<String> problems = new ArrayList<>();
+        ServerCapabilities caps = capabilities.get(sys);
+        if (caps.versionKnown() && !caps.atLeast(CapabilityDiscovery.BASELINE_VERSION)) {
+            String msg = "[" + sys + "] Keycloak " + caps.version() + " is below the supported baseline "
+                    + CapabilityDiscovery.BASELINE_VERSION + "; tools may fail or behave differently";
+            problems.add(msg);
+            LOG.error("Keycloak startup check: " + msg);
+        }
+        Map<String, List<String>> unavailable = new TreeMap<>();
+        for (ToolSpec spec : catalog.all()) {
+            AccessPolicy.unsupported(spec, caps)
+                .ifPresent(why -> unavailable.computeIfAbsent(why, k -> new ArrayList<>()).add(spec.name()));
+        }
+        unavailable.forEach((why, tools) -> LOG.infof("[%s] %d tools unavailable: %s (%s)", sys, tools.size(), why,
+                String.join(", ", tools)));
         return problems;
     }
 
