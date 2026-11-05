@@ -24,7 +24,7 @@ public interface KeycloakSystems {
     boolean multiple();
 
     /**
-     * Whether systems can appear at runtime (a {@link KeycloakSystemSource} is
+     * Whether systems can appear at runtime (a {@link KeycloakSystemRepository} is
      * registered); the {@code system} argument is then free text instead of a closed
      * enumeration, and {@link #names()} is the current snapshot.
      */

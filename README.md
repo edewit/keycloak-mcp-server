@@ -184,13 +184,16 @@ a single system called `default` and no `system` argument appears.
 ### Dynamic systems and per-system keys
 
 Static configuration suits a handful of systems. For SaaS setups where tenants come and go, a
-`KeycloakSystemSource` extension (`@AutoService(KeycloakSystemSource.class)` or a CDI bean, see §Extending)
+`KeycloakSystemRepository` extension (`@AutoService(KeycloakSystemRepository.class)` or a CDI bean, see §Extending)
 supplies systems at runtime: `names()` and `find(name)`, backed by a tenant registry, a database or a discovery
-call. Sources are off by default: `kc-mcp.dynamic-systems=true` lets them add systems, `kc-mcp.spi.<id>.enabled`
-switches a single source, and a source found while the switch is off is only mentioned in the log, so an
+call. Repositories are off by default: `kc-mcp.dynamic-systems=true` lets them add systems, `kc-mcp.spi.<id>.enabled`
+switches a single repository, and a repository found while the switch is off is only mentioned in the log, so an
 extension jar cannot point the server at a Keycloak it was not configured for. Nothing is created in Keycloak by
-the server: the tenant registers the client (below), the server only keeps its own key. With sources on, the
-server asks them on every lookup, creates the admin client on first use and caches it per name;
+the server: the tenant registers the client (below), the server only keeps its own key. With repositories on, the
+server asks them on every lookup through a `CompositeKeycloakSystemRepository`, ordered by `order()`: the static
+configuration (an `InMemoryKeycloakSystemRepository`) sits at `kc-mcp.static-systems-order`, -1000 by default, so a
+repository cannot redefine a configured system unless the operator raises that value; the first repository that
+knows a name wins, creates the admin client on first use and caches it per name;
 a system whose settings change at the source is reconnected, one the source forgets is dropped. With a source
 registered, the `system` argument of every tool is free text (the names only illustrate the description), and
 `kc-mcp.allowed-hosts` still applies: a dynamic system outside the list is refused and logged, not fatal.
@@ -204,8 +207,8 @@ persistent volume), and a `KeyVault` extension of your own keeps them in a datab
 HashiCorp Vault, so the server only ever handles key references. A configured `kc-mcp.jwt.key-file` keeps the
 previous behavior: one key for every system, published at `/.well-known/jwks.json` as well.
 
-The built-in source reads a JSON file (`kc-mcp.systems-file`, re-read when it changes), so a tenant registry
-can be a mounted file that another process maintains; `kc-mcp.static-systems=false` runs on sources alone.
+The built-in `FileSystemKeycloakSystemRepository` reads a JSON file (`kc-mcp.systems-file`, re-read when it changes), so a tenant registry
+can be a mounted file that another process maintains; `kc-mcp.static-systems=false` runs on repositories alone.
 `examples/multi-tenant/` is a complete two-tenant setup with generated keys and one MCP entry per tenant.
 
 ```json
@@ -216,8 +219,8 @@ can be a mounted file that another process maintains; `kc-mcp.static-systems=fal
 ```
 
 ```java
-@AutoService(KeycloakSystemSource.class)
-public class TenantRegistrySource implements KeycloakSystemSource {
+@AutoService(KeycloakSystemRepository.class)
+public class TenantRegistryRepository implements KeycloakSystemRepository {
     public String id() { return "tenant-registry"; }
     public List<String> names() { return registry.tenantIds(); }
     public Optional<KeycloakSystem> find(String name) {
@@ -274,9 +277,10 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.jwt.key-id`             | JWK thumbprint              | `kid` in the assertion header and the JWKS |
 | `kc-mcp.jwt.public-key-file`    | derived                     | public key / certificate PEM to publish; derived from the private key when unset |
 | `kc-mcp.jwt.jwks-enabled` / `jwks-path` | `true` / `/.well-known/jwks.json` | serve the public keys as JWK Sets: the configured key (else the default system's) at `jwks-path`, every system's at `/auth/keys/<system>/jwks.json` |
-| `kc-mcp.dynamic-systems`        | `false`                     | let registered `KeycloakSystemSource`s add systems at runtime |
-| `kc-mcp.systems-file`           |                             | JSON file (`{"systems": [...]}`) of the built-in source, re-read when it changes; needs `dynamic-systems` |
-| `kc-mcp.static-systems`         | `true`                      | `false`: no system from the top-level / `kc-mcp.systems.*` settings, sources only |
+| `kc-mcp.dynamic-systems`        | `false`                     | let registered `KeycloakSystemRepository`s add systems at runtime |
+| `kc-mcp.systems-file`           |                             | JSON file (`{"systems": [...]}`) of the built-in file repository, re-read when it changes; needs `dynamic-systems` |
+| `kc-mcp.static-systems-order`   | `-1000`                     | rank of the static configuration among the repositories (lower is asked first, repositories default to 0); raise it to let repositories override configured systems |
+| `kc-mcp.static-systems`         | `true`                      | `false`: no system from the top-level / `kc-mcp.systems.*` settings, repositories only |
 | `kc-mcp.keys-dir`               | `data/keys`                 | where the built-in `KeyVault` keeps the generated per-system `private_key_jwt` keys (PEM per system) |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
@@ -334,7 +338,7 @@ The server listens on port 8081 (`quarkus.http.port`) so a local Keycloak can ke
 ## Extending: tool providers
 
 Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
-`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, `KeycloakSystemSource`, `KeyVault`, all
+`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, `KeycloakSystemRepository`, `KeyVault`, all
 `Extension`s with `id`, `displayName`, `description` and `order`; `ExtensionRegistry` to look them up; `Caller`),
 the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
 `InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client
@@ -344,7 +348,7 @@ module `com.github.thomasdarimont.keycloak.mcp.api`. Packages under `com.github.
 `spi` (`Extension`, `ExtensionRegistry`, `ExtensionContext`, `ProviderConfig`), `tools` (`ToolProvider`,
 `ToolProviderContext`, `AbstractToolProvider`), `prompts` (`PromptProvider`), `access` (`AccessCheck`, `Caller`,
 `GrantedRoles`, `RoleRef`, `Delegation`), `confirm` (`Confirmer`), `audit` (`AuditListener`), `catalog` (the tool
-and prompt descriptions), `keycloak` (admin facades, `KeycloakSystemSource`, `KeyVault`, capabilities, host allow
+and prompt descriptions), `keycloak` (admin facades, `KeycloakSystemRepository`, `KeyVault`, capabilities, host allow
 list) and `config`. Tools come from
 `ToolProvider` implementations, discovered like Keycloak providers:
 

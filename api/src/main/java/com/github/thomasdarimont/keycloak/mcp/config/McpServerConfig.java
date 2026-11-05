@@ -101,16 +101,17 @@ public interface McpServerConfig {
     Jwt jwt();
 
     /**
-     * Whether registered {@code KeycloakSystemSource}s may add systems at runtime. Off by
-     * default: a source found on the class path is then listed in the log but not asked,
-     * so an extension cannot point the server at a Keycloak it was not configured for.
-     * Each source can additionally be switched with {@code kc-mcp.spi.<id>.enabled}.
+     * Whether registered {@code KeycloakSystemRepository}s may add systems at runtime.
+     * Off by default: a repository found on the class path is then listed in the log but
+     * not asked, so an extension cannot point the server at a Keycloak it was not
+     * configured for. Each repository can additionally be switched with
+     * {@code kc-mcp.spi.<id>.enabled}.
      */
     @WithDefault("false")
     boolean dynamicSystems();
 
     /**
-     * JSON file the built-in system source reads ({@code {"systems": [...]}}), re-read
+     * JSON file the built-in file repository reads ({@code {"systems": [...]}}), re-read
      * when it changes; needs {@code kc-mcp.dynamic-systems=true}. A relative path is
      * resolved like {@code kc-mcp.providers-dir}.
      */
@@ -123,6 +124,15 @@ public interface McpServerConfig {
      */
     @WithDefault("true")
     boolean staticSystems();
+
+    /**
+     * Where the static configuration ranks among the system repositories (lower is asked
+     * first; registered repositories default to 0). The default puts the static
+     * configuration first, so a repository cannot redefine a configured system; raise it
+     * above the repositories' order to let them take precedence.
+     */
+    @WithDefault("-1000")
+    int staticSystemsOrder();
 
     /**
      * Directory of the built-in

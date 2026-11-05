@@ -16,7 +16,7 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
-import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemSource;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
 import com.google.auto.service.AutoService;
 
@@ -24,7 +24,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
- * The built-in {@link KeycloakSystemSource}: systems from a JSON file
+ * The built-in file {@link KeycloakSystemRepository}: systems from a JSON file
  * ({@code kc-mcp.systems-file}), re-read whenever the file changes, so a tenant registry
  * can be a mounted file that another process maintains. Active only with
  * {@code kc-mcp.dynamic-systems=true} and a configured file.
@@ -43,10 +43,10 @@ import io.vertx.core.json.JsonObject;
  * {@code defaultRealm}, {@code allowedRealms}, {@code version}, {@code issuer} (the
  * realm's public issuer URL when {@code url} is an internal address) (optional).
  */
-@AutoService(KeycloakSystemSource.class)
-public class SystemsFileSource implements KeycloakSystemSource {
+@AutoService(KeycloakSystemRepository.class)
+public class FileSystemKeycloakSystemRepository implements KeycloakSystemRepository {
 
-    private static final Logger LOG = Logger.getLogger(SystemsFileSource.class);
+    private static final Logger LOG = Logger.getLogger(FileSystemKeycloakSystemRepository.class);
 
     public static final String PROPERTY = "kc-mcp.systems-file";
     public static final String DEFAULT_CLIENT_ID = "keycloak-mcp-server";
@@ -59,7 +59,7 @@ public class SystemsFileSource implements KeycloakSystemSource {
      * ServiceLoader constructor: the file from {@code kc-mcp.systems-file}, none when
      * unset.
      */
-    public SystemsFileSource() {
+    public FileSystemKeycloakSystemRepository() {
         this(ConfigProvider.getConfig()
             .getOptionalValue(PROPERTY, String.class)
             .filter(v -> !v.isBlank())
@@ -67,7 +67,7 @@ public class SystemsFileSource implements KeycloakSystemSource {
             .orElse(null));
     }
 
-    public SystemsFileSource(Path file) {
+    public FileSystemKeycloakSystemRepository(Path file) {
         this.file = file;
         if (file != null) {
             LOG.infof("Keycloak systems file: %s", file);
@@ -76,7 +76,7 @@ public class SystemsFileSource implements KeycloakSystemSource {
 
     @Override
     public String id() {
-        return "systems-file";
+        return "file-system";
     }
 
     @Override

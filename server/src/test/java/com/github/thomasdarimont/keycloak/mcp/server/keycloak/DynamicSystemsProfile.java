@@ -4,7 +4,10 @@ import java.util.Map;
 
 import io.quarkus.test.junit.QuarkusTestProfile;
 
-/** The static default system plus the runtime source {@link TestSystemSource}. */
+/**
+ * The static default system plus the runtime repository
+ * {@link TestKeycloakSystemRepository}.
+ */
 public class DynamicSystemsProfile implements QuarkusTestProfile {
 
     @Override

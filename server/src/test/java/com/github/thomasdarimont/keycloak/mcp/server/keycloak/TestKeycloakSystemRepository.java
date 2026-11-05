@@ -7,16 +7,16 @@ import java.util.Set;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
-import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemSource;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.google.auto.service.AutoService;
 
 /**
- * A runtime source with one system, {@code lab}, authenticating with
- * {@code private_key_jwt}; sources are off in the baseline test configuration
+ * A runtime repository with one system, {@code lab}, authenticating with
+ * {@code private_key_jwt}; repositories are off in the baseline test configuration
  * ({@code kc-mcp.dynamic-systems=false}) and on in {@link DynamicSystemsProfile}.
  */
-@AutoService(KeycloakSystemSource.class)
-public class TestSystemSource implements KeycloakSystemSource {
+@AutoService(KeycloakSystemRepository.class)
+public class TestKeycloakSystemRepository implements KeycloakSystemRepository {
 
     public static final KeycloakSystem LAB = new KeycloakSystem("lab", "http://127.0.0.1:1",
             GrantType.CLIENT_CREDENTIALS, ClientAuth.PRIVATE_KEY_JWT, "master", Optional.of("keycloak-mcp-server"),

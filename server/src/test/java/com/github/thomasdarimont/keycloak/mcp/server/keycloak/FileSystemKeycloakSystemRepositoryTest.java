@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class SystemsFileSourceTest {
+class FileSystemKeycloakSystemRepositoryTest {
 
     @Test
     void readsSystemsAndReloadsOnChange(@TempDir Path dir) throws Exception {
@@ -34,12 +34,12 @@ class SystemsFileSourceTest {
                    "clientAuth": "none", "clientId": "admin-cli", "username": "admin", "password": "admin"}
                 ]}
                 """);
-        SystemsFileSource source = new SystemsFileSource(file);
+        FileSystemKeycloakSystemRepository source = new FileSystemKeycloakSystemRepository(file);
         assertEquals(List.of("tenant-a", "legacy"), source.names());
         KeycloakSystem a = source.find("tenant-a").orElseThrow();
         assertEquals(ClientAuth.PRIVATE_KEY_JWT, a.clientAuth(), "the default for tenants");
         assertEquals(GrantType.CLIENT_CREDENTIALS, a.grantType());
-        assertEquals(Optional.of(SystemsFileSource.DEFAULT_CLIENT_ID), a.clientId());
+        assertEquals(Optional.of(FileSystemKeycloakSystemRepository.DEFAULT_CLIENT_ID), a.clientId());
         assertEquals("tenant-a", a.authRealm());
         assertEquals(Set.of("tenant-a", "shared"), a.allowedRealms());
         assertEquals(Optional.of("26.8.1"), a.version());
@@ -58,9 +58,9 @@ class SystemsFileSourceTest {
         Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 5000));
         assertEquals(List.of("tenant-b"), source.names(), "re-read after the file changed");
 
-        assertTrue(new SystemsFileSource((Path) null).names().isEmpty());
-        assertTrue(new SystemsFileSource(dir.resolve("missing.json")).names().isEmpty());
+        assertTrue(new FileSystemKeycloakSystemRepository((Path) null).names().isEmpty());
+        assertTrue(new FileSystemKeycloakSystemRepository(dir.resolve("missing.json")).names().isEmpty());
         assertThrows(IllegalArgumentException.class,
-                () -> SystemsFileSource.parse(new JsonObject("{\"systems\": [{\"name\": \"x\"}]}")));
+                () -> FileSystemKeycloakSystemRepository.parse(new JsonObject("{\"systems\": [{\"name\": \"x\"}]}")));
     }
 }

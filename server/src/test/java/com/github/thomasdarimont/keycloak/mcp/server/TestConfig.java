@@ -31,7 +31,7 @@ public class TestConfig implements ConfigSource {
             Map.entry("kc-mcp.allowed-hosts", ""), Map.entry("kc-mcp.denied-tools", ""),
             Map.entry("kc-mcp.read-only", "false"), Map.entry("kc-mcp.tool-exposure", "hybrid"),
             Map.entry("kc-mcp.startup-check", "off"), Map.entry("kc-mcp.keys-dir", "target/test-keys"),
-            // the runtime system source of the tests is opt-in per profile
+            // the runtime system repository of the tests is opt-in per profile
             Map.entry("kc-mcp.dynamic-systems", "false"), Map.entry("kc-mcp.systems-file", ""),
             Map.entry("kc-mcp.static-systems", "true"),
             // provider settings are a map of plain strings, so they take real values
