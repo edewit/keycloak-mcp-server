@@ -207,6 +207,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is an internal address (Docker) |
 | `kc-mcp.default-realm`          |                             | makes the `realm` argument optional |
 | `kc-mcp.systems.<name>.*`       |                             | per-system `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms`, `version` |
+| `kc-mcp.explanations`           | `auto`                      | for whom refusals are worded: `admins` (configuration details, `howToFix`), `users` (plain words, an administrator can change it), `auto` (by the caller's roles in delegation mode, else admins) |
 | `kc-mcp.version`                | read from the server        | Keycloak version of the (default) system when the server info is not readable or should be overridden (see §Supported Keycloak versions) |
 | `kc-mcp.default-system`         | the only system             | system used when the `system` argument is omitted |
 | `kc-mcp.tool-prefix`            |                             | prefix for all tool names, e.g. `prod_` |
@@ -392,6 +393,14 @@ was removed instead of "enable the feature"). The organization tools carry the f
   `howToFix` per requirement; `keycloak_server_features` carries `howToEnable` / `howToDisable` for one feature,
 - the startup check logs the version and the unavailable tools, and lists a server below the baseline as a
   problem (`kc-mcp.startup-check=fail` aborts).
+
+The wording follows `kc-mcp.explanations`. Administrators get the technical message and `howToFix`
+with the configuration per deployment form. Users get "not available on this Keycloak server: the
+'organization' feature is switched off. A Keycloak administrator can enable it", no configuration options, and a
+hint that tells the model to keep it that plain. `auto` (default) picks `users` for a caller acting on their own
+behalf (delegation `forward`) whose token holds neither the master admin nor a `realm-admin` role, and `admins`
+otherwise, including when the endpoint is anonymous and nothing is known about the person. A support desk
+deployment sets `KC_MCP_EXPLANATIONS=users` outright.
 
 Unknown capabilities (no server info and no configured version) never block a call; Keycloak then decides.
 Behavior that differs between versions under the same endpoint is handled inside the tool, not in the catalog:

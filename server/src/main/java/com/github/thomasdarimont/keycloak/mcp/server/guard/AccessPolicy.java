@@ -15,6 +15,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Requirement;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.Explanations;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
@@ -51,6 +52,11 @@ public class AccessPolicy {
     public static final String WHOAMI_HINT = "Do not retry; tell the user which role is missing. "
             + "Call whoami to see what the current caller may do.";
 
+    /** The same for users who do not run the server: no configuration details. */
+    public static final String UNSUPPORTED_HINT_USER = "Do not retry; this is not possible on this Keycloak server. "
+            + "Tell the user so in plain words and that a Keycloak administrator can change it; do not list"
+            + " configuration options.";
+
     /** Points the model at the server side cause instead of retrying. */
     public static final String UNSUPPORTED_HINT = "Do not retry; the Keycloak server lacks the feature or version. "
             + "Tell the user what is missing and how an administrator fixes it (howToFix); whoami shows the server"
@@ -64,6 +70,7 @@ public class AccessPolicy {
     private final Set<Category> allowedCategories;
     private final RoleDiscovery roles;
     private final CapabilityDiscovery capabilities;
+    private final Explanations explanations;
     private final List<AccessCheck> globalChecks;
 
     @Inject
@@ -72,7 +79,8 @@ public class AccessPolicy {
         this(config.readOnly(), config.allowedRealms().orElse(List.of()), config.allowedTools().orElse(List.of()),
                 config.deniedTools().orElse(List.of()), config.allowedCategories().orElse(List.of()), roles,
                 collectChecks(registry, extensions),
-                name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()), capabilities);
+                name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()), capabilities,
+                config.explanations());
     }
 
     /** The providers' checks first, then the ones registered on their own. */
@@ -115,8 +123,21 @@ public class AccessPolicy {
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
             List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
             CapabilityDiscovery capabilities) {
+        this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
+                allowedRealmsBySystem, capabilities, Explanations.AUTO);
+    }
+
+    /**
+     * @param explanations who reads the explanations of refusals; see
+     * {@link Explanations}
+     */
+    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
+            List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
+            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            CapabilityDiscovery capabilities, Explanations explanations) {
         this.readOnly = readOnly;
         this.capabilities = capabilities;
+        this.explanations = explanations == null ? Explanations.AUTO : explanations;
         this.allowedRealms = clean(allowedRealms);
         this.allowedRealmsBySystem = allowedRealmsBySystem;
         this.allowedTools = clean(allowedTools).stream().map(AccessPolicy::shortName).collect(Collectors.toSet());
@@ -218,17 +239,21 @@ public class AccessPolicy {
                     "Realm '" + realm + "' is not allowed" + (system != null ? " in system '" + system + "'." : "."),
                     "allowed", List.copyOf(allowedRealms(system))));
         }
+        boolean delegated = ctx.caller().delegated();
+        GrantedRoles granted = granted(system, ctx);
         ServerCapabilities caps = capabilities(system);
         Optional<Requirement> unmet = firstUnmet(spec, caps);
         if (unmet.isPresent()) {
-            return Optional.of(ToolResult.error("unsupported",
-                    spec.name() + " " + unmet.get().unmet(caps).orElseThrow()
-                            + (system != null ? " (system '" + system + "')" : ""),
-                    "requirements", spec.requires().stream().map(Requirement::describe).toList(), "howToFix",
-                    unmet.get().guidance(), "hint", UNSUPPORTED_HINT));
+            Explanations who = explanationsFor(granted, delegated);
+            String message = spec.name() + " " + unmet.get().unmet(caps, who).orElseThrow()
+                    + (system != null ? " (system '" + system + "')" : "");
+            List<String> requirements = spec.requires().stream().map(Requirement::describe).toList();
+            return Optional.of(who == Explanations.ADMINS
+                    ? ToolResult.error("unsupported", message, "requirements", requirements, "howToFix",
+                            unmet.get().guidance(), "hint", UNSUPPORTED_HINT)
+                    : ToolResult.error("unsupported", message, "requirements", requirements, "hint",
+                            UNSUPPORTED_HINT_USER));
         }
-        boolean delegated = ctx.caller().delegated();
-        GrantedRoles granted = granted(system, ctx);
         if (granted != null && realm != null) {
             String who = delegated ? "caller '" + ctx.caller().name() + "' has" : "the server's credentials have";
             // an unknown server token disables filtering; a caller token without any
@@ -292,6 +317,27 @@ public class AccessPolicy {
     /** The first unmet requirement of the tool against these capabilities. */
     public static Optional<String> unsupported(ToolSpec spec, ServerCapabilities caps) {
         return firstUnmet(spec, caps).flatMap(r -> r.unmet(caps));
+    }
+
+    /** The same, worded for the explanations. */
+    public static Optional<String> unsupported(ToolSpec spec, ServerCapabilities caps, Explanations explanations) {
+        return firstUnmet(spec, caps).flatMap(r -> r.unmet(caps, explanations));
+    }
+
+    /**
+     * Who gets the explanation: the configured explanations, or with {@code auto} the
+     * admin wording unless the caller acts on their own behalf without a master admin or
+     * {@code realm-admin} role.
+     */
+    public Explanations explanationsFor(GrantedRoles granted, boolean delegated) {
+        if (explanations != Explanations.AUTO) {
+            return explanations;
+        }
+        if (!delegated || granted == null || !granted.known() || granted.superAdmin()) {
+            return Explanations.ADMINS;
+        }
+        boolean realmAdmin = granted.byRealm().values().stream().anyMatch(r -> r.contains("realm-admin"));
+        return realmAdmin ? Explanations.ADMINS : Explanations.USERS;
     }
 
     /** The first requirement of the tool these capabilities do not meet. */

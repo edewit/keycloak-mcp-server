@@ -12,6 +12,7 @@ import org.keycloak.representations.info.SystemInfoRepresentation;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.Requirement;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
+import com.github.thomasdarimont.keycloak.mcp.config.Explanations;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
@@ -93,6 +94,18 @@ class CapabilityTest {
         assertTrue(why.contains("26.8.1"), why);
         String old = v.unmet(caps("26.8.1")).orElseThrow();
         assertTrue(old.contains("26.9 or newer"), old);
+
+        // plain wording for users: no configuration options, an admin can change it
+        String plain = org.unmet(caps("26.8.1", "passkeys"), Explanations.USERS).orElseThrow();
+        assertTrue(plain.contains("not available on this Keycloak server"), plain);
+        assertTrue(plain.contains("administrator can enable it"), plain);
+        assertFalse(plain.contains("KC_FEATURE"), plain);
+        assertTrue(org.unmet(caps("26.8.1", "organization"), Explanations.USERS).isEmpty());
+        assertTrue(v.unmet(caps("26.8.1"), Explanations.USERS).orElseThrow().contains("would have to upgrade"));
+        assertTrue(Requirement.maxVersion("26")
+            .unmet(caps("27.0.0"), Explanations.USERS)
+            .orElseThrow()
+            .contains("no longer available"));
 
         Requirement gone = Requirement.maxVersion("26.9");
         assertEquals("version<=26.9", gone.describe());

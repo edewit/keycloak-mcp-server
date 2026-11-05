@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import com.github.thomasdarimont.keycloak.mcp.config.Explanations;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.FeatureGuidance;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 
@@ -44,9 +45,22 @@ public record Requirement(Kind kind, String value) {
     }
 
     /**
-     * Why the requirement is not met, empty when met or when the capability is unknown.
+     * Why the requirement is not met, empty when met or when the capability is unknown;
+     * the {@link Explanations#ADMINS} wording, which names the configuration to change.
      */
     public Optional<String> unmet(ServerCapabilities caps) {
+        return unmet(caps, Explanations.ADMINS);
+    }
+
+    /**
+     * Why the requirement is not met, worded for the explanations: administrators get the
+     * configuration to change, users that it is not available here and that an
+     * administrator can change it.
+     */
+    public Optional<String> unmet(ServerCapabilities caps, Explanations explanations) {
+        if (explanations == Explanations.USERS) {
+            return plain(caps);
+        }
         return switch (kind) {
             case FEATURE -> {
                 if (!caps.featuresKnown() || caps.hasFeature(value)) {
@@ -71,6 +85,21 @@ public record Requirement(Kind kind, String value) {
                         + ", which no longer has what the tool relies on. Use the replacement the upgrade notes"
                         + " name.");
             }
+        };
+    }
+
+    private Optional<String> plain(ServerCapabilities caps) {
+        String here = caps.versionKnown() ? " (Keycloak " + caps.version() + ")" : "";
+        return switch (kind) {
+            case FEATURE -> !caps.featuresKnown() || caps.hasFeature(value) ? Optional.empty()
+                    : Optional.of("is not available on this Keycloak server: the '" + value
+                            + "' feature is switched off. A Keycloak administrator can enable it.");
+            case MIN_VERSION -> !caps.versionKnown() || caps.atLeast(value) ? Optional.empty()
+                    : Optional.of("is not available on this Keycloak server" + here + "; it needs Keycloak " + value
+                            + " or newer. A Keycloak administrator would have to upgrade.");
+            case MAX_VERSION -> !caps.versionKnown() || caps.atMost(value) ? Optional.empty()
+                    : Optional.of("is no longer available on this Keycloak server" + here
+                            + "; it was removed after Keycloak " + value + ".");
         };
     }
 

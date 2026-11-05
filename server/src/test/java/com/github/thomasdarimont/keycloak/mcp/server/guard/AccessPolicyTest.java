@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.Explanations;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessTokenSource;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.Fixtures;
@@ -252,5 +253,47 @@ class AccessPolicyTest {
         // nothing known: nothing refused
         assertTrue(new AccessPolicy(false, List.of()).forbids(orgs, "demo").isEmpty());
         assertEquals(ServerCapabilities.UNKNOWN, new AccessPolicy(false, List.of()).capabilities(null));
+    }
+
+    @Test
+    void explanationsFollowTheAudience() {
+        ToolSpec orgs = ToolSpec.builder("keycloak_org_list")
+            .title("List organizations")
+            .description("List organizations.")
+            .category(Category.ORGS)
+            .read()
+            .requiresFeatures("organization")
+            .handler(call -> ToolResult.ok(List.of()))
+            .build();
+        CapabilityDiscovery noOrgs = CapabilityDiscovery.fixed(CapabilityTest.caps("26.8.1", "passkeys"));
+
+        AccessPolicy users = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(), null,
+                noOrgs, Explanations.USERS);
+        Map<String, Object> plain = payload(users.forbids(orgs, "demo").orElseThrow());
+        assertEquals("unsupported", plain.get("error"));
+        assertFalse(plain.containsKey("howToFix"), plain.toString());
+        assertFalse(String.valueOf(plain.get("message")).contains("KC_FEATURE"), plain.toString());
+        assertTrue(String.valueOf(plain.get("message")).contains("administrator can enable it"), plain.toString());
+        assertEquals(AccessPolicy.UNSUPPORTED_HINT_USER, plain.get("hint"));
+
+        // auto: a delegated caller without realm-admin is a user, a realm admin or the
+        // server itself an administrator
+        AccessPolicy auto = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(), null,
+                noOrgs, Explanations.AUTO);
+        String support = GrantedRolesTest.jwt(new JsonObject().put("resource_access", new JsonObject()
+            .put("realm-management", new JsonObject().put("roles", new JsonArray(List.of("view-users"))))));
+        String realmAdmin = GrantedRolesTest.jwt(new JsonObject().put("resource_access", new JsonObject()
+            .put("realm-management", new JsonObject().put("roles", new JsonArray(List.of("realm-admin"))))));
+        InvocationContext asSupport = InvocationContext.none()
+            .withCaller(Caller.delegated("u1", "support", "demo", Set.of()), support);
+        InvocationContext asAdmin = InvocationContext.none()
+            .withCaller(Caller.delegated("u2", "ops", "demo", Set.of()), realmAdmin);
+        assertEquals(Explanations.USERS, auto.explanationsFor(auto.granted(null, asSupport), true));
+        assertEquals(Explanations.ADMINS, auto.explanationsFor(auto.granted(null, asAdmin), true));
+        assertEquals(Explanations.ADMINS, auto.explanationsFor(null, false));
+        Map<String, Object> forSupport = payload(auto.forbids(orgs, null, "demo", Map.of(), asSupport).orElseThrow());
+        assertFalse(forSupport.containsKey("howToFix"), forSupport.toString());
+        Map<String, Object> forAdmin = payload(auto.forbids(orgs, null, "demo", Map.of(), asAdmin).orElseThrow());
+        assertTrue(forAdmin.containsKey("howToFix"), forAdmin.toString());
     }
 }

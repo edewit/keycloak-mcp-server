@@ -15,6 +15,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
+import com.github.thomasdarimont.keycloak.mcp.config.Explanations;
 import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
@@ -50,6 +51,9 @@ public class MetaTools {
     static final String UNSUPPORTED_HINT = "Tools marked unsupported need a Keycloak feature or version this server "
             + "does not have: do not call them, tell the user what is missing and that an administrator has to"
             + " enable the feature at Keycloak startup (whoami shows howToFix).";
+
+    static final String UNSUPPORTED_HINT_USER = "Tools marked unsupported are not possible on this Keycloak server: "
+            + "do not call them, tell the user so in plain words and that a Keycloak administrator can change it.";
 
     private final ToolCatalog catalog;
     private final ToolIndex index;
@@ -145,6 +149,7 @@ public class MetaTools {
         GrantedRoles granted = policy.granted(catalog.defaultSystem(), ctx);
         boolean judge = granted != null && granted.known();
         ServerCapabilities caps = policy.capabilities(catalog.defaultSystem());
+        Explanations explanations = policy.explanationsFor(granted, ctx.caller().delegated());
         JsonArray tools = new JsonArray();
         List<String> names = new ArrayList<>();
         boolean anyForbidden = false;
@@ -158,7 +163,7 @@ public class MetaTools {
                     anyForbidden = true;
                 }
             }
-            Optional<String> unsupported = AccessPolicy.unsupported(hit.spec(), caps);
+            Optional<String> unsupported = AccessPolicy.unsupported(hit.spec(), caps, explanations);
             if (unsupported.isPresent()) {
                 tool.put("allowed", false).put("unsupported", unsupported.get());
                 anyUnsupported = true;
@@ -177,7 +182,7 @@ public class MetaTools {
                 hint += " " + FORBIDDEN_HINT;
             }
             if (anyUnsupported) {
-                hint += " " + UNSUPPORTED_HINT;
+                hint += " " + (explanations == Explanations.USERS ? UNSUPPORTED_HINT_USER : UNSUPPORTED_HINT);
             }
             out.put("hint", hint);
         }
@@ -264,8 +269,8 @@ public class MetaTools {
             out.put("readOnly", true);
         }
         ServerCapabilities caps = policy.capabilities(system);
-        out.put("server", serverJson(caps));
         GrantedRoles granted = policy.granted(system, ctx);
+        out.put("server", serverJson(caps, policy.explanationsFor(granted, delegated)));
         if (granted == null || !granted.known()) {
             out.put("roles", "unknown");
             out.put("hint",
@@ -303,7 +308,7 @@ public class MetaTools {
     }
 
     /** Version, baseline and the permitted tools the server cannot serve, by reason. */
-    private Map<String, Object> serverJson(ServerCapabilities caps) {
+    private Map<String, Object> serverJson(ServerCapabilities caps, Explanations explanations) {
         Map<String, Object> server = new LinkedHashMap<>();
         server.put("version", caps.versionKnown() ? caps.version() : "unknown");
         server.put("baseline", CapabilityDiscovery.BASELINE_VERSION);
@@ -320,13 +325,16 @@ public class MetaTools {
                 continue;
             }
             AccessPolicy.firstUnmet(spec, caps).ifPresent(r -> {
-                unavailable.computeIfAbsent(r.unmet(caps).orElseThrow(), k -> new ArrayList<>()).add(spec.name());
+                unavailable.computeIfAbsent(r.unmet(caps, explanations).orElseThrow(), k -> new ArrayList<>())
+                    .add(spec.name());
                 howToFix.putIfAbsent(r.describe(), r.guidance());
             });
         }
         if (!unavailable.isEmpty()) {
             server.put("unavailableTools", unavailable);
-            server.put("howToFix", howToFix);
+            if (explanations == Explanations.ADMINS) {
+                server.put("howToFix", howToFix);
+            }
         }
         return server;
     }

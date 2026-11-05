@@ -34,6 +34,16 @@ public interface McpServerConfig {
     Optional<String> defaultSystem();
 
     /**
+     * For whom the explanation is worded when a tool cannot run on this server:
+     * {@code admins} (configuration details and {@code howToFix}), {@code users} (plain:
+     * not available here, an administrator can change it) or {@code auto} (by the
+     * caller's roles in delegation mode, else admins). Unrelated to the OAuth audience.
+     */
+    @WithDefault("auto")
+    @WithConverter(Explanations.Converter.class)
+    Explanations explanations();
+
+    /**
      * Keycloak version of the (default) system, e.g. {@code 26.8.1}, when the server info
      * endpoint is not readable or should be overridden. Tools that need a newer version
      * are refused with {@code unsupported}; unknown means unchecked.
