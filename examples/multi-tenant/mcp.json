@@ -1,13 +1,13 @@
 {
   "mcpServers": {
     "keycloak-tenant-a": {
-      "url": "http://localhost:8091/mcp/s/tenant-a"
+      "url": "http://localhost:8091/mcp/systems/tenant-a"
     },
     "keycloak-tenant-a-customers": {
-      "url": "http://localhost:8091/mcp/s/tenant-a/realm-a-2"
+      "url": "http://localhost:8091/mcp/systems/tenant-a/realm-a-2"
     },
     "keycloak-tenant-b": {
-      "url": "http://localhost:8091/mcp/s/tenant-b/realm-b-1"
+      "url": "http://localhost:8091/mcp/systems/tenant-b/realm-b-1"
     }
   }
 }

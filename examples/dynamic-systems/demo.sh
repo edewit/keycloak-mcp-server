@@ -94,12 +94,12 @@ else
   echo "created realm acme-dev (alice = admin, sam = support, dave = developer, bob = disabled)"
 fi
 
-step "4a. as the service account (port 8091): the entry /mcp/s/acme/acme-dev"
-./mcp-call.py "$MCP/mcp/s/acme/acme-dev" whoami | jq -c '{system, entry, keycloakCallsRunAs, server: .server.version}'
-./mcp-call.py "$MCP/mcp/s/acme/acme-dev" keycloak_user_search '{"search": "alice"}' | jq -c '[.items[]?.username] // .'
+step "4a. as the service account (port 8091): the entry /mcp/systems/acme/acme-dev"
+./mcp-call.py "$MCP/mcp/systems/acme/acme-dev" whoami | jq -c '{system, entry, keycloakCallsRunAs, server: .server.version}'
+./mcp-call.py "$MCP/mcp/systems/acme/acme-dev" keycloak_user_search '{"search": "alice"}' | jq -c '[.items[]?.username] // .'
 
 step "4b. as the realm's users (port 8092): alice may do everything, sam reads, dave manages clients"
-U=http://localhost:8092/mcp/s/acme/acme-dev
+U=http://localhost:8092/mcp/systems/acme/acme-dev
 ./mcp-call.py --login alice:alice-demo "$U" whoami | jq -c '{caller: .caller.username, keycloakCallsRunAs, roles: (.roles["acme-dev"] | length)}'
 ./mcp-call.py --login alice:alice-demo "$U" keycloak_user_set_enabled '{"id": "bob", "enabled": true}' | jq -c '{username, enabled} // .'
 ./mcp-call.py --login sam:sam-demo "$U" keycloak_user_search '{"search": "bob"}' | jq -c '[.items[]?.username] // .'

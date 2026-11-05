@@ -81,17 +81,17 @@ realm-management roles.
 Service account, no login:
 
 ```
-./mcp-call.py http://localhost:8091/mcp/s/acme/acme-dev whoami
-./mcp-call.py http://localhost:8091/mcp/s/acme/acme-dev keycloak_user_search '{"search": "alice"}'
+./mcp-call.py http://localhost:8091/mcp/systems/acme/acme-dev whoami
+./mcp-call.py http://localhost:8091/mcp/systems/acme/acme-dev keycloak_user_search '{"search": "alice"}'
 ```
 
 Users: login at the entry's realm, token forwarded, Keycloak enforces their roles, audit names the person:
 
 ```
-./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/s/acme/acme-dev whoami
-./mcp-call.py --login sam:sam-demo     http://localhost:8092/mcp/s/acme/acme-dev keycloak_user_set_enabled '{"id": "bob", "enabled": true}'   # forbidden
-./mcp-call.py --login dave:dave-demo   http://localhost:8092/mcp/s/acme/acme-dev keycloak_client_list '{}'
-./mcp-call.py --login dave:dave-demo   http://localhost:8092/mcp/s/acme/acme-dev keycloak_user_delete '{"id": "bob", "username": "bob"}'      # forbidden
+./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/systems/acme/acme-dev whoami
+./mcp-call.py --login sam:sam-demo     http://localhost:8092/mcp/systems/acme/acme-dev keycloak_user_set_enabled '{"id": "bob", "enabled": true}'   # forbidden
+./mcp-call.py --login dave:dave-demo   http://localhost:8092/mcp/systems/acme/acme-dev keycloak_client_list '{}'
+./mcp-call.py --login dave:dave-demo   http://localhost:8092/mcp/systems/acme/acme-dev keycloak_user_delete '{"id": "bob", "username": "bob"}'      # forbidden
 ```
 
 LLM clients (LM Studio, Claude): `mcp.json` (service account), `mcp-oauth.json` (login at `acme-dev` via `mcp-consumer`).

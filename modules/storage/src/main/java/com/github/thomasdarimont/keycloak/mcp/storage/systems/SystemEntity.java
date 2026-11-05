@@ -10,8 +10,9 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 /**
  * A row of {@code kc_mcp_system}: the settings of one Keycloak system (a tenant). The
  * {@link #alias} is the technical key the server works with
- * ({@code KeycloakSystem.name()}, the {@code system} argument, {@code /mcp/s/<alias>}),
- * the {@link #name} a label for people; the primary key is a UUID, so both can change.
+ * ({@code KeycloakSystem.name()}, the {@code system} argument,
+ * {@code /mcp/systems/<alias>}), the {@link #name} a label for people; the primary key is
+ * a UUID, so both can change.
  */
 @Entity
 @Table(name = "kc_mcp_system")

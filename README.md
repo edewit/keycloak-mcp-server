@@ -1,168 +1,135 @@
 # keycloak-mcp-server
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server for administering Keycloak, built with Quarkus
-and `quarkus-mcp-server` (streamable HTTP). Functionally modeled on
-[mcp-keycloak-admin](https://github.com/edewit/mcp-keycloak-admin) (72 `keycloak_*` tools), but designed for
-**small local models**: the model-facing surface is kept tiny through lazy tool loading.
+[MCP](https://modelcontextprotocol.io) server for Keycloak administration. Quarkus, `quarkus-mcp-server`, streamable
+HTTP. 72 `keycloak_*` tools after [mcp-keycloak-admin](https://github.com/edewit/mcp-keycloak-admin), exposed lazily
+so small local models cope.
 
-Status: phases 1–4 of `sketch/notes/implementation-plan.md` are implemented: all 72 reference tools (users,
-sessions, groups, roles, clients, client scopes, identity providers, organizations, user federation, authentication
-flows, events, realm) plus search, exposure modes, guardrails and the extension SPI. See §Roadmap for what is left.
+Status: phases 1 to 4 of `sketch/notes/implementation-plan.md` done (all reference tools, search, exposure modes,
+guardrails, extension SPI). Open items: §Roadmap.
 
 ## How the model sees it
 
 `tools/list` depends on `kc-mcp.tool-exposure`:
 
-| mode          | `tools/list` contains                                   |
-|---------------|---------------------------------------------------------|
-| `hybrid`      | `search_tools`, `execute_tool` + the hot tools (default) |
-| `lazy`        | `search_tools`, `execute_tool` only                      |
-| `direct`      | every tool, like the reference implementation            |
-| `progressive` | hybrid + whatever the last `search_tools` surfaced, per connection (needs clients that honour `tools/list_changed`) |
+| mode          | `tools/list` contains |
+|---------------|-----------------------|
+| `hybrid`      | `search_tools`, `execute_tool`, hot tools (default) |
+| `lazy`        | `search_tools`, `execute_tool` |
+| `direct`      | every tool |
+| `progressive` | hybrid + what the last `search_tools` surfaced, per connection (client must honour `tools/list_changed`) |
 
-`whoami` is listed in every mode.
+`whoami` is always listed.
 
-* `search_tools(query, category?, limit?)` – lexical search over names, titles, descriptions, parameters and a
-  hand-maintained synonym table ("kick" → logout, "ldap" → federation, …). Umlauts and accents are folded and
-  German and French query words are translated before matching ("Benutzer abmelden" → `user logout`,
-  "Identitätsanbieter anlegen" → `identity provider create`, "supprimez cet utilisateur" → `delete user`; one
-  stop-word list, dictionary and set of inflection rules per language in `search/QueryTranslations.java`, so
-  another language is a table away); the instructions ask the model to search in English for other languages. Returns name, description and the
-  input schema, so the model can call `execute_tool` in the next turn. Without arguments it lists the categories.
-* `execute_tool(name, arguments, confirm?)` – dispatches through the same invoker as direct calls:
-  policy → argument validation/coercion → realm check → confirmation → handler → audit log.
-  Errors are structured (`unknown_tool` with `didYouMean`, `invalid_arguments` with `problems` + schema,
-  `realm_not_allowed`, `confirmation_required`, `read_only_mode`, `not_found`, `conflict`, `keycloak_unreachable`, …)
-  and always flagged `isError: true`.
-* `whoami(language?)` – who the Keycloak calls of this session run as (the signed-in user under
-  `KC_MCP_DELEGATION=forward`, otherwise the server's service account), their `realm-management` roles per realm
-  with the admin console's labels (`view-users` → "View users"; `language: de` → "Benutzer anzeigen", other
-  languages fall back to English and say so in `labelLanguage`), a per-area summary (`users: view`,
-  `clients: none`, …) and how many tools that unlocks. When roles are known, `search_tools` keeps hits the caller
-  may not use but marks them `allowed: false` with `missingRoles`, and a `forbidden` error points the model at
-  `whoami`, so a user with only `view-*` roles is told what is missing instead of watching the model retry.
-* Hidden tools stay callable by name, so a model that guesses `keycloak_user_search` in lazy mode still succeeds.
-* Identifiers are forgiving: users by id or username, clients by id or clientId, groups by id, path or name; the
-  instructions tell the model to pass them directly instead of looking ids up first.
-  Booleans/integers given as strings are coerced; `max` is clamped to `kc-mcp.result-max-items`.
-* Every result is returned twice: as the JSON text block all clients read, and as MCP `structuredContent` (the same
-  object; list payloads wrapped as `{"items": [...]}`), so client UIs can render tables without parsing text.
-  Errors carry their `error` code there too. `kc-mcp.structured-content=false` switches the second form off.
-* Fewer round trips: membership and role changes return the user's effective roles, `keycloak_user_roles_get`
-  explains where each role comes from (`direct`, `group:/path`, `composite:<role>`) and keeps the realm's default
-  roles apart, and `keycloak_group_get` shows what a group grants.
+- `search_tools(query, category?, limit?)`: lexical search over names, titles, descriptions, parameters and a synonym
+  table ("kick" → logout, "ldap" → federation). Accents folded; German and French translated before matching
+  (`search/QueryTranslations.java`, one table set per language); other languages: the instructions say search in English.
+  Returns name, description, input schema. No arguments: lists categories.
+- `execute_tool(name, arguments, confirm?)`: same pipeline as direct calls: policy → validation/coercion → realm check →
+  confirmation → handler → audit. Structured errors, always `isError: true`: `unknown_tool` (+ `didYouMean`),
+  `invalid_arguments` (+ `problems`, schema), `realm_not_allowed`, `confirmation_required`, `read_only_mode`, `not_found`,
+  `conflict`, `keycloak_unreachable`.
+- `whoami(language?)`: who the session's Keycloak calls run as (signed-in user under `KC_MCP_DELEGATION=forward`, else
+  the service account), `realm-management` roles per realm with admin-console labels (`language: de` → "Benutzer
+  anzeigen"; others fall back to English, `labelLanguage` says so), per-area summary (`users: view`), tool count unlocked.
+  With roles known, `search_tools` marks unusable hits `allowed: false` + `missingRoles`; `forbidden` errors point to `whoami`.
+- Hidden tools stay callable by name.
+- Forgiving identifiers: users by id or username, clients by id or clientId, groups by id, path or name. Strings coerced
+  to booleans/integers; `max` clamped to `kc-mcp.result-max-items`.
+- Every result twice: JSON text block + MCP `structuredContent` (lists as `{"items": [...]}`, errors with `error`).
+  Off with `kc-mcp.structured-content=false`.
+- Fewer round trips: membership and role changes return effective roles; `keycloak_user_roles_get` names each role's
+  source (`direct`, `group:/path`, `composite:<role>`), default roles apart; `keycloak_group_get` shows what a group grants.
 
 ## Guardrails
 
-* `KC_MCP_READ_ONLY=true` hides and refuses every WRITE/DESTRUCTIVE tool.
-* `KC_MCP_ALLOWED_REALMS=a,b` restricts every call to those realms; a startup check verifies the credentials reach
-  them (`kc-mcp.startup-check=warn|fail|off`).
-* `KC_MCP_ALLOWED_HOSTS=*.example.com,localhost:8080` pins which Keycloak servers this instance may talk to: every
-  configured URL (top level and per system) must match one `[scheme://]host[:port]` pattern, else the server
-  refuses to start. Guards against a production URL slipping into a development deployment, and the reverse.
-* `KC_MCP_ALLOWED_TOOLS`, `KC_MCP_DENIED_TOOLS`, `KC_MCP_ALLOWED_CATEGORIES` narrow the tool set explicitly.
-* **Role filtering** (`kc-mcp.role-filter`, on by default): every tool declares the roles it needs
-  (`ToolSpec.roles(...)`): `view-users` is shorthand for the `realm-management` client role, `my-app.auditor` is a
-  role of another client (split at the last dot), `realm:support` is a realm role. Realm-management roles follow
-  Keycloak's implications (`manage-x` covers `view-x` covers `query-x`, `realm-admin` covers all); custom client and
-  realm roles are checked in the token of the auth realm. The server inspects its own access token and hides tools whose roles it lacks
-  from listing and search; a direct call answers `forbidden` with the missing role, without a round trip. Tokens
-  without any admin roles switch the filter off rather than hiding everything.
-* DESTRUCTIVE tools (delete user/group, reset password, logout, unassign roles, …) ask the human through MCP
-  elicitation when the client supports it; otherwise they require `confirm: true` and explain that in the error.
-  `Confirmer`s of your own (change ticket check, four-eyes rule, allow-list) run before the built-in one; see
-  §Extending.
-* `keycloak_user_delete` additionally requires the matching `username`; `keycloak_realm_update` and
-  `keycloak_auth_flow_bind` count as destructive because they can lock people out.
-* One audit log line per executed tool (`com.github.thomasdarimont.keycloak.mcp.audit`), and an `AuditListener` SPI that receives the
-  same event (tool, level, system, realm, redacted arguments, outcome, caller, client, duration) for shipping to a
-  SIEM or database; see §Extending.
+- `KC_MCP_READ_ONLY=true`: hides and refuses WRITE/DESTRUCTIVE tools.
+- `KC_MCP_ALLOWED_REALMS=a,b`: every call restricted; startup check verifies reachability (`kc-mcp.startup-check=warn|fail|off`).
+- `KC_MCP_ALLOWED_HOSTS=*.example.com,localhost:8080`: every configured Keycloak URL (top level, per system) must match
+  a `[scheme://]host[:port]` pattern, else no start.
+- `KC_MCP_ALLOWED_TOOLS`, `KC_MCP_DENIED_TOOLS`, `KC_MCP_ALLOWED_CATEGORIES`: explicit narrowing.
+- Role filtering (`kc-mcp.role-filter`, default on). Tools declare roles (`ToolSpec.roles(...)`): `view-users` =
+  `realm-management` client role, `my-app.auditor` = other client's role (split at last dot), `realm:support` = realm
+  role. Implications as in Keycloak (`manage-x` ⊃ `view-x` ⊃ `query-x`, `realm-admin` ⊃ all). The server reads its own
+  token, hides tools it lacks roles for, answers `forbidden` with the missing role on direct calls. Tokens without any
+  admin role switch the filter off.
+- DESTRUCTIVE tools (delete user/group, reset password, logout, unassign roles): MCP elicitation when the client supports
+  it, else `confirm: true` required and explained. Own `Confirmer`s run first (§Extending).
+- `keycloak_user_delete` also needs the matching `username`. `keycloak_realm_update` and `keycloak_auth_flow_bind` count
+  as destructive (lock-out risk).
+- One audit line per executed tool (`com.github.thomasdarimont.keycloak.mcp.audit`); `AuditListener` SPI gets the same
+  event (tool, level, system, realm, redacted arguments, outcome, caller, client, duration).
 
 ## Access levels
 
-The real boundary is always the service account's roles in Keycloak; the server flags are a second layer.
+The real boundary is the service account's roles in Keycloak. Server flags are a second layer.
 
 | level          | Keycloak side | server side |
 |----------------|---------------|-------------|
-| full admin     | client in `master` with `admin`, or the admin user via `admin-cli` | nothing to set |
+| full admin     | client in `master` with `admin`, or admin user via `admin-cli` | nothing |
 | realm admin    | confidential client **in the realm** with `realm-admin` | `KC_MCP_ALLOWED_REALMS=<realm>`, `KC_MCP_DEFAULT_REALM=<realm>` |
-| realm manager  | client in the realm with just the `realm-management` roles needed, e.g. `view-users`, `manage-users` | same as realm admin; role filtering hides the rest automatically. Narrow further with `KC_MCP_DENIED_TOOLS=keycloak_user_delete` or `KC_MCP_READ_ONLY=true` |
-| user (forward) | the *human* holds the roles; a public PKCE client the MCP client logs them in with, whose tokens carry the server's audience | `KC_MCP_DELEGATION=forward` + `QUARKUS_OIDC_TENANT_ENABLED=true`; no server credentials at all (see §Callers) |
+| realm manager  | client in the realm with only the `realm-management` roles needed | as realm admin; role filtering hides the rest. Narrow further: `KC_MCP_DENIED_TOOLS=keycloak_user_delete`, `KC_MCP_READ_ONLY=true` |
+| user (forward) | the human holds the roles; public PKCE client whose tokens carry the server's audience | `KC_MCP_DELEGATION=forward` + `QUARKUS_OIDC_TENANT_ENABLED=true`; no server credentials (§Callers) |
 
-A client in `master` can also manage other realms through the `<realm>-realm` client roles; the role filter
-understands both layouts.
+A `master` client may also manage realms via `<realm>-realm` client roles; the filter understands both.
 
 ### Per-tool access checks and delegation
-
-Beyond roles, a tool can carry extra predicates, server requirements and a delegation rule:
 
 ```java
 tool("keycloak_user_delete")
     .roles("manage-users")
-    .requiresFeatures("organization").minVersion("26.8")       // maxVersion("26") would bound it; see §Supported Keycloak versions
+    .requiresFeatures("organization").minVersion("26.8")       // maxVersion("26") bounds it; §Supported Keycloak versions
     .access(ctx -> ctx.arg("username").startsWith("svc-")
             ? AccessCheck.Decision.deny("protected_user", "service users are deleted by the platform team")
             : AccessCheck.Decision.allow())
     .delegation(Delegation.ALLOWED)   // ALLOWED (default) | FORBIDDEN | REQUIRED
 ```
 
-`AccessCheck` receives the tool, the resolved realm, the validated arguments, the server's granted roles and the
-`Caller`. Checks run after the realm allow-list and role checks and before the confirmation step; a denial is
-returned as `{"error": <code>, "message": ...}`. A `ToolProvider` can also contribute checks that apply to every
-tool through `accessChecks(...)`, as can any CDI bean implementing `AccessCheck`.
-
-`Delegation` says whether a tool may run when the server acts on behalf of a user instead of with its own service
-account. With `KC_MCP_DELEGATION=forward` every call is delegated (`Caller.delegated()`), so `FORBIDDEN` tools are
-refused and `REQUIRED` tools become usable; with the default service account it is the other way round. Tools that
-reveal secrets or reshape the realm default to `FORBIDDEN`: `client_get_secret`, `client_regenerate_secret`,
-`realm_update`, `auth_flow_bind`, `federation_sync`.
+- `AccessCheck` gets tool, resolved realm, validated arguments, granted roles, `Caller`. Runs after realm and role
+  checks, before confirmation. Denial: `{"error": <code>, "message": ...}`.
+- Global checks: `ToolProvider.accessChecks(...)` or any CDI bean implementing `AccessCheck`.
+- `Delegation`: with `KC_MCP_DELEGATION=forward` every call is delegated (`Caller.delegated()`): `FORBIDDEN` tools
+  refused, `REQUIRED` tools usable; service account mode is the reverse. Default `FORBIDDEN`: `client_get_secret`,
+  `client_regenerate_secret`, `realm_update`, `auth_flow_bind`, `federation_sync`.
 
 ### Built-in policies: group scope and no escalation
 
-The `policies` provider ships two caller-relative checks (off by default for anonymous callers; they act once the
-endpoint authenticates callers, see §Callers):
+Provider `policies`, caller-relative, active once callers are authenticated (§Callers).
 
-| setting (`kc-mcp.spi.policies.*`) | default | meaning |
+| `kc-mcp.spi.policies.*` | default | meaning |
 |---|---|---|
-| `group-scope` | `off` | `group`: a caller may only manage groups they are a member of (or subgroups); `organization`: groups of the caller's organizations |
-| `manager-role` | | role the caller needs for group management, e.g. `realm:group-manager` |
-| `no-escalation` | `true` | callers may only grant roles (directly, via client roles, group mappings or group membership) within their own effective roles, may not touch users who outrank them, and may not grant to themselves |
-| `anonymous` | `allow` | `deny` refuses the guarded tools when no caller is known |
-| `super-roles` | `realm:admin, realm-management.realm-admin` | callers holding one of these bypass both checks |
+| `group-scope` | `off` | `group`: callers manage only groups they belong to (or subgroups); `organization`: groups of their organizations |
+| `manager-role` | | role needed for group management, e.g. `realm:group-manager` |
+| `no-escalation` | `true` | grants (direct, client role, group mapping, membership) only within the caller's effective roles; no touching users who outrank them; no self-grants |
+| `anonymous` | `allow` | `deny`: guarded tools refused without a known caller |
+| `super-roles` | `realm:admin, realm-management.realm-admin` | holders bypass both checks |
 
-Denials come back as `group_out_of_scope`, `manager_role_required`, `privilege_escalation`,
-`target_outranks_caller`, `self_grant`, `caller_unknown`, `caller_foreign_realm` or `caller_required`.
-Effective roles are computed from Keycloak (direct, group-inherited and composite-expanded).
+Denials: `group_out_of_scope`, `manager_role_required`, `privilege_escalation`, `target_outranks_caller`, `self_grant`,
+`caller_unknown`, `caller_foreign_realm`, `caller_required`. Effective roles come from Keycloak (direct, group, composite).
 
 ### Callers
 
-Who is acting comes from the request's Quarkus `SecurityIdentity` (`CallerProvider`): subject, username, issuing
-realm and roles of the bearer token. The OIDC tenant is off by default, so the endpoint is anonymous. Switch it on
-with `QUARKUS_OIDC_TENANT_ENABLED=true`; tokens of `KC_MCP_URL/realms/KC_MCP_AUTH_REALM` are then verified
-(`quarkus.oidc.auth-server-url` to change that, `QUARKUS_OIDC_TOKEN_AUDIENCE` to accept only tokens issued for this
-server). Two modes build on that:
+`CallerProvider` reads the Quarkus `SecurityIdentity`: subject, username, issuing realm, roles. OIDC tenant off by
+default (anonymous endpoint). `QUARKUS_OIDC_TENANT_ENABLED=true` verifies tokens of `KC_MCP_URL/realms/KC_MCP_AUTH_REALM`
+(`quarkus.oidc.auth-server-url` to change, `QUARKUS_OIDC_TOKEN_AUDIENCE` to require an audience).
 
 | | `KC_MCP_DELEGATION=off` (default) | `KC_MCP_DELEGATION=forward` |
 |---|---|---|
-| admin calls run as | the server's service account | the caller, with their own access token |
-| roles that count | the service account's (role filter) | the caller's `realm-management` roles, read from their token per call; Keycloak enforces them again |
-| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` | refused with `401` + `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` |
-| server credentials | required | optional (only the policies provider's lookups fall back to them when the caller's token cannot read something) |
+| admin calls run as | service account | the caller's own token |
+| roles that count | service account's (role filter) | caller's `realm-management` roles from their token, per call; Keycloak enforces again |
+| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` | `401` + `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` |
+| server credentials | required | optional (policies provider falls back to them for lookups) |
 
-The `401` challenge and the protected-resource metadata are what OAuth-capable MCP clients (LM Studio, Claude)
-act on: they discover the realm, open the browser, let the user log in (authorization code + PKCE) and retry with
-the token. Keycloak side: a public client for that login whose tokens carry an audience the server accepts (an
-*Audience* mapper, see `examples/run-modes/realms/demo-realm.json` → `mcp-consumer`), and `realm-management` roles on the
-humans who may administer (groups are the natural place). The audit line then reads `caller=alice(<sub>) delegated`.
-`Caller` carries the token for access checks that need more than roles: `claims()` / `claim("department")` give the
-parsed payload as plain Java values and `rawToken()` the bearer token; `toString()` never prints it and audit
-events get a `withoutToken()` copy. Per-caller admin clients are cached until the token expires. Token exchange (acting with narrowed, consented permissions) is
-sketched in `sketch/notes/delegated-auth.md` and not implemented.
+- The `401` challenge drives OAuth-capable MCP clients (LM Studio, Claude): discover realm, browser login (code + PKCE), retry.
+- Keycloak side: public client with an *Audience* mapper for the server (`examples/run-modes/realms/demo-realm.json`,
+  `mcp-consumer`); `realm-management` roles on the humans, groups preferred.
+- Audit line: `caller=alice(<sub>) delegated`.
+- `Caller`: `claims()`, `claim("department")`, `rawToken()`; `toString()` never prints the token; audit events get
+  `withoutToken()`. Per-caller admin clients cached until token expiry.
+- Token exchange: sketched in `sketch/notes/delegated-auth.md`, not implemented.
 
 ## Several Keycloak systems
 
-One server can front several Keycloak installations. Declare them under `kc-mcp.systems.<name>.*`; every field
-falls back to the top-level value, so shared settings are written once:
+`kc-mcp.systems.<name>.*`; every field falls back to the top-level value.
 
 ```properties
 kc-mcp.grant-type=client_credentials
@@ -175,46 +142,40 @@ kc-mcp.systems.staging.client-secret=${STAGING_SECRET}
 kc-mcp.default-system=prod
 ```
 
-With more than one system every tool gains a `system` argument (a closed enum of the names, optional when a
-default system is set). Roles, allowed realms, default realm, startup checks and the audit log are tracked per
-system. One configured `private_key_jwt` key (`kc-mcp.jwt.key-file`) serves all of them; without one, every
-system gets its own generated key (see §Dynamic systems). Without `kc-mcp.systems.*` the top-level settings form
-a single system called `default` and no `system` argument appears.
+- More than one system: every tool gains a `system` argument (enum; optional with `kc-mcp.default-system`).
+- Roles, allowed realms, default realm, startup checks, audit: per system.
+- One `kc-mcp.jwt.key-file` serves all systems; without it each system gets its own key (§Dynamic systems).
+- No `kc-mcp.systems.*`: one system `default`, no `system` argument.
 
 ### Dynamic systems and per-system keys
 
-Static configuration suits a handful of systems. For SaaS setups where tenants come and go, a
-`KeycloakSystemRepository` extension (`@AutoService(KeycloakSystemRepository.class)` or a CDI bean, see §Extending)
-supplies systems at runtime: `names()` and `find(name)`, backed by a tenant registry, a database or a discovery
-call. Repositories are off by default: `kc-mcp.dynamic-systems=true` lets them add systems, `kc-mcp.spi.<id>.enabled`
-switches a single repository, and a repository found while the switch is off is only mentioned in the log, so an
-extension jar cannot point the server at a Keycloak it was not configured for. Nothing is created in Keycloak by
-the server: the tenant registers the client (below), the server only keeps its own key. With repositories on, the
-server asks them on every lookup through a `CompositeKeycloakSystemRepository`, ordered by `order()`: the static
-configuration (an `InMemoryKeycloakSystemRepository`) sits at `kc-mcp.static-systems-order`, -1000 by default, so a
-repository cannot redefine a configured system unless the operator raises that value; the first repository that
-knows a name wins, creates the admin client on first use and caches it per name;
-a system whose settings change at the source is reconnected, one the source forgets is dropped. With a source
-registered, the `system` argument of every tool is free text (the names only illustrate the description), and
-`kc-mcp.allowed-hosts` still applies: a dynamic system outside the list is refused and logged, not fatal.
+`KeycloakSystemRepository` extensions (`@AutoService` or CDI bean) supply systems at runtime: `names()`, `find(name)`.
 
-Credentials follow a convention instead of a secret per tenant. Each system registers a confidential client
-named, say, `keycloak-mcp-server` with service accounts on and client authentication "Signed JWT", JWKS URL
-`https://<this server>/auth/keys/<system>/jwks.json`, and the `realm-management` roles the tools need. The
-server signs with a key pair per system from a `KeyVault` and publishes the public half at that URL. The built-in
-vault is read-only: it serves PKCS#8 PEM files that operations provisioned under `kc-mcp.keys-dir` (default
-`data/keys`, next to `quarkus-run.jar` when packaged; `<system>.pem` per system, raw secrets as files under
-`<dir>/secrets/<name>`). A `KeyVault` extension of your own (`findSigningKey`, `createSigningKey` when it
-`supportsKeyCreation()`, `findSecret`, `putSecret` when it `supportsSecretStorage()`) keeps keys in a database, which
-is also where they get created and rotated with the `SigningKeyGenerator` the server hands over (built-in: JDK RSA or EC keys for
-`kc-mcp.jwt.algorithm`, RSA size `kc-mcp.jwt.key-size`; your own for an HSM), or in a secrets manager such as
-HashiCorp Vault, so the server only ever handles key and secret references. A configured `kc-mcp.jwt.key-file`
-keeps the previous behavior: one key for every system, published at `/.well-known/jwks.json` as well.
+- Off by default: `kc-mcp.dynamic-systems=true` enables repositories, `kc-mcp.spi.<id>.enabled` one of them. Found
+  while off: only logged.
+- The server creates nothing in Keycloak; the tenant registers the client, the server keeps its key.
+- `CompositeKeycloakSystemRepository` asks repositories by `order()`. Static configuration sits at
+  `kc-mcp.static-systems-order` (-1000): repositories cannot redefine configured systems unless that is raised. First
+  repository knowing a name wins; admin client created on first use, cached per name; changed settings reconnect,
+  forgotten systems drop.
+- Schema of the `system` argument: a closed enum of the configured names without repositories; with one, a plain string
+  (systems may appear at runtime), known names listed in the description as examples, unknown names answer `unknown_system`.
+- `kc-mcp.allowed-hosts` still applies: outside systems are refused and logged, not fatal.
 
-The built-in `FileSystemKeycloakSystemRepository` reads a JSON file (`kc-mcp.systems-file`, re-read when it changes), so a tenant registry
-can be a mounted file that another process maintains; `kc-mcp.static-systems=false` runs on repositories alone.
-`examples/multi-tenant/` is a complete two-tenant setup with provisioned keys and one MCP entry per tenant; the
-systems can also live in a database, see §Database storage.
+Credentials by convention, no secret per tenant:
+
+- Each system registers a confidential client (e.g. `keycloak-mcp-server`): service account, "Signed JWT", JWKS URL
+  `https://<this server>/auth/keys/<system>/jwks.json`, the `realm-management` roles needed.
+- The server signs with a key pair per system from a `KeyVault`, publishes the public half at that URL.
+- Built-in vault: read-only PKCS#8 PEM files under `kc-mcp.keys-dir` (default `data/keys`, next to `quarkus-run.jar`
+  when packaged): `<system>.pem`, secrets as `secrets/<name>` files.
+- Own `KeyVault`: `findSigningKey`, `createSigningKey` when `supportsKeyCreation()`, `findSecret`, `putSecret` when
+  `supportsSecretStorage()`. Keys generated by the `SigningKeyGenerator` the server hands over (JDK RSA/EC for
+  `kc-mcp.jwt.algorithm`, RSA size `kc-mcp.jwt.key-size`; own one for an HSM). Or a secrets manager such as HashiCorp
+  Vault: the server handles references only.
+- `kc-mcp.jwt.key-file` keeps one key for all systems, also at `/.well-known/jwks.json`.
+- `FileSystemKeycloakSystemRepository` reads `kc-mcp.systems-file` (re-read on change). `kc-mcp.static-systems=false`:
+  repositories only. `examples/multi-tenant/`: two tenants, provisioned keys, one entry per tenant. Database: §Database storage.
 
 ```json
 { "systems": [
@@ -225,88 +186,71 @@ systems can also live in a database, see §Database storage.
 
 ### Admin API: registering systems at runtime
 
-With the database storage on and `kc-mcp.admin.enabled=true`, the admin API (a JAX-RS resource under `/admin`)
-registers systems the way a control plane would (`examples/dynamic-systems/` runs the whole flow). Callers present
-`Authorization: Bearer ...` with either the static `kc-mcp.admin.token` (automation without an OAuth client) or an
-access token of the trusted `kc-mcp.admin.issuer` (a realm URL; verified by Quarkus OIDC, optionally checked for
-`kc-mcp.admin.audience`) that carries `kc-mcp.admin.role` (`realm:admin` by default, the master realm's admins;
-`<client>.<role>` for a client role); at least one of token and issuer must be set. `PUT /admin/systems/<alias>`
-takes the fields of a systems file entry (`displayName`, `url`, `issuer`, `authRealm`, `clientId`, `clientAuth`,
-`defaultRealm`, `allowedRealms`, `version`, credentials) and stores the system in the first
-`MutableKeycloakSystemRepository` (the database). A `private_key_jwt` system gets its key from the `KeyVault`:
-`"signingKey": "generate"` creates a new pair in a vault that can (the database vault), `"existing"` uses one the
-vault already holds (provisioned PEM files, a row written by other means), and without the field an existing key is
-used or one generated. A `client_secret` system may carry `"clientSecret": "vault:<name>"` instead of the secret; the
-reference is checked against the vault on registration and resolved on every connection, so rotating the secret in
-the vault needs no change to the system. The response has no secrets but the key's `kid`, `jwksPath`
-(`/auth/keys/<alias>/jwks.json`) and `jwksUrl`, and the entries, so the caller can create the Keycloak client with
-"Signed JWT" and that JWKS URL. `GET /admin/systems[/<alias>]` lists systems with their `source` repository
-(configured ones included, read-only there), `DELETE` removes a registered one (its keys stay in the vault),
-`POST /admin/systems/<alias>/signing-key` rotates the key: the JWKS lists the new key first and keeps the retired one
-for the vault's grace period, Keycloak fetches it again on the unknown `kid`. The `url` has to pass `kc-mcp.allowed-hosts`.
+Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. Full flow: `examples/dynamic-systems/`.
 
-Secrets take the same route: `PUT /admin/secrets/<name>` with `{"value": "..."}` stores a client secret or admin
-password in the vault (the database vault; the file vault and a secrets manager are read-only and answer 409
-`vault_read_only`), and a system registered with `"clientSecret": "vault:<name>"` picks it up on its next connection,
-so the value is in neither the system's row nor any representation. `GET /admin/secrets[/<name>]` lists names with the
-systems using them (`usedBy`) and never a value, a new value reconnects those systems, and `DELETE` refuses a secret
-that is still referenced (409 `secret_in_use`).
+- Bearer: static `kc-mcp.admin.token`, or an access token of `kc-mcp.admin.issuer` (realm URL, verified by Quarkus OIDC,
+  optional `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role` (`realm:admin` default; `<client>.<role>` for client
+  roles). One of token and issuer required.
+- `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `url`, `issuer`, `authRealm`, `clientId`,
+  `clientAuth`, `defaultRealm`, `allowedRealms`, `version`, credentials) into the first `MutableKeycloakSystemRepository`.
+  `url` must pass `kc-mcp.allowed-hosts`.
+- `signingKey`: `generate` (new pair in a creating vault), `existing` (vault already has one), absent (existing, else generate).
+- `"clientSecret": "vault:<name>"`: checked on registration, resolved on every connection; rotating the secret needs no
+  system change.
+- Response: no secrets; `kid`, `jwksPath` (`/auth/keys/<alias>/jwks.json`), `jwksUrl`, entries.
+- `GET /admin/systems[/<alias>]`: all systems with `source` repository (configured ones read-only). `DELETE`: removes a
+  registered system, keys stay. `POST /admin/systems/<alias>/signing-key`: rotates; JWKS lists the new key first, keeps
+  the retired one for the grace period; Keycloak refetches on unknown `kid`.
+- `PUT /admin/secrets/<name>` `{"value": "..."}`: stores a secret in the database vault (file vault, secrets manager:
+  409 `vault_read_only`). Systems with `vault:<name>` pick it up on their next connection. `GET /admin/secrets[/<name>]`:
+  names + `usedBy`, never values. `DELETE`: 409 `secret_in_use` while referenced.
 
 ### Database storage (optional)
 
-The `storage` module (`keycloak-mcp-server-storage`, a dependency of the backend) keeps what otherwise lives in files
-in a database: Keycloak systems (a `KeycloakSystemRepository` named `db-systems`, table `kc_mcp_system`), the
-`private_key_jwt` key pairs and raw secrets (a `KeyVault` named `db-key-vault` that creates and rotates keys, tables
-`kc_mcp_signing_key` and `kc_mcp_secret`) and the audit trail (an `AuditListener` named `db-audit`, one
-`kc_mcp_audit_event` row per call, denials and reads included). Hibernate ORM with Panache maps the tables, Liquibase
-creates and migrates them at startup (`db/kc-mcp/changelog.xml`, one included file per schema version, `0.1.0-changelog.xml` first), timestamps are epoch milliseconds in `bigint`
-columns as in Keycloak's own schema. Nothing of it runs until a datasource is configured: without
-`quarkus.datasource.jdbc.url` the server works from the static configuration, the systems file and the file vault
-alone; with one, `kc-mcp.storage.enabled` turns on by itself (set it explicitly to force either way) and the three
-extensions join the registry, so `kc-mcp.dynamic-systems=true` makes the stored systems reachable, the database vault
-takes over from the read-only file vault and the audit rows start. Each can be switched off alone with
-`kc-mcp.spi.db-systems.enabled`, `db-key-vault.enabled` or `db-audit.enabled` (for instance a database audit log next
-to provisioned PEM keys).
+Module `storage` (`keycloak-mcp-server-storage`, backend dependency).
+
+- Stores: systems (`KeycloakSystemRepository` `db-systems`, `kc_mcp_system`), keys and secrets (`KeyVault` `db-key-vault`,
+  `kc_mcp_signing_key`, `kc_mcp_secret`), audit (`AuditListener` `db-audit`, `kc_mcp_audit_event`, one row per call
+  incl. denials and reads).
+- Hibernate ORM Panache; Liquibase at startup (`db/kc-mcp/changelog.xml` includes one file per schema version,
+  `0.1.0-changelog.xml` first); timestamps `bigint` epoch millis as in Keycloak.
+- Dormant without `quarkus.datasource.jdbc.url`. With one, `kc-mcp.storage.enabled` turns on (set explicitly to force);
+  `kc-mcp.dynamic-systems=true` exposes stored systems, the database vault replaces the file vault, audit rows start.
+  Per store: `kc-mcp.spi.db-systems.enabled`, `db-key-vault.enabled`, `db-audit.enabled`.
 
 ```shell
 QUARKUS_DATASOURCE_JDBC_URL=jdbc:h2:file:./data/kc-mcp KC_MCP_DYNAMIC_SYSTEMS=true \
 KC_MCP_STORAGE_SECRET_KEY=$(openssl rand -base64 32) java -jar modules/backend/target/quarkus-app/quarkus-run.jar
 ```
 
-The database kind is a build-time choice in Quarkus (the dialect is baked in): the default build carries the embedded
-H2 (`jdbc:h2:file:...`, one instance, dev and small setups), `./mvnw package -Ppostgresql` builds the
-server for PostgreSQL (`jdbc:postgresql://host:5432/kcmcp` with `quarkus.datasource.username` /
-`password`); both drivers are in the jar, so the Docker image built from a PostgreSQL build still runs with H2 only
-if rebuilt. Share a database *server* with Keycloak if you like, never its schema: the tables carry the `kc_mcp_`
-prefix. `kc-mcp.storage.secret-key` (the base64 of 32 random bytes, or a passphrase run through Argon2id) encrypts
-private keys, client secrets and passwords at rest with AES-256-GCM; without it they are stored in plain text and the
-startup log says so. In `kc_mcp_system` the `alias` column is what the server calls the system (`KeycloakSystem.name()`,
-the `system` argument, `/mcp/s/<alias>`), `name` is a display label and the primary key a UUID, so both can change; a
-row with `enabled=false` is kept but not served. The repository serves a snapshot of the rows that it reloads when
-older than `kc-mcp.spi.db-systems.cache-seconds` (10 by default, a write through the same server reloads at once),
-so tool calls cost no query and a system registered on another replica appears within that time; on event loop
-threads, where Quarkus allows no database call, the snapshot is served as is. A control plane writes rows through the module's
-`DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault` (`createSigningKey`
-rotates: the previous key keeps its row with `retired_at`, `putSecret`) and reads audit rows through
-`DatabaseAuditListener` (`recent`, `byCaller`); an admin API over the audit rows is the next step. Audit rows are kept
-until `kc-mcp.spi.db-audit.retention-days` says otherwise: with it set, events older than that many days are deleted at
-startup and every hour (one statement on the `occurred_at` index; several replicas may all do it), unset keeps everything,
-as Keycloak's event store does without an expiration.
+- Database kind is build time: default build embeds H2 (`jdbc:h2:file:...`, one instance); `./mvnw package -Ppostgresql`
+  for PostgreSQL (`jdbc:postgresql://host:5432/kcmcp`, `quarkus.datasource.username`/`password`). Both drivers ship; the
+  dialect does not switch at runtime.
+- Share a database server with Keycloak, never its schema: tables are prefixed `kc_mcp_`.
+- `kc-mcp.storage.secret-key` (base64 of 32 bytes, or a passphrase via Argon2id): AES-256-GCM for private keys, client
+  secrets, passwords. Unset: plain text, startup warns.
+- `kc_mcp_system`: `alias` = system name (`system` argument, `/mcp/systems/<alias>`), `name` = display label, UUID primary key;
+  both changeable. `enabled=false`: kept, not served.
+- Snapshot cache: rows reloaded when older than `kc-mcp.spi.db-systems.cache-seconds` (10; local writes reload at once).
+  Tool calls cost no query; event-loop threads get the snapshot as is.
+- Programmatic access: `DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault`
+  (`createSigningKey` retires the previous row, `putSecret`), `DatabaseAuditListener` (`recent`, `byCaller`). Admin API
+  over audit rows: next step.
+- Retention: `kc-mcp.spi.db-audit.retention-days` deletes older events at startup and hourly (one statement on the
+  `occurred_at` index). Unset keeps all, like Keycloak's event store without expiration.
+- PII: `AuditScrubber` `pii-audit-scrubber`. `kc-mcp.spi.pii-audit-scrubber.pii`: `keep` (default), `pseudonymize`
+  (caller name and `pii-args` values, default `username,email,firstName,lastName,search,userId,user,attributes` plus `id`
+  on user tools, become a keyed hash under `secret-key`; message dropped), `drop`. `targets`: `db-audit` (default),
+  `console`, `*`.
 
-Several instances of the server can share one database, which is how `examples/dynamic-systems/` runs: that needs the
-PostgreSQL build (the embedded H2 file database belongs to one process) and the same `kc-mcp.storage.secret-key` on every
-instance. A system registered, changed or removed on one instance is served by the others within
-`kc-mcp.spi.db-systems.cache-seconds`; a replaced secret reaches them on their next tool call; a rotated signing key is
-signed with on the next token request of every instance, and the JWKS of each instance publishes the current key and the
-keys retired within `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` (an hour by default), so Keycloak accepts the
-assertions of an instance that has not caught up yet. The retention purge runs on every instance; the deletes are
-idempotent. Two instances creating a system's first key at the same moment both succeed and both keys are published, the
-newer one is signed with. The module also registers the `AuditScrubber` `pii-audit-scrubber`:
-`kc-mcp.spi.pii-audit-scrubber.pii` decides what happens to personal data, `keep` (default), `pseudonymize` (the
-caller's name and the values of `pii-args`, by default `username,email,firstName,lastName,search,userId,user,attributes`
-plus `id` on user tools, become a keyed hash under `kc-mcp.storage.secret-key`, so one person stays recognisable
-across rows; the message is dropped) or `drop`; `targets` names the listeners it applies to, by default `db-audit`
-alone, `console` to clean the console while the database keeps everything, `*` for both.
+Several instances on one database (how `examples/dynamic-systems/` runs):
+
+- PostgreSQL build (H2 file database is single-process); same `kc-mcp.storage.secret-key` everywhere.
+- Systems: visible to other instances within `cache-seconds`. Secrets: next tool call. Signing keys: next token request
+  of each instance; every JWKS publishes the current key plus keys retired within
+  `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` (3600), so Keycloak accepts lagging instances.
+- Retention purge runs on every instance; deletes are idempotent.
+- Two instances creating a first key at once: both succeed, both published, newest signs.
 
 ```java
 @AutoService(KeycloakSystemRepository.class)
@@ -321,95 +265,92 @@ public class TenantRegistryRepository implements KeycloakSystemRepository {
 }
 ```
 
-Caller authentication is per MCP server entry, not per system: an MCP client logs in once per server URL. Operators
-of several systems therefore use one central identity, typically a master realm admin with access to the realms
-they manage, or separate MCP server entries per system (next section).
+Caller authentication is per MCP entry, not per system: one login per server URL. Several systems: one central identity
+(master admin), or one entry per system (next section).
 
-### Entries per system or realm: `/mcp/s/<system>[/<realm>]`
+### Entries per system or realm: `/mcp/systems/<system>[/<realm>]`
 
-Besides the root `/mcp`, the server answers at `/mcp/s/<system>` and `/mcp/s/<system>/<realm>`: the same MCP
-server, bound to one system or one realm. A client configured with such a URL cannot leave it: the `system` and
-`realm` arguments are filled in from the entry, an argument that says otherwise is refused with `entry_mismatch`,
-`search_tools` and `whoami` judge roles and capabilities against that system, and `whoami` reports the `entry`.
-Global tools ignore the realm part. With caller authentication on (`quarkus.oidc.tenant-enabled=true`), a request
-to an entry is verified against the auth realm of its system (`<url>/realms/<auth-realm>`), so a user of tenant A
-logs in at tenant A's Keycloak and forward delegation works across systems; entries whose system shares the
-default tenant's realm keep the default tenant. Unknown systems answer `unknown_system` on every call, and the
-permission policy of `/mcp/*` covers the entries. Several logical MCP servers in one client, one URL each:
+Same server, bound to one system or realm.
+
+- `system` and `realm` arguments filled from the entry; contradicting arguments: `entry_mismatch`.
+- `search_tools` and `whoami` judge roles and capabilities against that system; `whoami` reports `entry`.
+- Global tools ignore the realm part.
+- With OIDC on, entry requests are verified against the system's auth realm (`<url>/realms/<auth-realm>`): tenant A's
+  users log in at tenant A's Keycloak; forward delegation works across systems. Systems sharing the default tenant's
+  realm keep the default tenant.
+- Unknown system: `unknown_system` on every call. `/mcp/*` permission policy covers entries.
 
 ```json
 { "mcpServers": {
-    "keycloak-prod":      { "url": "https://mcp.example.com/mcp/s/prod" },
-    "keycloak-customers": { "url": "https://mcp.example.com/mcp/s/prod/customers" } } }
+    "keycloak-prod":      { "url": "https://mcp.example.com/mcp/systems/prod" },
+    "keycloak-customers": { "url": "https://mcp.example.com/mcp/systems/prod/customers" } } }
 ```
 
-A support desk gets the realm entry and nothing else; an operator gets the system entry or the root.
+Support desk: realm entry. Operator: system entry or root.
 
-When you prefer one process per Keycloak, `kc-mcp.tool-prefix=prod_` renames the tools
-(`prod_keycloak_user_search`) so MCP clients that merge several servers keep them apart; `execute_tool` and the
-config lists accept both spellings.
+One process per Keycloak instead: `kc-mcp.tool-prefix=prod_` renames tools (`prod_keycloak_user_search`);
+`execute_tool` and config lists accept both spellings.
 
 ## Configuration
 
-Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`).
+Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 
 | property                        | default                     | meaning |
 |---------------------------------|-----------------------------|---------|
-| `kc-mcp.url`                    | `http://localhost:8080`     | Keycloak base URL; include a context path if there is one, e.g. `https://sso.example.com/auth` |
+| `kc-mcp.url`                    | `http://localhost:8080`     | Keycloak base URL, context path included (`https://sso.example.com/auth`) |
 | `kc-mcp.grant-type`             | `client_credentials`        | `client_credentials` or `password` |
-| `kc-mcp.client-auth`            | inferred                    | `client_secret`, `private_key_jwt` or `none`; inferred from what is configured |
-| `kc-mcp.auth-realm`             | `master`                    | realm the client / admin user lives in |
+| `kc-mcp.client-auth`            | inferred                    | `client_secret`, `private_key_jwt`, `none` |
+| `kc-mcp.auth-realm`             | `master`                    | realm of the client / admin user |
 | `kc-mcp.client-id`              | `admin-cli` for password+none | client id |
 | `kc-mcp.client-secret`          |                             | for `client_secret` |
 | `kc-mcp.jwt.key-file`           |                             | PKCS#8 PEM private key for `private_key_jwt` |
 | `kc-mcp.jwt.keystore-file` / `keystore-password` / `key-alias` / `key-password` / `keystore-type` | | keystore alternative |
 | `kc-mcp.jwt.algorithm`          | `RS256`                     | RS256/384/512, PS256/384/512, ES256/384/512 |
-| `kc-mcp.jwt.key-id`             | JWK thumbprint              | `kid` in the assertion header and the JWKS |
-| `kc-mcp.jwt.public-key-file`    | derived                     | public key / certificate PEM to publish; derived from the private key when unset |
-| `kc-mcp.jwt.jwks-enabled` / `jwks-path` | `true` / `/.well-known/jwks.json` | serve the public keys as JWK Sets: the configured key (else the default system's) at `jwks-path`, every system's at `/auth/keys/<system>/jwks.json` |
-| `kc-mcp.dynamic-systems`        | `false`                     | let registered `KeycloakSystemRepository`s add systems at runtime |
-| `kc-mcp.systems-file`           |                             | JSON file (`{"systems": [...]}`) of the built-in file repository, re-read when it changes; needs `dynamic-systems` |
-| `kc-mcp.static-systems-order`   | `-1000`                     | rank of the static configuration among the repositories (lower is asked first, repositories default to 0); raise it to let repositories override configured systems |
-| `kc-mcp.static-systems`         | `true`                      | `false`: no system from the top-level / `kc-mcp.systems.*` settings, repositories only |
-| `kc-mcp.jwt.key-size`           | `2048`                      | modulus bits of generated RSA keys; `kc-mcp.jwt.algorithm` decides the key kind (RSA for RS*/PS*, EC on the matching curve for ES*) |
-| `kc-mcp.keys-dir`               | `data/keys`                 | directory of the read-only built-in `KeyVault`: provisioned `<system>.pem` keys and `secrets/<name>` files |
-| `quarkus.datasource.jdbc.url`   |                             | turns the database storage on (§Database storage): `jdbc:h2:file:./data/kc-mcp` or, in a `-Ppostgresql` build, `jdbc:postgresql://...` with `quarkus.datasource.username` / `password` |
-| `kc-mcp.storage.enabled`        | `true` with a jdbc url      | force the database storage on or off |
-| `kc-mcp.storage.secret-key`     |                             | encrypts stored private keys, client secrets and passwords (AES-256-GCM); base64 of 32 bytes or a passphrase (Argon2id) |
-| `kc-mcp.admin.enabled` / `token` / `issuer` / `audience` / `role` | `false` / / / / `realm:admin` | the admin API (§Admin API) at `/admin`: a static token and/or the OAuth issuer whose access tokens with that role are accepted |
-| `kc-mcp.spi.db-audit.retention-days` |                        | delete audit rows older than this many days (at startup, then hourly); unset keeps them all |
-| `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the system's JWKS, for instances still signing with it |
-| `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | personal data in audit events: `keep`, `pseudonymize` (keyed hash) or `drop`; `pii-args` lists the argument names, `targets` the listeners (default `db-audit`) |
-| `kc-mcp.username` / `password`  |                             | for the password grant |
-| `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
-| `kc-mcp.require-caller`         | `false`                     | refuse anonymous MCP requests with the OAuth challenge even with `delegation=off` |
-| `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens on the MCP endpoint; issuer defaults to `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
-| `quarkus.oidc.token.audience`   |                             | accept only tokens whose `aud` contains this value (recommended with `forward`) |
-| `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is an internal address (Docker) |
-| `kc-mcp.default-realm`          |                             | makes the `realm` argument optional |
-| `kc-mcp.systems.<name>.*`       |                             | per-system `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms`, `version`, `issuer` |
-| `kc-mcp.explanations`           | `auto`                      | for whom refusals are worded: `admins` (configuration details, `howToFix`), `users` (plain words, an administrator can change it), `auto` (by the caller's roles in delegation mode, else admins) |
-| `kc-mcp.issuer`                 | `<url>/realms/<auth-realm>` | the realm's issuer as Keycloak states it, the audience of `private_key_jwt` assertions; set it when `kc-mcp.url` is an internal address and Keycloak's public hostname differs (also per system and in the systems file) |
-| `kc-mcp.version`                | read from the server        | Keycloak version of the (default) system when the server info is not readable or should be overridden (see §Supported Keycloak versions) |
-| `kc-mcp.default-system`         | the only system             | system used when the `system` argument is omitted |
-| `kc-mcp.allowed-hosts`          | any                         | `[scheme://]host[:port]` patterns with `*` the configured Keycloak URLs must match, checked at startup (`*.example.com`, `https://sso-*.corp.example.org`, `localhost:8080`) |
-| `kc-mcp.tool-prefix`            |                             | prefix for all tool names, e.g. `prod_` |
+| `kc-mcp.jwt.key-id`             | JWK thumbprint              | `kid` in assertion header and JWKS |
+| `kc-mcp.jwt.public-key-file`    | derived                     | public key / certificate PEM to publish |
+| `kc-mcp.jwt.jwks-enabled` / `jwks-path` | `true` / `/.well-known/jwks.json` | configured key (else default system's) at `jwks-path`; every system at `/auth/keys/<system>/jwks.json` |
+| `kc-mcp.jwt.key-size`           | `2048`                      | RSA modulus bits of generated keys; algorithm decides RSA vs EC curve |
+| `kc-mcp.dynamic-systems`        | `false`                     | let `KeycloakSystemRepository`s add systems |
+| `kc-mcp.systems-file`           |                             | JSON file (`{"systems": [...]}`) of the file repository, re-read on change; needs `dynamic-systems` |
+| `kc-mcp.static-systems-order`   | `-1000`                     | rank of static configuration among repositories (lower first, repositories default 0) |
+| `kc-mcp.static-systems`         | `true`                      | `false`: repositories only |
+| `kc-mcp.keys-dir`               | `data/keys`                 | read-only built-in `KeyVault`: `<system>.pem`, `secrets/<name>` |
+| `quarkus.datasource.jdbc.url`   |                             | turns database storage on: `jdbc:h2:file:./data/kc-mcp`, or `jdbc:postgresql://...` in a `-Ppostgresql` build (+ `quarkus.datasource.username`/`password`) |
+| `kc-mcp.storage.enabled`        | `true` with a jdbc url      | force storage on or off |
+| `kc-mcp.storage.secret-key`     |                             | AES-256-GCM key for stored private keys, client secrets, passwords; base64 of 32 bytes or passphrase (Argon2id) |
+| `kc-mcp.admin.enabled` / `token` / `issuer` / `audience` / `role` | `false` / / / / `realm:admin` | admin API at `/admin`: static token and/or trusted issuer with role |
+| `kc-mcp.spi.db-systems.cache-seconds` | `10`                  | snapshot age of stored systems |
+| `kc-mcp.spi.db-audit.retention-days` |                        | delete audit rows older than this (startup, then hourly); unset keeps all |
+| `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the JWKS |
+| `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | `keep`, `pseudonymize`, `drop`; `pii-args` argument names, `targets` listeners (default `db-audit`) |
+| `kc-mcp.username` / `password`  |                             | password grant |
+| `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; needs `quarkus.oidc.tenant-enabled=true` |
+| `kc-mcp.require-caller`         | `false`                     | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
+| `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens; issuer `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
+| `quarkus.oidc.token.audience`   |                             | required `aud` (recommended with `forward`) |
+| `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is internal (Docker) |
+| `kc-mcp.default-realm`          |                             | makes `realm` optional |
+| `kc-mcp.systems.<name>.*`       |                             | per system: `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms`, `version`, `issuer` |
+| `kc-mcp.explanations`           | `auto`                      | refusal wording: `admins` (config details, `howToFix`), `users` (plain words), `auto` (by caller roles in delegation mode, else admins) |
+| `kc-mcp.issuer`                 | `<url>/realms/<auth-realm>` | realm issuer as Keycloak states it, audience of `private_key_jwt` assertions; set when `kc-mcp.url` is internal (also per system, systems file) |
+| `kc-mcp.version`                | read from server            | Keycloak version override / fallback (§Supported Keycloak versions) |
+| `kc-mcp.default-system`         | the only system             | system when `system` is omitted |
+| `kc-mcp.allowed-hosts`          | any                         | `[scheme://]host[:port]` patterns with `*`, checked at startup |
+| `kc-mcp.tool-prefix`            |                             | prefix for all tool names (`prod_`) |
 | `kc-mcp.allowed-realms`         | all                         | csv allow-list |
 | `kc-mcp.read-only`              | `false`                     | |
-| `kc-mcp.allowed-tools` / `denied-tools` / `allowed-categories` | all | explicit narrowing of the tool set |
-| `kc-mcp.role-filter`            | `true`                      | hide/refuse tools the token's realm-management roles do not cover |
-| `kc-mcp.startup-check`          | `warn`                      | `warn`, `fail` or `off`: verify allowed realms are reachable at startup |
+| `kc-mcp.allowed-tools` / `denied-tools` / `allowed-categories` | all | explicit narrowing |
+| `kc-mcp.role-filter`            | `true`                      | hide/refuse tools the token's roles do not cover |
+| `kc-mcp.startup-check`          | `warn`                      | `warn`, `fail`, `off` |
 | `kc-mcp.tool-exposure`          | `hybrid`                    | `direct` / `lazy` / `hybrid` / `progressive` |
 | `kc-mcp.hot-tools`              | user_search, user_get, realm_get_config, server_info | listed directly in hybrid mode |
-| `kc-mcp.search-limit-default`   | `5`                         | hits per `search_tools` call (max 10) |
+| `kc-mcp.search-limit-default`   | `5`                         | hits per `search_tools` (max 10) |
 | `kc-mcp.result-max-items`       | `100`                       | cap for list results |
-| `kc-mcp.structured-content`     | `true`                      | mirror every result as MCP `structuredContent` next to the text block |
+| `kc-mcp.structured-content`     | `true`                      | mirror results as `structuredContent` |
 | `kc-mcp.confirm-timeout-seconds`| `120`                       | elicitation timeout |
-| `kc-mcp.providers-dir`          | `providers`                 | directory with extension jars (see §Extension jars) |
-| `kc-mcp.spi.<id>.<key>`         |                             | per extension settings, `enabled=false` disables one; the id in kebab-case like Keycloak's provider ids (`acmeTicketChecker` -> `kc-mcp.spi.acme-ticket-checker.*`, env `KC_MCP_SPI_ACME_TICKET_CHECKER_*`; the server resolves these variables itself, so hyphenated ids work from the environment) |
-| `quarkus.http.cors.origins`     | local origins               | browser based MCP clients only; set to the client origin(s) in production |
-
-Examples:
+| `kc-mcp.providers-dir`          | `providers`                 | extension jars (§Extension jars) |
+| `kc-mcp.spi.<id>.<key>`         |                             | per extension; `enabled=false` disables; id kebab-case (`acmeTicketChecker` → `acme-ticket-checker`, env `KC_MCP_SPI_ACME_TICKET_CHECKER_*`, resolved by the server) |
+| `quarkus.http.cors.origins`     | local origins               | browser MCP clients; set to the client origin(s) in production |
 
 ```properties
 # service account with a secret (recommended)
@@ -419,10 +360,8 @@ kc-mcp.client-secret=...
 # service account with private_key_jwt
 kc-mcp.client-id=mcp-admin
 kc-mcp.jwt.key-file=/etc/keycloak-mcp/mcp-admin.pem
-
-# Keycloak side for private_key_jwt: client mcp-admin -> Credentials -> Client Authenticator "Signed JWT",
-# "Use JWKS URL" = on, JWKS URL = https://<this server>/.well-known/jwks.json (served automatically in this mode;
-# alternatively import the key printed by that endpoint). The assertion's kid matches the JWK's kid.
+# Keycloak: client mcp-admin -> Credentials -> "Signed JWT", "Use JWKS URL" on,
+# JWKS URL = https://<this server>/.well-known/jwks.json (or import the key it prints)
 
 # local dev: admin user via admin-cli
 kc-mcp.grant-type=password
@@ -430,27 +369,24 @@ kc-mcp.username=admin
 kc-mcp.password=admin
 ```
 
-The server listens on port 8081 (`quarkus.http.port`) so a local Keycloak can keep 8080; the MCP endpoint is
-`http://localhost:8081/mcp`. See `sketch/notes/keycloak-setup.md` for the roles the service account needs.
+Port 8081 (`quarkus.http.port`), endpoint `http://localhost:8081/mcp`. Service account roles: `sketch/notes/keycloak-setup.md`.
 
-## Extending: tool providers
+## Extending
 
-Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
-`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, `AuditScrubber`, `KeycloakSystemRepository`, `KeyVault`,
-`SigningKeyGenerator`, all
-`Extension`s with `id`, `displayName`, `description` and `order`; `ExtensionRegistry` to look them up; `Caller`),
-the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
-`InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client
-with the forgiving lookups, `GrantedRoles`, `Views`, `AbstractToolProvider` and the server configuration interface.
-It brings the Keycloak admin client and Vert.x JSON, but no Quarkus; on the module path it is the automatic
-module `com.github.thomasdarimont.keycloak.mcp.api`. Packages under `com.github.thomasdarimont.keycloak.mcp`:
-`spi` (`Extension`, `ExtensionRegistry`, `ExtensionContext`, `ProviderConfig`), `tools` (`ToolProvider`,
-`ToolProviderContext`, `AbstractToolProvider`), `prompts` (`PromptProvider`), `access` (`AccessCheck`, `Caller`,
-`GrantedRoles`, `RoleRef`, `Delegation`), `confirm` (`Confirmer`, `ConfirmationRequest`, `Decision`, `Prompter`), `audit`
-(`AuditListener`, `AuditEvent`, `AuditScrubber`), `catalog` (the tool
-and prompt descriptions), `keycloak` (admin facades, `KeycloakSystemRepository`, `KeyVault`, capabilities, host allow
-list) and `config`. Tools come from
-`ToolProvider` implementations, discovered like Keycloak providers:
+Depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api` (module `api`; Keycloak admin client and Vert.x
+JSON, no Quarkus; automatic module `com.github.thomasdarimont.keycloak.mcp.api`). Packages under
+`com.github.thomasdarimont.keycloak.mcp`:
+
+- `spi`: `Extension`, `ExtensionRegistry`, `ExtensionContext`, `ProviderConfig`
+- `tools`: `ToolProvider`, `ToolProviderContext`, `AbstractToolProvider`
+- `prompts`: `PromptProvider`
+- `access`: `AccessCheck`, `Caller`, `GrantedRoles`, `RoleRef`, `Delegation`
+- `confirm`: `Confirmer`, `ConfirmationRequest`, `Decision`, `Prompter`
+- `audit`: `AuditListener`, `AuditEvent`, `AuditScrubber`
+- `catalog`: `ToolSpec`, `ToolCall`, `ToolResult`, `InputSchema`, `Category`, `ToolLevel`, prompt descriptions
+- `keycloak`: `KeycloakAdmin`, `KeycloakSystems`, `KeycloakSystemRepository`, `KeyVault`, `SigningKeyGenerator`,
+  capabilities, host allow list, `Views`
+- `config`: server configuration interface
 
 ```java
 public class AcmeToolProvider implements ToolProvider {
@@ -472,33 +408,26 @@ public class AcmeToolProvider implements ToolProvider {
 }
 ```
 
-Annotate it with `@AutoService(ToolProvider.class)` (Google AutoService generates the
-`META-INF/services/com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider` entry at compile time; writing that file by hand or making
-the class a CDI bean works too).
-Provider tools automatically get search, exposure modes, validation, realm checks, confirmation and the audit log.
-The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`,
-`realm`) use the same SPI and can be switched off with `kc-mcp.spi.<id>.enabled=false`.
-
-Every extension point shares the `Extension` base: `id()` (keys `kc-mcp.spi.<id>.*` with the id in kebab-case,
-`acmeTicketChecker` -> `acme-ticket-checker`, where `enabled=false` switches any extension off; defaults to the
-class name, `com.acme.TicketChecker` -> `com-acme-ticket-checker`), `displayName()`, `description()` and `order()` (lower runs or
-initialises first). The server's `ExtensionRegistry` (`extensions(Confirmer.class)`, `extension(ToolProvider.class,
-"users")`, `context(id)`) is the one place that applies discovery, deduplication by id, the enabled switch and the
-order; it is a CDI bean, so a provider that needs to see other extensions can inject it.
-
-Global `AccessCheck`s (see §Per-tool access checks) are extension points of their own: `@AutoService(AccessCheck.class)`
-on the class, a CDI bean, or `ToolProvider.accessChecks(...)` all register a check that runs on every call.
+- Register: `@AutoService(ToolProvider.class)` (generates `META-INF/services/...tools.ToolProvider`), a hand-written
+  services file, or a CDI bean.
+- Provider tools get search, exposure modes, validation, realm checks, confirmation, audit.
+- Built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`, `realm`)
+  use the same SPI; `kc-mcp.spi.<id>.enabled=false` switches one off.
+- `Extension` base: `id()` (config key, kebab-case; default from class name, `com.acme.TicketChecker` →
+  `com-acme-ticket-checker`), `displayName()`, `description()`, `order()` (lower first).
+- `ExtensionRegistry` (`extensions(Confirmer.class)`, `extension(ToolProvider.class, "users")`, `context(id)`):
+  discovery, dedup by id, enabled switch, order. CDI bean, injectable.
+- Global `AccessCheck`: `@AutoService(AccessCheck.class)`, CDI bean, or `ToolProvider.accessChecks(...)`.
 
 ### Extension jars: `providers/`
 
-Like Keycloak, the server loads extension jars from a `providers/` directory at startup (`kc-mcp.providers-dir`,
-env `KC_MCP_PROVIDERS_DIR`): every `ToolProvider`, `PromptProvider`, `AccessCheck`, `Confirmer` or `AuditListener`
-registered in the jar's `META-INF/services` joins the ones on the class path. A relative directory is resolved
-against the directory of `quarkus-run.jar` when the packaged server runs (`target/quarkus-app/providers/`, created
-by the build) and against the working directory otherwise (dev mode: `./providers`). The jars are loaded by a
-class loader on top of the application, so they see the api and the server classes but are not CDI beans and
-cannot be in native images; an extension that needs CDI goes on the class path as a Maven dependency instead.
-The Docker image reads `/deployments/providers` (`docker-compose.yml` has a volume line for it).
+- `kc-mcp.providers-dir` (`KC_MCP_PROVIDERS_DIR`), default `providers`. Every `ToolProvider`, `PromptProvider`,
+  `AccessCheck`, `Confirmer`, `AuditListener` in the jars' `META-INF/services` joins the class path ones.
+- Relative path: next to `quarkus-run.jar` when packaged (`target/quarkus-app/providers/`, created by the build), else
+  the working directory (dev: `./providers`).
+- Loaded by a class loader over the application: sees api and server classes, no CDI, no native image. CDI needed:
+  Maven dependency instead.
+- Docker image: `/deployments/providers` (`docker-compose.yml` has the volume line).
 
 ```shell
 ./mvnw package -DskipTests
@@ -506,11 +435,12 @@ cp acme-tools.jar modules/backend/target/quarkus-app/providers/
 java -jar modules/backend/target/quarkus-app/quarkus-run.jar      # log: Extensions directory .../providers: [acme-tools.jar]
 ```
 
-`Confirmer` decides whether a destructive call may run (`@AutoService(Confirmer.class)` or a CDI bean, ordered by
-`order()`). The request carries the tool, realm, arguments, the `confirm` flag, the caller and a `Prompter` that
-asks the human through the client's elicitation. A confirmer returns `confirmed()`, `declined(message)`,
-`confirmationRequired(message)` or `abstain()`; the chain stops at the first decision that is not an abstention,
-and the built-in confirmer (elicitation, else the `confirm` flag) runs last. A ticket rule in a few lines:
+### Confirmers
+
+- `Confirmer` (`@AutoService` or CDI bean, by `order()`) gets tool, realm, arguments, `confirm` flag, caller, a
+  `Prompter` for elicitation.
+- Returns `confirmed()`, `declined(message)`, `confirmationRequired(message)`, `abstain()`. First non-abstention wins;
+  the built-in confirmer (elicitation, else `confirm` flag) runs last.
 
 ```java
 @AutoService(Confirmer.class)
@@ -524,17 +454,13 @@ public class TicketConfirmer implements Confirmer {
 }
 ```
 
-`com.github.thomasdarimont.keycloak.mcp.audit.AuditListener` receives one event per finished call, whatever the outcome
-(`@AutoService(AuditListener.class)` or a CDI bean). The built-in listener writes the log line; yours can forward
-to a SIEM, a database or a queue. Password-like arguments arrive as `***`; personal data (usernames, e-mail
-addresses, the caller's name) does not, that is the job of `AuditScrubber`s (`@AutoService(AuditScrubber.class)` or
-a CDI bean, ordered by `order()`): `scrub(event, listener)` runs once per listener before it receives the event, so a
-scrubber can treat every sink alike or pick a listener by id: only the rows that persist (`db-audit`), or only the
-built-in console line (`console`) while the database keeps the full record for auditors. It derives the copy with
-`mapArgs`, `withMessage` and `withCaller`, and returns `null` to skip the event for that listener; without one the
-`NoOpAuditScrubber` applies. Listeners run synchronously on the
-handler's virtual thread, so hand slow deliveries to your own executor; an exception is logged and never changes
-the tool result:
+### Audit listeners and scrubbers
+
+- `AuditListener.onToolCall` once per finished call, any outcome. Built-in: console line (`console`). Synchronous on the
+  handler's virtual thread; offload slow sinks. Exceptions logged, never change the result.
+- Password-like arguments arrive as `***`. Personal data does not: that is `AuditScrubber` (`@AutoService` or CDI bean,
+  by `order()`). `scrub(event, listener)` runs per listener: treat all sinks alike, or target one by id (`db-audit`,
+  `console`). Derive with `mapArgs`, `withMessage`, `withCaller`; return `null` to skip. Default `NoOpAuditScrubber`.
 
 ```java
 @AutoService(AuditListener.class)
@@ -554,18 +480,18 @@ public class NoEmailScrubber implements AuditScrubber {        // no e-mail addr
 }
 ```
 
-## Prompts: recipes with their tools attached
+## Prompts
 
-`prompts/list` offers task recipes (`PromptSpec`, contributed by `PromptProvider`s, discovered like tool providers).
-A prompt names the catalog tools it relies on; the rendered text ends with those tools' names, levels, descriptions
-and parameters, so the model runs the recipe without a `search_tools` round trip, and in `progressive` mode the
-tools are surfaced in `tools/list` for that connection. Tools that are disabled on the server (read-only mode,
-denied tools) are dropped from the recipe; a prompt that loses all its tools is not registered. Built in:
+`prompts/list` offers recipes (`PromptSpec` from `PromptProvider`s).
+
+- A prompt names its tools; the rendered text ends with their names, levels, descriptions, parameters: no
+  `search_tools` round trip. `progressive` mode surfaces them in `tools/list`.
+- Disabled tools (read-only, denied) drop out; a prompt without tools is not registered.
 
 | prompt | arguments | does |
 |---|---|---|
-| `keycloak_onboard_user` | `username`, `email`, `realm?`, `firstName?`, `lastName?`, `groups?`, `actions?` | duplicate check, create, group membership, account setup email, verification |
-| `keycloak_login_troubleshoot` | `username`, `realm?`, `client?` | read-only investigation: account state, failed login events, brute force, realm and client settings, proposed fix |
+| `keycloak_onboard_user` | `username`, `email`, `realm?`, `firstName?`, `lastName?`, `groups?`, `actions?` | duplicate check, create, groups, setup email, verification |
+| `keycloak_login_troubleshoot` | `username`, `realm?`, `client?` | read-only: account state, failed logins, brute force, realm/client settings, proposed fix |
 
 ```java
 @AutoService(PromptProvider.class)
@@ -584,99 +510,79 @@ public class AcmePrompts implements PromptProvider {
 
 ## Supported Keycloak versions
 
-The baseline is **Keycloak 26.8**: the catalog is aligned with its OpenAPI document and the integration tests run
-against it. Newer servers are expected to work; older ones are not checked. At startup, and every ten minutes
-after, the server reads each system's version and enabled features from the admin server info (with the
-server's credentials) and keeps a capability snapshot per system. A configured `kc-mcp.version` (or
-`kc-mcp.systems.<name>.version`) wins over the reported version and fills in when the server info is not readable;
-a mismatch between the two is logged.
+Baseline **Keycloak 26.8** (OpenAPI alignment, integration tests). Newer expected to work; older unchecked.
 
-A tool declares what it needs with `requiresFeatures("organization", ...)` (features by their CLI name, as
-`kc.sh --features` takes them), `minVersion("26.9")` and `maxVersion("26")` (the newest version the tool works
-with, inclusive at the precision given, unbounded by default; on a newer server the refusal says the dependency
-was removed instead of "enable the feature"). The organization tools carry the feature requirement. Unmet requirements do not hide a tool, they explain it:
-
-- `search_tools` marks the tool `allowed=false` with an `unsupported` reason,
-- a call is refused with the error `unsupported` and `howToFix`: how an administrator enables the feature for
-  each deployment form (`KC_FEATURE_ORGANIZATION=enabled`, `kc.sh start --feature-organization=enabled`,
-  `keycloak.conf`, container, Operator CR, the `--features=` list as alternative), that every node needs a
-  restart, a pointer to `keycloak_server_features` to verify afterwards and to <https://www.keycloak.org/server/features>,
-- `whoami` reports the `server` version, the baseline, the `unavailableTools` grouped by reason and the same
-  `howToFix` per requirement; `keycloak_server_features` carries `howToEnable` / `howToDisable` for one feature,
-- the startup check logs the version and the unavailable tools, and lists a server below the baseline as a
-  problem (`kc-mcp.startup-check=fail` aborts).
-
-The wording follows `kc-mcp.explanations`. Administrators get the technical message and `howToFix`
-with the configuration per deployment form. Users get "not available on this Keycloak server: the
-'organization' feature is switched off. A Keycloak administrator can enable it", no configuration options, and a
-hint that tells the model to keep it that plain. `auto` (default) picks `users` for a caller acting on their own
-behalf (delegation `forward`) whose token holds neither the master admin nor a `realm-admin` role, and `admins`
-otherwise, including when the endpoint is anonymous and nothing is known about the person. A support desk
-deployment sets `KC_MCP_EXPLANATIONS=users` outright.
-
-Unknown capabilities (no server info and no configured version) never block a call; Keycloak then decides.
-Behavior that differs between versions under the same endpoint is handled inside the tool, not in the catalog:
-the handler reads `call.capabilities()` (`atLeast("26.9")`, `hasFeature(...)`) and branches, and the schema
-stays one schema, with version-specific parameters optional and their description saying since when they apply.
-There is deliberately no second `ToolSpec` with the same name for another version range: the tool list a
-client sees must not depend on which of several systems a call ends up on.
+- At startup and every ten minutes: version and enabled features per system from the admin server info (server
+  credentials), kept as a capability snapshot. `kc-mcp.version` / `kc-mcp.systems.<name>.version` override and fill in;
+  mismatch logged.
+- Tool requirements: `requiresFeatures("organization", ...)` (CLI feature names), `minVersion("26.9")`,
+  `maxVersion("26")` (inclusive at the given precision; above it the refusal says "removed"). Organization tools carry
+  the feature requirement.
+- Unmet requirements explain, never hide:
+  - `search_tools`: `allowed=false`, reason `unsupported`
+  - call: error `unsupported` + `howToFix` per deployment form (`KC_FEATURE_ORGANIZATION=enabled`,
+    `kc.sh start --feature-organization=enabled`, `keycloak.conf`, container, Operator CR, `--features=`), restart note,
+    `keycloak_server_features` to verify, <https://www.keycloak.org/server/features>
+  - `whoami`: `server` version, baseline, `unavailableTools` by reason, `howToFix`; `keycloak_server_features`:
+    `howToEnable` / `howToDisable`
+  - startup check: logs version and unavailable tools; below baseline is a problem (`fail` aborts)
+- Wording by `kc-mcp.explanations`: `admins` technical + `howToFix`; `users` plain ("the 'organization' feature is
+  switched off. A Keycloak administrator can enable it") with a hint to keep it plain; `auto` picks `users` for forward
+  callers without master admin or `realm-admin`, else `admins`. Support desk: `KC_MCP_EXPLANATIONS=users`.
+- Unknown capabilities never block; Keycloak decides.
+- Version differences under one endpoint live in the handler (`call.capabilities()`: `atLeast("26.9")`,
+  `hasFeature(...)`), one schema with optional version-specific parameters. Never two `ToolSpec`s with one name: the
+  tool list must not depend on the target system.
 
 ## Keeping the tools aligned with a Keycloak version
 
-Every tool declares the Admin REST operations it relies on (`ToolSpec.api(...)`, see `ApiOperation`): method and
-path, which tool argument fills which path or query parameter, and which fields of the request body it writes.
-`OpenApiAlignmentTest` checks all of that against the published OpenAPI document of a concrete server version in
-`src/test/resources/openapi/keycloak-<version>.json` (26.8.2 is checked in): the operation must exist and not be
-deprecated, parameters and body fields must exist with compatible types and enums. Spec parameters a tool does not
-expose are printed as a drift report. To check another version:
+- Every tool declares its Admin REST operations (`ToolSpec.api(...)`, `ApiOperation`): method, path, argument → path/query
+  parameter, body fields written.
+- `OpenApiAlignmentTest` checks against `src/test/resources/openapi/keycloak-<version>.json` (26.8.2 checked in):
+  operation exists, not deprecated, parameters and body fields exist with compatible types/enums. Unexposed spec
+  parameters: drift report.
+- Server info and user storage sync are missing from the published document: marked `unspecified` with a reason.
+- The Java admin client is versioned independently since Keycloak 26.1; this test plus Testcontainers tie the tool
+  surface to a server version.
 
 ```shell
 curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org/docs-api/26.9.0/rest-api/openapi.json
 ./mvnw test -Dtest=OpenApiAlignmentTest -Dsurefire.failIfNoSpecifiedTests=false -Dkeycloak.openapi.version=26.9.0
 ```
 
-Two endpoints we use are missing from the published document (server info, user storage sync); they are marked
-`unspecified` with a reason. The Java admin client itself is versioned independently of the server since Keycloak
-26.1, so this test, together with the Testcontainers run, is what ties the tool surface to a server version.
-
 ## Examples
 
-- `examples/run-modes/`: one Keycloak with a demo realm and an env file per run mode (full admin, realm admin,
-  read-only, `private_key_jwt`, several systems, user login with forward delegation), plus IntelliJ run
-  configurations generated from them.
-- `examples/multi-tenant/`: the SaaS scenario, two tenants with several realms, systems from a file, generated
-  per-tenant keys, one MCP entry per tenant or realm, and a second server with user login per realm.
-- `examples/dynamic-systems/`: no system at startup; a system is registered through the admin API into PostgreSQL
-  with a generated key, the Keycloak client is created with its JWKS URL, a realm with the public `mcp-consumer`
-  client follows, and realm-local admin, support and developer users show the access restrictions.
+- `examples/run-modes/`: one Keycloak, demo realm, one env file per run mode (full admin, realm admin, read-only,
+  `private_key_jwt`, several systems, forward delegation); IntelliJ run configurations.
+- `examples/multi-tenant/`: two tenants, several realms, systems from a file, generated per-tenant keys, one entry per
+  tenant or realm, second server with user login per realm.
+- `examples/dynamic-systems/`: no system at startup; registration via admin API into PostgreSQL with a generated key,
+  Keycloak client with its JWKS URL, realm with public `mcp-consumer`, admin/support/developer users.
 
 ## Running
 
 ```shell
-./mvnw quarkus:dev -pl modules/backend -am      # dev mode, MCP endpoint on http://localhost:8081/mcp
-./mvnw test                            # unit + in-process MCP endpoint tests (no Keycloak needed)
-./mvnw verify -DskipITs=false          # + Testcontainers Keycloak 26.8.2 integration test
+./mvnw quarkus:dev -pl modules/backend -am      # dev mode, http://localhost:8081/mcp
+./mvnw test                                     # unit + in-process MCP tests, no Keycloak
+./mvnw verify -DskipITs=false                   # + Testcontainers Keycloak 26.8.2, + storage IT on Dev Services PostgreSQL
 ./mvnw package && java -jar modules/backend/target/quarkus-app/quarkus-run.jar
-./mvnw spotless:apply                  # format the Java sources; `verify` fails on unformatted code
+./mvnw package -Ppostgresql                     # PostgreSQL build
+./mvnw spotless:apply                           # format; `verify` fails on unformatted code
 ```
 
-Three Maven modules under `modules/`: `api` (`com.github.thomasdarimont.keycloak:keycloak-mcp-server-api`, what
-extensions compile against, no Quarkus dependency, packages under `com.github.thomasdarimont.keycloak.mcp`),
-`storage` (`keycloak-mcp-server-storage`, the optional database storage of §Database storage: the Liquibase
-changelog and, under `com.github.thomasdarimont.keycloak.mcp.storage`, the switch and startup log at the root,
-`crypto` for the encryption at rest, and one package per store with its Panache entities and extension: `systems`,
-`keys`, `audit`) and `backend` (`keycloak-mcp-server-backend`, the Quarkus
-application, packages under `com.github.thomasdarimont.keycloak.mcp.backend`). Dev mode needs
-`-pl modules/backend -am` so the api and the storage module are built in the same reactor; every other goal runs
-from the root. `./mvnw verify -DskipITs=false` also runs the storage module's test against a PostgreSQL started
-by Dev Services (Docker); the backend's `StorageTest` covers the wiring on an in-memory H2 and always runs.
+Modules under `modules/`:
 
-Formatting is checked with [Spotless](https://github.com/diffplug/spotless) using the
-[Spring Java Format](https://github.com/spring-io/spring-javaformat) conventions with spaces
-(`etc/eclipse-formatter.prefs`, imports ordered `java|javax|jakarta`, `org`, `com`, rest, static).
+- `api`: `keycloak-mcp-server-api`, extension SPI, no Quarkus, packages `com.github.thomasdarimont.keycloak.mcp`
+- `storage`: `keycloak-mcp-server-storage`, Liquibase changelog, `...mcp.storage` (switch, startup log), `.crypto`,
+  `.systems`, `.keys`, `.audit`
+- `backend`: `keycloak-mcp-server-backend`, Quarkus application, `...mcp.backend`
 
-LM Studio (`mcp.json`); with the OIDC tenant on add `"auth": { "CLIENT_ID": "mcp-consumer" }` so LM Studio logs the
-user in with that pre-registered client (`examples/run-modes/mcp-oauth.json`):
+Dev mode needs `-pl modules/backend -am`; other goals run from the root. `StorageTest` (backend, in-memory H2) always runs.
+
+Formatting: [Spotless](https://github.com/diffplug/spotless), [Spring Java Format](https://github.com/spring-io/spring-javaformat)
+with spaces (`etc/eclipse-formatter.prefs`; imports `java|javax|jakarta`, `org`, `com`, rest, static).
+
+LM Studio `mcp.json`; with OIDC on add `"auth": { "CLIENT_ID": "mcp-consumer" }` (`examples/run-modes/mcp-oauth.json`):
 
 ```json
 { "mcpServers": { "keycloak": { "url": "http://localhost:8081/mcp" } } }
@@ -687,23 +593,22 @@ user in with that pre-registered client (`examples/run-modes/mcp-oauth.json`):
 | category        | tools |
 |-----------------|-------|
 | users, sessions | search, get, create, update, set_enabled, delete, reset_password, send_action_email, sessions_list, logout |
-| groups          | list (search matches subgroups), get (roles a group grants, incl. inherited), create, delete, members_list, member_add, member_remove, user_groups_list, role_assign |
-| roles           | role_list, client_roles_list, user_roles_get (direct + effective realm and client roles, groups, and the source of each role), user_role_assign/unassign, user_client_roles_get, user_client_role_assign/unassign |
-| clients, scopes | list, get, get_secret, regenerate_secret, create, update (incl. `attributes` for ACR/LoA, logout URIs, token lifespans), delete, mappers_list, scopes_list, default_scopes_get, scope_assign/unassign, example_token (access/ID token, userinfo or SAML response a user would get, like the admin console's *Evaluate* tab), evaluate_scopes (effective mappers and realm roles), authz_resources_list, authz_policies_list, authz_permissions_list |
+| groups          | list (search matches subgroups), get (granted roles incl. inherited), create, delete, members_list, member_add, member_remove, user_groups_list, role_assign |
+| roles           | role_list, client_roles_list, user_roles_get (direct + effective realm and client roles, groups, source per role), user_role_assign/unassign, user_client_roles_get, user_client_role_assign/unassign |
+| clients, scopes | list, get, get_secret, regenerate_secret, create, update (incl. `attributes`: ACR/LoA, logout URIs, lifespans), delete, mappers_list, scopes_list, default_scopes_get, scope_assign/unassign, example_token (access/ID token, userinfo or SAML response, like the console's *Evaluate*), evaluate_scopes, authz_resources_list, authz_policies_list, authz_permissions_list |
 | idp             | list, get, mappers_list, create, delete |
 | orgs            | list, get, create, delete, idp_list, idp_link, idp_unlink |
 | federation      | list, get, sync |
-| auth flows      | flows_list, executions_list, authenticator_providers_list, flow_create/copy/bind, execution_add/update/raise/lower/delete, execution_config_get/set (authenticator settings such as conditions and LoA, with the provider\'s setting names and help), subflow_add, required_actions_list, required_action_set_enabled |
+| auth flows      | flows_list, executions_list, authenticator_providers_list, flow_create/copy/bind, execution_add/update/raise/lower/delete, execution_config_get/set (provider setting names and help), subflow_add, required_actions_list, required_action_set_enabled |
 | events          | events_login, events_admin |
-| realm           | server_info (version per system), server_features (all feature flags with type and status, or one by name), realm_get_config, realm_update |
+| realm           | server_info (version per system), server_features (all flags, or one by name), realm_get_config, realm_update |
 
 ## Roadmap
 
-See `sketch/notes/implementation-plan.md`. Next: model-in-the-loop benchmarks with LM Studio (turns to success,
-tool-choice errors, tokens per mode), optional OIDC protection of the endpoint, the reference project's skill
-recipes as MCP prompts, a federation sync test against a real LDAP, and `private_key_jwt` against a Keycloak
-client configured for JWT authentication.
+`sketch/notes/implementation-plan.md`. Next: model-in-the-loop benchmarks with LM Studio (turns to success, tool-choice
+errors, tokens per mode), reference skill recipes as prompts, federation sync test against real LDAP, `private_key_jwt`
+against a JWT-authenticated Keycloak client.
 
 ## Quarkus notes
 
-Dev UI: <http://localhost:8081/q/dev/>. Native image: `./mvnw package -Dnative` (untested so far).
+Dev UI <http://localhost:8081/q/dev/>. Native: `./mvnw package -Dnative` (untested).

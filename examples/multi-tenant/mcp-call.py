@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Call a tool on an MCP entry: mcp-call.py [--login user:password[@realm]] <entry-url> <tool> [json-arguments]
 
-    ./mcp-call.py http://localhost:8091/mcp/s/tenant-a whoami
-    ./mcp-call.py http://localhost:8091/mcp/s/tenant-a keycloak_user_search '{"search": "alice"}'
-    ./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/s/tenant-a/realm-a-1 whoami
+    ./mcp-call.py http://localhost:8091/mcp/systems/tenant-a whoami
+    ./mcp-call.py http://localhost:8091/mcp/systems/tenant-a keycloak_user_search '{"search": "alice"}'
+    ./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/systems/tenant-a/realm-a-1 whoami
 
 --login fetches a token for the user from Keycloak (http://localhost:8090, public client mcp-consumer, password
 grant) in the realm given after @, else the realm of the entry URL, and sends it as a Bearer token: what an MCP
@@ -23,7 +23,7 @@ def login(spec, url):
     username, _, password = user.partition(":")
     if not realm:
         parts = url.rstrip("/").split("/")
-        realm = parts[-1] if "/s/" in url and len(parts) >= 2 and parts[-3] == "s" else "master"
+        realm = parts[-1] if "/systems/" in url and len(parts) >= 2 and parts[-3] == "systems" else "master"
     form = f"grant_type=password&client_id=mcp-consumer&username={username}&password={password}"
     request = urllib.request.Request(f"http://localhost:8090/realms/{realm}/protocol/openid-connect/token",
                                      form.encode(), {"content-type": "application/x-www-form-urlencoded"})

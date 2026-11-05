@@ -25,8 +25,8 @@ import io.vertx.ext.web.RoutingContext;
 /**
  * With caller authentication on ({@code quarkus.oidc.tenant-enabled=true}), a request to
  * a bound entry ({@link EntryRoutes}) is verified against the realm that entry stands for
- * instead of the default tenant: a realm entry {@code /mcp/s/<system>/<realm>} logs its
- * users in at that realm, a system entry at the system's auth realm. The tenant
+ * instead of the default tenant: a realm entry {@code /mcp/systems/<system>/<realm>} logs
+ * its users in at that realm, a system entry at the system's auth realm. The tenant
  * {@code kc-mcp-<system>[-<realm>]} copies the default tenant's settings (audience,
  * resource metadata) and points {@code auth-server-url} at
  * {@code <system url>/realms/<realm>}. Entries that resolve to the default tenant's realm

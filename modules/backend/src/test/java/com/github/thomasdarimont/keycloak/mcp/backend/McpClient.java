@@ -19,7 +19,8 @@ public class McpClient {
     private String path = "/mcp";
 
     /**
-     * Talk to a scoped entry such as {@code /mcp/s/prod/customers} instead of the root.
+     * Talk to a scoped entry such as {@code /mcp/systems/prod/customers} instead of the
+     * root.
      */
     public McpClient path(String path) {
         this.path = path;

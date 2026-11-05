@@ -10,7 +10,7 @@
 
     <changeSet id="1-systems" author="keycloak-mcp-server">
         <comment>Keycloak systems a KeycloakSystemRepository serves at runtime (tenants): the alias is the technical
-            key (KeycloakSystem.name, the system argument, /mcp/s/alias), the name a label for people</comment>
+            key (KeycloakSystem.name, the system argument, /mcp/systems/alias), the name a label for people</comment>
         <createTable tableName="kc_mcp_system">
             <column name="id" type="varchar(36)">
                 <constraints primaryKey="true" primaryKeyName="pk_kc_mcp_system" nullable="false"/>

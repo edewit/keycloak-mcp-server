@@ -11,8 +11,8 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 /**
  * Resolved connection settings of one Keycloak system (per-system values with top-level
  * fallbacks). The {@link #name()} is the technical key: the {@code system} argument, the
- * entry path {@code /mcp/s/<name>}, the key in the vault; {@link #displayName()} is a
- * label for people. A {@link #clientSecret()} or {@link #password()} of the form
+ * entry path {@code /mcp/systems/<name>}, the key in the vault; {@link #displayName()} is
+ * a label for people. A {@link #clientSecret()} or {@link #password()} of the form
  * {@code vault:<secret name>} is a reference the server resolves against the
  * {@link KeyVault} before connecting.
  */

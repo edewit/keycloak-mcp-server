@@ -69,9 +69,9 @@ class AdminResourceTest {
             .body("signingKey.jwksPath", equalTo("/auth/keys/acme/jwks.json"))
             .body("signingKey.jwksUrl", startsWith("http://localhost:"))
             .body("signingKey.jwksUrl", containsString("/auth/keys/acme/jwks.json"))
-            .body("entries", hasItem("/mcp/s/acme"))
-            .body("entries", hasItem("/mcp/s/acme/acme-dev"))
-            .body("entries", hasItem("/mcp/s/acme/acme-prod"))
+            .body("entries", hasItem("/mcp/systems/acme"))
+            .body("entries", hasItem("/mcp/systems/acme/acme-dev"))
+            .body("entries", hasItem("/mcp/systems/acme/acme-prod"))
             .body("$", not(hasKey("clientSecret")))
             .extract()
             .asString();
@@ -87,7 +87,7 @@ class AdminResourceTest {
 
         // the system is live: its entry answers
         JsonObject who = McpClient
-            .text(new McpClient().path("/mcp/s/acme").initialize(false).callTool("whoami", new JsonObject()));
+            .text(new McpClient().path("/mcp/systems/acme").initialize(false).callTool("whoami", new JsonObject()));
         assertEquals("acme", who.getString("system"), who.encode());
 
         // and visible in the listing and alone

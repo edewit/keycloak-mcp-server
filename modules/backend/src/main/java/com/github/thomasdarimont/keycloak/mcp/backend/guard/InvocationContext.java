@@ -52,8 +52,8 @@ public record InvocationContext(McpConnection connection, Elicitation elicitatio
     }
 
     /**
-     * The entry's binding ({@code /mcp/s/<system>[/<realm>]}), {@code null} on the plain
-     * root.
+     * The entry's binding ({@code /mcp/systems/<system>[/<realm>]}), {@code null} on the
+     * plain root.
      */
     public InvocationContext withBinding(EntryBinding s) {
         return new InvocationContext(connection, elicitation, log, via, caller, callerToken, s);

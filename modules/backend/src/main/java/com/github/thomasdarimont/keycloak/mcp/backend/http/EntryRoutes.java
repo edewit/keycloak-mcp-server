@@ -17,8 +17,8 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 
 /**
- * Logical MCP entries bound to one system or one realm: {@code <root>/s/<system>} and
- * {@code <root>/s/<system>/<realm>} ({@code root} is
+ * Logical MCP entries bound to one system or one realm: {@code <root>/systems/<system>}
+ * and {@code <root>/systems/<system>/<realm>} ({@code root} is
  * {@code quarkus.mcp.server.root-path}, {@code /mcp}). The request is rerouted to the one
  * MCP handler with the {@link EntryBinding} attached, so a client configured with such a
  * URL cannot leave that system or realm: the invoker pins the {@code system} and
@@ -31,7 +31,7 @@ public class EntryRoutes {
     private static final Logger LOG = Logger.getLogger(EntryRoutes.class);
 
     /** Path segment between the root and the system name. */
-    public static final String SEGMENT = "s";
+    public static final String SEGMENT = "systems";
 
     private static final Pattern NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._~-]{0,99}");
 
@@ -51,7 +51,7 @@ public class EntryRoutes {
             ctx.response()
                 .setStatusCode(404)
                 .putHeader("Content-Type", "application/json")
-                .end("{\"error\":\"invalid_entry\",\"message\":\"Use /s/<system> or /s/<system>/<realm>.\"}");
+                .end("{\"error\":\"invalid_entry\",\"message\":\"Use /systems/<system> or /systems/<system>/<realm>.\"}");
             return;
         }
         ctx.put(EntryBinding.KEY, binding.get());

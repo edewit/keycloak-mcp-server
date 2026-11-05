@@ -79,7 +79,7 @@ services:
       KC_MCP_TOOL_EXPOSURE: hybrid
       KC_MCP_STARTUP_CHECK: "off"
       # callers act with their own token; the default OIDC tenant (root /mcp) is the master realm,
-      # an entry /mcp/s/<tenant>/<realm> verifies tokens of that realm
+      # an entry /mcp/systems/<tenant>/<realm> verifies tokens of that realm
       KC_MCP_DELEGATION: forward
       KC_MCP_URL: http://keycloak:8080
       KC_MCP_AUTH_REALM: master

@@ -109,11 +109,11 @@ class ForwardIT {
         Response r = given().header("Accept", "application/json, text/event-stream")
             .header("Content-Type", "application/json")
             .body("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}")
-            .post("/mcp/s/default/demo");
+            .post("/mcp/systems/default/demo");
         assertEquals(401, r.statusCode());
         assertTrue(r.header("WWW-Authenticate").startsWith("Bearer"), r.header("WWW-Authenticate"));
 
-        McpClient alice = new McpClient().path("/mcp/s/default/demo")
+        McpClient alice = new McpClient().path("/mcp/systems/default/demo")
             .bearer(ForwardTestResource.token("mcp-consumer", "alice", "alice"))
             .initialize(false);
         JsonObject who = McpClient.text(alice.callTool("whoami", new JsonObject()));

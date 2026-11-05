@@ -4,9 +4,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * What an MCP entry is bound to: requests that arrive through {@code /mcp/s/<system>} or
- * {@code /mcp/s/<system>/<realm>} carry this binding, and every call on that connection
- * is bound to it. Arguments that disagree are refused.
+ * What an MCP entry is bound to: requests that arrive through
+ * {@code /mcp/systems/<system>} or {@code /mcp/systems/<system>/<realm>} carry this
+ * binding, and every call on that connection is bound to it. Arguments that disagree are
+ * refused.
  *
  * @param system the system, never {@code null}
  * @param realm the realm, {@code null} when the entry is bound to a system only

@@ -21,14 +21,14 @@ Then, from this directory:
 
 ```
 curl -s localhost:8091/auth/keys/tenant-a/jwks.json | jq .          # the key Keycloak fetches for tenant A
-./mcp-call.py http://localhost:8091/mcp/s/tenant-a whoami            # entry bound to tenant A, realm-a-1 by default
-./mcp-call.py http://localhost:8091/mcp/s/tenant-a keycloak_user_search '{"search": "alice"}'
-./mcp-call.py http://localhost:8091/mcp/s/tenant-a keycloak_user_search '{"realm": "realm-a-2", "search": "anna"}'
-./mcp-call.py http://localhost:8091/mcp/s/tenant-a/realm-a-2 keycloak_user_search '{"search": "anna"}'
-./mcp-call.py http://localhost:8091/mcp/s/tenant-a/realm-a-2 keycloak_user_search '{"realm": "realm-a-1"}'
+./mcp-call.py http://localhost:8091/mcp/systems/tenant-a whoami            # entry bound to tenant A, realm-a-1 by default
+./mcp-call.py http://localhost:8091/mcp/systems/tenant-a keycloak_user_search '{"search": "alice"}'
+./mcp-call.py http://localhost:8091/mcp/systems/tenant-a keycloak_user_search '{"realm": "realm-a-2", "search": "anna"}'
+./mcp-call.py http://localhost:8091/mcp/systems/tenant-a/realm-a-2 keycloak_user_search '{"search": "anna"}'
+./mcp-call.py http://localhost:8091/mcp/systems/tenant-a/realm-a-2 keycloak_user_search '{"realm": "realm-a-1"}'
                                                                      # -> entry_mismatch: bound to realm-a-2
-./mcp-call.py http://localhost:8091/mcp/s/tenant-b/realm-b-1 keycloak_user_search '{"search": "carol"}'
-./mcp-call.py http://localhost:8091/mcp/s/tenant-b keycloak_user_search '{"realm": "realm-a-1"}'
+./mcp-call.py http://localhost:8091/mcp/systems/tenant-b/realm-b-1 keycloak_user_search '{"search": "carol"}'
+./mcp-call.py http://localhost:8091/mcp/systems/tenant-b keycloak_user_search '{"realm": "realm-a-1"}'
                                                                      # -> realm_not_allowed: not tenant B's realm
 ./mcp-call.py http://localhost:8091/mcp keycloak_user_search '{"system": "tenant-a", "realm": "realm-a-1", "search": "bob"}'
                                                                      # the root takes an explicit system
@@ -50,7 +50,7 @@ What the demo shows:
 - **`issuer` in `systems.json`**: the MCP server reaches Keycloak at the internal `http://keycloak:8080`, but
   Keycloak's issuer is its public hostname `http://localhost:8090/realms/master`, and that is the audience a
   client assertion must carry. Without it Keycloak answers "Invalid token audience".
-- **Entries**: `/mcp/s/tenant-a` pins the system, `/mcp/s/tenant-a/realm-a-2` pins system and realm; a
+- **Entries**: `/mcp/systems/tenant-a` pins the system, `/mcp/systems/tenant-a/realm-a-2` pins system and realm; a
   disagreeing `system` or `realm` argument is refused with `entry_mismatch`, a realm the tenant does not own with
   `realm_not_allowed`.
 - **`KC_MCP_ALLOWED_HOSTS=keycloak:8080`**: a system in `systems.json` pointing elsewhere is refused and logged.
@@ -59,7 +59,7 @@ What the demo shows:
 
 The second server holds no admin credentials: its MCP endpoint requires an OAuth login and forwards the user's
 own token to the Admin API (`KC_MCP_DELEGATION=forward`, `QUARKUS_OIDC_TENANT_ENABLED=true`). A realm entry logs
-its users in at that realm: `/mcp/s/tenant-a/realm-a-1` verifies tokens of `realm-a-1`, `/mcp/s/tenant-b/realm-b-1`
+its users in at that realm: `/mcp/systems/tenant-a/realm-a-1` verifies tokens of `realm-a-1`, `/mcp/systems/tenant-b/realm-b-1`
 those of `realm-b-1`; the root `/mcp` uses the master realm. Each realm has the public PKCE client `mcp-consumer`
 whose tokens carry `aud=keycloak-mcp-server` (full scope off, the realm-management roles are in its role scope).
 Keycloak enforces the user's roles, and the audit line names the human.
@@ -73,14 +73,14 @@ Keycloak enforces the user's roles, and the audit line names the human.
 | `carol / carol-demo` | `realm-b-1` | `/mcp-admins` | tenant B |
 
 ```
-./mcp-call.py http://localhost:8092/mcp/s/tenant-a/realm-a-1 whoami          # 401 + WWW-Authenticate … resource_metadata
-curl -s localhost:8092/.well-known/oauth-protected-resource/mcp/s/tenant-a/realm-a-1 | jq .   # names realm-a-1
-./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/s/tenant-a/realm-a-1 whoami
-./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/s/tenant-a/realm-a-1 keycloak_user_search '{"search": "sam"}'
-./mcp-call.py --login sam:sam-demo http://localhost:8092/mcp/s/tenant-a/realm-a-1 keycloak_user_set_enabled '{"id": "bob", "enabled": true}'
+./mcp-call.py http://localhost:8092/mcp/systems/tenant-a/realm-a-1 whoami          # 401 + WWW-Authenticate … resource_metadata
+curl -s localhost:8092/.well-known/oauth-protected-resource/mcp/systems/tenant-a/realm-a-1 | jq .   # names realm-a-1
+./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/systems/tenant-a/realm-a-1 whoami
+./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/systems/tenant-a/realm-a-1 keycloak_user_search '{"search": "sam"}'
+./mcp-call.py --login sam:sam-demo http://localhost:8092/mcp/systems/tenant-a/realm-a-1 keycloak_user_set_enabled '{"id": "bob", "enabled": true}'
                                                                                # -> forbidden: sam lacks manage-users
-./mcp-call.py --login carol:carol-demo http://localhost:8092/mcp/s/tenant-b/realm-b-1 keycloak_user_search '{"search": "dave"}'
-./mcp-call.py --login alice:alice-demo@realm-a-1 http://localhost:8092/mcp/s/tenant-b/realm-b-1 whoami
+./mcp-call.py --login carol:carol-demo http://localhost:8092/mcp/systems/tenant-b/realm-b-1 keycloak_user_search '{"search": "dave"}'
+./mcp-call.py --login alice:alice-demo@realm-a-1 http://localhost:8092/mcp/systems/tenant-b/realm-b-1 whoami
                                                                                # -> 401: a realm-a-1 token is no good for tenant B
 ```
 

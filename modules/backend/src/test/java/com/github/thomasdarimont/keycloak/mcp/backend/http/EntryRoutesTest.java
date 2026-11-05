@@ -23,19 +23,19 @@ class EntryRoutesTest {
     @Test
     void pathsParseIntoBindings() {
         assertEquals(Optional.of(new EntryBinding("prod", null)),
-                EntryRoutes.resolveEntryBinding("/mcp/s/prod", "/mcp"));
+                EntryRoutes.resolveEntryBinding("/mcp/systems/prod", "/mcp"));
         assertEquals(Optional.of(new EntryBinding("prod", "customers")),
-                EntryRoutes.resolveEntryBinding("/mcp/s/prod/customers/", "/mcp"));
+                EntryRoutes.resolveEntryBinding("/mcp/systems/prod/customers/", "/mcp"));
         assertTrue(EntryRoutes.resolveEntryBinding("/mcp", "/mcp").isEmpty());
-        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/s/", "/mcp").isEmpty());
-        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/s/a/b/c", "/mcp").isEmpty());
-        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/s/bad name", "/mcp").isEmpty());
-        assertEquals(Optional.of(new EntryBinding("x", null)), EntryRoutes.resolveEntryBinding("/api/s/x", "api/"));
+        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/systems/", "/mcp").isEmpty());
+        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/systems/a/b/c", "/mcp").isEmpty());
+        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/systems/bad name", "/mcp").isEmpty());
+        assertEquals(Optional.of(new EntryBinding("x", null)), EntryRoutes.resolveEntryBinding("/api/systems/x", "api/"));
     }
 
     @Test
     void systemEntryPinsTheSystem() {
-        McpClient mcp = new McpClient().path("/mcp/s/default").initialize(false);
+        McpClient mcp = new McpClient().path("/mcp/systems/default").initialize(false);
         JsonObject who = McpClient.text(mcp.callTool("whoami", new JsonObject()));
         assertEquals("default", who.getJsonObject("entry").getString("system"), who.encode());
         assertEquals("default", who.getString("system"), who.encode());
@@ -53,7 +53,7 @@ class EntryRoutesTest {
 
     @Test
     void realmEntryPinsTheRealmToo() {
-        McpClient mcp = new McpClient().path("/mcp/s/default/demo").initialize(false);
+        McpClient mcp = new McpClient().path("/mcp/systems/default/demo").initialize(false);
         JsonObject who = McpClient.text(mcp.callTool("whoami", new JsonObject()));
         assertEquals("demo", who.getJsonObject("entry").getString("realm"), who.encode());
 
@@ -71,10 +71,10 @@ class EntryRoutesTest {
 
     @Test
     void unknownSystemAndMalformedPaths() {
-        McpClient mcp = new McpClient().path("/mcp/s/nope").initialize(false);
+        McpClient mcp = new McpClient().path("/mcp/systems/nope").initialize(false);
         JsonObject who = McpClient.text(mcp.callTool("whoami", new JsonObject()));
         assertEquals("unknown_system", who.getString("error"), who.encode());
-        given().post("/mcp/s/bad%20name").then().statusCode(404);
-        given().post("/mcp/s/a/b/c").then().statusCode(404);
+        given().post("/mcp/systems/bad%20name").then().statusCode(404);
+        given().post("/mcp/systems/a/b/c").then().statusCode(404);
     }
 }
