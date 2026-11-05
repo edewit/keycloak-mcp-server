@@ -187,6 +187,26 @@ class McpEndpointTest {
     }
 
     @Test
+    void serviceLoaderConfirmersRunBeforeTheBuiltInOne() {
+        JsonObject refused = mcp.callTool("keycloak_user_delete",
+                new JsonObject().put("realm", "demo")
+                    .put("id", "protected")
+                    .put("username", "protected")
+                    .put("confirm", true));
+        assertTrue(refused.getBoolean("isError"));
+        JsonObject body = McpClient.text(refused);
+        assertEquals("cancelled", body.getString("error"), body.encode());
+        assertTrue(body.getString("message").contains("open a ticket"), body.encode());
+        // the custom confirmer abstains for other users, so the built-in confirm flag
+        // rule applies
+        assertEquals("confirmation_required",
+                McpClient
+                    .text(mcp.callTool("keycloak_user_delete",
+                            new JsonObject().put("realm", "demo").put("id", "u1").put("username", "u1")))
+                    .getString("error"));
+    }
+
+    @Test
     void hiddenToolsAreStillCallableDirectly() {
         JsonObject result = mcp.callTool("keycloak_acme_ping", new JsonObject());
         assertEquals("world", McpClient.text(result).getString("name"));

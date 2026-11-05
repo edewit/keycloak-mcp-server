@@ -67,6 +67,8 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
   without any admin roles switch the filter off rather than hiding everything.
 * DESTRUCTIVE tools (delete user/group, reset password, logout, unassign roles, …) ask the human through MCP
   elicitation when the client supports it; otherwise they require `confirm: true` and explain that in the error.
+  `Confirmer`s of your own (change ticket check, four-eyes rule, allow-list) run before the built-in one; see
+  §Extending.
 * `keycloak_user_delete` additionally requires the matching `username`; `keycloak_realm_update` and
   `keycloak_auth_flow_bind` count as destructive because they can lock people out.
 * One audit log line per executed tool (`com.github.thomasdarimont.keycloak.mcp.audit`), and an `AuditListener` SPI that receives the
@@ -283,6 +285,24 @@ The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `feder
 
 Global `AccessCheck`s (see §Per-tool access checks) are extension points of their own: `@AutoService(AccessCheck.class)`
 on the class, a CDI bean, or `ToolProvider.accessChecks(...)` all register a check that runs on every call.
+
+`Confirmer` decides whether a destructive call may run (`@AutoService(Confirmer.class)` or a CDI bean, ordered by
+`order()`). The request carries the tool, realm, arguments, the `confirm` flag, the caller and a `Prompter` that
+asks the human through the client's elicitation. A confirmer returns `confirmed()`, `declined(message)`,
+`confirmationRequired(message)` or `abstain()`; the chain stops at the first decision that is not an abstention,
+and the built-in confirmer (elicitation, else the `confirm` flag) runs last. A ticket rule in a few lines:
+
+```java
+@AutoService(Confirmer.class)
+public class TicketConfirmer implements Confirmer {
+    public Decision confirm(Request r) {
+        if (!r.tool().name().equals("keycloak_user_delete")) return Decision.abstain();
+        String ticket = String.valueOf(r.args().get("ticket"));
+        return tickets.isOpen(ticket) ? Decision.confirmed()
+                : Decision.declined("User deletion needs an open change ticket (pass ticket=...).");
+    }
+}
+```
 
 `com.github.thomasdarimont.keycloak.mcp.spi.AuditListener` receives one event per finished call, whatever the outcome
 (`@AutoService(AuditListener.class)` or a CDI bean). The built-in listener writes the log line; yours can forward

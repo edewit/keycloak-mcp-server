@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.server.guard;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -17,8 +18,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ArgumentValidator;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
-
-import io.vertx.core.json.JsonObject;
+import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
 
 /**
  * The single execution path for every tool, whether called directly or through
@@ -39,10 +39,13 @@ public class ToolInvoker {
     private final DelegationMode delegation;
     private final AuditLog audit;
 
+    private Duration confirmTimeout = Duration.ofSeconds(120);
+
     @Inject
-    public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, McpServerConfig config,
+    public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, ConfirmerChain confirmer, McpServerConfig config,
             KeycloakSystems systems, AuditLog audit) {
         this(catalog, policy, confirmer, config.resultMaxItems(), systems, config.delegation(), audit);
+        this.confirmTimeout = Duration.ofSeconds(config.confirmTimeoutSeconds());
     }
 
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems) {
@@ -146,15 +149,19 @@ public class ToolInvoker {
     private ToolResult runWithConfirmation(ToolSpec spec, String system, KeycloakAdmin admin, String realm,
             Map<String, Object> args, boolean confirmFlag, InvocationContext ctx) throws Exception {
         if (spec.isDestructive()) {
-            Confirmer.Decision decision = confirmer.confirm(spec, realm, new JsonObject(args), confirmFlag, ctx);
-            switch (decision) {
+            Confirmer.Request request = new Confirmer.Request(spec, system, realm, args, confirmFlag, ctx.caller(),
+                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout));
+            Confirmer.Decision decision = confirmer.confirm(request);
+            switch (decision.outcome()) {
                 case DECLINED -> {
-                    return ToolResult.error("cancelled", "The user declined to confirm " + spec.name() + ".");
+                    return ToolResult.error("cancelled", decision.message() != null ? decision.message()
+                            : "The user declined to confirm " + spec.name() + ".");
                 }
-                case CONFIRMATION_REQUIRED -> {
+                case CONFIRMATION_REQUIRED, ABSTAIN -> {
                     return ToolResult.error("confirmation_required",
-                            spec.title() + " is destructive and needs confirmation.", "howTo",
-                            "Ask the user, then call again with the same arguments plus confirm: true.");
+                            decision.message() != null ? decision.message()
+                                    : spec.title() + " is destructive and needs confirmation.",
+                            "howTo", "Ask the user, then call again with the same arguments plus confirm: true.");
                 }
                 default -> {
                     // confirmed

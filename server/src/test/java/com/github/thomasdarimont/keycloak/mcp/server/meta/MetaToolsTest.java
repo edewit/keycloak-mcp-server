@@ -19,10 +19,10 @@ import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
-import com.github.thomasdarimont.keycloak.mcp.server.guard.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.ToolInvoker;
 import com.github.thomasdarimont.keycloak.mcp.spi.Caller;
+import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -39,7 +39,7 @@ class MetaToolsTest {
 
     private MetaTools meta(boolean readOnly) {
         AccessPolicy policy = new AccessPolicy(readOnly, List.of());
-        Confirmer confirmer = (spec, realm, args, flag, ctx) -> flag ? Confirmer.Decision.CONFIRMED
+        Confirmer confirmer = req -> req.confirmFlag() ? Confirmer.Decision.CONFIRMED
                 : Confirmer.Decision.CONFIRMATION_REQUIRED;
         return new MetaTools(catalog, policy, new ToolInvoker(catalog, policy, confirmer, 50), progressive, 5);
     }
@@ -186,7 +186,7 @@ class MetaToolsTest {
 
     private static MetaTools forward(ToolCatalog catalog) {
         AccessPolicy policy = new AccessPolicy(false, List.of());
-        Confirmer confirmer = (spec, realm, args, flag, ctx) -> Confirmer.Decision.CONFIRMED;
+        Confirmer confirmer = req -> Confirmer.Decision.CONFIRMED;
         return new MetaTools(catalog, policy,
                 new ToolInvoker(catalog, policy, confirmer, 50, null, DelegationMode.FORWARD), new ProgressiveState(),
                 5, DelegationMode.FORWARD);

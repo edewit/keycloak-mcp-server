@@ -10,6 +10,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.server.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
+import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
 
 import io.vertx.core.json.JsonObject;
 
@@ -27,7 +28,7 @@ class ToolInvokerTest {
     }
 
     private static Confirmer fixed(Confirmer.Decision d) {
-        return (spec, realm, args, flag, ctx) -> d;
+        return req -> d;
     }
 
     private static Map<String, Object> payload(ToolResult r) {
@@ -111,7 +112,7 @@ class ToolInvokerTest {
     @Test
     void defaultConfirmerWithoutElicitationUsesFlag() {
         ToolSpec spec = catalog.get("keycloak_user_delete").orElseThrow();
-        DefaultConfirmer confirmer = new DefaultConfirmer(java.time.Duration.ofSeconds(1));
+        DefaultConfirmer confirmer = new DefaultConfirmer();
         Map<String, Object> args = Map.of("realm", "demo", "id", "1");
         assertEquals("confirmation_required",
                 payload(invoker(false, List.of(), confirmer).invoke(spec, args, false, ctx)).get("error"));
