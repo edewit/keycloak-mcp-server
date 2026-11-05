@@ -241,7 +241,8 @@ public class MetaTools {
         InvocationContext ctx = effective(rawCtx);
         String language = RoleLabels.language(languageArg);
         String system = systemArg != null && !systemArg.isBlank() ? systemArg.trim() : catalog.defaultSystem();
-        if (system != null && !catalog.systems().isEmpty() && !catalog.systems().contains(system)) {
+        if (system != null && !catalog.dynamic() && !catalog.systems().isEmpty()
+                && !catalog.systems().contains(system)) {
             return ToolResult.error("unknown_system", "No Keycloak system named '" + system + "'.", "systems",
                     catalog.systems());
         }

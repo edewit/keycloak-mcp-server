@@ -34,12 +34,13 @@ public class ToolCatalog {
     private final String prefix;
     private final List<String> systems;
     private final String defaultSystem;
+    private final boolean dynamic;
 
     @Inject
     public ToolCatalog(DefaultExtensionRegistry providers, McpServerConfig config, KeycloakSystems systems) {
         this(providers.specs(), commonDefaultRealm(systems), config.resultMaxItems(), config.hotTools(),
                 config.toolPrefix().orElse(""), systems.multiple() ? systems.names() : List.of(),
-                systems.defaultName().orElse(null));
+                systems.defaultName().orElse(null), systems.dynamic());
     }
 
     /**
@@ -63,6 +64,16 @@ public class ToolCatalog {
 
     public ToolCatalog(Collection<ToolSpec> raw, String defaultRealm, int maxItems, List<String> hotTools,
             String prefix, List<String> systems, String defaultSystem) {
+        this(raw, defaultRealm, maxItems, hotTools, prefix, systems, defaultSystem, false);
+    }
+
+    /**
+     * @param dynamic systems can appear at runtime: every tool takes a free-text
+     * {@code system} argument and the names only illustrate it
+     */
+    public ToolCatalog(Collection<ToolSpec> raw, String defaultRealm, int maxItems, List<String> hotTools,
+            String prefix, List<String> systems, String defaultSystem, boolean dynamic) {
+        this.dynamic = dynamic;
         this.defaultRealm = defaultRealm;
         this.prefix = prefix == null ? "" : prefix.trim();
         this.systems = List.copyOf(systems == null ? List.of() : systems);
@@ -83,8 +94,8 @@ public class ToolCatalog {
             if (spec.realmScoped()) {
                 schema = InputSchema.withRealm(schema, defaultRealm == null, defaultRealm);
             }
-            if (!this.systems.isEmpty()) {
-                schema = InputSchema.withSystem(schema, this.systems, defaultSystem);
+            if (dynamic || !this.systems.isEmpty()) {
+                schema = InputSchema.withSystem(schema, this.systems, defaultSystem, !dynamic);
             }
             schema = InputSchema.withMaxItems(schema, maxItems);
             ToolSpec effective = spec.withInputSchema(schema).withName(name);
@@ -106,6 +117,13 @@ public class ToolCatalog {
 
     public String prefix() {
         return prefix;
+    }
+
+    /**
+     * Whether systems can appear at runtime; {@link #systems()} is then only a snapshot.
+     */
+    public boolean dynamic() {
+        return dynamic;
     }
 
     public List<String> systems() {

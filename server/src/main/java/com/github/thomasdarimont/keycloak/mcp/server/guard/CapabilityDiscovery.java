@@ -79,9 +79,6 @@ public class CapabilityDiscovery {
      * briefly.
      */
     public ServerCapabilities get(String system) {
-        if (!systems.contains(system)) {
-            return ServerCapabilities.UNKNOWN;
-        }
         Snapshot s = snapshots.get(system);
         if (s != null && s.at().plus(REFRESH).isAfter(Instant.now())) {
             return s.caps();

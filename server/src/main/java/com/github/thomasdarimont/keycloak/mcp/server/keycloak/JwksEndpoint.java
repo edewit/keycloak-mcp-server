@@ -1,53 +1,90 @@
 package com.github.thomasdarimont.keycloak.mcp.server.keycloak;
 
+import java.util.Optional;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 
 /**
- * Serves the public key of the {@code private_key_jwt} client as a JWK Set (default
- * {@code /.well-known/jwks.json}) so the Keycloak client representing this server can use
- * "JWKS URL" instead of an imported certificate. Only registered when client auth is
- * {@code private_key_jwt} and {@code kc-mcp.jwt.jwks-enabled} is true.
+ * Serves the {@code private_key_jwt} public keys as JWK Sets so the Keycloak client
+ * representing this server can use "JWKS URL" instead of an imported certificate:
+ * {@code /auth/keys/<system>/jwks.json} per system (the configured key, or the system's
+ * own from the vault), and {@code kc-mcp.jwt.jwks-path} (default
+ * {@code /.well-known/jwks.json}) for the configured key, else the default system's. Off
+ * with {@code kc-mcp.jwt.jwks-enabled=false}.
  */
 @ApplicationScoped
 public class JwksEndpoint {
 
     private static final Logger LOG = Logger.getLogger(JwksEndpoint.class);
 
+    public static final String SYSTEM_PATH = "/auth/keys/:system/jwks.json";
+
     @Inject
     McpServerConfig config;
     @Inject
-    JwtKeyMaterial keys;
+    SigningKeys keys;
+    @Inject
+    KeycloakSystems systems;
 
     void register(@Observes Router router) {
-        if (!keys.enabled() || !config.jwt().jwksEnabled()) {
+        if (!config.jwt().jwksEnabled()) {
             return;
         }
-        String path = config.jwt().jwksPath();
-        router.route(HttpMethod.GET, path).handler(ctx -> {
-            try {
-                String body = keys.jwks().encode();
+        router.route(HttpMethod.GET, config.jwt().jwksPath()).handler(ctx -> serve(ctx, legacy()));
+        router.route(HttpMethod.GET, SYSTEM_PATH).handler(ctx -> serve(ctx, forSystem(ctx.pathParam("system"))));
+        LOG.infof("JWKS served at %s and %s", config.jwt().jwksPath(), SYSTEM_PATH);
+    }
+
+    /** The configured key, else the default system's own key. */
+    private Optional<JsonObject> legacy() {
+        Optional<JsonObject> configured = keys.configuredJwks();
+        if (configured.isPresent()) {
+            return configured;
+        }
+        return systems.defaultName().flatMap(this::forSystem);
+    }
+
+    private Optional<JsonObject> forSystem(String name) {
+        Optional<KeycloakAdmin> admin = systems.find(name);
+        if (admin.isEmpty() || admin.get().system().clientAuth() != ClientAuth.PRIVATE_KEY_JWT) {
+            return Optional.empty();
+        }
+        return keys.jwksFor(admin.get().system());
+    }
+
+    private static void serve(RoutingContext ctx, Optional<JsonObject> jwks) {
+        try {
+            if (jwks.isEmpty()) {
                 ctx.response()
+                    .setStatusCode(404)
                     .putHeader("Content-Type", "application/json")
-                    .putHeader("Cache-Control", "public, max-age=300")
-                    .end(body);
+                    .end("{\"error\":\"no_jwks\",\"message\":\"No private_key_jwt key for this system.\"}");
+                return;
             }
-            catch (RuntimeException e) {
-                LOG.errorf("Cannot serve JWKS: %s", e.getMessage());
-                ctx.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "application/json")
-                    .end("{\"error\":\"jwks_unavailable\",\"message\":\"" + e.getMessage().replace('"', '\'') + "\"}");
-            }
-        });
-        LOG.infof("JWKS of the private_key_jwt key served at %s", path);
+            ctx.response()
+                .putHeader("Content-Type", "application/json")
+                .putHeader("Cache-Control", "public, max-age=300")
+                .end(jwks.get().encode());
+        }
+        catch (RuntimeException e) {
+            LOG.errorf("Cannot serve JWKS: %s", e.getMessage());
+            ctx.response()
+                .setStatusCode(500)
+                .putHeader("Content-Type", "application/json")
+                .end("{\"error\":\"jwks_unavailable\",\"message\":\"" + e.getMessage().replace('"', '\'') + "\"}");
+        }
     }
 }

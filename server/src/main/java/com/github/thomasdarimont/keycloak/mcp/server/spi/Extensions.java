@@ -125,7 +125,7 @@ public class Extensions {
      * jar when the class path is a single jar ({@code java -jar quarkus-run.jar}), else
      * the working directory.
      */
-    static Path resolve(String configured) {
+    public static Path resolve(String configured) {
         Path p = Path.of(configured.trim());
         if (p.isAbsolute()) {
             return p;

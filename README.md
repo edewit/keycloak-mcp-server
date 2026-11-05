@@ -177,8 +177,49 @@ kc-mcp.default-system=prod
 
 With more than one system every tool gains a `system` argument (a closed enum of the names, optional when a
 default system is set). Roles, allowed realms, default realm, startup checks and the audit log are tracked per
-system; one `private_key_jwt` key serves all of them. Without `kc-mcp.systems.*` the top-level settings form a
-single system called `default` and no `system` argument appears.
+system. One configured `private_key_jwt` key (`kc-mcp.jwt.key-file`) serves all of them; without one, every
+system gets its own generated key (see §Dynamic systems). Without `kc-mcp.systems.*` the top-level settings form
+a single system called `default` and no `system` argument appears.
+
+### Dynamic systems and per-system keys
+
+Static configuration suits a handful of systems. For SaaS setups where tenants come and go, a
+`KeycloakSystemSource` extension (`@AutoService(KeycloakSystemSource.class)` or a CDI bean, see §Extending)
+supplies systems at runtime: `names()` and `find(name)`, backed by a tenant registry, a database or a discovery
+call. Sources are off by default: `kc-mcp.dynamic-systems=true` lets them add systems, `kc-mcp.spi.<id>.enabled`
+switches a single source, and a source found while the switch is off is only mentioned in the log, so an
+extension jar cannot point the server at a Keycloak it was not configured for. Nothing is created in Keycloak by
+the server: the tenant registers the client (below), the server only keeps its own key. With sources on, the
+server asks them on every lookup, creates the admin client on first use and caches it per name;
+a system whose settings change at the source is reconnected, one the source forgets is dropped. With a source
+registered, the `system` argument of every tool is free text (the names only illustrate the description), and
+`kc-mcp.allowed-hosts` still applies: a dynamic system outside the list is refused and logged, not fatal.
+
+Credentials follow a convention instead of a secret per tenant. Each system registers a confidential client
+named, say, `keycloak-mcp-server` with service accounts on and client authentication "Signed JWT", JWKS URL
+`https://<this server>/auth/keys/<system>/jwks.json`, and the `realm-management` roles the tools need. The
+server generates an RSA key pair per system on first use and keeps it in a `KeyVault`: the built-in one stores
+PEM files under `kc-mcp.keys-dir` (default `data/keys`, next to `quarkus-run.jar` when packaged; give it a
+persistent volume), and a `KeyVault` extension of your own keeps them in a database or a secrets manager such as
+HashiCorp Vault, so the server only ever handles key references. A configured `kc-mcp.jwt.key-file` keeps the
+previous behavior: one key for every system, published at `/.well-known/jwks.json` as well.
+
+```java
+@AutoService(KeycloakSystemSource.class)
+public class TenantRegistrySource implements KeycloakSystemSource {
+    public String id() { return "tenant-registry"; }
+    public List<String> names() { return registry.tenantIds(); }
+    public Optional<KeycloakSystem> find(String name) {
+        return registry.lookup(name).map(t -> new KeycloakSystem(name, t.keycloakUrl(), GrantType.CLIENT_CREDENTIALS,
+                ClientAuth.PRIVATE_KEY_JWT, "master", Optional.of("keycloak-mcp-server"), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.of(t.realm()), Set.of(t.realm()), Optional.empty()));
+    }
+}
+```
+
+Caller authentication is per MCP server entry, not per system: an MCP client logs in once per server URL. Operators
+of several systems therefore use one central identity, typically a master realm admin with access to the realms
+they manage, or separate MCP server entries per system.
 
 When you prefer one process per Keycloak, `kc-mcp.tool-prefix=prod_` renames the tools
 (`prod_keycloak_user_search`) so MCP clients that merge several servers keep them apart; `execute_tool` and the
@@ -201,7 +242,9 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.jwt.algorithm`          | `RS256`                     | RS256/384/512, PS256/384/512, ES256/384/512 |
 | `kc-mcp.jwt.key-id`             | JWK thumbprint              | `kid` in the assertion header and the JWKS |
 | `kc-mcp.jwt.public-key-file`    | derived                     | public key / certificate PEM to publish; derived from the private key when unset |
-| `kc-mcp.jwt.jwks-enabled` / `jwks-path` | `true` / `/.well-known/jwks.json` | serve the public key as a JWK Set |
+| `kc-mcp.jwt.jwks-enabled` / `jwks-path` | `true` / `/.well-known/jwks.json` | serve the public keys as JWK Sets: the configured key (else the default system's) at `jwks-path`, every system's at `/auth/keys/<system>/jwks.json` |
+| `kc-mcp.dynamic-systems`        | `false`                     | let registered `KeycloakSystemSource`s add systems at runtime |
+| `kc-mcp.keys-dir`               | `data/keys`                 | where the built-in `KeyVault` keeps the generated per-system `private_key_jwt` keys (PEM per system) |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.require-caller`         | `false`                     | refuse anonymous MCP requests with the OAuth challenge even with `delegation=off` |
@@ -257,8 +300,9 @@ The server listens on port 8081 (`quarkus.http.port`) so a local Keycloak can ke
 ## Extending: tool providers
 
 Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
-`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, all `Extension`s with `id`, `displayName`,
-`description` and `order`; `ExtensionRegistry` to look them up; `Caller`), the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
+`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, `KeycloakSystemSource`, `KeyVault`, all
+`Extension`s with `id`, `displayName`, `description` and `order`; `ExtensionRegistry` to look them up; `Caller`),
+the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
 `InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client
 with the forgiving lookups, `GrantedRoles`, `Views`, `AbstractToolProvider` and the server configuration interface.
 It brings the Keycloak admin client and Vert.x JSON, but no Quarkus; on the module path it is the automatic
@@ -266,7 +310,8 @@ module `com.github.thomasdarimont.keycloak.mcp.api`. Packages under `com.github.
 `spi` (`Extension`, `ExtensionRegistry`, `ExtensionContext`, `ProviderConfig`), `tools` (`ToolProvider`,
 `ToolProviderContext`, `AbstractToolProvider`), `prompts` (`PromptProvider`), `access` (`AccessCheck`, `Caller`,
 `GrantedRoles`, `RoleRef`, `Delegation`), `confirm` (`Confirmer`), `audit` (`AuditListener`), `catalog` (the tool
-and prompt descriptions), `keycloak` (admin facades, capabilities, host allow list) and `config`. Tools come from
+and prompt descriptions), `keycloak` (admin facades, `KeycloakSystemSource`, `KeyVault`, capabilities, host allow
+list) and `config`. Tools come from
 `ToolProvider` implementations, discovered like Keycloak providers:
 
 ```java

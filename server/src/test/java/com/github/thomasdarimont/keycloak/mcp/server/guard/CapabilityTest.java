@@ -130,11 +130,13 @@ class CapabilityTest {
         assertEquals(1, loads.get(), "cached");
         assertEquals("26.8.1", d.peek("a").version());
         assertFalse(d.get("b").versionKnown());
+        // names outside the startup list reach the loader too: systems can appear at
+        // runtime
         assertEquals(ServerCapabilities.UNKNOWN, d.get("nope"));
-        assertEquals(2, loads.get());
+        assertEquals(3, loads.get());
         d.invalidate();
         d.get("a");
-        assertEquals(3, loads.get());
+        assertEquals(4, loads.get());
         assertEquals("26.8.1", CapabilityDiscovery.fixed(caps("26.8.1")).get().version());
     }
 

@@ -73,9 +73,25 @@ public final class InputSchema {
      * deployments).
      */
     public static JsonObject withSystem(JsonObject schema, List<String> systems, String defaultSystem) {
-        JsonObject prop = new JsonObject().put("type", "string").put("enum", new JsonArray(systems));
-        prop.put("description",
-                defaultSystem != null ? "Keycloak system (default: " + defaultSystem + ")" : "Keycloak system");
+        return withSystem(schema, systems, defaultSystem, true);
+    }
+
+    /**
+     * @param enumerate list the names as a closed enum; {@code false} when systems can
+     * appear at runtime, the names then only illustrate the description
+     */
+    public static JsonObject withSystem(JsonObject schema, List<String> systems, String defaultSystem,
+            boolean enumerate) {
+        JsonObject prop = new JsonObject().put("type", "string");
+        String description = defaultSystem != null ? "Keycloak system (default: " + defaultSystem + ")"
+                : "Keycloak system";
+        if (enumerate) {
+            prop.put("enum", new JsonArray(systems));
+        }
+        else if (systems != null && !systems.isEmpty()) {
+            description += ", e.g. " + String.join(", ", systems);
+        }
+        prop.put("description", description);
         JsonObject props = new JsonObject().put(SYSTEM, prop);
         JsonObject old = schema.getJsonObject("properties");
         if (old != null) {

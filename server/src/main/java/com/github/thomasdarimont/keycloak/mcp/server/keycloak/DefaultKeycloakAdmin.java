@@ -37,7 +37,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     }
 
     private final KeycloakSystem system;
-    private final JwtKeyMaterial jwtKeys;
+    private final SigningKeys jwtKeys;
     private final ReentrantLock initLock = new ReentrantLock();
     private volatile Keycloak keycloak;
     private volatile ClientAssertionTokenManager jwtTokens;
@@ -45,12 +45,11 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     private final String forwardedToken;
     private final Map<String, Delegate> delegates = new ConcurrentHashMap<>();
 
-    public DefaultKeycloakAdmin(KeycloakSystem system, JwtKeyMaterial jwtKeys) {
+    public DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys) {
         this(system, jwtKeys, null, null);
     }
 
-    private DefaultKeycloakAdmin(KeycloakSystem system, JwtKeyMaterial jwtKeys, Keycloak prebuilt,
-            String forwardedToken) {
+    private DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys, Keycloak prebuilt, String forwardedToken) {
         this.system = system;
         this.jwtKeys = jwtKeys;
         this.keycloak = prebuilt;
@@ -202,7 +201,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
                 Client restClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
                 Client tokenClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
                 jwtTokens = new ClientAssertionTokenManager(tokenClient, system.url(), system.authRealm(), clientId,
-                        jwtKeys.signer(), jwtKeys.assertionLifespan(), grant, username, password);
+                        jwtKeys.signerFor(system), jwtKeys.assertionLifespan(), grant, username, password);
                 restClient.register(new PrivateKeyJwtAuthFilter(jwtTokens));
                 // A fixed placeholder token makes the admin client skip its own
                 // TokenManager; the filter above

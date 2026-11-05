@@ -92,6 +92,25 @@ public interface McpServerConfig {
     Jwt jwt();
 
     /**
+     * Whether registered {@code KeycloakSystemSource}s may add systems at runtime. Off by
+     * default: a source found on the class path is then listed in the log but not asked,
+     * so an extension cannot point the server at a Keycloak it was not configured for.
+     * Each source can additionally be switched with {@code kc-mcp.spi.<id>.enabled}.
+     */
+    @WithDefault("false")
+    boolean dynamicSystems();
+
+    /**
+     * Directory of the built-in
+     * {@link com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault}: one PEM file per
+     * system with the {@code private_key_jwt} key generated for it, used when no
+     * {@code kc-mcp.jwt.key-file} / {@code keystore-file} is configured. A relative path
+     * is resolved like {@code kc-mcp.providers-dir}.
+     */
+    @WithDefault("data/keys")
+    String keysDir();
+
+    /**
      * {@code off} (default): admin calls use the server's own credentials;
      * {@code forward}: the caller's access token is forwarded to the Admin API, so
      * Keycloak enforces the user's own roles. {@code forward} requires the MCP endpoint

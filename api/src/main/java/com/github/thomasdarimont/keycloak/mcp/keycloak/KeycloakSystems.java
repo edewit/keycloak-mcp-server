@@ -24,6 +24,15 @@ public interface KeycloakSystems {
     boolean multiple();
 
     /**
+     * Whether systems can appear at runtime (a {@link KeycloakSystemSource} is
+     * registered); the {@code system} argument is then free text instead of a closed
+     * enumeration, and {@link #names()} is the current snapshot.
+     */
+    default boolean dynamic() {
+        return false;
+    }
+
+    /**
      * Name of the system used when a call names none: the only system, the one configured
      * as {@code kc-mcp.default-system}, or the one called {@code default}; empty when
      * several systems exist and none of them is the default.
