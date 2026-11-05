@@ -16,8 +16,9 @@ import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 public interface Extension {
 
     /**
-     * Unique, stable id such as {@code users} or {@code acme-tickets}. Defaults to the
-     * class name, which is fine for extensions that are never configured.
+     * Unique, stable id such as {@code users} or {@code acme-tickets}. Configuration keys
+     * use it in kebab-case ({@code acmeTickets} -> {@code kc-mcp.spi.acme-tickets.*}, see
+     * {@link ProviderConfig#configId}). Defaults to the class name.
      */
     default String id() {
         return getClass().getName();

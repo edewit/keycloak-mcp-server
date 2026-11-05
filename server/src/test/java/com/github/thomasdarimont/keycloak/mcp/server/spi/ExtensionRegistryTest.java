@@ -11,6 +11,7 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.prompts.PromptProvider;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -57,5 +58,10 @@ class ExtensionRegistryTest {
         assertEquals("", ticket.description());
         assertSame(registry.extensions(Confirmer.class), registry.extensions(Confirmer.class), "cached");
         assertEquals("kc-mcp.spi.ticket.", registry.context("ticket").config().providerPrefix());
+        // camelCase ids are configured in kebab-case, as Keycloak does with provider ids
+        ProviderConfig camel = registry.context("acmeTicketChecker").config();
+        assertEquals("kc-mcp.spi.acme-ticket-checker.", camel.providerPrefix());
+        assertEquals("KC_MCP_SPI_ACME_TICKET_CHECKER_", camel.envPrefix());
+        assertEquals("CHG-", camel.get("ticket-prefix", "none"));
     }
 }

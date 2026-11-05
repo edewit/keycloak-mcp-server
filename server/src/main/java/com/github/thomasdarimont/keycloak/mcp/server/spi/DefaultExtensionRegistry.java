@@ -101,7 +101,7 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
         }
         List<T> enabled = new ArrayList<>();
         for (T e : byId.values()) {
-            if (!new ProviderConfig(e.id(), serverConfig.spi().get(e.id())).getBoolean("enabled", true)) {
+            if (!ProviderConfig.forExtension(e.id(), serverConfig.spi()).getBoolean("enabled", true)) {
                 LOG.infof("%s '%s' disabled by configuration", type.getSimpleName(), e.id());
                 continue;
             }
@@ -117,7 +117,7 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
      */
     @Override
     public ToolProviderContext context(String extensionId) {
-        return new Context(systems, serverConfig, new ProviderConfig(extensionId, serverConfig.spi().get(extensionId)));
+        return new Context(systems, serverConfig, ProviderConfig.forExtension(extensionId, serverConfig.spi()));
     }
 
     public List<ToolProvider> providers() {

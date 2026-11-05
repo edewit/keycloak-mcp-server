@@ -227,7 +227,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.structured-content`     | `true`                      | mirror every result as MCP `structuredContent` next to the text block |
 | `kc-mcp.confirm-timeout-seconds`| `120`                       | elicitation timeout |
 | `kc-mcp.providers-dir`          | `providers`                 | directory with extension jars (see §Extension jars) |
-| `kc-mcp.spi.<provider>.<key>`   |                             | per tool-provider settings, `enabled=false` disables one |
+| `kc-mcp.spi.<id>.<key>`         |                             | per extension settings, `enabled=false` disables one; the id in kebab-case like Keycloak's provider ids (`acmeTicketChecker` -> `kc-mcp.spi.acme-ticket-checker.*`, env `KC_MCP_SPI_ACME_TICKET_CHECKER_*`; the server resolves these variables itself, so hyphenated ids work from the environment) |
 | `quarkus.http.cors.origins`     | local origins               | browser based MCP clients only; set to the client origin(s) in production |
 
 Examples:
@@ -296,8 +296,9 @@ Provider tools automatically get search, exposure modes, validation, realm check
 The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`,
 `realm`) use the same SPI and can be switched off with `kc-mcp.spi.<id>.enabled=false`.
 
-Every extension point shares the `Extension` base: `id()` (keys `kc-mcp.spi.<id>.*`, where `enabled=false` switches
-any extension off; defaults to the class name), `displayName()`, `description()` and `order()` (lower runs or
+Every extension point shares the `Extension` base: `id()` (keys `kc-mcp.spi.<id>.*` with the id in kebab-case,
+`acmeTicketChecker` -> `acme-ticket-checker`, where `enabled=false` switches any extension off; defaults to the
+class name, `com.acme.TicketChecker` -> `com-acme-ticket-checker`), `displayName()`, `description()` and `order()` (lower runs or
 initialises first). The server's `ExtensionRegistry` (`extensions(Confirmer.class)`, `extension(ToolProvider.class,
 "users")`, `context(id)`) is the one place that applies discovery, deduplication by id, the enabled switch and the
 order; it is a CDI bean, so a provider that needs to see other extensions can inject it.
