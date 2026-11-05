@@ -30,6 +30,7 @@ curl -s -X PUT localhost:8091/admin/systems/acme \
   -H 'Content-Type: application/json' \
   -d '{
     "displayName": "ACME Corp.",
+    "description": "ACME's Keycloak, administered through the MCP server",
     "url": "http://keycloak:8080",
     "issuer": "http://localhost:8090/realms/master",
     "clientId": "keycloak-mcp-server",

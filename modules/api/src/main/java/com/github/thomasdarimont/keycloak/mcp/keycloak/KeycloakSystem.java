@@ -1,5 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.keycloak;
 
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -19,7 +21,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 public record KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
         Optional<String> clientId, Optional<String> clientSecret, Optional<String> username, Optional<String> password,
         Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version, Optional<String> issuer,
-        Optional<String> displayName) {
+        Optional<String> displayName, Optional<String> description) {
 
     public static final String DEFAULT_NAME = "default";
 
@@ -31,6 +33,16 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
 
     public KeycloakSystem {
         displayName = displayName == null ? Optional.empty() : displayName.map(String::trim).filter(v -> !v.isEmpty());
+        description = description == null ? Optional.empty() : description.map(String::trim).filter(v -> !v.isEmpty());
+    }
+
+    /** Without a description. */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version, Optional<String> issuer, Optional<String> displayName) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, issuer, displayName, Optional.empty());
     }
 
     /** Without a display name. */
@@ -110,18 +122,185 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
     }
 
     public KeycloakSystem withDisplayName(String label) {
-        return new KeycloakSystem(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username,
-                password, defaultRealm, allowedRealms, version, issuer, Optional.ofNullable(label));
+        return toBuilder().displayName(label).build();
+    }
+
+    /** A free text for people: what this Keycloak is, who owns it. */
+    public KeycloakSystem withDescription(String text) {
+        return toBuilder().description(text).build();
     }
 
     public KeycloakSystem withClientSecret(Optional<String> secret) {
-        return new KeycloakSystem(name, url, grantType, clientAuth, authRealm, clientId, secret, username, password,
-                defaultRealm, allowedRealms, version, issuer, displayName);
+        return toBuilder().clientSecret(secret.orElse(null)).build();
     }
 
     public KeycloakSystem withPassword(Optional<String> newPassword) {
-        return new KeycloakSystem(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username,
-                newPassword, defaultRealm, allowedRealms, version, issuer, displayName);
+        return toBuilder().password(newPassword.orElse(null)).build();
+    }
+
+    /** A builder with this system's values, for a changed copy. */
+    public Builder toBuilder() {
+        return new Builder().name(name)
+            .url(url)
+            .grantType(grantType)
+            .clientAuth(clientAuth)
+            .authRealm(authRealm)
+            .clientId(clientId.orElse(null))
+            .clientSecret(clientSecret.orElse(null))
+            .username(username.orElse(null))
+            .password(password.orElse(null))
+            .defaultRealm(defaultRealm.orElse(null))
+            .allowedRealms(allowedRealms)
+            .version(version.orElse(null))
+            .issuer(issuer.orElse(null))
+            .displayName(displayName.orElse(null))
+            .description(description.orElse(null));
+    }
+
+    /**
+     * Builds a system without juggling {@code Optional}s: every setter takes a plain
+     * value, {@code null} or blank meaning unset. Defaults: {@code client_credentials},
+     * {@code private_key_jwt}, auth realm {@code master}, no allowed realms (all).
+     *
+     * <pre>
+     * KeycloakSystem.builder("acme", "https://sso.acme.example")
+     *     .clientId("keycloak-mcp-server").defaultRealm("acme-dev").allowedRealm("acme-dev")
+     *     .displayName("ACME Corp.").build();
+     * </pre>
+     */
+    public static Builder builder(String name, String url) {
+        return new Builder().name(name).url(url);
+    }
+
+    public static final class Builder {
+        private String name;
+        private String url;
+        private GrantType grantType = GrantType.CLIENT_CREDENTIALS;
+        private ClientAuth clientAuth = ClientAuth.PRIVATE_KEY_JWT;
+        private String authRealm = "master";
+        private String clientId;
+        private String clientSecret;
+        private String username;
+        private String password;
+        private String defaultRealm;
+        private final Set<String> allowedRealms = new LinkedHashSet<>();
+        private String version;
+        private String issuer;
+        private String displayName;
+        private String description;
+
+        private Builder() {
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder url(String url) {
+            this.url = url;
+            return this;
+        }
+
+        public Builder grantType(GrantType grantType) {
+            this.grantType = grantType == null ? GrantType.CLIENT_CREDENTIALS : grantType;
+            return this;
+        }
+
+        public Builder clientAuth(ClientAuth clientAuth) {
+            this.clientAuth = clientAuth == null ? ClientAuth.PRIVATE_KEY_JWT : clientAuth;
+            return this;
+        }
+
+        public Builder authRealm(String authRealm) {
+            this.authRealm = authRealm == null || authRealm.isBlank() ? "master" : authRealm.trim();
+            return this;
+        }
+
+        public Builder clientId(String clientId) {
+            this.clientId = clientId;
+            return this;
+        }
+
+        /** The secret itself or a {@code vault:<name>} reference. */
+        public Builder clientSecret(String clientSecret) {
+            this.clientSecret = clientSecret;
+            return this;
+        }
+
+        public Builder username(String username) {
+            this.username = username;
+            return this;
+        }
+
+        /** The password itself or a {@code vault:<name>} reference. */
+        public Builder password(String password) {
+            this.password = password;
+            return this;
+        }
+
+        public Builder defaultRealm(String defaultRealm) {
+            this.defaultRealm = defaultRealm;
+            return this;
+        }
+
+        /** Replaces the allowed realms; empty means every realm. */
+        public Builder allowedRealms(Collection<String> realms) {
+            allowedRealms.clear();
+            if (realms != null) {
+                realms.stream().filter(r -> r != null && !r.isBlank()).map(String::trim).forEach(allowedRealms::add);
+            }
+            return this;
+        }
+
+        /** Adds one allowed realm. */
+        public Builder allowedRealm(String realm) {
+            if (realm != null && !realm.isBlank()) {
+                allowedRealms.add(realm.trim());
+            }
+            return this;
+        }
+
+        public Builder version(String version) {
+            this.version = version;
+            return this;
+        }
+
+        /**
+         * The realm's public issuer URL when it differs from
+         * {@code <url>/realms/<auth realm>}.
+         */
+        public Builder issuer(String issuer) {
+            this.issuer = issuer;
+            return this;
+        }
+
+        public Builder displayName(String displayName) {
+            this.displayName = displayName;
+            return this;
+        }
+
+        public Builder description(String description) {
+            this.description = description;
+            return this;
+        }
+
+        /** @throws IllegalArgumentException without a name or url */
+        public KeycloakSystem build() {
+            if (name == null || name.isBlank()) {
+                throw new IllegalArgumentException("A system needs a name");
+            }
+            if (url == null || url.isBlank()) {
+                throw new IllegalArgumentException("The system '" + name + "' needs a url");
+            }
+            return new KeycloakSystem(name.trim(), url.trim(), grantType, clientAuth, authRealm, text(clientId),
+                    text(clientSecret), text(username), text(password), text(defaultRealm), Set.copyOf(allowedRealms),
+                    text(version), text(issuer), text(displayName), text(description));
+        }
+
+        private static Optional<String> text(String value) {
+            return value == null || value.isBlank() ? Optional.empty() : Optional.of(value.trim());
+        }
     }
 
     /**

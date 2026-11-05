@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
@@ -130,7 +129,7 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
 
     /**
      * One system from its JSON object (the fields of the class comment, plus
-     * {@code displayName}); the admin API uses the same shape.
+     * {@code displayName} and {@code description}); the admin API uses the same shape.
      *
      * @param name the system name when it is not in the object ({@code name} or
      * {@code alias}), e.g. from a path
@@ -145,14 +144,23 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
         ClientAuth auth = s.getString("clientAuth") == null ? ClientAuth.PRIVATE_KEY_JWT
                 : ClientAuth.parse(s.getString("clientAuth"));
         JsonArray realms = s.getJsonArray("allowedRealms", new JsonArray());
-        Set<String> allowed = new java.util.LinkedHashSet<>();
+        KeycloakSystem.Builder system = KeycloakSystem.builder(alias, url)
+            .grantType(grant)
+            .clientAuth(auth)
+            .authRealm(s.getString("authRealm", "master"))
+            .clientId(s.getString("clientId", DEFAULT_CLIENT_ID))
+            .clientSecret(s.getString("clientSecret"))
+            .username(s.getString("username"))
+            .password(s.getString("password"))
+            .defaultRealm(s.getString("defaultRealm"))
+            .version(s.getString("version"))
+            .issuer(s.getString("issuer"))
+            .displayName(s.getString("displayName"))
+            .description(s.getString("description"));
         for (int j = 0; j < realms.size(); j++) {
-            allowed.add(realms.getString(j));
+            system.allowedRealm(realms.getString(j));
         }
-        return new KeycloakSystem(alias, url, grant, auth, s.getString("authRealm", "master"),
-                Optional.of(s.getString("clientId", DEFAULT_CLIENT_ID)), optional(s, "clientSecret"),
-                optional(s, "username"), optional(s, "password"), optional(s, "defaultRealm"), Set.copyOf(allowed),
-                optional(s, "version"), optional(s, "issuer"), optional(s, "displayName"));
+        return system.build();
     }
 
     private static String require(JsonObject s, String field) {

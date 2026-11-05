@@ -90,24 +90,31 @@ class DatabaseStorageIT {
         KeycloakSystem tenant = system(alias, "https://sso.example.com", Optional.of("top-secret"),
                 Set.of("tenant", "tenant-2"));
 
-        SystemEntity row = repo.saveEntity(tenant.withDisplayName("ACME Corp."));
+        SystemEntity row = repo.saveEntity(tenant.withDisplayName("ACME Corp.").withDescription("ACME's Keycloak"));
         assertEquals(36, row.id.length(), "surrogate id");
         assertEquals(alias, row.alias);
         assertEquals("ACME Corp.", row.name);
+        assertEquals("ACME's Keycloak", row.description);
+        var stamps = repo.timestamps(alias).orElseThrow();
+        assertEquals(row.createdAt, stamps.createdAt().toEpochMilli());
+        assertEquals(row.updatedAt, stamps.updatedAt().toEpochMilli());
+        assertTrue(repo.timestamps("nope-" + alias).isEmpty());
         assertTrue(StorageCrypto.isEncrypted(row.clientSecret), "client secret encrypted at rest: " + row.clientSecret);
         assertTrue(row.createdAt > 0 && row.updatedAt >= row.createdAt);
 
         assertTrue(repo.names().contains(alias));
-        assertEquals(tenant.withDisplayName("ACME Corp."), repo.find(alias).orElseThrow(),
-                "round trip, secret decrypted, label attached");
-        assertTrue(repo.all().contains(tenant.withDisplayName("ACME Corp.")));
+        assertEquals(tenant.withDisplayName("ACME Corp.").withDescription("ACME's Keycloak"),
+                repo.find(alias).orElseThrow(), "round trip, secret decrypted, label and description attached");
+        assertTrue(repo.all().contains(tenant.withDisplayName("ACME Corp.").withDescription("ACME's Keycloak")));
 
         // settings change: same row, label kept
         KeycloakSystem moved = system(alias, "https://sso2.example.com", Optional.empty(), Set.of());
         assertEquals(row.id, repo.saveEntity(moved).id);
         assertEquals("ACME Corp.", repo.entity(alias).orElseThrow().name, "no label in the update keeps the old one");
-        assertEquals(moved.withDisplayName("ACME Corp."), repo.find(alias).orElseThrow());
+        assertEquals(moved.withDisplayName("ACME Corp.").withDescription("ACME's Keycloak"),
+                repo.find(alias).orElseThrow(), "the description is kept as well");
         assertEquals("ACME Inc.", repo.save(moved.withDisplayName("ACME Inc.")).displayName().orElseThrow());
+        assertTrue(repo.timestamps(alias).orElseThrow().updatedAt().toEpochMilli() >= row.updatedAt);
 
         // disabled rows are kept but not served
         assertTrue(repo.setEnabled(alias, false));

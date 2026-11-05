@@ -24,6 +24,7 @@ step "1. register the system 'acme' (stored in PostgreSQL, key pair generated in
 SYSTEM=$(admin -X PUT "$MCP/admin/systems/acme" -d @- <<'JSON'
 {
   "displayName": "ACME Corp.",
+  "description": "ACME's Keycloak, administered through the MCP server",
   "url": "http://keycloak:8080",
   "issuer": "http://localhost:8090/realms/master",
   "authRealm": "master",
@@ -39,7 +40,7 @@ JSON
 echo "$SYSTEM" | jq .
 if echo "$SYSTEM" | jq -e '.error == "signing_key_exists"' >/dev/null; then
   echo "(already registered with a key; replacing the settings, keeping the key)"
-  SYSTEM=$(admin -X PUT "$MCP/admin/systems/acme" -d "$(echo '{}' | jq '. + {"displayName":"ACME Corp.","url":"http://keycloak:8080","issuer":"http://localhost:8090/realms/master","defaultRealm":"acme-dev","allowedRealms":["acme-dev"],"version":"26.8.2","signingKey":"existing"}')")
+  SYSTEM=$(admin -X PUT "$MCP/admin/systems/acme" -d "$(echo '{}' | jq '. + {"displayName":"ACME Corp.","description":"ACME'"'"'s Keycloak, administered through the MCP server","url":"http://keycloak:8080","issuer":"http://localhost:8090/realms/master","defaultRealm":"acme-dev","allowedRealms":["acme-dev"],"version":"26.8.2","signingKey":"existing"}')")
 fi
 JWKS_PATH=$(echo "$SYSTEM" | jq -r .signingKey.jwksPath)
 JWKS_URL="$MCP_INTERNAL$JWKS_PATH"

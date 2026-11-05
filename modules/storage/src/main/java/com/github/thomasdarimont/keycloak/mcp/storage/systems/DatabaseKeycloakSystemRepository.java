@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.systems;
 
+import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -19,6 +20,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.SystemTimestamps;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
@@ -203,6 +205,9 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
         if (system.displayName().isPresent()) {
             e.name = system.displayName().get();
         }
+        if (system.description().isPresent()) {
+            e.description = system.description().get();
+        }
         e.url = system.url();
         e.grantType = system.grantType().oauthValue();
         e.clientAuth = system.clientAuth().name().toLowerCase(Locale.ROOT);
@@ -261,10 +266,29 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
     }
 
     KeycloakSystem toSystem(SystemEntity e) {
-        return new KeycloakSystem(e.alias, e.url, GrantType.parse(e.grantType), ClientAuth.parse(e.clientAuth),
-                e.authRealm, optional(e.clientId), optional(crypto.reveal(e.clientSecret)), optional(e.username),
-                optional(crypto.reveal(e.password)), optional(e.defaultRealm), realms(e.allowedRealms),
-                optional(e.version), optional(e.issuer), optional(e.name));
+        return KeycloakSystem.builder(e.alias, e.url)
+            .grantType(GrantType.parse(e.grantType))
+            .clientAuth(ClientAuth.parse(e.clientAuth))
+            .authRealm(e.authRealm)
+            .clientId(e.clientId)
+            .clientSecret(crypto.reveal(e.clientSecret))
+            .username(e.username)
+            .password(crypto.reveal(e.password))
+            .defaultRealm(e.defaultRealm)
+            .allowedRealms(realms(e.allowedRealms))
+            .version(e.version)
+            .issuer(e.issuer)
+            .displayName(e.name)
+            .description(e.description)
+            .build();
+    }
+
+    /** When the row was created and last changed. */
+    @Override
+    @Transactional
+    public Optional<SystemTimestamps> timestamps(String alias) {
+        return entity(alias)
+            .map(e -> new SystemTimestamps(Instant.ofEpochMilli(e.createdAt), Instant.ofEpochMilli(e.updatedAt)));
     }
 
     private static Set<String> realms(String json) {
@@ -279,7 +303,4 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
         return Set.copyOf(out);
     }
 
-    private static Optional<String> optional(String value) {
-        return value == null || value.isBlank() ? Optional.empty() : Optional.of(value);
-    }
 }

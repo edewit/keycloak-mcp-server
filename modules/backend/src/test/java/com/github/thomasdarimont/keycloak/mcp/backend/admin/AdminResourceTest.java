@@ -52,6 +52,7 @@ class AdminResourceTest {
     @Order(2)
     void registersASystemWithAGeneratedKeyAndServesItsJwks() {
         JsonObject body = new JsonObject().put("displayName", "ACME Corp.")
+            .put("description", "ACME's production Keycloak, owned by the platform team")
             .put("url", "http://127.0.0.1:1")
             .put("issuer", "https://sso.example.com/realms/master")
             .put("defaultRealm", "acme-dev")
@@ -63,6 +64,9 @@ class AdminResourceTest {
             .statusCode(201)
             .body("alias", equalTo("acme"))
             .body("displayName", equalTo("ACME Corp."))
+            .body("description", equalTo("ACME's production Keycloak, owned by the platform team"))
+            .body("createdAt", startsWith("20"))
+            .body("updatedAt", startsWith("20"))
             .body("clientAuth", equalTo("private_key_jwt"))
             .body("clientId", equalTo("keycloak-mcp-server"))
             .body("source", equalTo("db-systems"))
@@ -102,12 +106,17 @@ class AdminResourceTest {
             .then()
             .statusCode(409)
             .body("error", equalTo("signing_key_exists"));
+        String createdAt = new JsonObject(response).getString("createdAt");
         admin().body(body.copy().put("displayName", "ACME Inc.").encode())
             .put("/admin/systems/acme")
             .then()
             .statusCode(200)
             .body("displayName", equalTo("ACME Inc."))
+            .body("description", equalTo("ACME's production Keycloak, owned by the platform team"))
+            .body("createdAt", equalTo(createdAt))
             .body("signingKey.kid", equalTo(kid));
+        // the static system has no record to date
+        admin().get("/admin/systems/default").then().statusCode(200).body("$", not(hasKey("createdAt")));
 
         // rotation: new kid, new JWKS
         String rotated = admin().post("/admin/systems/acme/signing-key")

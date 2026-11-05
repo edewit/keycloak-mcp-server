@@ -29,6 +29,10 @@ public class SystemEntity extends PanacheEntityBase {
     @Column(name = "name", length = 255)
     public String name;
 
+    /** Free text for people: what this Keycloak is, who owns it; optional, unbounded. */
+    @Column(name = "description")
+    public String description;
+
     @Column(name = "url", nullable = false, length = 1024)
     public String url;
 

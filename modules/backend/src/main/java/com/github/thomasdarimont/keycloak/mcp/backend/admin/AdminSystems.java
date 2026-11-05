@@ -224,12 +224,14 @@ public class AdminSystems {
     }
 
     /**
-     * The system without its secrets, with its key's kid and JWKS URL and its entries.
+     * The system without its secrets, with its key's kid and JWKS URL, its entries and,
+     * from repositories that keep them, {@code createdAt} / {@code updatedAt} (ISO-8601).
      */
     Map<String, Object> represent(KeycloakSystem s, String publicBase) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("alias", s.name());
         s.displayName().ifPresent(v -> out.put("displayName", v));
+        s.description().ifPresent(v -> out.put("description", v));
         out.put("url", s.url());
         s.issuer().ifPresent(v -> out.put("issuer", v));
         out.put("authRealm", s.authRealm());
@@ -242,7 +244,13 @@ public class AdminSystems {
         s.defaultRealm().ifPresent(v -> out.put("defaultRealm", v));
         out.put("allowedRealms", s.allowedRealms().stream().sorted().toList());
         s.version().ifPresent(v -> out.put("version", v));
-        systems.repositoryOf(s.name()).ifPresent(r -> out.put("source", r.id()));
+        systems.repositoryOf(s.name()).ifPresent(r -> {
+            out.put("source", r.id());
+            r.timestamps(s.name()).ifPresent(t -> {
+                out.put("createdAt", t.createdAt().toString());
+                out.put("updatedAt", t.updatedAt().toString());
+            });
+        });
         if (s.clientAuth() == ClientAuth.PRIVATE_KEY_JWT) {
             Map<String, Object> key = new LinkedHashMap<>();
             String path = JwksEndpoint.SYSTEM_PATH.replace(":system", s.name());

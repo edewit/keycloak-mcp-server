@@ -199,15 +199,17 @@ Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. F
 - Bearer: static `kc-mcp.admin.token`, or an access token of `kc-mcp.admin.issuer` (realm URL, verified by Quarkus OIDC,
   optional `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role` (`realm:admin` default; `<client>.<role>` for client
   roles). One of token and issuer required.
-- `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `url`, `issuer`, `authRealm`, `clientId`,
-  `clientAuth`, `defaultRealm`, `allowedRealms`, `version`, credentials) into the first `MutableKeycloakSystemRepository`.
+- `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `description`, `url`, `issuer`, `authRealm`,
+  `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `version`, credentials) into the first
+  `MutableKeycloakSystemRepository`.
   `url` must pass `kc-mcp.allowed-hosts`. `kc-mcp.admin.allow-new-systems=false` freezes the set: unknown aliases answer
   403 `registration_closed`, known systems stay changeable (reading stored systems only needs `kc-mcp.dynamic-systems`,
   not the admin API).
 - `signingKey`: `generate` (new pair in a creating vault), `existing` (vault already has one), absent (existing, else generate).
 - `"clientSecret": "vault:<name>"`: checked on registration, resolved on every connection; rotating the secret needs no
   system change.
-- Response: no secrets; `kid`, `jwksPath` (`/auth/keys/<alias>/jwks.json`), `jwksUrl`, entries.
+- Response: no secrets; `kid`, `jwksPath` (`/auth/keys/<alias>/jwks.json`), `jwksUrl`, entries, `createdAt` /
+  `updatedAt` (ISO-8601, from repositories that keep them: the database, not the static configuration).
 - `GET /admin/systems[/<alias>]`: all systems with `source` repository (configured ones read-only). `DELETE`: removes a
   registered system, keys stay. `POST /admin/systems/<alias>/signing-key`: rotates; JWKS lists the new key first, keeps
   the retired one for the grace period; Keycloak refetches on unknown `kid`.
@@ -248,8 +250,8 @@ KC_MCP_STORAGE_SECRET_KEY=$(openssl rand -base64 32) java -jar modules/backend/t
   the old key. Rows under a key configured nowhere are reported as `remaining`, never touched.
 - Pseudonyms are HMACs under `secret-key`, so a rotation changes them; `kc-mcp.spi.pii-audit-scrubber.pseudonym-key`
   gives the scrubber a key of its own.
-- `kc_mcp_system`: `alias` = system name (`system` argument, `/mcp/systems/<alias>`), `name` = display label, UUID primary key;
-  both changeable. `enabled=false`: kept, not served.
+- `kc_mcp_system`: `alias` = system name (`system` argument, `/mcp/systems/<alias>`), `name` = display label,
+  `description` free text, UUID primary key; all changeable. `enabled=false`: kept, not served.
 - Snapshot cache: rows reloaded when older than `kc-mcp.spi.db-systems.cache-seconds` (10; local writes reload at once).
   Tool calls cost no query; event-loop threads get the snapshot as is.
 - Programmatic access: `DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault`
@@ -277,9 +279,8 @@ public class TenantRegistryRepository implements KeycloakSystemRepository {
     public String id() { return "tenant-registry"; }
     public List<String> names() { return registry.tenantIds(); }
     public Optional<KeycloakSystem> find(String name) {
-        return registry.lookup(name).map(t -> new KeycloakSystem(name, t.keycloakUrl(), GrantType.CLIENT_CREDENTIALS,
-                ClientAuth.PRIVATE_KEY_JWT, "master", Optional.of("keycloak-mcp-server"), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.of(t.realm()), Set.of(t.realm()), Optional.empty()));
+        return registry.lookup(name).map(t -> KeycloakSystem.builder(name, t.keycloakUrl())
+                .clientId("keycloak-mcp-server").defaultRealm(t.realm()).allowedRealm(t.realm()).build());
     }
 }
 ```

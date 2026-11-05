@@ -26,6 +26,14 @@ public interface KeycloakSystemRepository extends Extension {
     Optional<KeycloakSystem> find(String name);
 
     /** All systems, in the order of {@link #names()}. */
+    /**
+     * When the record of a system was created and last changed, for repositories that
+     * keep that; empty by default and for unknown names.
+     */
+    default Optional<SystemTimestamps> timestamps(String name) {
+        return Optional.empty();
+    }
+
     default List<KeycloakSystem> all() {
         return names().stream().map(this::find).flatMap(Optional::stream).toList();
     }

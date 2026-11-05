@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema version 0.2.0: a description per system. -->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="4-system-description" author="keycloak-mcp-server">
+        <comment>Free text per system for people (what it is, who owns it); the admin API reads and writes it</comment>
+        <addColumn tableName="kc_mcp_system">
+            <column name="description" type="clob"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>
