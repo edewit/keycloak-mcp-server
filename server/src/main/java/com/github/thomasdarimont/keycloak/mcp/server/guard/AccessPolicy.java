@@ -7,8 +7,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+
+import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
@@ -17,7 +18,8 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.ToolProviderRegistry;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.ProviderRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.spi.Delegation;
 import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
@@ -38,6 +40,8 @@ import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
 @ApplicationScoped
 public class AccessPolicy {
 
+    private static final Logger LOG = Logger.getLogger(AccessPolicy.class);
+
     /**
      * Points the model at the tool that explains the current permissions instead of
      * retrying.
@@ -55,17 +59,19 @@ public class AccessPolicy {
     private final List<AccessCheck> globalChecks;
 
     @Inject
-    public AccessPolicy(McpServerConfig config, RoleDiscovery roles, ToolProviderRegistry registry,
-            Instance<AccessCheck> cdiChecks, KeycloakSystems systems) {
+    public AccessPolicy(McpServerConfig config, RoleDiscovery roles, ProviderRegistry registry, Extensions extensions,
+            KeycloakSystems systems) {
         this(config.readOnly(), config.allowedRealms().orElse(List.of()), config.allowedTools().orElse(List.of()),
                 config.deniedTools().orElse(List.of()), config.allowedCategories().orElse(List.of()), roles,
-                collectChecks(registry, cdiChecks),
+                collectChecks(registry, extensions),
                 name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()));
     }
 
-    private static List<AccessCheck> collectChecks(ToolProviderRegistry registry, Instance<AccessCheck> cdiChecks) {
+    /** The providers' checks first, then the ones registered on their own. */
+    private static List<AccessCheck> collectChecks(ProviderRegistry registry, Extensions extensions) {
         List<AccessCheck> checks = new ArrayList<>(registry.accessChecks());
-        for (AccessCheck c : cdiChecks) {
+        for (AccessCheck c : extensions.discover(AccessCheck.class)) {
+            LOG.infof("Access check %s registered", c.getClass().getName());
             checks.add(c);
         }
         return checks;

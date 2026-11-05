@@ -167,6 +167,17 @@ public interface McpServerConfig {
     @WithDefault("120")
     int confirmTimeoutSeconds();
 
+    /**
+     * Directory with extension jars ({@code ToolProvider}, {@code PromptProvider},
+     * {@code AccessCheck}, {@code Confirmer}, {@code AuditListener} implementations
+     * registered through {@code META-INF/services}), like Keycloak's {@code providers/}.
+     * A relative path is resolved against the directory of the application jar when the
+     * server runs packaged, else the working directory. A missing directory loads
+     * nothing. JVM mode only.
+     */
+    @WithDefault("providers")
+    String providersDir();
+
     interface SystemSettings {
         Optional<String> url();
 

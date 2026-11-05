@@ -17,7 +17,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.ToolProviderRegistry;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.ProviderRegistry;
 
 import io.vertx.core.json.JsonObject;
 
@@ -36,7 +36,7 @@ public class ToolCatalog {
     private final String defaultSystem;
 
     @Inject
-    public ToolCatalog(ToolProviderRegistry providers, McpServerConfig config, KeycloakSystems systems) {
+    public ToolCatalog(ProviderRegistry providers, McpServerConfig config, KeycloakSystems systems) {
         this(providers.specs(), commonDefaultRealm(systems), config.resultMaxItems(), config.hotTools(),
                 config.toolPrefix().orElse(""), systems.multiple() ? systems.names() : List.of(),
                 systems.defaultName().orElse(null));

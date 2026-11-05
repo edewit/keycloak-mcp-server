@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Optional;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
@@ -19,7 +18,8 @@ import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.ToolProviderRegistry;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.ProviderRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.PromptProvider;
 import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
 
@@ -63,19 +63,16 @@ public class McpPromptRegistrar {
     ProgressiveState progressive;
 
     @Inject
-    ToolProviderRegistry providers;
+    ProviderRegistry providers;
 
     @Inject
-    Instance<PromptProvider> cdiProviders;
+    Extensions extensions;
 
     private final List<PromptSpec> registered = new ArrayList<>();
 
     void onStart(@Observes StartupEvent event) {
         Map<String, PromptProvider> byId = new LinkedHashMap<>();
-        for (PromptProvider p : ToolProviderRegistry.discover(PromptProvider.class)) {
-            byId.putIfAbsent(p.id(), p);
-        }
-        for (PromptProvider p : cdiProviders) {
+        for (PromptProvider p : extensions.discover(PromptProvider.class)) {
             byId.putIfAbsent(p.id(), p);
         }
         for (PromptProvider p : byId.values()) {

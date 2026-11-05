@@ -75,6 +75,8 @@ services:
       QUARKUS_HTTP_HOST: 0.0.0.0
     volumes:
       - ./keys:/keys:ro
+      # extension jars, see README "Extension jars"
+      # - ./providers:/deployments/providers:ro
     ports:
       - "8081:8081"
     depends_on:

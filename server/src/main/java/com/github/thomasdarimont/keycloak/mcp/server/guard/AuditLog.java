@@ -8,14 +8,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.ToolProviderRegistry;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.spi.AuditListener;
 
 /**
@@ -42,13 +41,10 @@ public class AuditLog {
     private final List<AuditListener> listeners;
 
     @Inject
-    public AuditLog(Instance<AuditListener> cdiListeners) {
+    public AuditLog(Extensions extensions) {
         List<AuditListener> all = new ArrayList<>();
         all.add(LOG_LINE);
-        all.addAll(ToolProviderRegistry.discover(AuditListener.class));
-        for (AuditListener l : cdiListeners) {
-            all.add(l);
-        }
+        all.addAll(extensions.discover(AuditListener.class));
         this.listeners = List.copyOf(all);
         for (AuditListener l : listeners) {
             if (l != LOG_LINE) {

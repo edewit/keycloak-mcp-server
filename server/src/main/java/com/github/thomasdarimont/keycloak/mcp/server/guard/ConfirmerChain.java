@@ -4,13 +4,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Typed;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
-import com.github.thomasdarimont.keycloak.mcp.server.spi.ToolProviderRegistry;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
 
 /**
@@ -28,11 +27,8 @@ public class ConfirmerChain implements Confirmer {
     private final List<Confirmer> chain;
 
     @Inject
-    public ConfirmerChain(Instance<Confirmer> cdiConfirmers) {
-        List<Confirmer> all = new ArrayList<>(ToolProviderRegistry.discover(Confirmer.class));
-        for (Confirmer c : cdiConfirmers) {
-            all.add(c);
-        }
+    public ConfirmerChain(Extensions extensions) {
+        List<Confirmer> all = new ArrayList<>(extensions.discover(Confirmer.class));
         for (Confirmer c : all) {
             LOG.infof("Confirmer %s registered (order %d)", c.getClass().getName(), c.order());
         }

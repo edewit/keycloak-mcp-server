@@ -5,10 +5,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceLoader;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
@@ -23,13 +21,14 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
 
 /**
- * Discovers {@link ToolProvider}s (ServiceLoader + CDI), applies
- * {@code kc-mcp.spi.<id>.enabled}, initialises them in order and collects their tools.
+ * The {@link ToolProvider}s found by {@link Extensions}: applies
+ * {@code kc-mcp.spi.<id>.enabled}, initialises them in order and collects their tools and
+ * access checks.
  */
 @ApplicationScoped
-public class ToolProviderRegistry {
+public class ProviderRegistry {
 
-    private static final Logger LOG = Logger.getLogger(ToolProviderRegistry.class);
+    private static final Logger LOG = Logger.getLogger(ProviderRegistry.class);
 
     private final KeycloakSystems systems;
 
@@ -40,30 +39,17 @@ public class ToolProviderRegistry {
     private final List<AccessCheck> accessChecks;
 
     @Inject
-    public ToolProviderRegistry(Instance<ToolProvider> cdiProviders, KeycloakSystems systems,
-            McpServerConfig serverConfig) {
-        this(discover(cdiProviders), systems, serverConfig, discover(AccessCheck.class));
+    public ProviderRegistry(Extensions extensions, KeycloakSystems systems, McpServerConfig serverConfig) {
+        this(extensions.discover(ToolProvider.class), systems, serverConfig);
     }
 
-    public ToolProviderRegistry(List<ToolProvider> candidates, KeycloakSystems systems, McpServerConfig serverConfig) {
-        this(candidates, systems, serverConfig, List.of());
-    }
-
-    /**
-     * @param standaloneChecks global {@link AccessCheck}s registered on their own
-     * (ServiceLoader), evaluated after the providers' checks
-     */
-    public ToolProviderRegistry(List<ToolProvider> candidates, KeycloakSystems systems, McpServerConfig serverConfig,
-            List<AccessCheck> standaloneChecks) {
+    public ProviderRegistry(List<ToolProvider> candidates, KeycloakSystems systems, McpServerConfig serverConfig) {
         this.systems = systems;
         this.serverConfig = serverConfig;
         Map<String, ToolProvider> byId = new LinkedHashMap<>();
         for (ToolProvider p : candidates) {
             ToolProvider existing = byId.get(p.id());
             if (existing != null) {
-                if (existing.getClass().equals(p.getClass())) {
-                    continue; // same class seen via ServiceLoader and CDI
-                }
                 throw new IllegalStateException("Two tool providers share the id '" + p.id() + "': "
                         + existing.getClass().getName() + " and " + p.getClass().getName());
             }
@@ -88,39 +74,9 @@ public class ToolProviderRegistry {
             checks.addAll(p.accessChecks(ctx));
             active.add(p);
         }
-        for (AccessCheck c : standaloneChecks) {
-            LOG.infof("Access check %s registered", c.getClass().getName());
-            checks.add(c);
-        }
         this.providers = List.copyOf(active);
         this.specs = List.copyOf(all);
         this.accessChecks = List.copyOf(checks);
-    }
-
-    /**
-     * ServiceLoader lookup of an SPI on the context class loader (jars in
-     * {@code providers/} included).
-     */
-    public static <T> List<T> discover(Class<T> spi) {
-        List<T> found = new ArrayList<>();
-        ClassLoader cl = Thread.currentThread().getContextClassLoader();
-        if (cl == null) {
-            cl = ToolProviderRegistry.class.getClassLoader();
-        }
-        for (T t : ServiceLoader.load(spi, cl)) {
-            found.add(t);
-        }
-        return found;
-    }
-
-    static List<ToolProvider> discover(Instance<ToolProvider> cdiProviders) {
-        List<ToolProvider> found = discover(ToolProvider.class);
-        if (cdiProviders != null) {
-            for (ToolProvider p : cdiProviders) {
-                found.add(p);
-            }
-        }
-        return found;
     }
 
     /**
@@ -139,7 +95,7 @@ public class ToolProviderRegistry {
         return specs;
     }
 
-    /** Global access checks contributed by providers or registered on their own. */
+    /** Global access checks contributed by the providers. */
     public List<AccessCheck> accessChecks() {
         return accessChecks;
     }

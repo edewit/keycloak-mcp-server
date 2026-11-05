@@ -219,6 +219,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.result-max-items`       | `100`                       | cap for list results |
 | `kc-mcp.structured-content`     | `true`                      | mirror every result as MCP `structuredContent` next to the text block |
 | `kc-mcp.confirm-timeout-seconds`| `120`                       | elicitation timeout |
+| `kc-mcp.providers-dir`          | `providers`                 | directory with extension jars (see §Extension jars) |
 | `kc-mcp.spi.<provider>.<key>`   |                             | per tool-provider settings, `enabled=false` disables one |
 | `quarkus.http.cors.origins`     | local origins               | browser based MCP clients only; set to the client origin(s) in production |
 
@@ -278,14 +279,30 @@ public class AcmeToolProvider implements ToolProvider {
 
 Annotate it with `@AutoService(ToolProvider.class)` (Google AutoService generates the
 `META-INF/services/com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider` entry at compile time; writing that file by hand or making
-the class a CDI bean works too). Jars placed in `target/quarkus-app/providers/` are picked up at startup
-(`quarkus.package.jar.user-providers-directory`).
+the class a CDI bean works too).
 Provider tools automatically get search, exposure modes, validation, realm checks, confirmation and the audit log.
 The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`,
 `realm`) use the same SPI and can be switched off with `kc-mcp.spi.<id>.enabled=false`.
 
 Global `AccessCheck`s (see §Per-tool access checks) are extension points of their own: `@AutoService(AccessCheck.class)`
 on the class, a CDI bean, or `ToolProvider.accessChecks(...)` all register a check that runs on every call.
+
+### Extension jars: `providers/`
+
+Like Keycloak, the server loads extension jars from a `providers/` directory at startup (`kc-mcp.providers-dir`,
+env `KC_MCP_PROVIDERS_DIR`): every `ToolProvider`, `PromptProvider`, `AccessCheck`, `Confirmer` or `AuditListener`
+registered in the jar's `META-INF/services` joins the ones on the class path. A relative directory is resolved
+against the directory of `quarkus-run.jar` when the packaged server runs (`target/quarkus-app/providers/`, created
+by the build) and against the working directory otherwise (dev mode: `./providers`). The jars are loaded by a
+class loader on top of the application, so they see the api and the server classes but are not CDI beans and
+cannot be in native images; an extension that needs CDI goes on the class path as a Maven dependency instead.
+The Docker image reads `/deployments/providers` (`docker-compose.yml` has a volume line for it).
+
+```shell
+./mvnw package -DskipTests
+cp acme-tools.jar server/target/quarkus-app/providers/
+java -jar server/target/quarkus-app/quarkus-run.jar      # log: Extensions directory .../providers: [acme-tools.jar]
+```
 
 `Confirmer` decides whether a destructive call may run (`@AutoService(Confirmer.class)` or a CDI bean, ordered by
 `order()`). The request carries the tool, realm, arguments, the `confirm` flag, the caller and a `Prompter` that
