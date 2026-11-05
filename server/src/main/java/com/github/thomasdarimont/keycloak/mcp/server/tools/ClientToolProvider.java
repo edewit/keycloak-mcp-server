@@ -335,7 +335,11 @@ public class ClientToolProvider extends AbstractToolProvider {
             .bool("pkce", "Require PKCE with S256")
             .bool("bearerOnly", "Bearer-only (resource server, no login)")
             .bool("authorizationServicesEnabled",
-                    "Authorization services (fine-grained permissions, UMA); " + "needs a confidential client");
+                    "Authorization services (fine-grained permissions, UMA); " + "needs a confidential client")
+            .stringMap("attributes",
+                    "Client attributes to set, merged into the existing ones; an empty value "
+                            + "removes one. E.g. acr.loa.map, default.acr.values, post.logout.redirect.uris, "
+                            + "access.token.lifespan, pkce.code.challenge.method");
     }
 
     // ---- handlers
@@ -367,6 +371,15 @@ public class ClientToolProvider extends AbstractToolProvider {
             Views.put(m, "pkceMethod", c.getAttributes().get("pkce.code.challenge.method"));
             Views.put(m, "postLogoutRedirectUris", c.getAttributes().get("post.logout.redirect.uris"));
             Views.put(m, "accessTokenLifespan", c.getAttributes().get("access.token.lifespan"));
+            Map<String, String> attrs = new java.util.TreeMap<>();
+            c.getAttributes().forEach((k, v) -> {
+                if (v != null && !v.isBlank()) {
+                    attrs.put(k, v);
+                }
+            });
+            if (!attrs.isEmpty()) {
+                m.put("attributes", attrs);
+            }
         }
         Views.put(m, "defaultClientScopes", c.getDefaultClientScopes());
         Views.put(m, "optionalClientScopes", c.getOptionalClientScopes());
@@ -484,6 +497,15 @@ public class ClientToolProvider extends AbstractToolProvider {
         if (call.has("authorizationServicesEnabled")) {
             c.setAuthorizationServicesEnabled(call.bool("authorizationServicesEnabled"));
             changed.add("authorizationServicesEnabled");
+        }
+        if (call.has("attributes")) {
+            Map<String, String> attrs = c.getAttributes() == null ? new LinkedHashMap<>()
+                    : new LinkedHashMap<>(c.getAttributes());
+            // Keycloak only touches the attributes present in the update: an empty value
+            // is how one is cleared
+            call.stringMap("attributes").forEach((k, v) -> attrs.put(k, v == null ? "" : v));
+            c.setAttributes(attrs);
+            changed.add("attributes");
         }
         if (call.has("pkce")) {
             Map<String, String> attrs = c.getAttributes() == null ? new LinkedHashMap<>()

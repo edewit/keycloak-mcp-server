@@ -309,8 +309,20 @@ class KeycloakIT {
         JsonObject upd = call("keycloak_client_update",
                 new JsonObject().put("clientId", "my-app")
                     .put("webOrigins", "+")
-                    .put("directAccessGrantsEnabled", "true"));
+                    .put("directAccessGrantsEnabled", "true")
+                    .put("attributes", new JsonObject().put("default.acr.values", "silver")
+                        .put("acr.loa.map", "{\"silver\":1,\"gold\":2}")));
         assertTrue(upd.getJsonArray("changed").contains("webOrigins"));
+        assertTrue(upd.getJsonArray("changed").contains("attributes"));
+        JsonObject attrs = call("keycloak_client_get", new JsonObject().put("clientId", "my-app"))
+            .getJsonObject("attributes");
+        assertEquals("silver", attrs.getString("default.acr.values"), attrs.encode());
+        assertEquals("S256", attrs.getString("pkce.code.challenge.method"),
+                "other attributes untouched: " + attrs.encode());
+        call("keycloak_client_update", new JsonObject().put("clientId", "my-app")
+            .put("attributes", new JsonObject().put("default.acr.values", "")));
+        assertFalse(call("keycloak_client_get", new JsonObject().put("clientId", "my-app")).getJsonObject("attributes")
+            .containsKey("default.acr.values"), "empty value removes the attribute");
         assertEquals("+",
                 call("keycloak_client_get", new JsonObject().put("clientId", "my-app")).getJsonArray("webOrigins")
                     .getString(0));
@@ -504,6 +516,37 @@ class KeycloakIT {
                     .put("executionId", exec2.getString("executionId"))
                     .put("requirement", "DISABLED"));
         assertEquals("DISABLED", updated.getString("requirement"));
+
+        // authenticator config: a role condition on the forms sub-flow
+        JsonObject cond = call("keycloak_auth_flow_execution_add",
+                new JsonObject().put("flowAlias", "passkey forms")
+                    .put("providerId", "conditional-user-role")
+                    .put("requirement", "REQUIRED"));
+        String condId = cond.getString("executionId");
+        JsonObject empty = call("keycloak_auth_flow_execution_config_get", new JsonObject().put("executionId", condId));
+        assertTrue(empty.getJsonObject("config").isEmpty(), empty.encode());
+        assertTrue(empty.getJsonArray("settings")
+            .stream()
+            .map(p -> (JsonObject) p)
+            .anyMatch(p -> "condUserRole".equals(p.getString("name"))), empty.encode());
+        JsonObject created = call("keycloak_auth_flow_execution_config_set",
+                new JsonObject().put("executionId", condId)
+                    .put("alias", "admins only")
+                    .put("config", new JsonObject().put("condUserRole", "admin").put("negate", "false")));
+        assertEquals("admins only", created.getString("alias"), created.encode());
+        JsonObject merged = call("keycloak_auth_flow_execution_config_set",
+                new JsonObject().put("executionId", condId).put("config", new JsonObject().put("negate", "true")));
+        assertEquals("admin", merged.getJsonObject("config").getString("condUserRole"), merged.encode());
+        assertEquals("true", merged.getJsonObject("config").getString("negate"), merged.encode());
+        JsonObject read = call("keycloak_auth_flow_execution_config_get", new JsonObject().put("executionId", condId));
+        assertEquals(created.getString("configId"), read.getString("configId"), read.encode());
+        assertEquals("true", read.getJsonObject("config").getString("negate"), read.encode());
+        assertTrue(call("keycloak_auth_flow_executions_list", new JsonObject().put("flowAlias", "passkey forms"))
+            .getJsonArray("items")
+            .stream()
+            .map(i -> (JsonObject) i)
+            .anyMatch(i -> condId.equals(i.getString("id"))
+                    && created.getString("configId").equals(i.getString("configId"))));
         JsonObject bad = error("keycloak_auth_flow_execution_update",
                 new JsonObject().put("flowAlias", "passkey")
                     .put("executionId", exec2.getString("executionId"))
@@ -519,7 +562,8 @@ class KeycloakIT {
                 new JsonObject().put("binding", "browserFlow").put("flowAlias", "browser").put("confirm", true));
         call("keycloak_auth_flow_execution_delete",
                 new JsonObject().put("executionId", exec2.getString("executionId")).put("confirm", true));
-        assertEquals(2, call("keycloak_auth_flow_executions_list", new JsonObject().put("flowAlias", "passkey"))
+        // sub-flow, webauthn and the role condition added above remain
+        assertEquals(3, call("keycloak_auth_flow_executions_list", new JsonObject().put("flowAlias", "passkey"))
             .getInteger("count"));
 
         JsonObject actions = call("keycloak_auth_required_actions_list", new JsonObject());
@@ -603,7 +647,7 @@ class KeycloakIT {
     @Order(12)
     void secondSystemIsSelectable() {
         JsonArray tools = mcp.listTools();
-        assertEquals(81, tools.size(), "direct mode lists every tool across pages, plus whoami");
+        assertEquals(83, tools.size(), "direct mode lists every tool across pages, plus whoami");
         JsonObject search = tools.stream()
             .map(t -> (JsonObject) t)
             .filter(t -> t.getString("name").equals("keycloak_user_search"))

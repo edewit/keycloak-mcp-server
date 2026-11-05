@@ -399,11 +399,11 @@ user in with that pre-registered client (`example/mcp-oauth.json`):
 | users, sessions | search, get, create, update, set_enabled, delete, reset_password, send_action_email, sessions_list, logout |
 | groups          | list (search matches subgroups), get (roles a group grants, incl. inherited), create, delete, members_list, member_add, member_remove, user_groups_list, role_assign |
 | roles           | role_list, client_roles_list, user_roles_get (direct + effective realm and client roles, groups, and the source of each role), user_role_assign/unassign, user_client_roles_get, user_client_role_assign/unassign |
-| clients, scopes | list, get, get_secret, regenerate_secret, create, update, delete, mappers_list, scopes_list, default_scopes_get, scope_assign/unassign, example_token (access/ID token, userinfo or SAML response a user would get, like the admin console's *Evaluate* tab), evaluate_scopes (effective mappers and realm roles), authz_resources_list, authz_policies_list, authz_permissions_list |
+| clients, scopes | list, get, get_secret, regenerate_secret, create, update (incl. `attributes` for ACR/LoA, logout URIs, token lifespans), delete, mappers_list, scopes_list, default_scopes_get, scope_assign/unassign, example_token (access/ID token, userinfo or SAML response a user would get, like the admin console's *Evaluate* tab), evaluate_scopes (effective mappers and realm roles), authz_resources_list, authz_policies_list, authz_permissions_list |
 | idp             | list, get, mappers_list, create, delete |
 | orgs            | list, get, create, delete, idp_list, idp_link, idp_unlink |
 | federation      | list, get, sync |
-| auth flows      | flows_list, executions_list, authenticator_providers_list, flow_create/copy/bind, execution_add/update/raise/lower/delete, subflow_add, required_actions_list, required_action_set_enabled |
+| auth flows      | flows_list, executions_list, authenticator_providers_list, flow_create/copy/bind, execution_add/update/raise/lower/delete, execution_config_get/set (authenticator settings such as conditions and LoA, with the provider\'s setting names and help), subflow_add, required_actions_list, required_action_set_enabled |
 | events          | events_login, events_admin |
 | realm           | server_info (version per system), server_features (all feature flags with type and status, or one by name), realm_get_config, realm_update |
 

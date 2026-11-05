@@ -8,7 +8,11 @@ import java.util.Objects;
 
 import org.keycloak.admin.client.resource.AuthenticationManagementResource;
 import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
+import org.keycloak.representations.idm.AuthenticationExecutionRepresentation;
 import org.keycloak.representations.idm.AuthenticationFlowRepresentation;
+import org.keycloak.representations.idm.AuthenticatorConfigInfoRepresentation;
+import org.keycloak.representations.idm.AuthenticatorConfigRepresentation;
+import org.keycloak.representations.idm.ConfigPropertyRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RequiredActionProviderRepresentation;
 
@@ -192,6 +196,45 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
                     .api(put(R + "/authentication/flows/{flowAlias}/executions").path("flowAlias", "flowAlias")
                         .body("AuthenticationExecutionInfoRepresentation", "requirement"))
                     .build(),
+                tool("keycloak_auth_flow_execution_config_get").title("Get execution config")
+                    .description("The authenticator config of a flow execution (alias and settings) plus the settings "
+                            + "its provider accepts, with help texts and defaults.")
+                    .category(Category.AUTH_FLOWS)
+                    .read()
+                    .synonyms("authenticator config", "execution settings", "condition config",
+                            "configure authenticator", "which settings", "loa", "level of authentication",
+                            "otp settings")
+                    .schema(schema().string("executionId", EXECUTION_ID).required())
+                    .handler(this::executionConfigGet)
+                    .roles("view-realm")
+                    .api(get(R + "/authentication/executions/{executionId}").path("executionId", "executionId"),
+                            get(R + "/authentication/config/{id}").derivedPath("id"),
+                            get(R + "/authentication/config-description/{providerId}").derivedPath("providerId"))
+                    .build(),
+                tool("keycloak_auth_flow_execution_config_set").title("Set execution config")
+                    .description("Create or update a flow execution's authenticator config; settings are merged, "
+                            + "an empty value removes one. Get it first for the names.")
+                    .category(Category.AUTH_FLOWS)
+                    .write()
+                    .idempotent(true)
+                    .synonyms("authenticator config", "configure condition", "configure authenticator",
+                            "execution settings", "loa", "level of authentication", "acr", "otp settings",
+                            "user role condition")
+                    .schema(schema().string("executionId", EXECUTION_ID)
+                        .required()
+                        .stringMap("config",
+                                "Settings, e.g. {\"condition.user.role\": \"admin\"} or {\"loa-condition-level\": \"2\"}")
+                        .required()
+                        .string("alias", "Config alias, shown in the admin console (default: provider id + execution)"))
+                    .handler(this::executionConfigSet)
+                    .roles("manage-realm")
+                    .api(get(R + "/authentication/executions/{executionId}").path("executionId", "executionId"),
+                            post(R + "/authentication/executions/{executionId}/config")
+                                .path("executionId", "executionId")
+                                .body("AuthenticatorConfigRepresentation", "alias", "config"),
+                            put(R + "/authentication/config/{id}").derivedPath("id")
+                                .body("AuthenticatorConfigRepresentation", "alias", "config"))
+                    .build(),
                 tool("keycloak_auth_flow_execution_raise_priority").title("Move execution up")
                     .description("Move a step one position up in its flow.")
                     .category(Category.AUTH_FLOWS)
@@ -334,6 +377,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         if (Boolean.TRUE.equals(e.getConfigurable())) {
             v.put("configurable", true);
         }
+        Views.put(v, "configId", e.getAuthenticationConfig());
         Views.put(v, "requirementChoices", e.getRequirementChoices());
         return v;
     }
@@ -483,6 +527,91 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         setRequirement(call, flowAlias, e, requirement);
         return ToolResult.done("Requirement set", "executionId", e.getId(), "displayName", e.getDisplayName(),
                 "requirement", requirement);
+    }
+
+    // ---- authenticator config
+    // ------------------------------------------------------------
+
+    ToolResult executionConfigGet(ToolCall call) {
+        AuthenticationManagementResource flows = flowsOf(call);
+        AuthenticationExecutionRepresentation e = flows.getExecution(call.str("executionId"));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("executionId", e.getId());
+        Views.put(out, "providerId", e.getAuthenticator());
+        if (e.getAuthenticatorConfig() != null) {
+            AuthenticatorConfigRepresentation c = flows.getAuthenticatorConfig(e.getAuthenticatorConfig());
+            out.put("configId", c.getId());
+            Views.put(out, "alias", c.getAlias());
+            out.put("config", c.getConfig() == null ? Map.of() : new java.util.TreeMap<>(c.getConfig()));
+        }
+        else {
+            out.put("config", Map.of());
+        }
+        if (e.getAuthenticator() != null) {
+            try {
+                AuthenticatorConfigInfoRepresentation info = flows
+                    .getAuthenticatorConfigDescription(e.getAuthenticator());
+                List<Map<String, Object>> props = new ArrayList<>();
+                if (info != null && info.getProperties() != null) {
+                    for (ConfigPropertyRepresentation p : info.getProperties()) {
+                        Map<String, Object> v = new LinkedHashMap<>();
+                        v.put("name", p.getName());
+                        Views.put(v, "label", p.getLabel());
+                        Views.put(v, "type", p.getType());
+                        Views.put(v, "help", p.getHelpText());
+                        Views.put(v, "default", p.getDefaultValue());
+                        if (p.getOptions() != null && !p.getOptions().isEmpty()) {
+                            v.put("options", p.getOptions());
+                        }
+                        props.add(v);
+                    }
+                }
+                out.put("settings", props);
+            }
+            catch (RuntimeException ex) {
+                out.put("settings", List.of()); // provider without a config description
+            }
+        }
+        return ToolResult.ok(out);
+    }
+
+    ToolResult executionConfigSet(ToolCall call) {
+        AuthenticationManagementResource flows = flowsOf(call);
+        AuthenticationExecutionRepresentation e = flows.getExecution(call.str("executionId"));
+        Map<String, String> given = call.stringMap("config");
+        if (e.getAuthenticatorConfig() != null) {
+            AuthenticatorConfigRepresentation c = flows.getAuthenticatorConfig(e.getAuthenticatorConfig());
+            Map<String, String> merged = c.getConfig() == null ? new LinkedHashMap<>()
+                    : new LinkedHashMap<>(c.getConfig());
+            given.forEach((k, v) -> {
+                if (v == null || v.isBlank()) {
+                    merged.remove(k);
+                }
+                else {
+                    merged.put(k, v);
+                }
+            });
+            c.setConfig(merged);
+            if (call.has("alias")) {
+                c.setAlias(call.str("alias"));
+            }
+            flows.updateAuthenticatorConfig(c.getId(), c);
+            return ToolResult.done("Config updated", "executionId", e.getId(), "configId", c.getId(), "alias",
+                    c.getAlias(), "config", new java.util.TreeMap<>(merged));
+        }
+        AuthenticatorConfigRepresentation c = new AuthenticatorConfigRepresentation();
+        String alias = call.str("alias", e.getAuthenticator() + "-" + e.getId().substring(0, 8));
+        c.setAlias(alias);
+        Map<String, String> config = new LinkedHashMap<>();
+        given.forEach((k, v) -> {
+            if (v != null && !v.isBlank()) {
+                config.put(k, v);
+            }
+        });
+        c.setConfig(config);
+        String id = KeycloakAdmin.created(flows.newExecutionConfig(e.getId(), c));
+        return ToolResult.done("Config created", "executionId", e.getId(), "configId", id, "alias", alias, "config",
+                new java.util.TreeMap<>(config));
     }
 
     ToolResult raise(ToolCall call) {
