@@ -8,8 +8,11 @@ import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.jboss.logging.Logger;
+
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAllowList;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakErrors;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
@@ -23,17 +26,38 @@ import com.github.thomasdarimont.keycloak.mcp.server.guard.ErrorMapper;
 @ApplicationScoped
 public class DefaultKeycloakSystems implements KeycloakSystems {
 
+    private static final Logger LOG = Logger.getLogger(DefaultKeycloakSystems.class);
+
     private final Map<String, KeycloakAdmin> admins = new LinkedHashMap<>();
     private final String defaultName;
 
     @Inject
     public DefaultKeycloakSystems(McpServerConfig config, JwtKeyMaterial jwtKeys) {
-        this(resolve(config), config.defaultSystem().orElse(null), jwtKeys);
+        this(resolve(config), config.defaultSystem().orElse(null), jwtKeys,
+                HostAllowList.of(config.allowedHosts().orElse(List.of())));
     }
 
     public DefaultKeycloakSystems(List<KeycloakSystem> systems, String defaultSystem, JwtKeyMaterial jwtKeys) {
+        this(systems, defaultSystem, jwtKeys, HostAllowList.ANY);
+    }
+
+    /**
+     * @param allowedHosts the hosts the server may talk to; a system outside the list
+     * aborts the startup
+     */
+    public DefaultKeycloakSystems(List<KeycloakSystem> systems, String defaultSystem, JwtKeyMaterial jwtKeys,
+            HostAllowList allowedHosts) {
         if (systems.isEmpty()) {
             throw new IllegalStateException("No Keycloak system configured");
+        }
+        for (KeycloakSystem s : systems) {
+            if (!allowedHosts.permits(s.url())) {
+                throw new IllegalStateException("Keycloak system '" + s.name() + "' at " + s.url()
+                        + " is not covered by kc-mcp.allowed-hosts " + allowedHosts.patterns());
+            }
+        }
+        if (!allowedHosts.unrestricted()) {
+            LOG.infof("Keycloak hosts restricted to %s", allowedHosts.patterns());
         }
         for (KeycloakSystem s : systems) {
             admins.put(s.name(), new DefaultKeycloakAdmin(s, jwtKeys));

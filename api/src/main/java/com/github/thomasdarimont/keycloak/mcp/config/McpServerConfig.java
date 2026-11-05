@@ -119,6 +119,15 @@ public interface McpServerConfig {
     /** Realms the server may touch. Empty = all realms. */
     Optional<List<String>> allowedRealms();
 
+    /**
+     * Hosts the server may talk to: every configured Keycloak URL (top level and per
+     * system) must match one of these patterns, checked at startup. Pattern
+     * {@code [scheme://]host[:port]} with {@code *} wildcards, e.g.
+     * {@code *.example.com}, {@code https://sso-*.corp.example.org},
+     * {@code localhost:8080}. Empty = no restriction.
+     */
+    Optional<List<String>> allowedHosts();
+
     /** Hide and refuse every WRITE / DESTRUCTIVE tool. */
     @WithDefault("false")
     boolean readOnly();

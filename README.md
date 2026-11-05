@@ -57,6 +57,9 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
 * `KC_MCP_READ_ONLY=true` hides and refuses every WRITE/DESTRUCTIVE tool.
 * `KC_MCP_ALLOWED_REALMS=a,b` restricts every call to those realms; a startup check verifies the credentials reach
   them (`kc-mcp.startup-check=warn|fail|off`).
+* `KC_MCP_ALLOWED_HOSTS=*.example.com,localhost:8080` pins which Keycloak servers this instance may talk to: every
+  configured URL (top level and per system) must match one `[scheme://]host[:port]` pattern, else the server
+  refuses to start. Guards against a production URL slipping into a development deployment, and the reverse.
 * `KC_MCP_ALLOWED_TOOLS`, `KC_MCP_DENIED_TOOLS`, `KC_MCP_ALLOWED_CATEGORIES` narrow the tool set explicitly.
 * **Role filtering** (`kc-mcp.role-filter`, on by default): every tool declares the roles it needs
   (`ToolSpec.roles(...)`): `view-users` is shorthand for the `realm-management` client role, `my-app.auditor` is a
@@ -210,6 +213,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.explanations`           | `auto`                      | for whom refusals are worded: `admins` (configuration details, `howToFix`), `users` (plain words, an administrator can change it), `auto` (by the caller's roles in delegation mode, else admins) |
 | `kc-mcp.version`                | read from the server        | Keycloak version of the (default) system when the server info is not readable or should be overridden (see §Supported Keycloak versions) |
 | `kc-mcp.default-system`         | the only system             | system used when the `system` argument is omitted |
+| `kc-mcp.allowed-hosts`          | any                         | `[scheme://]host[:port]` patterns with `*` the configured Keycloak URLs must match, checked at startup (`*.example.com`, `https://sso-*.corp.example.org`, `localhost:8080`) |
 | `kc-mcp.tool-prefix`            |                             | prefix for all tool names, e.g. `prod_` |
 | `kc-mcp.allowed-realms`         | all                         | csv allow-list |
 | `kc-mcp.read-only`              | `false`                     | |

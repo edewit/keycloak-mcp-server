@@ -28,8 +28,9 @@ public class TestConfig implements ConfigSource {
             Map.entry("kc-mcp.jwt.key-file", ""), Map.entry("kc-mcp.jwt.algorithm", "RS256"),
             Map.entry("kc-mcp.delegation", "off"), Map.entry("kc-mcp.default-system", ""),
             Map.entry("kc-mcp.default-realm", ""), Map.entry("kc-mcp.allowed-realms", ""),
-            Map.entry("kc-mcp.denied-tools", ""), Map.entry("kc-mcp.read-only", "false"),
-            Map.entry("kc-mcp.tool-exposure", "hybrid"), Map.entry("kc-mcp.startup-check", "off"),
+            Map.entry("kc-mcp.allowed-hosts", ""), Map.entry("kc-mcp.denied-tools", ""),
+            Map.entry("kc-mcp.read-only", "false"), Map.entry("kc-mcp.tool-exposure", "hybrid"),
+            Map.entry("kc-mcp.startup-check", "off"),
             // provider settings are a map of plain strings, so they take real values
             // rather than blanks
             Map.entry("kc-mcp.spi.policies.group-scope", "off"), Map.entry("kc-mcp.spi.policies.no-escalation", "true"),
