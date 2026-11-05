@@ -108,6 +108,18 @@ To switch users, remove the server in LM Studio and add it again, or log the use
 console. Other MCP clients need their own callback added to `mcp-consumer`'s redirect URIs (Keycloak allows `*`
 only at the end of a URI). A token obtained for `demo-app` is rejected with `401` because it lacks `aud=mcp-admin`.
 
+## MCP prompts
+
+The server also offers task recipes as MCP prompts (`keycloak_onboard_user`, `keycloak_login_troubleshoot`), each
+with the tools it needs attached. Clients that expose prompts show them in their prompt picker; for one that does
+not, fetch the rendered text and paste it into the chat:
+
+```shell
+example/prompt.sh                                                       # list prompts and arguments
+example/prompt.sh keycloak_onboard_user realm=demo username=nina email=nina@example.com groups=/devs
+MCP_TOKEN=<access token> example/prompt.sh ...                          # with env/user-forward.env
+```
+
 ## Prompts to try
 
 1. "Which users are in the demo realm?"
