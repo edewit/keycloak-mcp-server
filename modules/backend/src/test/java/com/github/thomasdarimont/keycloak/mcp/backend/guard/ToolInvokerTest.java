@@ -12,6 +12,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 
 import io.vertx.core.json.JsonObject;
 
@@ -28,7 +29,7 @@ class ToolInvokerTest {
         return new ToolInvoker(catalog, new AccessPolicy(readOnly, realms), confirmer, 50);
     }
 
-    private static Confirmer fixed(Confirmer.Decision d) {
+    private static Confirmer fixed(Decision d) {
         return req -> d;
     }
 
@@ -39,7 +40,7 @@ class ToolInvokerTest {
     @Test
     void happyPathResolvesRealmAndClampsMax() {
         ToolSpec spec = catalog.get("keycloak_user_search").orElseThrow();
-        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec,
+        ToolResult r = invoker(false, List.of(), fixed(Decision.CONFIRMED)).invoke(spec,
                 Map.of("realm", "demo", "max", 999, "search", "bob"), false, ctx);
         assertFalse(r.isError(), r.toJson());
         String json = r.toJson();
@@ -50,13 +51,11 @@ class ToolInvokerTest {
     @Test
     void realmRequiredWithoutDefault() {
         ToolSpec spec = catalog.get("keycloak_user_search").orElseThrow();
-        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec, Map.of(), false,
-                ctx);
+        ToolResult r = invoker(false, List.of(), fixed(Decision.CONFIRMED)).invoke(spec, Map.of(), false, ctx);
         assertTrue(r.isError());
         assertEquals("invalid_arguments", payload(r).get("error"));
         ToolCatalog withDefault = Fixtures.catalog("demo");
-        ToolResult ok = new ToolInvoker(withDefault, new AccessPolicy(false, List.of()),
-                fixed(Confirmer.Decision.CONFIRMED), 50)
+        ToolResult ok = new ToolInvoker(withDefault, new AccessPolicy(false, List.of()), fixed(Decision.CONFIRMED), 50)
             .invoke(withDefault.get("keycloak_user_search").orElseThrow(), Map.of(), false, ctx);
         assertFalse(ok.isError());
         assertTrue(ok.toJson().contains("\"realm\":\"demo\""));
@@ -65,8 +64,8 @@ class ToolInvokerTest {
     @Test
     void realmAllowList() {
         ToolSpec spec = catalog.get("keycloak_user_search").orElseThrow();
-        ToolResult r = invoker(false, List.of("a", "b"), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec,
-                Map.of("realm", "c"), false, ctx);
+        ToolResult r = invoker(false, List.of("a", "b"), fixed(Decision.CONFIRMED)).invoke(spec, Map.of("realm", "c"),
+                false, ctx);
         assertTrue(r.isError());
         assertEquals("realm_not_allowed", payload(r).get("error"));
         assertEquals(List.of("a", "b"), ((List<?>) payload(r).get("allowed")).stream().sorted().toList());
@@ -75,10 +74,10 @@ class ToolInvokerTest {
     @Test
     void readOnlyBlocksWrites() {
         ToolSpec spec = catalog.get("keycloak_user_set_enabled").orElseThrow();
-        ToolResult r = invoker(true, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec,
+        ToolResult r = invoker(true, List.of(), fixed(Decision.CONFIRMED)).invoke(spec,
                 Map.of("realm", "demo", "id", "1", "enabled", false), false, ctx);
         assertEquals("read_only_mode", payload(r).get("error"));
-        ToolResult read = invoker(true, List.of(), fixed(Confirmer.Decision.CONFIRMED))
+        ToolResult read = invoker(true, List.of(), fixed(Decision.CONFIRMED))
             .invoke(catalog.get("keycloak_user_search").orElseThrow(), Map.of("realm", "demo"), false, ctx);
         assertFalse(read.isError());
     }
@@ -86,7 +85,7 @@ class ToolInvokerTest {
     @Test
     void invalidArgumentsReturnProblemsAndSchema() {
         ToolSpec spec = catalog.get("keycloak_user_set_enabled").orElseThrow();
-        ToolResult r = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec,
+        ToolResult r = invoker(false, List.of(), fixed(Decision.CONFIRMED)).invoke(spec,
                 Map.of("realm", "demo", "id", "1"), false, ctx);
         Map<String, Object> p = payload(r);
         assertEquals("invalid_arguments", p.get("error"));
@@ -99,13 +98,12 @@ class ToolInvokerTest {
         ToolSpec spec = catalog.get("keycloak_user_delete").orElseThrow();
         Map<String, Object> args = Map.of("realm", "demo", "id", "1");
         assertEquals("confirmation_required",
-                payload(invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMATION_REQUIRED)).invoke(spec, args,
-                        false, ctx))
+                payload(invoker(false, List.of(), fixed(Decision.CONFIRMATION_REQUIRED)).invoke(spec, args, false, ctx))
                     .get("error"));
         assertEquals("cancelled",
-                payload(invoker(false, List.of(), fixed(Confirmer.Decision.DECLINED)).invoke(spec, args, false, ctx))
+                payload(invoker(false, List.of(), fixed(Decision.DECLINED)).invoke(spec, args, false, ctx))
                     .get("error"));
-        ToolResult ok = invoker(false, List.of(), fixed(Confirmer.Decision.CONFIRMED)).invoke(spec, args, false, ctx);
+        ToolResult ok = invoker(false, List.of(), fixed(Decision.CONFIRMED)).invoke(spec, args, false, ctx);
         assertFalse(ok.isError());
         assertEquals("deleted", payload(ok).get("message"));
     }
@@ -132,7 +130,7 @@ class ToolInvokerTest {
             })
             .build();
         ToolCatalog c = new ToolCatalog(List.of(failing), null, 10, List.of());
-        ToolResult r = new ToolInvoker(c, new AccessPolicy(false, List.of()), fixed(Confirmer.Decision.CONFIRMED), 10)
+        ToolResult r = new ToolInvoker(c, new AccessPolicy(false, List.of()), fixed(Decision.CONFIRMED), 10)
             .invoke(failing, Map.of(), false, ctx);
         assertTrue(r.isError());
         assertEquals("not_found", payload(r).get("error"));
@@ -166,7 +164,7 @@ class ToolInvokerTest {
         ToolCatalog cat = new ToolCatalog(List.of(echo), "(per system)", 10, List.of(), "", List.of("a", "b"), "a");
         AccessPolicy policy = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(),
                 name -> systems.get(name).system().allowedRealms());
-        ToolInvoker inv = new ToolInvoker(cat, policy, fixed(Confirmer.Decision.CONFIRMED), 10, systems);
+        ToolInvoker inv = new ToolInvoker(cat, policy, fixed(Decision.CONFIRMED), 10, systems);
         ToolSpec spec = cat.get("keycloak_echo").orElseThrow();
 
         Map<String, Object> viaDefault = payload(inv.invoke(spec, Map.of(), false, ctx));
@@ -184,7 +182,7 @@ class ToolInvokerTest {
         com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems noDefault = new com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems(
                 List.of(a, b), null, null);
         ToolCatalog cat2 = new ToolCatalog(List.of(echo), null, 10, List.of(), "", List.of("a", "b"), null);
-        ToolInvoker inv2 = new ToolInvoker(cat2, policy, fixed(Confirmer.Decision.CONFIRMED), 10, noDefault);
+        ToolInvoker inv2 = new ToolInvoker(cat2, policy, fixed(Decision.CONFIRMED), 10, noDefault);
         assertEquals("invalid_arguments",
                 payload(inv2.invoke(cat2.get("keycloak_echo").orElseThrow(), Map.of("realm", "demo"), false, ctx))
                     .get("error"),
@@ -214,8 +212,8 @@ class ToolInvokerTest {
             .handler(call -> ToolResult.ok(Map.of("system", call.system(), "realm", call.realm())))
             .build();
         ToolCatalog c = new ToolCatalog(List.of(echo), null, 50, List.of(), "", List.of("a", "b"), "a");
-        ToolInvoker inv = new ToolInvoker(c, new AccessPolicy(false, List.of()), fixed(Confirmer.Decision.CONFIRMED),
-                10, systems);
+        ToolInvoker inv = new ToolInvoker(c, new AccessPolicy(false, List.of()), fixed(Decision.CONFIRMED), 10,
+                systems);
 
         InvocationContext onB = InvocationContext.none().withBinding(new EntryBinding("b", null));
         Map<String, Object> r = payload(inv.invoke(echo, Map.of("realm", "only-b"), false, onB));

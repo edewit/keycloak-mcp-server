@@ -2,7 +2,9 @@ package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
 import java.util.Optional;
 
+import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 
 import io.vertx.core.json.JsonObject;
 
@@ -14,7 +16,7 @@ import io.vertx.core.json.JsonObject;
 public class DefaultConfirmer implements Confirmer {
 
     @Override
-    public Decision confirm(Request r) {
+    public Decision confirm(ConfirmationRequest r) {
         if (r.prompter().available()) {
             String message = "Confirm " + r.tool().title().toLowerCase()
                     + (r.realm() != null ? " in realm '" + r.realm() + "'" : "") + "?\n" + r.tool().name() + " "

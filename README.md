@@ -393,7 +393,8 @@ It brings the Keycloak admin client and Vert.x JSON, but no Quarkus; on the modu
 module `com.github.thomasdarimont.keycloak.mcp.api`. Packages under `com.github.thomasdarimont.keycloak.mcp`:
 `spi` (`Extension`, `ExtensionRegistry`, `ExtensionContext`, `ProviderConfig`), `tools` (`ToolProvider`,
 `ToolProviderContext`, `AbstractToolProvider`), `prompts` (`PromptProvider`), `access` (`AccessCheck`, `Caller`,
-`GrantedRoles`, `RoleRef`, `Delegation`), `confirm` (`Confirmer`), `audit` (`AuditListener`), `catalog` (the tool
+`GrantedRoles`, `RoleRef`, `Delegation`), `confirm` (`Confirmer`, `ConfirmationRequest`, `Decision`, `Prompter`), `audit`
+(`AuditListener`, `AuditEvent`), `catalog` (the tool
 and prompt descriptions), `keycloak` (admin facades, `KeycloakSystemRepository`, `KeyVault`, capabilities, host allow
 list) and `config`. Tools come from
 `ToolProvider` implementations, discovered like Keycloak providers:
@@ -461,7 +462,7 @@ and the built-in confirmer (elicitation, else the `confirm` flag) runs last. A t
 ```java
 @AutoService(Confirmer.class)
 public class TicketConfirmer implements Confirmer {
-    public Decision confirm(Request r) {
+    public Decision confirm(ConfirmationRequest r) {
         if (!r.tool().name().equals("keycloak_user_delete")) return Decision.abstain();
         String ticket = String.valueOf(r.args().get("ticket"));
         return tickets.isOpen(ticket) ? Decision.confirmed()
@@ -479,7 +480,7 @@ the tool result:
 ```java
 @AutoService(AuditListener.class)
 public class SiemAuditListener implements AuditListener {
-    public void onToolCall(Event e) {
+    public void onToolCall(AuditEvent e) {
         if (!e.succeeded() || e.level() != ToolLevel.READ) {
             siem.send(e.tool(), e.realm(), e.caller().name(), e.outcome(), e.args());
         }

@@ -14,7 +14,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
-import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -86,8 +86,8 @@ class ForwardModeTest {
     }
 
     private ToolInvoker invoker() {
-        return new ToolInvoker(catalog, new AccessPolicy(false, List.of()), req -> Confirmer.Decision.CONFIRMED, 50,
-                null, DelegationMode.FORWARD);
+        return new ToolInvoker(catalog, new AccessPolicy(false, List.of()), req -> Decision.CONFIRMED, 50, null,
+                DelegationMode.FORWARD);
     }
 
     @Test

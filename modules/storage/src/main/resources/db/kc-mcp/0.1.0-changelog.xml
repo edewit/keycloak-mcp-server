@@ -106,7 +106,7 @@
     </changeSet>
 
     <changeSet id="4-audit-events" author="keycloak-mcp-server">
-        <comment>one row per finished tool call, whatever the outcome (AuditListener.Event)</comment>
+        <comment>one row per finished tool call, whatever the outcome (AuditEvent)</comment>
         <createTable tableName="kc_mcp_audit_event">
             <column name="id" type="bigint" autoIncrement="true">
                 <constraints primaryKey="true" primaryKeyName="pk_kc_mcp_audit_event" nullable="false"/>

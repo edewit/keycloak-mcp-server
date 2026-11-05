@@ -16,7 +16,9 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 
@@ -204,9 +206,9 @@ public class ToolInvoker {
     private ToolResult runWithConfirmation(ToolSpec spec, String system, KeycloakAdmin admin, String realm,
             Map<String, Object> args, boolean confirmFlag, InvocationContext ctx) throws Exception {
         if (spec.isDestructive()) {
-            Confirmer.Request request = new Confirmer.Request(spec, system, realm, args, confirmFlag, ctx.caller(),
+            ConfirmationRequest request = new ConfirmationRequest(spec, system, realm, args, confirmFlag, ctx.caller(),
                     ElicitationPrompter.of(ctx.elicitation(), confirmTimeout));
-            Confirmer.Decision decision = confirmer.confirm(request);
+            Decision decision = confirmer.confirm(request);
             switch (decision.outcome()) {
                 case DECLINED -> {
                     return ToolResult.error("cancelled", decision.message() != null ? decision.message()

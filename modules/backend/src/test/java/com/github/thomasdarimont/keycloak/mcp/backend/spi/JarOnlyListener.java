@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.spi;
 
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 
 /**
@@ -9,6 +10,6 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 public class JarOnlyListener implements AuditListener {
 
     @Override
-    public void onToolCall(Event event) {
+    public void onToolCall(AuditEvent event) {
     }
 }

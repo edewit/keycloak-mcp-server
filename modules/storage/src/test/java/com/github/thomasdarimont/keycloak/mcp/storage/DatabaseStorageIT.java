@@ -15,6 +15,7 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
@@ -153,11 +154,11 @@ class DatabaseStorageIT {
         String subject = UUID.randomUUID().toString();
         Caller alice = Caller.of(subject, "alice", "tenant", Set.of("realm:admin"));
         Instant at = Instant.now();
-        audit.onToolCall(new AuditListener.Event(at, "keycloak_user_delete", ToolLevel.DESTRUCTIVE, "tenant-a",
-                "tenant", Map.of("id", "bob", "password", "***"), "forbidden", "missing manage-users", "execute_tool",
+        audit.onToolCall(new AuditEvent(at, "keycloak_user_delete", ToolLevel.DESTRUCTIVE, "tenant-a", "tenant",
+                Map.of("id", "bob", "password", "***"), "forbidden", "missing manage-users", "execute_tool",
                 alice.asDelegated(), "lm-studio", "conn-1", Duration.ofMillis(42)));
-        audit.onToolCall(new AuditListener.Event(at.plusMillis(1), "whoami", ToolLevel.READ, null, null, Map.of(), "ok",
-                null, "direct", Caller.NONE, "-", "-", Duration.ofMillis(1)));
+        audit.onToolCall(new AuditEvent(at.plusMillis(1), "whoami", ToolLevel.READ, null, null, Map.of(), "ok", null,
+                "direct", Caller.NONE, "-", "-", Duration.ofMillis(1)));
 
         List<AuditEventEntity> recent = audit.recent(2);
         assertEquals(2, recent.size());

@@ -9,7 +9,9 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
 /**
@@ -49,7 +51,7 @@ public class ConfirmerChain implements Confirmer {
     }
 
     @Override
-    public Decision confirm(Request request) {
+    public Decision confirm(ConfirmationRequest request) {
         for (Confirmer c : chain) {
             Decision d;
             try {

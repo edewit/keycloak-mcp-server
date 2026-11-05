@@ -4,6 +4,7 @@ import java.util.List;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
 
@@ -41,7 +42,7 @@ public class DatabaseAuditListener implements AuditListener {
 
     @Override
     @Transactional
-    public void onToolCall(Event event) {
+    public void onToolCall(AuditEvent event) {
         AuditEventEntity e = new AuditEventEntity();
         e.occurredAt = event.at() == null ? System.currentTimeMillis() : event.at().toEpochMilli();
         e.tool = event.tool();

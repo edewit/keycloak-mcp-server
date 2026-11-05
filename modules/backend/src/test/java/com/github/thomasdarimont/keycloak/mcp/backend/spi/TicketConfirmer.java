@@ -1,6 +1,8 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.spi;
 
+import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.google.auto.service.AutoService;
 
 /**
@@ -12,7 +14,7 @@ import com.google.auto.service.AutoService;
 public class TicketConfirmer implements Confirmer {
 
     @Override
-    public Decision confirm(Request r) {
+    public Decision confirm(ConfirmationRequest r) {
         if (!"keycloak_user_delete".equals(r.tool().name())) {
             return Decision.abstain();
         }

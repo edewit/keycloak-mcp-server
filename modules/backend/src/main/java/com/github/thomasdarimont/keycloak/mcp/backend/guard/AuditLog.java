@@ -12,15 +12,15 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
 /**
- * Builds the {@link AuditListener.Event} of a finished call and hands it to every
- * listener: the built-in log line first, then listeners found through the ServiceLoader
- * and CDI.
+ * Builds the {@link AuditEvent} of a finished call and hands it to every listener: the
+ * built-in log line first, then listeners found through the ServiceLoader and CDI.
  */
 @ApplicationScoped
 public class AuditLog {
@@ -74,9 +74,9 @@ public class AuditLog {
             outcome = "error";
             message = result.toJson();
         }
-        AuditListener.Event event = new AuditListener.Event(Instant.now(), spec.name(), spec.level(), system, realm,
-                redact(args), outcome, message, ctx.via(), ctx.caller().withoutToken(), ctx.clientName(),
-                ctx.connectionId(), Duration.ofNanos(nanos));
+        AuditEvent event = new AuditEvent(Instant.now(), spec.name(), spec.level(), system, realm, redact(args),
+                outcome, message, ctx.via(), ctx.caller().withoutToken(), ctx.clientName(), ctx.connectionId(),
+                Duration.ofNanos(nanos));
         for (AuditListener l : listeners) {
             try {
                 l.onToolCall(event);

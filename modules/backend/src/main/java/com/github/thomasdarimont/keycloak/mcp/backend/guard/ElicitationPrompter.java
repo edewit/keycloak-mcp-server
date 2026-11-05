@@ -5,14 +5,14 @@ import java.util.Optional;
 
 import org.jboss.logging.Logger;
 
-import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Prompter;
 
 import io.quarkiverse.mcp.server.Elicitation;
 import io.quarkiverse.mcp.server.ElicitationRequest.BooleanSchema;
 import io.quarkiverse.mcp.server.ElicitationResponse;
 
-/** {@link Confirmer.Prompter} over the MCP connection's form-mode elicitation. */
-final class ElicitationPrompter implements Confirmer.Prompter {
+/** {@link Prompter} over the MCP connection's form-mode elicitation. */
+final class ElicitationPrompter implements Prompter {
 
     private static final Logger LOG = Logger.getLogger(ElicitationPrompter.class);
 
@@ -25,8 +25,8 @@ final class ElicitationPrompter implements Confirmer.Prompter {
         this.timeout = timeout;
     }
 
-    static Confirmer.Prompter of(Elicitation elicitation, Duration timeout) {
-        return elicitation == null ? Confirmer.Prompter.NONE : new ElicitationPrompter(elicitation, timeout);
+    static Prompter of(Elicitation elicitation, Duration timeout) {
+        return elicitation == null ? Prompter.NONE : new ElicitationPrompter(elicitation, timeout);
     }
 
     @Override

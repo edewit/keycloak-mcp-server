@@ -24,6 +24,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 
 import io.vertx.core.json.JsonArray;
@@ -41,8 +42,7 @@ class MetaToolsTest {
 
     private MetaTools meta(boolean readOnly) {
         AccessPolicy policy = new AccessPolicy(readOnly, List.of());
-        Confirmer confirmer = req -> req.confirmFlag() ? Confirmer.Decision.CONFIRMED
-                : Confirmer.Decision.CONFIRMATION_REQUIRED;
+        Confirmer confirmer = req -> req.confirmFlag() ? Decision.CONFIRMED : Decision.CONFIRMATION_REQUIRED;
         return new MetaTools(catalog, policy, new ToolInvoker(catalog, policy, confirmer, 50), progressive, 5);
     }
 
@@ -188,7 +188,7 @@ class MetaToolsTest {
 
     private static MetaTools forward(ToolCatalog catalog) {
         AccessPolicy policy = new AccessPolicy(false, List.of());
-        Confirmer confirmer = req -> Confirmer.Decision.CONFIRMED;
+        Confirmer confirmer = req -> Decision.CONFIRMED;
         return new MetaTools(catalog, policy,
                 new ToolInvoker(catalog, policy, confirmer, 50, null, DelegationMode.FORWARD), new ProgressiveState(),
                 5, DelegationMode.FORWARD);
@@ -337,7 +337,7 @@ class MetaToolsTest {
     private static MetaTools withCapabilities(ToolCatalog catalog, ServerCapabilities caps) {
         AccessPolicy policy = new AccessPolicy(false, List.of(), List.of(), List.of(), List.of(), null, List.of(), null,
                 CapabilityDiscovery.fixed(caps));
-        Confirmer confirmer = req -> Confirmer.Decision.CONFIRMED;
+        Confirmer confirmer = req -> Decision.CONFIRMED;
         return new MetaTools(catalog, policy, new ToolInvoker(catalog, policy, confirmer, 50), new ProgressiveState(),
                 5);
     }

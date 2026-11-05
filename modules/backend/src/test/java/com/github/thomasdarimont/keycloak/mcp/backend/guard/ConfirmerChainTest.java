@@ -8,8 +8,9 @@ import org.junit.jupiter.api.Test;
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.backend.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
-import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer.Decision;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -21,14 +22,14 @@ class ConfirmerChainTest {
         .findFirst()
         .orElseThrow();
 
-    private static Confirmer.Request request(boolean flag) {
-        return new Confirmer.Request(DELETE, null, "demo", Map.of("id", "1"), flag, Caller.NONE, null);
+    private static ConfirmationRequest request(boolean flag) {
+        return new ConfirmationRequest(DELETE, null, "demo", Map.of("id", "1"), flag, Caller.NONE, null);
     }
 
     private static Confirmer ordered(int order, Decision d) {
         return new Confirmer() {
             @Override
-            public Decision confirm(Request r) {
+            public Decision confirm(ConfirmationRequest r) {
                 return d;
             }
 

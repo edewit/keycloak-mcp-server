@@ -11,7 +11,7 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 
 /**
  * A row of {@code kc_mcp_audit_event}: one finished tool call, whatever its outcome
- * ({@code AuditListener.Event}).
+ * ({@code AuditEvent}).
  */
 @Entity
 @Table(name = "kc_mcp_audit_event")
