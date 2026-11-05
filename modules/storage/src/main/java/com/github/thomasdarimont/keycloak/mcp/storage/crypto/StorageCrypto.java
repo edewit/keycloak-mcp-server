@@ -2,10 +2,13 @@ package com.github.thomasdarimont.keycloak.mcp.storage.crypto;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.crypto.Cipher;
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -125,6 +128,33 @@ public class StorageCrypto {
             throw new IllegalStateException(
                     "Cannot decrypt a stored value, kc-mcp.storage.secret-key differs from the key it was written with",
                     e);
+        }
+    }
+
+    /**
+     * A stable pseudonym of a value for audit records, {@code h:} and 16 hex digits:
+     * HMAC-SHA256 under the configured key, so the same value maps to the same pseudonym
+     * on every replica and nobody without the key can test guesses against it; without a
+     * key a plain SHA-256, which still hides the value from a casual reader.
+     */
+    public String pseudonym(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            byte[] digest;
+            if (secret != null) {
+                Mac mac = Mac.getInstance("HmacSHA256");
+                mac.init(new SecretKeySpec(key().getEncoded(), "HmacSHA256"));
+                digest = mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
+            }
+            else {
+                digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            }
+            return "h:" + HexFormat.of().formatHex(digest, 0, 8);
+        }
+        catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Cannot pseudonymize a value: " + e.getMessage(), e);
         }
     }
 

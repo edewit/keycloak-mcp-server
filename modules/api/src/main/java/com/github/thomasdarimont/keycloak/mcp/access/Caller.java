@@ -80,6 +80,19 @@ public record Caller(String subject, String name, String realm, boolean delegate
         return rawToken == null ? this : new Caller(subject, name, realm, delegated, roles, null, claims);
     }
 
+    /** The same caller with another name, for pseudonymized audit records. */
+    public Caller withName(String newName) {
+        return new Caller(subject, newName, realm, delegated, roles, rawToken, claims);
+    }
+
+    /**
+     * Subject, realm, roles and delegation only: no token and no claims (which may carry
+     * e-mail and names), for audit records.
+     */
+    public Caller withoutClaims() {
+        return new Caller(subject, name, realm, delegated, roles, null, Map.of());
+    }
+
     /** Never prints the token. */
     @Override
     public String toString() {

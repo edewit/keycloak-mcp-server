@@ -257,7 +257,12 @@ row with `enabled=false` is kept but not served. A control plane writes rows thr
 `DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault` (`createSigningKey`
 rotates: the previous key keeps its row with `retired_at`, `putSecret`) and reads audit rows through
 `DatabaseAuditListener` (`recent`, `byCaller`); an admin API over them is the next step, and the audit table has no
-retention of its own yet.
+retention of its own yet. The module also registers the `AuditScrubber` `pii-audit-scrubber`:
+`kc-mcp.spi.pii-audit-scrubber.pii` decides what happens to personal data, `keep` (default), `pseudonymize` (the
+caller's name and the values of `pii-args`, by default `username,email,firstName,lastName,search,userId,user,attributes`
+plus `id` on user tools, become a keyed hash under `kc-mcp.storage.secret-key`, so one person stays recognisable
+across rows; the message is dropped) or `drop`; `targets` names the listeners it applies to, by default `db-audit`
+alone, `log-line` to clean the console while the database keeps everything, `*` for both.
 
 ```java
 @AutoService(KeycloakSystemRepository.class)
@@ -327,6 +332,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `quarkus.datasource.jdbc.url`   |                             | turns the database storage on (§Database storage): `jdbc:h2:file:./data/kc-mcp` or, in a `-Ppostgresql` build, `jdbc:postgresql://...` with `quarkus.datasource.username` / `password` |
 | `kc-mcp.storage.enabled`        | `true` with a jdbc url      | force the database storage on or off |
 | `kc-mcp.storage.secret-key`     |                             | encrypts stored private keys, client secrets and passwords (AES-256-GCM); base64 of 32 bytes or a passphrase (Argon2id) |
+| `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | personal data in audit events: `keep`, `pseudonymize` (keyed hash) or `drop`; `pii-args` lists the argument names, `targets` the listeners (default `db-audit`) |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.require-caller`         | `false`                     | refuse anonymous MCP requests with the OAuth challenge even with `delegation=off` |
@@ -383,7 +389,7 @@ The server listens on port 8081 (`quarkus.http.port`) so a local Keycloak can ke
 ## Extending: tool providers
 
 Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
-`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, `KeycloakSystemRepository`, `KeyVault`,
+`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, `AuditScrubber`, `KeycloakSystemRepository`, `KeyVault`,
 `SigningKeyGenerator`, all
 `Extension`s with `id`, `displayName`, `description` and `order`; `ExtensionRegistry` to look them up; `Caller`),
 the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
@@ -394,7 +400,7 @@ module `com.github.thomasdarimont.keycloak.mcp.api`. Packages under `com.github.
 `spi` (`Extension`, `ExtensionRegistry`, `ExtensionContext`, `ProviderConfig`), `tools` (`ToolProvider`,
 `ToolProviderContext`, `AbstractToolProvider`), `prompts` (`PromptProvider`), `access` (`AccessCheck`, `Caller`,
 `GrantedRoles`, `RoleRef`, `Delegation`), `confirm` (`Confirmer`, `ConfirmationRequest`, `Decision`, `Prompter`), `audit`
-(`AuditListener`, `AuditEvent`), `catalog` (the tool
+(`AuditListener`, `AuditEvent`, `AuditScrubber`), `catalog` (the tool
 and prompt descriptions), `keycloak` (admin facades, `KeycloakSystemRepository`, `KeyVault`, capabilities, host allow
 list) and `config`. Tools come from
 `ToolProvider` implementations, discovered like Keycloak providers:
@@ -473,7 +479,13 @@ public class TicketConfirmer implements Confirmer {
 
 `com.github.thomasdarimont.keycloak.mcp.audit.AuditListener` receives one event per finished call, whatever the outcome
 (`@AutoService(AuditListener.class)` or a CDI bean). The built-in listener writes the log line; yours can forward
-to a SIEM, a database or a queue. Password-like arguments arrive as `***`. Listeners run synchronously on the
+to a SIEM, a database or a queue. Password-like arguments arrive as `***`; personal data (usernames, e-mail
+addresses, the caller's name) does not, that is the job of `AuditScrubber`s (`@AutoService(AuditScrubber.class)` or
+a CDI bean, ordered by `order()`): `scrub(event, listener)` runs once per listener before it receives the event, so a
+scrubber can treat every sink alike or pick a listener by id: only the rows that persist (`db-audit`), or only the
+built-in console line (`log-line`) while the database keeps the full record for auditors. It derives the copy with
+`mapArgs`, `withMessage` and `withCaller`, and returns `null` to skip the event for that listener; without one the
+`NoOpAuditScrubber` applies. Listeners run synchronously on the
 handler's virtual thread, so hand slow deliveries to your own executor; an exception is logged and never changes
 the tool result:
 
@@ -484,6 +496,13 @@ public class SiemAuditListener implements AuditListener {
         if (!e.succeeded() || e.level() != ToolLevel.READ) {
             siem.send(e.tool(), e.realm(), e.caller().name(), e.outcome(), e.args());
         }
+    }
+}
+
+@AutoService(AuditScrubber.class)
+public class NoEmailScrubber implements AuditScrubber {        // no e-mail addresses in any audit sink
+    public AuditEvent scrub(AuditEvent e, AuditListener target) {
+        return e.mapArgs(k -> k.equals("email"), v -> "***");
     }
 }
 ```

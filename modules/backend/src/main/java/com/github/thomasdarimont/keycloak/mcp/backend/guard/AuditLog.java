@@ -14,6 +14,8 @@ import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
+import com.github.thomasdarimont.keycloak.mcp.audit.NoOpAuditScrubber;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
@@ -31,14 +33,37 @@ public class AuditLog {
     /** Argument names whose values never reach a listener. */
     private static final List<String> SECRET_ARGS = List.of("password", "secret", "credential", "token", "key");
 
+    /**
+     * Id of the built-in listener, what an {@code AuditScrubber} targets to scrub the
+     * console.
+     */
+    public static final String LOG_LINE_ID = "log-line";
+
     /** The listener that was there from the start: one log line per call. */
-    public static final AuditListener LOG_LINE = e -> AUDIT.infof(
-            "tool=%s level=%s system=%s realm=%s outcome=%s via=%s caller=%s%s client=%s conn=%s ms=%d", e.tool(),
-            e.level(), e.system() == null ? "-" : e.system(), e.realm() == null ? "-" : e.realm(), e.outcome(), e.via(),
-            e.caller().isAnonymous() ? "-" : e.caller().name() + "(" + e.caller().subject() + ")",
-            e.caller().delegated() ? " delegated" : "", e.clientName(), e.connectionId(), e.duration().toMillis());
+    public static final AuditListener LOG_LINE = new AuditListener() {
+        @Override
+        public String id() {
+            return LOG_LINE_ID;
+        }
+
+        @Override
+        public String description() {
+            return "one " + AUDIT.getName() + " log line per call";
+        }
+
+        @Override
+        public void onToolCall(AuditEvent e) {
+            AUDIT.infof("tool=%s level=%s system=%s realm=%s outcome=%s via=%s caller=%s%s client=%s conn=%s ms=%d",
+                    e.tool(), e.level(), e.system() == null ? "-" : e.system(), e.realm() == null ? "-" : e.realm(),
+                    e.outcome(), e.via(),
+                    e.caller().isAnonymous() ? "-" : e.caller().name() + "(" + e.caller().subject() + ")",
+                    e.caller().delegated() ? " delegated" : "", e.clientName(), e.connectionId(),
+                    e.duration().toMillis());
+        }
+    };
 
     private final List<AuditListener> listeners;
+    private final List<AuditScrubber> scrubbers;
 
     @Inject
     public AuditLog(ExtensionRegistry registry) {
@@ -51,15 +76,30 @@ public class AuditLog {
                 LOG.infof("Audit listener %s registered", l.getClass().getName());
             }
         }
+        List<AuditScrubber> registered = registry.extensions(AuditScrubber.class);
+        this.scrubbers = registered.isEmpty() ? List.of(NoOpAuditScrubber.INSTANCE) : List.copyOf(registered);
+        for (AuditScrubber s : registered) {
+            LOG.infof("Audit scrubber '%s' registered (%s)", s.id(), s.getClass().getName());
+        }
     }
 
     /** Explicit listeners (tests, embedding); the log line is not added automatically. */
     public AuditLog(List<AuditListener> listeners) {
+        this(listeners, List.of());
+    }
+
+    /** @param scrubbers run in the given order; none means events pass unchanged */
+    public AuditLog(List<AuditListener> listeners, List<AuditScrubber> scrubbers) {
         this.listeners = List.copyOf(listeners);
+        this.scrubbers = scrubbers.isEmpty() ? List.of(NoOpAuditScrubber.INSTANCE) : List.copyOf(scrubbers);
     }
 
     public List<AuditListener> listeners() {
         return listeners;
+    }
+
+    public List<AuditScrubber> scrubbers() {
+        return scrubbers;
     }
 
     public void record(ToolSpec spec, String system, String realm, Map<String, Object> args, ToolResult result,
@@ -79,7 +119,16 @@ public class AuditLog {
                 Duration.ofNanos(nanos));
         for (AuditListener l : listeners) {
             try {
-                l.onToolCall(event);
+                AuditEvent scrubbed = event;
+                for (AuditScrubber s : scrubbers) {
+                    scrubbed = s.scrub(scrubbed, l);
+                    if (scrubbed == null) {
+                        break;
+                    }
+                }
+                if (scrubbed != null) {
+                    l.onToolCall(scrubbed);
+                }
             }
             catch (RuntimeException e) {
                 LOG.warnf(e, "Audit listener %s failed for %s", l.getClass().getName(), spec.name());

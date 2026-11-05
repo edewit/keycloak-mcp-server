@@ -2,7 +2,10 @@ package com.github.thomasdarimont.keycloak.mcp.audit;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
@@ -38,5 +41,39 @@ public record AuditEvent(Instant at, String tool, ToolLevel level, String system
 
     public boolean succeeded() {
         return "ok".equals(outcome);
+    }
+
+    /** The same event with other arguments. */
+    public AuditEvent withArgs(Map<String, Object> newArgs) {
+        return new AuditEvent(at, tool, level, system, realm, newArgs, outcome, message, via, caller, clientName,
+                connectionId, duration);
+    }
+
+    /**
+     * The same event with the values of the matching argument names replaced by what the
+     * function returns for them ({@code mapArgs(k -> k.equals("email"), v -> "***")}); a
+     * {@code null} result removes the argument.
+     */
+    public AuditEvent mapArgs(Predicate<String> argName, UnaryOperator<Object> value) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        args.forEach((k, v) -> {
+            Object mapped = argName.test(k) ? value.apply(v) : v;
+            if (mapped != null) {
+                out.put(k, mapped);
+            }
+        });
+        return withArgs(out);
+    }
+
+    /** The same event with another message ({@code null} for none). */
+    public AuditEvent withMessage(String newMessage) {
+        return new AuditEvent(at, tool, level, system, realm, args, outcome, newMessage, via, caller, clientName,
+                connectionId, duration);
+    }
+
+    /** The same event with another caller ({@code null} for {@link Caller#NONE}). */
+    public AuditEvent withCaller(Caller newCaller) {
+        return new AuditEvent(at, tool, level, system, realm, args, outcome, message, via, newCaller, clientName,
+                connectionId, duration);
     }
 }
