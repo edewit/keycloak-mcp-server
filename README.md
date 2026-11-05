@@ -252,8 +252,8 @@ Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api
 `AccessCheck`, `AuditListener`, `Caller`), the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
 `InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client
 with the forgiving lookups, `GrantedRoles`, `Views`, `AbstractToolProvider` and the server configuration interface.
-It brings the Keycloak admin client and Vert.x JSON, but no Quarkus, and is a Java module
-(`com.github.thomasdarimont.keycloak.mcp.api`) exporting those four packages. Tools come from `ToolProvider`
+It brings the Keycloak admin client and Vert.x JSON, but no Quarkus; on the module path it is the automatic
+module `com.github.thomasdarimont.keycloak.mcp.api`. Tools come from `ToolProvider`
 implementations, discovered like Keycloak providers:
 
 ```java

@@ -45,6 +45,18 @@
     <build>
         <plugins>
             <plugin>
+                <!-- a stable module name for consumers on the module path; a full descriptor would have to
+                     require the Keycloak client jars, which declare no module name of their own -->
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Automatic-Module-Name>com.github.thomasdarimont.keycloak.mcp.api</Automatic-Module-Name>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
                 <!-- a Jandex index lets Quarkus discover the @ConfigMapping and the SPI types in this jar -->
                 <groupId>io.smallrye</groupId>
                 <artifactId>jandex-maven-plugin</artifactId>
