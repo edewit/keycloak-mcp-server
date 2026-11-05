@@ -74,7 +74,7 @@ class DatabaseStorageIT {
         KeycloakSystem tenant = system(alias, "https://sso.example.com", Optional.of("top-secret"),
                 Set.of("tenant", "tenant-2"));
 
-        SystemEntity row = repo.save(tenant, "ACME Corp.");
+        SystemEntity row = repo.saveEntity(tenant.withDisplayName("ACME Corp."));
         assertEquals(36, row.id.length(), "surrogate id");
         assertEquals(alias, row.alias);
         assertEquals("ACME Corp.", row.name);
@@ -82,14 +82,16 @@ class DatabaseStorageIT {
         assertTrue(row.createdAt > 0 && row.updatedAt >= row.createdAt);
 
         assertTrue(repo.names().contains(alias));
-        assertEquals(tenant, repo.find(alias).orElseThrow(), "round trip, secret decrypted");
-        assertTrue(repo.all().contains(tenant));
+        assertEquals(tenant.withDisplayName("ACME Corp."), repo.find(alias).orElseThrow(),
+                "round trip, secret decrypted, label attached");
+        assertTrue(repo.all().contains(tenant.withDisplayName("ACME Corp.")));
 
         // settings change: same row, label kept
         KeycloakSystem moved = system(alias, "https://sso2.example.com", Optional.empty(), Set.of());
-        assertEquals(row.id, repo.save(moved).id);
-        assertEquals("ACME Corp.", repo.entity(alias).orElseThrow().name);
-        assertEquals(moved, repo.find(alias).orElseThrow());
+        assertEquals(row.id, repo.saveEntity(moved).id);
+        assertEquals("ACME Corp.", repo.entity(alias).orElseThrow().name, "no label in the update keeps the old one");
+        assertEquals(moved.withDisplayName("ACME Corp."), repo.find(alias).orElseThrow());
+        assertEquals("ACME Inc.", repo.save(moved.withDisplayName("ACME Inc.")).displayName().orElseThrow());
 
         // disabled rows are kept but not served
         assertTrue(repo.setEnabled(alias, false));

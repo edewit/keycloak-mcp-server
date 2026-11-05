@@ -1,0 +1,125 @@
+# Dynamic systems with a database: the MCP server starts with no Keycloak system at all. ./demo.sh then registers
+# the system "acme" through the admin API (stored in PostgreSQL, key pair generated in the database vault), creates
+# the keycloak-mcp-server client in Keycloak's master realm with the JWKS URL the API answered, creates the realm
+# acme-dev with the public mcp-consumer client and demo users, and calls tools as service account and as users.
+# Both MCP containers share the database, so a system registered once is known to both. See README.md.
+#
+#   ../../mvnw -f ../../pom.xml package -DskipTests -Ppostgresql    # the PostgreSQL build of the server
+#   docker compose up -d --build && ./demo.sh
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - ./init/postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5490:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start-dev"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: http://localhost:8090
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8090:8080"
+      - "9090:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  # The control-plane facing server: admin API on, acts with the registered system's service account.
+  mcp:
+    build:
+      context: ../..
+      dockerfile: modules/backend/src/main/docker/Dockerfile.jvm
+    environment:
+      QUARKUS_HTTP_PORT: "8081"
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      # database storage: systems, keys and audit events (the PostgreSQL build of the server)
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/kcmcp
+      QUARKUS_DATASOURCE_USERNAME: kcmcp
+      QUARKUS_DATASOURCE_PASSWORD: kcmcp
+      KC_MCP_STORAGE_SECRET_KEY: demo-storage-key-change-me
+      # systems come from the database only, registered through the admin API
+      KC_MCP_STATIC_SYSTEMS: "false"
+      KC_MCP_DYNAMIC_SYSTEMS: "true"
+      KC_MCP_ADMIN_ENABLED: "true"
+      # automation uses the static token, people an access token of a master realm admin (role "admin")
+      KC_MCP_ADMIN_TOKEN: demo-admin-token
+      KC_MCP_ADMIN_ISSUER: http://keycloak:8080/realms/master
+      # only tokens minted for the MCP server (the public client keycloak-mcp-admin); admin-cli tokens are lightweight
+      # in Keycloak 26 and carry neither roles nor an audience
+      KC_MCP_ADMIN_AUDIENCE: keycloak-mcp-server
+      # the MCP server may only talk to this Keycloak
+      KC_MCP_ALLOWED_HOSTS: keycloak:8080
+      KC_MCP_TOOL_EXPOSURE: hybrid
+      KC_MCP_STARTUP_CHECK: "off"
+    ports:
+      - "8091:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+
+  # The same server for people: the MCP endpoint requires a login at the entry's realm and every call runs with
+  # the user's own token (forward delegation). Same database, so it knows the registered systems too.
+  mcp-users:
+    build:
+      context: ../..
+      dockerfile: modules/backend/src/main/docker/Dockerfile.jvm
+    environment:
+      QUARKUS_HTTP_PORT: "8081"
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/kcmcp
+      QUARKUS_DATASOURCE_USERNAME: kcmcp
+      QUARKUS_DATASOURCE_PASSWORD: kcmcp
+      KC_MCP_STORAGE_SECRET_KEY: demo-storage-key-change-me
+      KC_MCP_STATIC_SYSTEMS: "false"
+      KC_MCP_DYNAMIC_SYSTEMS: "true"
+      KC_MCP_ALLOWED_HOSTS: keycloak:8080
+      KC_MCP_TOOL_EXPOSURE: hybrid
+      KC_MCP_STARTUP_CHECK: "off"
+      KC_MCP_DELEGATION: forward
+      KC_MCP_URL: http://keycloak:8080
+      KC_MCP_AUTH_REALM: master
+      QUARKUS_OIDC_TENANT_ENABLED: "true"
+      # only tokens minted for the MCP server (audience mapper on mcp-consumer)
+      QUARKUS_OIDC_TOKEN_AUDIENCE: keycloak-mcp-server
+      # personal data stays out of the console log; the database rows keep the full record
+      KC_MCP_SPI_PII_AUDIT_SCRUBBER_PII: pseudonymize
+      KC_MCP_SPI_PII_AUDIT_SCRUBBER_TARGETS: console
+    ports:
+      - "8092:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+
+volumes:
+  pgdata:

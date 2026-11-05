@@ -1,0 +1,18 @@
+{
+  "clientId": "keycloak-mcp-server",
+  "name": "Keycloak MCP server",
+  "description": "The keycloak-mcp-server administers this Keycloak with this service account; it authenticates with a signed JWT whose public key Keycloak fetches from the MCP server (jwks.url).",
+  "enabled": true,
+  "protocol": "openid-connect",
+  "publicClient": false,
+  "serviceAccountsEnabled": true,
+  "standardFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "fullScopeAllowed": false,
+  "clientAuthenticatorType": "client-jwt",
+  "attributes": {
+    "use.jwks.url": "true",
+    "jwks.url": "${MCP_JWKS_URL}",
+    "token.endpoint.auth.signing.alg": "RS256"
+  }
+}

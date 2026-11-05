@@ -160,6 +160,41 @@ public class SigningKeys {
         return Optional.of(vault.createSigningKey(system));
     }
 
+    /**
+     * The current key of a system from the vault without creating one; empty for a system
+     * without a key (and always when one configured key serves every system).
+     */
+    public Optional<SigningKey> currentKey(String system) {
+        return configuredKey() ? Optional.empty() : vault.findSigningKey(system);
+    }
+
+    /**
+     * Creates a new key for a system in the vault, retiring the current one, and signs
+     * with it from now on; the JWKS changes, Keycloak fetches it again on the unknown
+     * kid.
+     *
+     * @throws UnsupportedOperationException when the vault is read-only or one configured
+     * key serves every system
+     */
+    public SigningKey rotate(String system) {
+        if (configuredKey()) {
+            throw new UnsupportedOperationException("One configured key (kc-mcp.jwt.key-file) serves every system");
+        }
+        if (!vault.supportsKeyCreation()) {
+            throw new UnsupportedOperationException(
+                    "KeyVault '" + vault.id() + "' is read-only: provision the new key for '" + system + "' there");
+        }
+        SigningKey key = vault.createSigningKey(system);
+        perSystem.put(system, new JwtSigner(key.privateKey(), key.publicKey(), key.algorithm(), key.keyId()));
+        LOG.infof("[%s] private_key_jwt key rotated in %s", system, vault.id());
+        return key;
+    }
+
+    /** Drops the cached signer of a removed system; its key stays in the vault. */
+    public void forget(String system) {
+        perSystem.remove(system);
+    }
+
     /** The JWK Set of the configured key; empty when every system has its own. */
     public Optional<JsonObject> configuredJwks() {
         return configuredKey() ? Optional.of(jwks(configured())) : Optional.empty();

@@ -257,6 +257,45 @@ public interface McpServerConfig {
     @WithDefault("providers")
     String providersDir();
 
+    /**
+     * The admin API ({@code kc-mcp.admin.*}, {@code /admin/systems}): registers systems
+     * in the first mutable {@code KeycloakSystemRepository} (the database storage), with
+     * their {@code private_key_jwt} keys created in the {@code KeyVault}. Callers present
+     * either the static {@link Admin#token()} or an access token of the trusted
+     * {@link Admin#issuer()} that carries {@link Admin#role()}.
+     */
+    Admin admin();
+
+    interface Admin {
+        /** Off by default; on needs a {@link #token()} or an {@link #issuer()}. */
+        @WithDefault("false")
+        boolean enabled();
+
+        /**
+         * Static bearer token admin requests may carry (automation without an OAuth
+         * client).
+         */
+        Optional<String> token();
+
+        /**
+         * OAuth authorization server whose access tokens the admin API accepts, as the
+         * realm URL ({@code https://sso.example.com/realms/master}); its discovery
+         * document and keys are fetched from there.
+         */
+        Optional<String> issuer();
+
+        /** Audience such a token must carry; unset accepts any. */
+        Optional<String> audience();
+
+        /**
+         * Role such a token must carry, in the server's notation: {@code realm:<role>}
+         * for a realm role, {@code <client>.<role>} for a client role. The default is the
+         * {@code admin} realm role of a Keycloak master realm.
+         */
+        @WithDefault("realm:admin")
+        String role();
+    }
+
     interface SystemSettings {
         Optional<String> url();
 

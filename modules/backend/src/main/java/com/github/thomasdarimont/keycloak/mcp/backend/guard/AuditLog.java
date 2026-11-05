@@ -28,39 +28,12 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 public class AuditLog {
 
     private static final Logger LOG = Logger.getLogger(AuditLog.class);
-    private static final Logger AUDIT = Logger.getLogger("com.github.thomasdarimont.keycloak.mcp.audit");
 
     /** Argument names whose values never reach a listener. */
     private static final List<String> SECRET_ARGS = List.of("password", "secret", "credential", "token", "key");
 
-    /**
-     * Id of the built-in listener, what an {@code AuditScrubber} targets to scrub the
-     * console.
-     */
-    public static final String LOG_LINE_ID = "log-line";
-
-    /** The listener that was there from the start: one log line per call. */
-    public static final AuditListener LOG_LINE = new AuditListener() {
-        @Override
-        public String id() {
-            return LOG_LINE_ID;
-        }
-
-        @Override
-        public String description() {
-            return "one " + AUDIT.getName() + " log line per call";
-        }
-
-        @Override
-        public void onToolCall(AuditEvent e) {
-            AUDIT.infof("tool=%s level=%s system=%s realm=%s outcome=%s via=%s caller=%s%s client=%s conn=%s ms=%d",
-                    e.tool(), e.level(), e.system() == null ? "-" : e.system(), e.realm() == null ? "-" : e.realm(),
-                    e.outcome(), e.via(),
-                    e.caller().isAnonymous() ? "-" : e.caller().name() + "(" + e.caller().subject() + ")",
-                    e.caller().delegated() ? " delegated" : "", e.clientName(), e.connectionId(),
-                    e.duration().toMillis());
-        }
-    };
+    /** The listener that was there from the start: the {@link ConsoleAuditListener}. */
+    public static final AuditListener LOG_LINE = new ConsoleAuditListener();
 
     private final List<AuditListener> listeners;
     private final List<AuditScrubber> scrubbers;

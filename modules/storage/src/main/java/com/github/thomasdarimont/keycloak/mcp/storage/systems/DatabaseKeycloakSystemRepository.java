@@ -13,7 +13,7 @@ import jakarta.transaction.Transactional;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
-import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
@@ -22,16 +22,18 @@ import io.vertx.core.json.JsonArray;
 
 /**
  * Keycloak systems from the {@code kc_mcp_system} table: what a control plane writes
- * through {@link #save} and {@link #delete}, the server reads on every lookup (an indexed
- * read by alias; the admin client is cached per system by the server). A row's
- * {@code alias} is what {@link KeycloakSystem#name()} carries, its {@code name} a display
- * label. Active only with {@code kc-mcp.storage.enabled=true} and, like every repository,
+ * through {@link #save} and {@link #delete} (a {@link MutableKeycloakSystemRepository},
+ * so the admin API finds it), the server reads on every lookup (an indexed read by alias;
+ * the admin client is cached per system by the server). A row's {@code alias} is what
+ * {@link KeycloakSystem#name()} carries, its {@code name} the
+ * {@link KeycloakSystem#displayName()}. Active only with
+ * {@code kc-mcp.storage.enabled=true} and, like every repository,
  * {@code kc-mcp.dynamic-systems=true}. Client secrets and passwords are encrypted at rest
  * when {@code kc-mcp.storage.secret-key} is set.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
-public class DatabaseKeycloakSystemRepository implements KeycloakSystemRepository {
+public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRepository {
 
     public static final String ID = "db-systems";
 
@@ -91,18 +93,19 @@ public class DatabaseKeycloakSystemRepository implements KeycloakSystemRepositor
     }
 
     /**
-     * Adds or replaces the system of an alias ({@link KeycloakSystem#name()}); the label
-     * and the enabled flag of an existing row are kept. A replaced system is reconnected
-     * by the server on its next use.
+     * Adds or replaces the system of an alias ({@link KeycloakSystem#name()}); the
+     * enabled flag of an existing row is kept, and so is its label when the system brings
+     * none. A replaced system is reconnected by the server on its next use.
      */
+    @Override
     @Transactional
-    public SystemEntity save(KeycloakSystem system) {
-        return save(system, null);
+    public KeycloakSystem save(KeycloakSystem system) {
+        return toSystem(saveEntity(system));
     }
 
-    /** @param name display label, {@code null} keeps the current one */
+    /** {@link #save} returning the row. */
     @Transactional
-    public SystemEntity save(KeycloakSystem system, String name) {
+    public SystemEntity saveEntity(KeycloakSystem system) {
         long now = System.currentTimeMillis();
         SystemEntity e = entity(system.name()).orElse(null);
         if (e == null) {
@@ -111,8 +114,8 @@ public class DatabaseKeycloakSystemRepository implements KeycloakSystemRepositor
             e.alias = system.name();
             e.createdAt = now;
         }
-        if (name != null) {
-            e.name = name.isBlank() ? null : name.trim();
+        if (system.displayName().isPresent()) {
+            e.name = system.displayName().get();
         }
         e.url = system.url();
         e.grantType = system.grantType().oauthValue();
@@ -160,6 +163,7 @@ public class DatabaseKeycloakSystemRepository implements KeycloakSystemRepositor
     }
 
     /** Removes a system; false when unknown. Its signing keys stay in the vault. */
+    @Override
     @Transactional
     public boolean delete(String alias) {
         return SystemEntity.delete("alias = ?1", alias) > 0;
@@ -169,7 +173,7 @@ public class DatabaseKeycloakSystemRepository implements KeycloakSystemRepositor
         return new KeycloakSystem(e.alias, e.url, GrantType.parse(e.grantType), ClientAuth.parse(e.clientAuth),
                 e.authRealm, optional(e.clientId), optional(crypto.reveal(e.clientSecret)), optional(e.username),
                 optional(crypto.reveal(e.password)), optional(e.defaultRealm), realms(e.allowedRealms),
-                optional(e.version), optional(e.issuer));
+                optional(e.version), optional(e.issuer), optional(e.name));
     }
 
     private static Set<String> realms(String json) {

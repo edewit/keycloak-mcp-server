@@ -25,7 +25,7 @@ import io.quarkus.arc.lookup.LookupIfProperty;
  * happens), {@code pseudonymize} or {@code drop}; {@code pii-args} names the personal
  * arguments (default {@value #DEFAULT_PII_ARGS}; {@code id} counts too on user tools,
  * whose ids may be usernames); {@code targets} lists the listener ids it applies to
- * (default {@code db-audit}, the rows that persist; {@code log-line} for the opposite, a
+ * (default {@code db-audit}, the rows that persist; {@code console} for the opposite, a
  * console without names while the database keeps the full record; {@code *} for every
  * listener). Pseudonymizing replaces the caller's name and the personal argument values
  * by a keyed hash ({@link StorageCrypto#pseudonym}, under

@@ -54,7 +54,12 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
                 Map.entry("kc-mcp.grant-type", "client_credentials"), Map.entry("kc-mcp.username", ""),
                 Map.entry("kc-mcp.password", ""), Map.entry("quarkus.oidc.tenant-enabled", "true"),
                 Map.entry("quarkus.oidc.auth-server-url", base + "/realms/demo"),
-                Map.entry("quarkus.oidc.token.audience", "mcp-admin"));
+                Map.entry("quarkus.oidc.token.audience", "mcp-admin"),
+                // the admin API trusts the demo realm's tokens: realm admins may use it,
+                // nobody else
+                Map.entry("kc-mcp.admin.enabled", "true"), Map.entry("kc-mcp.admin.issuer", base + "/realms/demo"),
+                Map.entry("kc-mcp.admin.audience", "mcp-admin"),
+                Map.entry("kc-mcp.admin.role", "realm-management.realm-admin"));
     }
 
     private void bootstrap() throws IOException, InterruptedException {

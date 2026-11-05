@@ -18,11 +18,13 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.CompositeKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAllowList;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.InMemoryKeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakErrors;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
@@ -174,6 +176,59 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         return repository;
     }
 
+    /** The repository systems are registered in at runtime, when one is registered. */
+    public Optional<MutableKeycloakSystemRepository> mutableRepository() {
+        return repository.repository(MutableKeycloakSystemRepository.class);
+    }
+
+    /** The repository that knows a system, empty when none does. */
+    public Optional<KeycloakSystemRepository> repositoryOf(String name) {
+        return repository.repositories().stream().filter(r -> r.find(name).isPresent()).findFirst();
+    }
+
+    /** The hosts the server may talk to. */
+    public HostAllowList allowedHosts() {
+        return allowedHosts;
+    }
+
+    /** Disconnects a system right away (a repository removed it) and drops its signer. */
+    public void forget(String name) {
+        KeycloakAdmin gone = admins.remove(name);
+        if (gone != null) {
+            gone.close();
+        }
+        if (keys != null) {
+            keys.forget(name);
+        }
+    }
+
+    /**
+     * A system with its {@code vault:} secret references resolved against the
+     * {@link KeyVault}; a reference the vault cannot resolve is logged and left empty, so
+     * the connection fails with a clear credentials error.
+     */
+    KeycloakSystem resolveSecrets(KeycloakSystem system) {
+        if (keys == null) {
+            return system;
+        }
+        return system.withClientSecret(resolve(system, system.clientSecret(), "clientSecret"))
+            .withPassword(resolve(system, system.password(), "password"));
+    }
+
+    private Optional<String> resolve(KeycloakSystem system, Optional<String> value, String field) {
+        if (value.isEmpty() || !KeycloakSystem.isVaultRef(value.get())) {
+            return value;
+        }
+        KeyVault vault = keys.vault();
+        String name = KeycloakSystem.vaultRefName(value.get());
+        Optional<String> secret = vault.findSecret(name);
+        if (secret.isEmpty()) {
+            LOG.warnf("[%s] %s refers to the secret '%s', which KeyVault '%s' does not have", system.name(), field,
+                    name, vault.id());
+        }
+        return secret;
+    }
+
     /** System names, default first, then in repository order. */
     @Override
     public List<String> names() {
@@ -205,7 +260,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
 
     @Override
     public Optional<KeycloakAdmin> find(String name) {
-        KeycloakSystem system = repository.find(name).orElse(null);
+        KeycloakSystem system = repository.find(name).map(this::resolveSecrets).orElse(null);
         if (system == null) {
             KeycloakAdmin gone = admins.remove(name);
             if (gone != null) {

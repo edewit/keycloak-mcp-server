@@ -104,7 +104,7 @@ public class EntryRoutes {
         }
     }
 
-    static String root(String rootPath) {
+    public static String root(String rootPath) {
         String r = rootPath == null || rootPath.isBlank() ? "/mcp" : rootPath.trim();
         if (!r.startsWith("/")) {
             r = "/" + r;

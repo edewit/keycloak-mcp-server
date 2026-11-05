@@ -10,7 +10,7 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  * {@link #order()} order, each on the previous one's result, once per listener and with
  * that listener as the target, so a scrubber can treat every sink alike or pick by
  * {@link AuditListener#id()}: only the rows that persist ({@code db-audit}), or only the
- * console ({@code log-line}, the built-in listener) while the database keeps the full
+ * console ({@code console}, the built-in listener) while the database keeps the full
  * record for auditors. Without a registered scrubber the {@link NoOpAuditScrubber}
  * applies and events pass unchanged. {@link AuditEvent#mapArgs},
  * {@link AuditEvent#withMessage} and {@link AuditEvent#withCaller} derive the scrubbed

@@ -10,13 +10,37 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 
 /**
  * Resolved connection settings of one Keycloak system (per-system values with top-level
- * fallbacks).
+ * fallbacks). The {@link #name()} is the technical key: the {@code system} argument, the
+ * entry path {@code /mcp/s/<name>}, the key in the vault; {@link #displayName()} is a
+ * label for people. A {@link #clientSecret()} or {@link #password()} of the form
+ * {@code vault:<secret name>} is a reference the server resolves against the
+ * {@link KeyVault} before connecting.
  */
 public record KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
         Optional<String> clientId, Optional<String> clientSecret, Optional<String> username, Optional<String> password,
-        Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version, Optional<String> issuer) {
+        Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version, Optional<String> issuer,
+        Optional<String> displayName) {
 
     public static final String DEFAULT_NAME = "default";
+
+    /**
+     * Prefix of a secret value that names a {@link KeyVault} secret instead of holding
+     * one.
+     */
+    public static final String VAULT_REF = "vault:";
+
+    public KeycloakSystem {
+        displayName = displayName == null ? Optional.empty() : displayName.map(String::trim).filter(v -> !v.isEmpty());
+    }
+
+    /** Without a display name. */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version, Optional<String> issuer) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, issuer, Optional.empty());
+    }
 
     /** Without an issuer: the audience of client assertions is derived from the URL. */
     public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
@@ -83,6 +107,33 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
                     .filter(v -> !v.isEmpty()),
                 pick(s == null ? Optional.empty() : s.issuer(), c.issuer()).map(String::trim)
                     .filter(v -> !v.isEmpty()));
+    }
+
+    public KeycloakSystem withDisplayName(String label) {
+        return new KeycloakSystem(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username,
+                password, defaultRealm, allowedRealms, version, issuer, Optional.ofNullable(label));
+    }
+
+    public KeycloakSystem withClientSecret(Optional<String> secret) {
+        return new KeycloakSystem(name, url, grantType, clientAuth, authRealm, clientId, secret, username, password,
+                defaultRealm, allowedRealms, version, issuer, displayName);
+    }
+
+    public KeycloakSystem withPassword(Optional<String> newPassword) {
+        return new KeycloakSystem(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username,
+                newPassword, defaultRealm, allowedRealms, version, issuer, displayName);
+    }
+
+    /**
+     * Whether a secret value is a {@code vault:} reference rather than the secret itself.
+     */
+    public static boolean isVaultRef(String value) {
+        return value != null && value.startsWith(VAULT_REF) && value.length() > VAULT_REF.length();
+    }
+
+    /** The secret name of a {@code vault:} reference. */
+    public static String vaultRefName(String value) {
+        return value.substring(VAULT_REF.length()).trim();
     }
 
     private static <T> Optional<T> pick(Optional<T> specific, Optional<T> fallback) {

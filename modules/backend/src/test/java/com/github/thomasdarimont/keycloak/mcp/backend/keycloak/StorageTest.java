@@ -52,11 +52,10 @@ class StorageTest {
             .repository(DatabaseKeycloakSystemRepository.class)
             .orElseThrow();
 
-        repo.save(
-                new KeycloakSystem("tenant-db", "http://127.0.0.1:1", GrantType.CLIENT_CREDENTIALS,
-                        ClientAuth.PRIVATE_KEY_JWT, "master", Optional.of("keycloak-mcp-server"), Optional.empty(),
-                        Optional.empty(), Optional.empty(), Optional.of("tenant"), Set.of(), Optional.empty()),
-                "Tenant DB");
+        repo.save(new KeycloakSystem("tenant-db", "http://127.0.0.1:1", GrantType.CLIENT_CREDENTIALS,
+                ClientAuth.PRIVATE_KEY_JWT, "master", Optional.of("keycloak-mcp-server"), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.of("tenant"), Set.of(), Optional.empty())
+            .withDisplayName("Tenant DB"));
         assertTrue(systems.names().contains("tenant-db"), systems.names().toString());
 
         McpClient mcp = new McpClient().initialize(false);

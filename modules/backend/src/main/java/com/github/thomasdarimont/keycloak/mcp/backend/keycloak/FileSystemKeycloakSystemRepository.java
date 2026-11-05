@@ -41,7 +41,8 @@ import io.vertx.core.json.JsonObject;
  * {@code authRealm} (default {@code master}); {@code clientId} (default
  * {@code keycloak-mcp-server}); {@code clientSecret}, {@code username}, {@code password},
  * {@code defaultRealm}, {@code allowedRealms}, {@code version}, {@code issuer} (the
- * realm's public issuer URL when {@code url} is an internal address) (optional).
+ * realm's public issuer URL when {@code url} is an internal address), {@code displayName}
+ * (optional).
  */
 @AutoService(KeycloakSystemRepository.class)
 public class FileSystemKeycloakSystemRepository implements KeycloakSystemRepository {
@@ -121,31 +122,43 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
         Map<String, KeycloakSystem> out = new LinkedHashMap<>();
         JsonArray list = doc.getJsonArray("systems", new JsonArray());
         for (int i = 0; i < list.size(); i++) {
-            JsonObject s = list.getJsonObject(i);
-            String name = require(s, "name");
-            String url = require(s, "url");
-            GrantType grant = s.getString("grantType") == null ? GrantType.CLIENT_CREDENTIALS
-                    : GrantType.parse(s.getString("grantType"));
-            ClientAuth auth = s.getString("clientAuth") == null ? ClientAuth.PRIVATE_KEY_JWT
-                    : ClientAuth.parse(s.getString("clientAuth"));
-            JsonArray realms = s.getJsonArray("allowedRealms", new JsonArray());
-            Set<String> allowed = new java.util.LinkedHashSet<>();
-            for (int j = 0; j < realms.size(); j++) {
-                allowed.add(realms.getString(j));
-            }
-            out.put(name,
-                    new KeycloakSystem(name, url, grant, auth, s.getString("authRealm", "master"),
-                            Optional.of(s.getString("clientId", DEFAULT_CLIENT_ID)), optional(s, "clientSecret"),
-                            optional(s, "username"), optional(s, "password"), optional(s, "defaultRealm"),
-                            Set.copyOf(allowed), optional(s, "version"), optional(s, "issuer")));
+            KeycloakSystem system = parseSystem(list.getJsonObject(i), null);
+            out.put(system.name(), system);
         }
         return out;
+    }
+
+    /**
+     * One system from its JSON object (the fields of the class comment, plus
+     * {@code displayName}); the admin API uses the same shape.
+     *
+     * @param name the system name when it is not in the object ({@code name} or
+     * {@code alias}), e.g. from a path
+     */
+    public static KeycloakSystem parseSystem(JsonObject s, String name) {
+        String alias = name != null && !name.isBlank() ? name.trim()
+                : optional(s, "name").or(() -> optional(s, "alias"))
+                    .orElseThrow(() -> new IllegalArgumentException("A system lacks 'name': " + s.encode()));
+        String url = require(s, "url");
+        GrantType grant = s.getString("grantType") == null ? GrantType.CLIENT_CREDENTIALS
+                : GrantType.parse(s.getString("grantType"));
+        ClientAuth auth = s.getString("clientAuth") == null ? ClientAuth.PRIVATE_KEY_JWT
+                : ClientAuth.parse(s.getString("clientAuth"));
+        JsonArray realms = s.getJsonArray("allowedRealms", new JsonArray());
+        Set<String> allowed = new java.util.LinkedHashSet<>();
+        for (int j = 0; j < realms.size(); j++) {
+            allowed.add(realms.getString(j));
+        }
+        return new KeycloakSystem(alias, url, grant, auth, s.getString("authRealm", "master"),
+                Optional.of(s.getString("clientId", DEFAULT_CLIENT_ID)), optional(s, "clientSecret"),
+                optional(s, "username"), optional(s, "password"), optional(s, "defaultRealm"), Set.copyOf(allowed),
+                optional(s, "version"), optional(s, "issuer"), optional(s, "displayName"));
     }
 
     private static String require(JsonObject s, String field) {
         String v = s.getString(field);
         if (v == null || v.isBlank()) {
-            throw new IllegalArgumentException("A system in the systems file lacks '" + field + "': " + s.encode());
+            throw new IllegalArgumentException("A system lacks '" + field + "': " + s.encode());
         }
         return v.trim();
     }

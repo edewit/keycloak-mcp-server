@@ -1,0 +1,34 @@
+{
+  "clientId": "keycloak-mcp-admin",
+  "name": "Keycloak MCP server admin API",
+  "description": "People and tools log in with this public client to use the MCP server's admin API; its tokens carry the audience keycloak-mcp-server and the master realm roles in its scope (admin).",
+  "enabled": true,
+  "protocol": "openid-connect",
+  "publicClient": true,
+  "standardFlowEnabled": true,
+  "directAccessGrantsEnabled": true,
+  "serviceAccountsEnabled": false,
+  "fullScopeAllowed": false,
+  "redirectUris": [
+    "http://127.0.0.1:33389/mcp-oauth-callback",
+    "http://localhost:33389/mcp-oauth-callback"
+  ],
+  "attributes": {
+    "pkce.code.challenge.method": "S256",
+    "access.token.lifespan": "300"
+  },
+  "protocolMappers": [
+    {
+      "name": "mcp server audience",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-audience-mapper",
+      "consentRequired": false,
+      "config": {
+        "included.custom.audience": "keycloak-mcp-server",
+        "access.token.claim": "true",
+        "id.token.claim": "false",
+        "introspection.token.claim": "true"
+      }
+    }
+  ]
+}

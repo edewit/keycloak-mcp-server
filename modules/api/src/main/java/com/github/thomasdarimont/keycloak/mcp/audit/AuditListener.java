@@ -18,7 +18,7 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  * personal data does: usernames, e-mail addresses, names in arguments and messages, the
  * caller's name. Registered {@link AuditScrubber}s remove or pseudonymize it before the
  * event reaches a listener, per listener ({@link #id()} is what a scrubber targets; the
- * built-in log line is {@code log-line}), so the console can show less than the database
+ * built-in log line is {@code console}), so the console can show less than the database
  * row that auditors query, or the other way round.
  */
 @FunctionalInterface

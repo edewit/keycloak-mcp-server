@@ -223,6 +223,27 @@ systems can also live in a database, see §Database storage.
     "defaultRealm": "tenant-a", "allowedRealms": ["tenant-a"] } ] }
 ```
 
+### Admin API: registering systems at runtime
+
+With the database storage on and `kc-mcp.admin.enabled=true`, the admin API (a JAX-RS resource under `/admin`)
+registers systems the way a control plane would (`examples/dynamic-systems/` runs the whole flow). Callers present
+`Authorization: Bearer ...` with either the static `kc-mcp.admin.token` (automation without an OAuth client) or an
+access token of the trusted `kc-mcp.admin.issuer` (a realm URL; verified by Quarkus OIDC, optionally checked for
+`kc-mcp.admin.audience`) that carries `kc-mcp.admin.role` (`realm:admin` by default, the master realm's admins;
+`<client>.<role>` for a client role); at least one of token and issuer must be set. `PUT /admin/systems/<alias>`
+takes the fields of a systems file entry (`displayName`, `url`, `issuer`, `authRealm`, `clientId`, `clientAuth`,
+`defaultRealm`, `allowedRealms`, `version`, credentials) and stores the system in the first
+`MutableKeycloakSystemRepository` (the database). A `private_key_jwt` system gets its key from the `KeyVault`:
+`"signingKey": "generate"` creates a new pair in a vault that can (the database vault), `"existing"` uses one the
+vault already holds (provisioned PEM files, a row written by other means), and without the field an existing key is
+used or one generated. A `client_secret` system may carry `"clientSecret": "vault:<name>"` instead of the secret; the
+reference is checked against the vault on registration and resolved on every connection, so rotating the secret in
+the vault needs no change to the system. The response has no secrets but the key's `kid`, `jwksPath`
+(`/auth/keys/<alias>/jwks.json`) and `jwksUrl`, and the entries, so the caller can create the Keycloak client with
+"Signed JWT" and that JWKS URL. `GET /admin/systems[/<alias>]` lists systems with their `source` repository
+(configured ones included, read-only there), `DELETE` removes a registered one (its keys stay in the vault),
+`POST /admin/systems/<alias>/signing-key` rotates the key. The `url` has to pass `kc-mcp.allowed-hosts`.
+
 ### Database storage (optional)
 
 The `storage` module (`keycloak-mcp-server-storage`, a dependency of the backend) keeps what otherwise lives in files
@@ -262,7 +283,7 @@ retention of its own yet. The module also registers the `AuditScrubber` `pii-aud
 caller's name and the values of `pii-args`, by default `username,email,firstName,lastName,search,userId,user,attributes`
 plus `id` on user tools, become a keyed hash under `kc-mcp.storage.secret-key`, so one person stays recognisable
 across rows; the message is dropped) or `drop`; `targets` names the listeners it applies to, by default `db-audit`
-alone, `log-line` to clean the console while the database keeps everything, `*` for both.
+alone, `console` to clean the console while the database keeps everything, `*` for both.
 
 ```java
 @AutoService(KeycloakSystemRepository.class)
@@ -332,6 +353,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `quarkus.datasource.jdbc.url`   |                             | turns the database storage on (§Database storage): `jdbc:h2:file:./data/kc-mcp` or, in a `-Ppostgresql` build, `jdbc:postgresql://...` with `quarkus.datasource.username` / `password` |
 | `kc-mcp.storage.enabled`        | `true` with a jdbc url      | force the database storage on or off |
 | `kc-mcp.storage.secret-key`     |                             | encrypts stored private keys, client secrets and passwords (AES-256-GCM); base64 of 32 bytes or a passphrase (Argon2id) |
+| `kc-mcp.admin.enabled` / `token` / `issuer` / `audience` / `role` | `false` / / / / `realm:admin` | the admin API (§Admin API) at `/admin`: a static token and/or the OAuth issuer whose access tokens with that role are accepted |
 | `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | personal data in audit events: `keep`, `pseudonymize` (keyed hash) or `drop`; `pii-args` lists the argument names, `targets` the listeners (default `db-audit`) |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
@@ -483,7 +505,7 @@ to a SIEM, a database or a queue. Password-like arguments arrive as `***`; perso
 addresses, the caller's name) does not, that is the job of `AuditScrubber`s (`@AutoService(AuditScrubber.class)` or
 a CDI bean, ordered by `order()`): `scrub(event, listener)` runs once per listener before it receives the event, so a
 scrubber can treat every sink alike or pick a listener by id: only the rows that persist (`db-audit`), or only the
-built-in console line (`log-line`) while the database keeps the full record for auditors. It derives the copy with
+built-in console line (`console`) while the database keeps the full record for auditors. It derives the copy with
 `mapArgs`, `withMessage` and `withCaller`, and returns `null` to skip the event for that listener; without one the
 `NoOpAuditScrubber` applies. Listeners run synchronously on the
 handler's virtual thread, so hand slow deliveries to your own executor; an exception is logged and never changes
@@ -599,6 +621,9 @@ Two endpoints we use are missing from the published document (server info, user 
   configurations generated from them.
 - `examples/multi-tenant/`: the SaaS scenario, two tenants with several realms, systems from a file, generated
   per-tenant keys, one MCP entry per tenant or realm, and a second server with user login per realm.
+- `examples/dynamic-systems/`: no system at startup; a system is registered through the admin API into PostgreSQL
+  with a generated key, the Keycloak client is created with its JWKS URL, a realm with the public `mcp-consumer`
+  client follows, and realm-local admin, support and developer users show the access restrictions.
 
 ## Running
 

@@ -9,6 +9,9 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -26,6 +29,36 @@ class ForwardIT {
 
     private static McpClient as(String user) {
         return new McpClient().bearer(ForwardTestResource.token("mcp-consumer", user, user)).initialize(false);
+    }
+
+    @Test
+    void adminApiAcceptsAccessTokensOfTheTrustedIssuerWithTheRole() {
+        given().get("/admin/systems").then().statusCode(401).header("WWW-Authenticate", startsWith("Bearer"));
+        // a realm admin's token opens the API ...
+        given().header("Authorization", "Bearer " + ForwardTestResource.token("mcp-consumer", "alice", "alice"))
+            .get("/admin/systems")
+            .then()
+            .statusCode(200)
+            .body("systems.alias", hasItem("default"));
+        // ... a viewer's does not, nor a token without the audience
+        given().header("Authorization", "Bearer " + ForwardTestResource.token("mcp-consumer", "carol", "carol"))
+            .get("/admin/systems")
+            .then()
+            .statusCode(403)
+            .body("error", equalTo("forbidden"));
+        given().header("Authorization", "Bearer " + ForwardTestResource.token("other-app", "alice", "alice"))
+            .get("/admin/systems")
+            .then()
+            .statusCode(401);
+        given().header("Authorization", "Bearer not-a-token").get("/admin/systems").then().statusCode(401);
+        // registering needs a mutable repository, which this profile lacks
+        given().header("Authorization", "Bearer " + ForwardTestResource.token("mcp-consumer", "alice", "alice"))
+            .contentType("application/json")
+            .body("{\"url\": \"" + ForwardTestResource.base + "\"}")
+            .put("/admin/systems/acme")
+            .then()
+            .statusCode(503)
+            .body("error", equalTo("no_mutable_repository"));
     }
 
     @Test

@@ -7,7 +7,10 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminAccessFilter;
+import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminResource;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.EntryBinding;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
@@ -28,6 +31,11 @@ import io.vertx.ext.web.RoutingContext;
  * resource metadata) and points {@code auth-server-url} at
  * {@code <system url>/realms/<realm>}. Entries that resolve to the default tenant's realm
  * keep using it.
+ * <p>
+ * Requests to the admin API get the tenant {@code kc-mcp-admin} pointing at
+ * {@code kc-mcp.admin.issuer}, whatever the default tenant is; one carrying the static
+ * {@code kc-mcp.admin.token} gets a disabled tenant, so OIDC leaves it alone and the
+ * admin filter checks the token.
  */
 @ApplicationScoped
 public class EntryTenantResolver implements TenantConfigResolver {
@@ -41,6 +49,8 @@ public class EntryTenantResolver implements TenantConfigResolver {
     KeycloakSystems systems;
     @Inject
     OidcConfig oidcConfig;
+    @Inject
+    McpServerConfig config;
     @ConfigProperty(name = "quarkus.mcp.server.root-path", defaultValue = "/mcp")
     String rootPath;
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
@@ -48,10 +58,14 @@ public class EntryTenantResolver implements TenantConfigResolver {
 
     @Override
     public Uni<OidcTenantConfig> resolve(RoutingContext context, OidcRequestContext<OidcTenantConfig> requestContext) {
+        String path = context.request().path();
+        if (path != null && (path.equals(AdminResource.PATH) || path.startsWith(AdminResource.PATH + "/"))
+                && config.admin().enabled()) {
+            return Uni.createFrom().item(adminTenant(context.request().getHeader("Authorization")));
+        }
         if (!tenantEnabled) {
             return Uni.createFrom().nullItem();
         }
-        String path = context.request().path();
         if (path != null && path.startsWith(RESOURCE_METADATA_PATH)) {
             // the protected-resource metadata of an entry describes that entry's tenant
             path = path.substring(RESOURCE_METADATA_PATH.length());
@@ -62,6 +76,27 @@ public class EntryTenantResolver implements TenantConfigResolver {
         }
         // a system repository may go to a database: off the event loop
         return requestContext.runBlocking(() -> tenantFor(binding.get()));
+    }
+
+    /**
+     * The tenant of an admin request: none at all for the static token (OIDC skips the
+     * request), the trusted issuer's for everything else, the default tenant when no
+     * issuer is configured.
+     */
+    OidcTenantConfig adminTenant(String authorization) {
+        if (AdminAccessFilter.staticTokenMatches(authorization, config.admin().token().orElse(null))) {
+            return OidcTenantConfig.builder().tenantId("kc-mcp-admin-token").tenantEnabled(false).build();
+        }
+        Optional<String> issuer = config.admin().issuer().filter(v -> !v.isBlank());
+        if (issuer.isEmpty()) {
+            return null;
+        }
+        var builder = OidcTenantConfig.builder()
+            .tenantId("kc-mcp-admin")
+            .authServerUrl(issuer.get())
+            .applicationType(io.quarkus.oidc.runtime.OidcTenantConfig.ApplicationType.SERVICE);
+        config.admin().audience().filter(v -> !v.isBlank()).ifPresent(a -> builder.token().audience(a).end());
+        return builder.build();
     }
 
     /**

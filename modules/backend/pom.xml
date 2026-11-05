@@ -41,6 +41,11 @@
             <artifactId>quarkus-keycloak-admin-rest-client</artifactId>
         </dependency>
         <dependency>
+            <!-- the admin API is a JAX-RS resource (Quarkus REST) exchanging plain maps as JSON, secured by Quarkus Security -->
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
         </dependency>

@@ -32,7 +32,7 @@ class PiiAuditScrubberTest {
     static final AuditListener LOG_LINE = new AuditListener() {
         @Override
         public String id() {
-            return "log-line";
+            return "console";
         }
 
         @Override
