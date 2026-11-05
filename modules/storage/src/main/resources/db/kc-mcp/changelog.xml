@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Master changelog of the keycloak-mcp-server storage module, applied by Liquibase at startup
+  (quarkus.liquibase.migrate-at-start). Tables are prefixed kc_mcp_ so the server can share a database server, never a
+  schema, with Keycloak itself. Portable between H2 (embedded default) and PostgreSQL; timestamps are epoch
+  milliseconds in bigint columns, as in Keycloak's own schema. One included file per schema version, in order; a new
+  version is a new file appended here, shipped files are never edited.
+-->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <include file="db/kc-mcp/0.1.0-changelog.xml"/>
+
+</databaseChangeLog>

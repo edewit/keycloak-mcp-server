@@ -213,7 +213,8 @@ keeps the previous behavior: one key for every system, published at `/.well-know
 
 The built-in `FileSystemKeycloakSystemRepository` reads a JSON file (`kc-mcp.systems-file`, re-read when it changes), so a tenant registry
 can be a mounted file that another process maintains; `kc-mcp.static-systems=false` runs on repositories alone.
-`examples/multi-tenant/` is a complete two-tenant setup with provisioned keys and one MCP entry per tenant.
+`examples/multi-tenant/` is a complete two-tenant setup with provisioned keys and one MCP entry per tenant; the
+systems can also live in a database, see §Database storage.
 
 ```json
 { "systems": [
@@ -221,6 +222,42 @@ can be a mounted file that another process maintains; `kc-mcp.static-systems=fal
     "clientId": "keycloak-mcp-server", "clientAuth": "private_key_jwt",
     "defaultRealm": "tenant-a", "allowedRealms": ["tenant-a"] } ] }
 ```
+
+### Database storage (optional)
+
+The `storage` module (`keycloak-mcp-server-storage`, a dependency of the backend) keeps what otherwise lives in files
+in a database: Keycloak systems (a `KeycloakSystemRepository` named `db-systems`, table `kc_mcp_system`), the
+`private_key_jwt` key pairs and raw secrets (a `KeyVault` named `db-key-vault` that creates and rotates keys, tables
+`kc_mcp_signing_key` and `kc_mcp_secret`) and the audit trail (an `AuditListener` named `db-audit`, one
+`kc_mcp_audit_event` row per call, denials and reads included). Hibernate ORM with Panache maps the tables, Liquibase
+creates and migrates them at startup (`db/kc-mcp/changelog.xml`, one included file per schema version, `0.1.0-changelog.xml` first), timestamps are epoch milliseconds in `bigint`
+columns as in Keycloak's own schema. Nothing of it runs until a datasource is configured: without
+`quarkus.datasource.jdbc.url` the server works from the static configuration, the systems file and the file vault
+alone; with one, `kc-mcp.storage.enabled` turns on by itself (set it explicitly to force either way) and the three
+extensions join the registry, so `kc-mcp.dynamic-systems=true` makes the stored systems reachable, the database vault
+takes over from the read-only file vault and the audit rows start. Each can be switched off alone with
+`kc-mcp.spi.db-systems.enabled`, `db-key-vault.enabled` or `db-audit.enabled` (for instance a database audit log next
+to provisioned PEM keys).
+
+```shell
+QUARKUS_DATASOURCE_JDBC_URL=jdbc:h2:file:./data/kc-mcp KC_MCP_DYNAMIC_SYSTEMS=true \
+KC_MCP_STORAGE_SECRET_KEY=$(openssl rand -base64 32) java -jar modules/backend/target/quarkus-app/quarkus-run.jar
+```
+
+The database kind is a build-time choice in Quarkus (the dialect is baked in): the default build carries the embedded
+H2 (`jdbc:h2:file:...`, one instance, dev and small setups), `./mvnw package -Ppostgresql` builds the
+server for PostgreSQL (`jdbc:postgresql://host:5432/kcmcp` with `quarkus.datasource.username` /
+`password`); both drivers are in the jar, so the Docker image built from a PostgreSQL build still runs with H2 only
+if rebuilt. Share a database *server* with Keycloak if you like, never its schema: the tables carry the `kc_mcp_`
+prefix. `kc-mcp.storage.secret-key` (the base64 of 32 random bytes, or a passphrase run through Argon2id) encrypts
+private keys, client secrets and passwords at rest with AES-256-GCM; without it they are stored in plain text and the
+startup log says so. In `kc_mcp_system` the `alias` column is what the server calls the system (`KeycloakSystem.name()`,
+the `system` argument, `/mcp/s/<alias>`), `name` is a display label and the primary key a UUID, so both can change; a
+row with `enabled=false` is kept but not served. A control plane writes rows through the module's
+`DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault` (`createSigningKey`
+rotates: the previous key keeps its row with `retired_at`, `putSecret`) and reads audit rows through
+`DatabaseAuditListener` (`recent`, `byCaller`); an admin API over them is the next step, and the audit table has no
+retention of its own yet.
 
 ```java
 @AutoService(KeycloakSystemRepository.class)
@@ -287,6 +324,9 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.static-systems`         | `true`                      | `false`: no system from the top-level / `kc-mcp.systems.*` settings, repositories only |
 | `kc-mcp.jwt.key-size`           | `2048`                      | modulus bits of generated RSA keys; `kc-mcp.jwt.algorithm` decides the key kind (RSA for RS*/PS*, EC on the matching curve for ES*) |
 | `kc-mcp.keys-dir`               | `data/keys`                 | directory of the read-only built-in `KeyVault`: provisioned `<system>.pem` keys and `secrets/<name>` files |
+| `quarkus.datasource.jdbc.url`   |                             | turns the database storage on (§Database storage): `jdbc:h2:file:./data/kc-mcp` or, in a `-Ppostgresql` build, `jdbc:postgresql://...` with `quarkus.datasource.username` / `password` |
+| `kc-mcp.storage.enabled`        | `true` with a jdbc url      | force the database storage on or off |
+| `kc-mcp.storage.secret-key`     |                             | encrypts stored private keys, client secrets and passwords (AES-256-GCM); base64 of 32 bytes or a passphrase (Argon2id) |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.require-caller`         | `false`                     | refuse anonymous MCP requests with the OAuth challenge even with `delegation=off` |
@@ -550,11 +590,16 @@ Two endpoints we use are missing from the published document (server info, user 
 ./mvnw spotless:apply                  # format the Java sources; `verify` fails on unformatted code
 ```
 
-Two Maven modules under `modules/`: `api` (`com.github.thomasdarimont.keycloak:keycloak-mcp-server-api`, what
-extensions compile against, no Quarkus dependency, packages under `com.github.thomasdarimont.keycloak.mcp`) and
-`backend` (`keycloak-mcp-server-backend`, the Quarkus application, packages under
-`com.github.thomasdarimont.keycloak.mcp.backend`). Dev mode needs `-pl modules/backend -am` so the api is built in
-the same reactor; every other goal runs from the root.
+Three Maven modules under `modules/`: `api` (`com.github.thomasdarimont.keycloak:keycloak-mcp-server-api`, what
+extensions compile against, no Quarkus dependency, packages under `com.github.thomasdarimont.keycloak.mcp`),
+`storage` (`keycloak-mcp-server-storage`, the optional database storage of §Database storage: the Liquibase
+changelog and, under `com.github.thomasdarimont.keycloak.mcp.storage`, the switch and startup log at the root,
+`crypto` for the encryption at rest, and one package per store with its Panache entities and extension: `systems`,
+`keys`, `audit`) and `backend` (`keycloak-mcp-server-backend`, the Quarkus
+application, packages under `com.github.thomasdarimont.keycloak.mcp.backend`). Dev mode needs
+`-pl modules/backend -am` so the api and the storage module are built in the same reactor; every other goal runs
+from the root. `./mvnw verify -DskipITs=false` also runs the storage module's test against a PostgreSQL started
+by Dev Services (Docker); the backend's `StorageTest` covers the wiring on an in-memory H2 and always runs.
 
 Formatting is checked with [Spotless](https://github.com/diffplug/spotless) using the
 [Spring Java Format](https://github.com/spring-io/spring-javaformat) conventions with spaces

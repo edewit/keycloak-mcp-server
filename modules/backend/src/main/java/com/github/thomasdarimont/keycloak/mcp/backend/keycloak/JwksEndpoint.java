@@ -43,8 +43,10 @@ public class JwksEndpoint {
         if (!config.jwt().jwksEnabled()) {
             return;
         }
-        router.route(HttpMethod.GET, config.jwt().jwksPath()).handler(ctx -> serve(ctx, legacy()));
-        router.route(HttpMethod.GET, SYSTEM_PATH).handler(ctx -> serve(ctx, forSystem(ctx.pathParam("system"))));
+        // blocking: a system repository or key vault may go to a database
+        router.route(HttpMethod.GET, config.jwt().jwksPath()).blockingHandler(ctx -> serve(ctx, legacy()));
+        router.route(HttpMethod.GET, SYSTEM_PATH)
+            .blockingHandler(ctx -> serve(ctx, forSystem(ctx.pathParam("system"))));
         LOG.infof("JWKS served at %s and %s", config.jwt().jwksPath(), SYSTEM_PATH);
     }
 

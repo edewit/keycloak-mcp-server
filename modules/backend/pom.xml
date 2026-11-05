@@ -23,6 +23,12 @@
             <artifactId>keycloak-mcp-server-api</artifactId>
         </dependency>
         <dependency>
+            <!-- optional database storage (systems, keys, secrets, audit); dormant without a configured datasource.
+                 Drop it to build a server without JDBC drivers. -->
+            <groupId>com.github.thomasdarimont.keycloak</groupId>
+            <artifactId>keycloak-mcp-server-storage</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.quarkiverse.mcp</groupId>
             <artifactId>quarkus-mcp-server-http</artifactId>
         </dependency>

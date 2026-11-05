@@ -10,6 +10,8 @@
     <modules>
         <!-- what extensions compile against: the SPI, tool catalog types and the admin client facade -->
         <module>modules/api</module>
+        <!-- optional database storage: systems, key material and audit events in PostgreSQL -->
+        <module>modules/storage</module>
         <!-- the Quarkus application -->
         <module>modules/backend</module>
     </modules>
@@ -31,6 +33,8 @@
         <jackson.version>2.21.8</jackson.version>
         <auto-service.version>1.1.1</auto-service.version>
         <jandex-maven-plugin.version>3.4.0</jandex-maven-plugin.version>
+        <!-- database kind of the storage module, baked into the backend at build time: h2 or postgresql (-Ppostgresql) -->
+        <storage.db-kind>h2</storage.db-kind>
     </properties>
 
     <dependencyManagement>
@@ -60,6 +64,11 @@
             <dependency>
                 <groupId>com.github.thomasdarimont.keycloak</groupId>
                 <artifactId>keycloak-mcp-server-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.thomasdarimont.keycloak</groupId>
+                <artifactId>keycloak-mcp-server-storage</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -161,4 +170,16 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <!-- The database kind of the storage module is fixed when the application is built (Quarkus bakes the
+                 dialect in): the default build is for the embedded H2, `./mvnw package -Ppostgresql` builds the
+                 server for PostgreSQL. Tests keep running on H2 either way. -->
+            <id>postgresql</id>
+            <properties>
+                <storage.db-kind>postgresql</storage.db-kind>
+            </properties>
+        </profile>
+    </profiles>
 </project>

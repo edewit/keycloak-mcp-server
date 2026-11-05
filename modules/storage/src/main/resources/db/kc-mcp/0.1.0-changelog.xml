@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Schema of the keycloak-mcp-server storage module, version 0.1.0: the first four tables. Change sets that shipped are
+  never edited; a later version gets its own file, included from changelog.xml after this one.
+-->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-systems" author="keycloak-mcp-server">
+        <comment>Keycloak systems a KeycloakSystemRepository serves at runtime (tenants): the alias is the technical
+            key (KeycloakSystem.name, the system argument, /mcp/s/alias), the name a label for people</comment>
+        <createTable tableName="kc_mcp_system">
+            <column name="id" type="varchar(36)">
+                <constraints primaryKey="true" primaryKeyName="pk_kc_mcp_system" nullable="false"/>
+            </column>
+            <column name="alias" type="varchar(255)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_kc_mcp_system_alias"/>
+            </column>
+            <column name="name" type="varchar(255)"/>
+            <column name="url" type="varchar(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="grant_type" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="client_auth" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="auth_realm" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="client_id" type="varchar(255)"/>
+            <!-- encrypted when kc-mcp.storage.secret-key is set -->
+            <column name="client_secret" type="clob"/>
+            <column name="username" type="varchar(255)"/>
+            <column name="password" type="clob"/>
+            <column name="default_realm" type="varchar(255)"/>
+            <!-- JSON array of realm names, empty for all -->
+            <column name="allowed_realms" type="clob"/>
+            <column name="version" type="varchar(64)"/>
+            <column name="issuer" type="varchar(1024)"/>
+            <column name="enabled" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-signing-keys" author="keycloak-mcp-server">
+        <comment>private_key_jwt key pairs per system; the current key has no retired_at, rotated keys keep their row</comment>
+        <createTable tableName="kc_mcp_signing_key">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" primaryKeyName="pk_kc_mcp_signing_key" nullable="false"/>
+            </column>
+            <column name="system_alias" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="kid" type="varchar(255)"/>
+            <column name="algorithm" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="key_type" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- base64 PKCS#8, encrypted when kc-mcp.storage.secret-key is set -->
+            <column name="private_key" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <!-- base64 X.509 SubjectPublicKeyInfo -->
+            <column name="public_key" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="retired_at" type="bigint"/>
+        </createTable>
+        <createIndex tableName="kc_mcp_signing_key" indexName="ix_kc_mcp_signing_key_alias">
+            <column name="system_alias"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="3-secrets" author="keycloak-mcp-server">
+        <comment>raw secrets by name (KeyVault.findSecret), e.g. tenant-a/client-secret</comment>
+        <createTable tableName="kc_mcp_secret">
+            <column name="name" type="varchar(255)">
+                <constraints primaryKey="true" primaryKeyName="pk_kc_mcp_secret" nullable="false"/>
+            </column>
+            <column name="secret_value" type="clob">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="4-audit-events" author="keycloak-mcp-server">
+        <comment>one row per finished tool call, whatever the outcome (AuditListener.Event)</comment>
+        <createTable tableName="kc_mcp_audit_event">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" primaryKeyName="pk_kc_mcp_audit_event" nullable="false"/>
+            </column>
+            <column name="occurred_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tool" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="level" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="system_alias" type="varchar(255)"/>
+            <column name="realm" type="varchar(255)"/>
+            <!-- the arguments as JSON, secrets already replaced by *** -->
+            <column name="args" type="clob"/>
+            <column name="outcome" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message" type="clob"/>
+            <column name="via" type="varchar(32)"/>
+            <column name="caller_subject" type="varchar(255)"/>
+            <column name="caller_name" type="varchar(255)"/>
+            <column name="caller_realm" type="varchar(255)"/>
+            <column name="delegated" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="client_name" type="varchar(255)"/>
+            <column name="connection_id" type="varchar(255)"/>
+            <column name="duration_ms" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="kc_mcp_audit_event" indexName="ix_kc_mcp_audit_event_at">
+            <column name="occurred_at"/>
+        </createIndex>
+        <createIndex tableName="kc_mcp_audit_event" indexName="ix_kc_mcp_audit_event_caller">
+            <column name="caller_subject"/>
+            <column name="occurred_at"/>
+        </createIndex>
+        <createIndex tableName="kc_mcp_audit_event" indexName="ix_kc_mcp_audit_event_system">
+            <column name="system_alias"/>
+            <column name="realm"/>
+            <column name="occurred_at"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>
