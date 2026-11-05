@@ -3,15 +3,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.github.thomasdarimont.keycloak</groupId>
-    <artifactId>keycloak-mcp-server-parent</artifactId>
+    <artifactId>keycloak-mcp-server</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
         <!-- what extensions compile against: the SPI, tool catalog types and the admin client facade -->
-        <module>api</module>
+        <module>modules/api</module>
         <!-- the Quarkus application -->
-        <module>server</module>
+        <module>modules/backend</module>
     </modules>
 
     <properties>
@@ -78,7 +78,7 @@
                     <artifactId>quarkus-maven-plugin</artifactId>
                     <version>${quarkus.platform.version}</version>
                     <configuration>
-                        <!-- `quarkus:dev -pl server -am` also visits the api module, which is a plain library -->
+                        <!-- `quarkus:dev -pl modules/backend -am` also visits the api module, which is a plain library -->
                         <warnIfBuildGoalMissing>false</warnIfBuildGoalMissing>
                     </configuration>
                 </plugin>

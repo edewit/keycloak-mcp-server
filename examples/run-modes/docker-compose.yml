@@ -1,7 +1,7 @@
 # Demo stack for keycloak-mcp-server: Keycloak 26.8.1 + PostgreSQL + Mailpit (+ optional MCP server).
 #
 #   docker compose up -d                 # Keycloak on http://localhost:8080 (admin / admin), Mailpit on :8025
-#   docker compose --profile mcp up -d --build   # also runs the MCP server from ../server/target/quarkus-app on :8081
+#   docker compose --profile mcp up -d --build   # also runs the MCP server from ../modules/backend/target/quarkus-app on :8081
 #   docker compose down -v               # reset everything
 services:
   postgres:
@@ -65,7 +65,7 @@ services:
     profiles: ["mcp"]
     build:
       context: ../..
-      dockerfile: server/src/main/docker/Dockerfile.jvm
+      dockerfile: modules/backend/src/main/docker/Dockerfile.jvm
     env_file:
       - ${KC_MCP_ENV_FILE:-env/realm-admin.env}
     environment:

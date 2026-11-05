@@ -402,8 +402,8 @@ The Docker image reads `/deployments/providers` (`docker-compose.yml` has a volu
 
 ```shell
 ./mvnw package -DskipTests
-cp acme-tools.jar server/target/quarkus-app/providers/
-java -jar server/target/quarkus-app/quarkus-run.jar      # log: Extensions directory .../providers: [acme-tools.jar]
+cp acme-tools.jar modules/backend/target/quarkus-app/providers/
+java -jar modules/backend/target/quarkus-app/quarkus-run.jar      # log: Extensions directory .../providers: [acme-tools.jar]
 ```
 
 `Confirmer` decides whether a destructive call may run (`@AutoService(Confirmer.class)` or a CDI bean, ordered by
@@ -537,16 +537,18 @@ Two endpoints we use are missing from the published document (server info, user 
 ## Running
 
 ```shell
-./mvnw quarkus:dev -pl server -am      # dev mode, MCP endpoint on http://localhost:8081/mcp
+./mvnw quarkus:dev -pl modules/backend -am      # dev mode, MCP endpoint on http://localhost:8081/mcp
 ./mvnw test                            # unit + in-process MCP endpoint tests (no Keycloak needed)
 ./mvnw verify -DskipITs=false          # + Testcontainers Keycloak 26.8.1 integration test
-./mvnw package && java -jar server/target/quarkus-app/quarkus-run.jar
+./mvnw package && java -jar modules/backend/target/quarkus-app/quarkus-run.jar
 ./mvnw spotless:apply                  # format the Java sources; `verify` fails on unformatted code
 ```
 
-Two Maven modules: `api` (`com.github.thomasdarimont.keycloak:keycloak-mcp-server-api`, what extensions compile against, no Quarkus
-dependency) and `server` (the Quarkus application). Dev mode needs `-pl server -am` so the api is built in the
-same reactor; every other goal runs from the root.
+Two Maven modules under `modules/`: `api` (`com.github.thomasdarimont.keycloak:keycloak-mcp-server-api`, what
+extensions compile against, no Quarkus dependency, packages under `com.github.thomasdarimont.keycloak.mcp`) and
+`backend` (`keycloak-mcp-server-backend`, the Quarkus application, packages under
+`com.github.thomasdarimont.keycloak.mcp.backend`). Dev mode needs `-pl modules/backend -am` so the api is built in
+the same reactor; every other goal runs from the root.
 
 Formatting is checked with [Spotless](https://github.com/diffplug/spotless) using the
 [Spring Java Format](https://github.com/spring-io/spring-javaformat) conventions with spaces

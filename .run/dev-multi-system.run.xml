@@ -29,7 +29,7 @@
       <option name="myRunnerParameters">
         <MavenRunnerParameters>
           <option name="profiles"><set /></option>
-          <option name="goals"><list><option value="quarkus:dev" /><option value="-pl" /><option value="server" /><option value="-am" /></list></option>
+          <option name="goals"><list><option value="quarkus:dev" /><option value="-pl" /><option value="modules/backend" /><option value="-am" /></list></option>
           <option name="pomFileName" value="pom.xml" />
           <option name="profilesMap"><map /></option>
           <option name="resolveToWorkspace" value="false" />

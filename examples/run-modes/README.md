@@ -17,7 +17,7 @@ Then run the MCP server on the host with one of the access levels in `env/`:
 ```shell
 cd ..
 set -a; source examples/run-modes/env/realm-admin.env; set +a
-./mvnw quarkus:dev -pl server -am   # MCP endpoint: http://localhost:8081/mcp
+./mvnw quarkus:dev -pl modules/backend -am   # MCP endpoint: http://localhost:8081/mcp
 ```
 
 Or let compose run it from the packaged jar (`./mvnw package` first):
@@ -67,7 +67,7 @@ An existing stack keeps its old realm: after changes to `realms/demo-realm.json`
 ```shell
 ./examples/run-modes/gen-key.sh                                  # writes examples/run-modes/keys/mcp-jwt.pem (git-ignored)
 set -a; source examples/run-modes/env/private-key-jwt.env; set +a
-./mvnw quarkus:dev -pl server -am
+./mvnw quarkus:dev -pl modules/backend -am
 curl http://localhost:8081/.well-known/jwks.json      # the public key Keycloak will fetch
 ```
 
@@ -89,7 +89,7 @@ the user's access token. The server forwards that token to the Admin API, so Key
 ```shell
 cd examples/run-modes && docker compose up -d && cd ..                 # Keycloak must be up before the server starts
 set -a; source examples/run-modes/env/user-forward.env; set +a
-./mvnw quarkus:dev -pl server -am
+./mvnw quarkus:dev -pl modules/backend -am
 curl -i http://localhost:8081/mcp                           # 401 + WWW-Authenticate … resource_metadata=…
 curl http://localhost:8081/.well-known/oauth-protected-resource
 ```
