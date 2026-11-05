@@ -5,10 +5,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 import org.jboss.logging.Logger;
 
@@ -87,6 +89,26 @@ public final class FileKeyVault implements KeyVault {
         }
         catch (IOException e) {
             throw new IllegalStateException("Cannot read the secret " + file + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * The file names under {@code
+     *
+    <dir>
+     * /secrets}, which are the names the secrets answer to.
+     */
+    @Override
+    public List<String> secretNames() {
+        Path secrets = dir.resolve("secrets");
+        if (!Files.isDirectory(secrets)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(secrets)) {
+            return files.filter(Files::isRegularFile).map(f -> f.getFileName().toString()).sorted().toList();
+        }
+        catch (IOException e) {
+            throw new IllegalStateException("Cannot list " + secrets + ": " + e.getMessage(), e);
         }
     }
 

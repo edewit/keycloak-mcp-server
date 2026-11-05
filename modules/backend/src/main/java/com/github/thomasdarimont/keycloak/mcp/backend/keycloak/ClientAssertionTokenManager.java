@@ -3,6 +3,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.Form;
@@ -31,7 +32,7 @@ public class ClientAssertionTokenManager implements AutoCloseable {
     private final String tokenEndpoint;
     private final String audience;
     private final String clientId;
-    private final JwtSigner signer;
+    private final Supplier<JwtSigner> signer;
     private final int assertionLifespan;
     private final GrantType grantType;
     private final String username;
@@ -52,6 +53,16 @@ public class ClientAssertionTokenManager implements AutoCloseable {
      */
     public ClientAssertionTokenManager(Client client, String serverUrl, String realm, String audience, String clientId,
             JwtSigner signer, int assertionLifespan, GrantType grantType, String username, String password) {
+        this(client, serverUrl, realm, audience, clientId, () -> signer, assertionLifespan, grantType, username,
+                password);
+    }
+
+    /**
+     * @param signer asked for the signer on every token request, so a key rotated in the
+     * vault (by this or another instance) is used from the next request on
+     */
+    public ClientAssertionTokenManager(Client client, String serverUrl, String realm, String audience, String clientId,
+            Supplier<JwtSigner> signer, int assertionLifespan, GrantType grantType, String username, String password) {
         this.client = client;
         String base = serverUrl.endsWith("/") ? serverUrl.substring(0, serverUrl.length() - 1) : serverUrl;
         this.tokenEndpoint = base + "/realms/" + realm + "/protocol/openid-connect/token";
@@ -110,7 +121,7 @@ public class ClientAssertionTokenManager implements AutoCloseable {
             .put("iat", now)
             .put("nbf", now)
             .put("exp", now + assertionLifespan);
-        String assertion = signer.sign(claims);
+        String assertion = signer.get().sign(claims);
         Form form = new Form().param("grant_type", grantType.oauthValue())
             .param("client_id", clientId)
             .param("client_assertion_type", ASSERTION_TYPE)

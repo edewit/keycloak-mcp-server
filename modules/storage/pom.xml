@@ -47,6 +47,11 @@
             <artifactId>quarkus-liquibase</artifactId>
         </dependency>
         <dependency>
+            <!-- the hourly purge of audit events older than kc-mcp.spi.db-audit.retention-days -->
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-scheduler</artifactId>
+        </dependency>
+        <dependency>
             <!-- Argon2id for deriving the encryption key from a passphrase (the JDK has no Argon2) -->
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>

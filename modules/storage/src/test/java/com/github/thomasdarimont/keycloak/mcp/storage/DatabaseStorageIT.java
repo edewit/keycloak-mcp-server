@@ -25,6 +25,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.AuditEventEntity;
+import com.github.thomasdarimont.keycloak.mcp.storage.audit.AuditRetention;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.DatabaseAuditListener;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.DatabaseKeyVault;
@@ -32,6 +33,7 @@ import com.github.thomasdarimont.keycloak.mcp.storage.keys.SigningKeyEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.DatabaseKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.SystemEntity;
 
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.runtime.BlockingOperationControl;
 import io.quarkus.runtime.IOThreadDetector;
 import io.quarkus.test.junit.QuarkusTest;
@@ -62,6 +64,9 @@ class DatabaseStorageIT {
     @Inject
     @Any
     Instance<AuditListener> listeners;
+
+    @Inject
+    AuditRetention retention;
 
     static KeycloakSystem system(String alias, String url, Optional<String> secret, Set<String> realms) {
         return new KeycloakSystem(alias, url, GrantType.CLIENT_CREDENTIALS,
@@ -160,14 +165,32 @@ class DatabaseStorageIT {
         assertTrue(StorageCrypto.isEncrypted(history.get(0).privateKey), "private key encrypted at rest");
         assertFalse(StorageCrypto.isEncrypted(history.get(0).publicKey), "public key in the clear");
 
+        // the JWKS publishes the current key first and the retired one for the grace
+        // period, so another instance still signing with it is accepted
+        List<SigningKey> published = vault.publishedSigningKeys(alias);
+        assertEquals(2, published.size());
+        assertEquals(((RSAPublicKey) rotated.publicKey()).getModulus(),
+                ((RSAPublicKey) published.get(0).publicKey()).getModulus(), "current first");
+        assertEquals(((RSAPublicKey) created.publicKey()).getModulus(),
+                ((RSAPublicKey) published.get(1).publicKey()).getModulus(), "retired, within the grace period");
+        long longAgo = System.currentTimeMillis() - Duration.ofDays(2).toMillis();
+        QuarkusTransaction.requiringNew()
+            .run(() -> SigningKeyEntity.update("retiredAt = ?1 where id = ?2", longAgo, history.get(1).id));
+        assertEquals(1, vault.publishedSigningKeys(alias).size(), "retired beyond the grace period, dropped");
+        assertEquals(2, vault.history(alias).size(), "but kept in the history");
+
         String name = alias + "/client-secret";
+        assertTrue(vault.supportsSecretStorage());
         assertTrue(vault.findSecret(name).isEmpty());
         vault.putSecret(name, "s3cr3t");
         assertEquals("s3cr3t", vault.findSecret(name).orElseThrow());
+        assertTrue(vault.secretNames().contains(name), "names, never values");
         vault.putSecret(name, "changed");
         assertEquals("changed", vault.findSecret(name).orElseThrow());
         assertTrue(vault.deleteSecret(name));
+        assertFalse(vault.deleteSecret(name));
         assertTrue(vault.findSecret(name).isEmpty());
+        assertFalse(vault.secretNames().contains(name));
     }
 
     @Test
@@ -204,5 +227,27 @@ class DatabaseStorageIT {
         List<AuditEventEntity> mine = audit.byCaller(subject, 10);
         assertEquals(1, mine.size());
         assertTrue(audit.count() >= 2);
+    }
+
+    @Test
+    void retentionRemovesOldEventsOnly() {
+        DatabaseAuditListener audit = listeners.select(DatabaseAuditListener.class).get();
+        assertEquals(30, retention.retentionDays(), "kc-mcp.spi.db-audit.retention-days of the test configuration");
+        String subject = UUID.randomUUID().toString();
+        Caller caller = Caller.of(subject, "old-timer", "tenant", Set.of());
+        Instant now = Instant.now();
+        for (int daysAgo : new int[] { 31, 400, 29, 0 }) {
+            audit.onToolCall(new AuditEvent(now.minus(Duration.ofDays(daysAgo)), "whoami", ToolLevel.READ, null, null,
+                    Map.of("daysAgo", daysAgo), "ok", null, "direct", caller, "-", "-", Duration.ofMillis(1)));
+        }
+        assertEquals(4, audit.byCaller(subject, 10).size());
+
+        assertTrue(retention.purge() >= 2, "the two events beyond 30 days");
+        List<AuditEventEntity> left = audit.byCaller(subject, 10);
+        assertEquals(2, left.size());
+        assertTrue(left.stream().allMatch(e -> e.occurredAt >= now.minus(Duration.ofDays(30)).toEpochMilli()));
+
+        assertEquals(0, audit.purgeOlderThan(now.minus(Duration.ofDays(30)).toEpochMilli()), "nothing older left");
+        assertTrue(audit.purgeOlderThan(now.minus(Duration.ofDays(1)).toEpochMilli()) >= 1, "an explicit cutoff");
     }
 }

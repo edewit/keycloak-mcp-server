@@ -9,8 +9,10 @@ import org.junit.jupiter.api.Test;
 import com.github.thomasdarimont.keycloak.mcp.backend.McpClient;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.DatabaseAuditListener;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.DatabaseKeyVault;
@@ -22,6 +24,8 @@ import io.vertx.core.json.JsonObject;
 
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -42,6 +46,9 @@ class StorageTest {
     SigningKeys keys;
 
     @Inject
+    McpServerConfig config;
+
+    @Inject
     AuditLogAccess audit;
 
     @Test
@@ -52,10 +59,10 @@ class StorageTest {
             .repository(DatabaseKeycloakSystemRepository.class)
             .orElseThrow();
 
-        repo.save(new KeycloakSystem("tenant-db", "http://127.0.0.1:1", GrantType.CLIENT_CREDENTIALS,
+        KeycloakSystem tenant = new KeycloakSystem("tenant-db", "http://127.0.0.1:1", GrantType.CLIENT_CREDENTIALS,
                 ClientAuth.PRIVATE_KEY_JWT, "master", Optional.of("keycloak-mcp-server"), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.of("tenant"), Set.of(), Optional.empty())
-            .withDisplayName("Tenant DB"));
+                Optional.empty(), Optional.empty(), Optional.of("tenant"), Set.of(), Optional.empty());
+        repo.save(tenant.withDisplayName("Tenant DB"));
         assertTrue(systems.names().contains("tenant-db"), systems.names().toString());
 
         McpClient mcp = new McpClient().initialize(false);
@@ -69,6 +76,24 @@ class StorageTest {
         assertEquals(body, given().get("/auth/keys/tenant-db/jwks.json").then().statusCode(200).extract().asString(),
                 "stored, not regenerated");
         given().get("/auth/keys/nope/jwks.json").then().statusCode(404);
+
+        // another instance of the server on the same database rotates the key: this one
+        // signs with the new key from its next token request and publishes both
+        JwtSigner before = keys.signerFor(tenant);
+        assertEquals(key.getString("kid"), before.jwk().getString("kid"));
+        SigningKeys otherInstance = new SigningKeys(config, keys.vault());
+        SigningKey newKey = otherInstance.rotate("tenant-db");
+        String rotated = Jwks.jwk(newKey.publicKey(), newKey.algorithm(), newKey.keyId()).getString("kid");
+        JwtSigner after = keys.signerFor(tenant);
+        assertEquals(rotated, after.jwk().getString("kid"), "the rotation done elsewhere is signed with here");
+        assertNotSame(before, after);
+        assertSame(after, keys.signerFor(tenant), "reused while the vault's key is the same");
+        JsonObject jwks = new JsonObject(
+                given().get("/auth/keys/tenant-db/jwks.json").then().statusCode(200).extract().asString());
+        assertEquals(2, jwks.getJsonArray("keys").size(), jwks.encode());
+        assertEquals(rotated, jwks.getJsonArray("keys").getJsonObject(0).getString("kid"), "new key first");
+        assertEquals(key.getString("kid"), jwks.getJsonArray("keys").getJsonObject(1).getString("kid"),
+                "the retired key stays published for the grace period");
 
         // a real tool call (meta tools such as whoami are not audited) leaves an audit
         // row

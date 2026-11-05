@@ -205,8 +205,8 @@ server signs with a key pair per system from a `KeyVault` and publishes the publ
 vault is read-only: it serves PKCS#8 PEM files that operations provisioned under `kc-mcp.keys-dir` (default
 `data/keys`, next to `quarkus-run.jar` when packaged; `<system>.pem` per system, raw secrets as files under
 `<dir>/secrets/<name>`). A `KeyVault` extension of your own (`findSigningKey`, `createSigningKey` when it
-`supportsKeyCreation()`, read-only `findSecret`) keeps keys in a database, which is also where they get created
-and rotated with the `SigningKeyGenerator` the server hands over (built-in: JDK RSA or EC keys for
+`supportsKeyCreation()`, `findSecret`, `putSecret` when it `supportsSecretStorage()`) keeps keys in a database, which
+is also where they get created and rotated with the `SigningKeyGenerator` the server hands over (built-in: JDK RSA or EC keys for
 `kc-mcp.jwt.algorithm`, RSA size `kc-mcp.jwt.key-size`; your own for an HSM), or in a secrets manager such as
 HashiCorp Vault, so the server only ever handles key and secret references. A configured `kc-mcp.jwt.key-file`
 keeps the previous behavior: one key for every system, published at `/.well-known/jwks.json` as well.
@@ -242,7 +242,15 @@ the vault needs no change to the system. The response has no secrets but the key
 (`/auth/keys/<alias>/jwks.json`) and `jwksUrl`, and the entries, so the caller can create the Keycloak client with
 "Signed JWT" and that JWKS URL. `GET /admin/systems[/<alias>]` lists systems with their `source` repository
 (configured ones included, read-only there), `DELETE` removes a registered one (its keys stay in the vault),
-`POST /admin/systems/<alias>/signing-key` rotates the key. The `url` has to pass `kc-mcp.allowed-hosts`.
+`POST /admin/systems/<alias>/signing-key` rotates the key: the JWKS lists the new key first and keeps the retired one
+for the vault's grace period, Keycloak fetches it again on the unknown `kid`. The `url` has to pass `kc-mcp.allowed-hosts`.
+
+Secrets take the same route: `PUT /admin/secrets/<name>` with `{"value": "..."}` stores a client secret or admin
+password in the vault (the database vault; the file vault and a secrets manager are read-only and answer 409
+`vault_read_only`), and a system registered with `"clientSecret": "vault:<name>"` picks it up on its next connection,
+so the value is in neither the system's row nor any representation. `GET /admin/secrets[/<name>]` lists names with the
+systems using them (`usedBy`) and never a value, a new value reconnects those systems, and `DELETE` refuses a secret
+that is still referenced (409 `secret_in_use`).
 
 ### Database storage (optional)
 
@@ -280,8 +288,20 @@ so tool calls cost no query and a system registered on another replica appears w
 threads, where Quarkus allows no database call, the snapshot is served as is. A control plane writes rows through the module's
 `DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault` (`createSigningKey`
 rotates: the previous key keeps its row with `retired_at`, `putSecret`) and reads audit rows through
-`DatabaseAuditListener` (`recent`, `byCaller`); an admin API over them is the next step, and the audit table has no
-retention of its own yet. The module also registers the `AuditScrubber` `pii-audit-scrubber`:
+`DatabaseAuditListener` (`recent`, `byCaller`); an admin API over the audit rows is the next step. Audit rows are kept
+until `kc-mcp.spi.db-audit.retention-days` says otherwise: with it set, events older than that many days are deleted at
+startup and every hour (one statement on the `occurred_at` index; several replicas may all do it), unset keeps everything,
+as Keycloak's event store does without an expiration.
+
+Several instances of the server can share one database, which is how `examples/dynamic-systems/` runs: that needs the
+PostgreSQL build (the embedded H2 file database belongs to one process) and the same `kc-mcp.storage.secret-key` on every
+instance. A system registered, changed or removed on one instance is served by the others within
+`kc-mcp.spi.db-systems.cache-seconds`; a replaced secret reaches them on their next tool call; a rotated signing key is
+signed with on the next token request of every instance, and the JWKS of each instance publishes the current key and the
+keys retired within `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` (an hour by default), so Keycloak accepts the
+assertions of an instance that has not caught up yet. The retention purge runs on every instance; the deletes are
+idempotent. Two instances creating a system's first key at the same moment both succeed and both keys are published, the
+newer one is signed with. The module also registers the `AuditScrubber` `pii-audit-scrubber`:
 `kc-mcp.spi.pii-audit-scrubber.pii` decides what happens to personal data, `keep` (default), `pseudonymize` (the
 caller's name and the values of `pii-args`, by default `username,email,firstName,lastName,search,userId,user,attributes`
 plus `id` on user tools, become a keyed hash under `kc-mcp.storage.secret-key`, so one person stays recognisable
@@ -357,6 +377,8 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.storage.enabled`        | `true` with a jdbc url      | force the database storage on or off |
 | `kc-mcp.storage.secret-key`     |                             | encrypts stored private keys, client secrets and passwords (AES-256-GCM); base64 of 32 bytes or a passphrase (Argon2id) |
 | `kc-mcp.admin.enabled` / `token` / `issuer` / `audience` / `role` | `false` / / / / `realm:admin` | the admin API (§Admin API) at `/admin`: a static token and/or the OAuth issuer whose access tokens with that role are accepted |
+| `kc-mcp.spi.db-audit.retention-days` |                        | delete audit rows older than this many days (at startup, then hourly); unset keeps them all |
+| `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the system's JWKS, for instances still signing with it |
 | `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | personal data in audit events: `keep`, `pseudonymize` (keyed hash) or `drop`; `pii-args` lists the argument names, `targets` the listeners (default `db-audit`) |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |

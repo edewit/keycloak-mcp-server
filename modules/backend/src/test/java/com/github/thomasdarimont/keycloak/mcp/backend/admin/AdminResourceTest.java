@@ -15,6 +15,7 @@ import io.vertx.core.json.JsonObject;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -113,7 +114,15 @@ class AdminResourceTest {
             .extract()
             .path("signingKey.kid");
         assertNotEquals(kid, rotated);
-        given().get("/auth/keys/acme/jwks.json").then().statusCode(200).body("keys[0].kid", equalTo(rotated));
+        // the new key first; the retired one stays published for the vault's grace
+        // period, for
+        // other instances that still sign with it
+        given().get("/auth/keys/acme/jwks.json")
+            .then()
+            .statusCode(200)
+            .body("keys[0].kid", equalTo(rotated))
+            .body("keys.kid", hasItem(kid))
+            .body("keys.size()", equalTo(2));
     }
 
     @Test
@@ -165,5 +174,67 @@ class AdminResourceTest {
         admin().get("/admin/systems/acme").then().statusCode(404);
         given().get("/auth/keys/acme/jwks.json").then().statusCode(404);
         admin().get("/admin/systems").then().statusCode(200).body("systems.alias", not(hasItem("acme")));
+    }
+
+    @Test
+    @Order(5)
+    void secretsAreStoredByNameAndNeverReadBack() {
+        admin().get("/admin/secrets")
+            .then()
+            .statusCode(200)
+            .body("vault", equalTo("db-key-vault"))
+            .body("writable", equalTo(true))
+            .body("secrets.name", not(hasItem("acme/client-secret")));
+        admin().get("/admin/secrets/acme/client-secret")
+            .then()
+            .statusCode(404)
+            .body("error", equalTo("unknown_secret"));
+        admin().delete("/admin/secrets/acme/client-secret").then().statusCode(404);
+
+        admin().body("{\"value\": \"\"}")
+            .put("/admin/secrets/acme/client-secret")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("invalid_secret"));
+        admin().body("{\"value\": \"x\"}")
+            .put("/admin/secrets/acme/a..b")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("invalid_secret_name"));
+
+        admin().body("{\"value\": \"top-secret\"}")
+            .put("/admin/secrets/acme/client-secret")
+            .then()
+            .statusCode(201)
+            .body("name", equalTo("acme/client-secret"))
+            .body("reference", equalTo("vault:acme/client-secret"))
+            .body("vault", equalTo("db-key-vault"))
+            .body("usedBy", empty())
+            .body("$", not(hasKey("value")));
+        admin().body("{\"value\": \"top-secret-2\"}").put("/admin/secrets/acme/client-secret").then().statusCode(200);
+        admin().get("/admin/secrets/acme/client-secret").then().statusCode(200).body("$", not(hasKey("value")));
+        admin().get("/admin/secrets").then().statusCode(200).body("secrets.name", hasItem("acme/client-secret"));
+
+        // a system may now refer to it; the representation shows the reference, not the
+        // value
+        admin()
+            .body("{\"url\": \"http://127.0.0.1:1\", \"clientAuth\": \"client_secret\","
+                    + " \"clientSecret\": \"vault:acme/client-secret\"}")
+            .put("/admin/systems/by-secret")
+            .then()
+            .statusCode(201)
+            .body("clientAuth", equalTo("client_secret"))
+            .body("clientSecret", equalTo("vault:acme/client-secret"));
+        admin().get("/admin/secrets/acme/client-secret").then().statusCode(200).body("usedBy", hasItem("by-secret"));
+
+        // which protects the secret from removal until the system is gone
+        admin().delete("/admin/secrets/acme/client-secret")
+            .then()
+            .statusCode(409)
+            .body("error", equalTo("secret_in_use"))
+            .body("message", containsString("by-secret"));
+        admin().delete("/admin/systems/by-secret").then().statusCode(204);
+        admin().delete("/admin/secrets/acme/client-secret").then().statusCode(204);
+        admin().get("/admin/secrets/acme/client-secret").then().statusCode(404);
     }
 }

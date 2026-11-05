@@ -15,13 +15,11 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
-import jakarta.ws.rs.ext.ExceptionMapper;
-import jakarta.ws.rs.ext.Provider;
 
 /**
  * The admin API over HTTP; {@link AdminAccessFilter} lets requests through,
- * {@link AdminSystems} does the work. Bodies and representations are plain maps, Jackson
- * turns them into JSON.
+ * {@link AdminSystems} and {@link AdminSecrets} do the work. Bodies and representations
+ * are plain maps, Jackson turns them into JSON.
  *
  * <pre>
  * PUT    /admin/systems/{alias}              register or replace (body: the systems file fields, signingKey)
@@ -30,6 +28,10 @@ import jakarta.ws.rs.ext.Provider;
  * GET    /admin/systems/{alias}
  * DELETE /admin/systems/{alias}              remove from the mutable repository (keys stay in the vault)
  * POST   /admin/systems/{alias}/signing-key  rotate the key
+ * GET    /admin/secrets                      the names in the vault and the systems using them, never a value
+ * GET    /admin/secrets/{name}
+ * PUT    /admin/secrets/{name}               store or replace (body: {"value": "..."}); referenced as vault:{name}
+ * DELETE /admin/secrets/{name}               remove a secret no system refers to
  * </pre>
  */
 @Path(AdminResource.PATH)
@@ -40,6 +42,9 @@ public class AdminResource {
 
     @Inject
     AdminSystems admin;
+
+    @Inject
+    AdminSecrets secrets;
 
     @GET
     @Path("systems")
@@ -83,7 +88,33 @@ public class AdminResource {
         return admin.rotate(alias, publicBase(uri, headers));
     }
 
-    private static Response saved(AdminSystems.Saved saved) {
+    @GET
+    @Path("secrets")
+    public Map<String, Object> listSecrets() {
+        return secrets.list();
+    }
+
+    @GET
+    @Path("secrets/{name: .+}")
+    public Map<String, Object> getSecret(@PathParam("name") String name) {
+        return secrets.get(name);
+    }
+
+    @PUT
+    @Path("secrets/{name: .+}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response putSecret(@PathParam("name") String name, Map<String, Object> body) {
+        return saved(secrets.put(name, body));
+    }
+
+    @DELETE
+    @Path("secrets/{name: .+}")
+    public Response deleteSecret(@PathParam("name") String name) {
+        secrets.delete(name);
+        return Response.noContent().build();
+    }
+
+    private static Response saved(Saved saved) {
         return Response.status(saved.replaced() ? 200 : 201).entity(saved.representation()).build();
     }
 
@@ -104,15 +135,4 @@ public class AdminResource {
         return proto + "://" + host;
     }
 
-    /** {@link AdminException}s become their status with {@code {"error", "message"}}. */
-    @Provider
-    public static class AdminExceptionMapper implements ExceptionMapper<AdminException> {
-        @Override
-        public Response toResponse(AdminException e) {
-            return Response.status(e.status())
-                .type(MediaType.APPLICATION_JSON)
-                .entity(Map.of("error", e.code(), "message", e.getMessage()))
-                .build();
-        }
-    }
 }

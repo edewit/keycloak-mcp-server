@@ -11,7 +11,7 @@ so the system registered once is known to both.
 ```
 ../../mvnw -f ../../pom.xml package -DskipTests -Ppostgresql    # the PostgreSQL build of the server (see below)
 docker compose up -d --build                                      # PostgreSQL :5490, Keycloak :8090 (admin/admin), MCP :8091 and :8092
-./demo.sh                                                         # the four steps, idempotent
+./demo.sh                                                         # the five steps, idempotent
 ```
 
 ## The steps, by hand
@@ -93,6 +93,33 @@ and the audit record names the human:
 `mcp.json` and `mcp-oauth.json` configure an LLM client (LM Studio, Claude) for the two servers; the OAuth one logs
 the user in at `acme-dev` with `mcp-consumer`.
 
+**5. A secret in the vault.** Not every Keycloak client can use Signed JWT. For a `client_secret` system the secret
+goes into the vault once, the system carries only the reference, and the API never returns the value:
+
+```shell
+curl -s -X PUT localhost:8091/admin/secrets/acme/client-secret \
+  -H 'Authorization: Bearer demo-admin-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"value": "<the client secret>"}'
+curl -s -X PUT localhost:8091/admin/systems/acme-cs \
+  -H 'Authorization: Bearer demo-admin-token' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "http://keycloak:8080",
+    "clientId": "keycloak-mcp-server-secret",
+    "clientAuth": "client_secret",
+    "clientSecret": "vault:acme/client-secret",
+    "defaultRealm": "acme-dev",
+    "allowedRealms": ["acme-dev"]
+  }'
+curl -s localhost:8091/admin/secrets -H 'Authorization: Bearer demo-admin-token' | jq .
+```
+
+The demo creates the confidential client `keycloak-mcp-server-secret` (`clients/keycloak-mcp-server-secret.json`)
+for it. `GET /admin/secrets` lists the names with the systems using them (`usedBy`), a new `PUT` reconnects those
+systems with the new value, and `DELETE /admin/secrets/acme/client-secret` answers 409 `secret_in_use` while
+`acme-cs` refers to it. Secrets are encrypted at rest with `KC_MCP_STORAGE_SECRET_KEY` like the private keys.
+
 ## What the demo shows
 
 - **Admin API + database storage**: `KC_MCP_STATIC_SYSTEMS=false`, `KC_MCP_DYNAMIC_SYSTEMS=true`, a datasource and
@@ -104,6 +131,10 @@ the user in at `acme-dev` with `mcp-consumer`.
   `mcp-users` the `pii-audit-scrubber` pseudonymizes names in the console line only (`targets: console`), while the
   database keeps the full record.
 - **Access restrictions by role**: the same tools, three users, three different outcomes.
+- **Secrets by reference**: `acme-cs` authenticates with a client secret that only the vault holds
+  (`vault:acme/client-secret`); rows in `kc_mcp_secret`, encrypted.
+- **Audit retention**: `KC_MCP_SPI_DB_AUDIT_RETENTION_DAYS=30` on `mcp` deletes audit rows older than 30 days at
+  startup and every hour.
 
 ```
 docker compose down -v        # drops the databases and with them the registered system and its key

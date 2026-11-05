@@ -59,6 +59,20 @@ class ForwardIT {
             .then()
             .statusCode(503)
             .body("error", equalTo("no_mutable_repository"));
+        // and secrets a vault that stores them, which the file vault does not
+        given().header("Authorization", "Bearer " + ForwardTestResource.token("mcp-consumer", "alice", "alice"))
+            .contentType("application/json")
+            .body("{\"value\": \"s3cr3t\"}")
+            .put("/admin/secrets/acme/client-secret")
+            .then()
+            .statusCode(409)
+            .body("error", equalTo("vault_read_only"));
+        given().header("Authorization", "Bearer " + ForwardTestResource.token("mcp-consumer", "alice", "alice"))
+            .get("/admin/secrets")
+            .then()
+            .statusCode(200)
+            .body("vault", equalTo("file-key-vault"))
+            .body("writable", equalTo(false));
     }
 
     @Test

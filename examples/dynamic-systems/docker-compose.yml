@@ -64,6 +64,8 @@ services:
       QUARKUS_DATASOURCE_USERNAME: kcmcp
       QUARKUS_DATASOURCE_PASSWORD: kcmcp
       KC_MCP_STORAGE_SECRET_KEY: demo-storage-key-change-me
+      # audit rows older than 30 days are deleted (at startup, then hourly); one server doing it is enough
+      KC_MCP_SPI_DB_AUDIT_RETENTION_DAYS: "30"
       # systems come from the database only, registered through the admin API
       KC_MCP_STATIC_SYSTEMS: "false"
       KC_MCP_DYNAMIC_SYSTEMS: "true"

@@ -16,9 +16,9 @@ import io.vertx.core.json.JsonObject;
  * Writes one {@code kc_mcp_audit_event} row per finished tool call, synchronously on the
  * handler's thread so the record exists before the result leaves the server; a database
  * failure is logged by the server and does not change the tool result. Arguments arrive
- * redacted; personal data is the {@link PiiAuditScrubber}'s business. No retention: purge
- * old rows by {@code occurred_at} with your own job. Switch it off alone with
- * {@code kc-mcp.spi.db-audit.enabled=false}.
+ * redacted; personal data is the {@link PiiAuditScrubber}'s business. Rows are kept until
+ * {@link AuditRetention} removes them ({@code kc-mcp.spi.db-audit.retention-days}, off by
+ * default). Switch it off alone with {@code kc-mcp.spi.db-audit.enabled=false}.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
@@ -81,5 +81,14 @@ public class DatabaseAuditListener implements AuditListener {
     @Transactional
     public long count() {
         return AuditEventEntity.count();
+    }
+
+    /**
+     * Deletes the events that occurred before a moment (epoch milliseconds) and returns
+     * how many; one statement on the {@code occurred_at} index.
+     */
+    @Transactional
+    public long purgeOlderThan(long cutoffMillis) {
+        return AuditEventEntity.delete("occurredAt < ?1", cutoffMillis);
     }
 }

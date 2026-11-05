@@ -70,7 +70,7 @@ public class EntryTenantResolver implements TenantConfigResolver {
             // the protected-resource metadata of an entry describes that entry's tenant
             path = path.substring(RESOURCE_METADATA_PATH.length());
         }
-        Optional<EntryBinding> binding = EntryRoutes.parse(path, rootPath);
+        Optional<EntryBinding> binding = EntryRoutes.resolveEntryBinding(path, rootPath);
         if (binding.isEmpty()) {
             return Uni.createFrom().nullItem();
         }

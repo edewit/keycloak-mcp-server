@@ -139,9 +139,6 @@ public class AdminSystems {
         return new Saved(represent(stored, publicBase), owner.isPresent());
     }
 
-    public record Saved(Map<String, Object> representation, boolean replaced) {
-    }
-
     private void provideKey(String alias, String signingKey) {
         KeyVault vault = keys.vault();
         Optional<SigningKey> existing = vault.findSigningKey(alias);

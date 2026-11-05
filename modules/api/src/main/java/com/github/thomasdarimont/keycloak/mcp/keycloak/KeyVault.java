@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.keycloak;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
@@ -9,18 +10,32 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  * {@code private_key_jwt}, so that a system only has to register this server's public key
  * (served at {@code /auth/keys/<system>/jwks.json}) and no secret is shared or stored
  * anywhere, and raw secrets by name for the places that still need one (a client secret,
- * an API key), so configuration can hold references instead of values. The built-in vault
- * is read-only and serves PEM files under {@code kc-mcp.keys-dir} that operations
- * provisioned; register your own ({@code @AutoService(KeyVault.class)} or a CDI bean) to
- * keep keys and secrets in a database, which is also where keys get created and rotated
+ * an API key), so configuration can hold references ({@code vault:<name>}) instead of
+ * values. The built-in vault is read-only and serves PEM files under
+ * {@code kc-mcp.keys-dir} that operations provisioned; register your own
+ * ({@code @AutoService(KeyVault.class)} or a CDI bean) to keep keys and secrets in a
+ * database, which is also where keys get created and rotated
  * ({@link #supportsKeyCreation()}, with the {@link SigningKeyGenerator} the server hands
- * over), or in a secrets manager such as HashiCorp Vault. The vault with the lowest
+ * over) and secrets stored ({@link #supportsSecretStorage()}, through the admin API), or
+ * in a secrets manager such as HashiCorp Vault. The vault with the lowest
  * {@link #order()} is used.
  */
 public interface KeyVault extends Extension {
 
     /** The signing key pair of a system when one exists. */
     Optional<SigningKey> findSigningKey(String system);
+
+    /**
+     * The keys whose public halves the JWKS of a system publishes: the current key first,
+     * then keys retired recently enough that another instance of the server on the same
+     * vault may still sign with them (a rotation reaches every instance within a token
+     * lifetime, the JWKS keeps the previous key for a grace period so Keycloak accepts
+     * both meanwhile). The default is the current key alone; a creating vault that keeps
+     * retired keys overrides it.
+     */
+    default List<SigningKey> publishedSigningKeys(String system) {
+        return findSigningKey(system).map(List::of).orElse(List.of());
+    }
 
     /**
      * Whether this vault can generate and store keys. The built-in file vault and a vault
@@ -54,10 +69,49 @@ public interface KeyVault extends Extension {
 
     /**
      * A raw secret by name ({@code tenant-a/client-secret}, {@code admin-api-key}), empty
-     * when the vault has none. Read-only: secrets are put into the vault by other means.
-     * Vaults that keep keys only leave the default.
+     * when the vault has none. Vaults that keep keys only leave the default.
      */
     default Optional<String> findSecret(String name) {
         return Optional.empty();
+    }
+
+    /**
+     * The names of the secrets this vault holds, never their values; empty when the vault
+     * cannot tell. Vaults that keep keys only leave the default.
+     */
+    default List<String> secretNames() {
+        return List.of();
+    }
+
+    /**
+     * Whether secrets can be stored in and removed from this vault ({@link #putSecret},
+     * {@link #deleteSecret}), which is what the admin API offers. The built-in file vault
+     * and a vault backed by a secrets manager are read-only: secrets are provisioned by
+     * operations and the server only reads them.
+     */
+    default boolean supportsSecretStorage() {
+        return false;
+    }
+
+    /**
+     * Stores a secret under a name, replacing the previous value. Only when
+     * {@link #supportsSecretStorage()}.
+     *
+     * @throws UnsupportedOperationException for a read-only vault
+     */
+    default void putSecret(String name, String value) {
+        throw new UnsupportedOperationException(
+                "KeyVault '" + id() + "' is read-only: provision the secret '" + name + "' in the vault");
+    }
+
+    /**
+     * Removes a secret; {@code false} when the vault had none of that name. Only when
+     * {@link #supportsSecretStorage()}.
+     *
+     * @throws UnsupportedOperationException for a read-only vault
+     */
+    default boolean deleteSecret(String name) {
+        throw new UnsupportedOperationException(
+                "KeyVault '" + id() + "' is read-only: remove the secret '" + name + "' in the vault");
     }
 }

@@ -46,7 +46,7 @@ public class EntryRoutes {
     }
 
     private void reroute(RoutingContext ctx) {
-        Optional<EntryBinding> binding = parse(ctx.request().path(), rootPath);
+        Optional<EntryBinding> binding = resolveEntryBinding(ctx.request().path(), rootPath);
         if (binding.isEmpty()) {
             ctx.response()
                 .setStatusCode(404)
@@ -61,7 +61,7 @@ public class EntryRoutes {
     /**
      * The binding a request path addresses, empty for the plain root or a malformed path.
      */
-    public static Optional<EntryBinding> parse(String path, String rootPath) {
+    public static Optional<EntryBinding> resolveEntryBinding(String path, String rootPath) {
         String base = root(rootPath) + "/" + SEGMENT + "/";
         if (path == null || !path.startsWith(base)) {
             return Optional.empty();

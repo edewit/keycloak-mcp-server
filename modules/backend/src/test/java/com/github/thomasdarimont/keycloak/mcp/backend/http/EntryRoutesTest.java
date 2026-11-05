@@ -22,14 +22,15 @@ class EntryRoutesTest {
 
     @Test
     void pathsParseIntoBindings() {
-        assertEquals(Optional.of(new EntryBinding("prod", null)), EntryRoutes.parse("/mcp/s/prod", "/mcp"));
+        assertEquals(Optional.of(new EntryBinding("prod", null)),
+                EntryRoutes.resolveEntryBinding("/mcp/s/prod", "/mcp"));
         assertEquals(Optional.of(new EntryBinding("prod", "customers")),
-                EntryRoutes.parse("/mcp/s/prod/customers/", "/mcp"));
-        assertTrue(EntryRoutes.parse("/mcp", "/mcp").isEmpty());
-        assertTrue(EntryRoutes.parse("/mcp/s/", "/mcp").isEmpty());
-        assertTrue(EntryRoutes.parse("/mcp/s/a/b/c", "/mcp").isEmpty());
-        assertTrue(EntryRoutes.parse("/mcp/s/bad name", "/mcp").isEmpty());
-        assertEquals(Optional.of(new EntryBinding("x", null)), EntryRoutes.parse("/api/s/x", "api/"));
+                EntryRoutes.resolveEntryBinding("/mcp/s/prod/customers/", "/mcp"));
+        assertTrue(EntryRoutes.resolveEntryBinding("/mcp", "/mcp").isEmpty());
+        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/s/", "/mcp").isEmpty());
+        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/s/a/b/c", "/mcp").isEmpty());
+        assertTrue(EntryRoutes.resolveEntryBinding("/mcp/s/bad name", "/mcp").isEmpty());
+        assertEquals(Optional.of(new EntryBinding("x", null)), EntryRoutes.resolveEntryBinding("/api/s/x", "api/"));
     }
 
     @Test
