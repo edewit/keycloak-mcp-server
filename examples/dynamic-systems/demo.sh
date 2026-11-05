@@ -13,7 +13,12 @@ ADMIN_TOKEN=${KC_MCP_ADMIN_TOKEN:-demo-admin-token}
 KCADM="docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh"
 
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
-admin() { curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' "$@"; }
+admin() {
+  curl -sS \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H 'Content-Type: application/json' \
+    "$@"
+}
 
 step "1. register the system 'acme' (stored in PostgreSQL, key pair generated in the database vault)"
 SYSTEM=$(admin -X PUT "$MCP/admin/systems/acme" -d @- <<'JSON'
@@ -70,12 +75,16 @@ fi
 $KCADM get roles/admin -r master --fields id,name | sed 's/^{/[{/; s/}$/}]/' \
   | $KCADM create "clients/$ADMIN_CLIENT_ID/scope-mappings/realm" -r master -f - >/dev/null
 # admin-cli tokens are lightweight in Keycloak 26 (no roles, no audience): the admin API refuses them, this client's work
-ADMIN_AT=$(curl -s -d 'grant_type=password&client_id=keycloak-mcp-admin&username=admin&password=admin' \
-  http://localhost:8090/realms/master/protocol/openid-connect/token | jq -r .access_token)
-curl -sS -H "Authorization: Bearer $ADMIN_AT" "$MCP/admin/systems" | jq -c '[.systems[] | {alias, source}]'
-curl -s -o /dev/null -w 'the same with an admin-cli token (no audience, no roles): HTTP %{http_code}\n' \
-  -H "Authorization: Bearer $(curl -s -d 'grant_type=password&client_id=admin-cli&username=admin&password=admin' \
-  http://localhost:8090/realms/master/protocol/openid-connect/token | jq -r .access_token)" "$MCP/admin/systems"
+TOKEN_URL=http://localhost:8090/realms/master/protocol/openid-connect/token
+ADMIN_AT=$(curl -s "$TOKEN_URL" \
+  -d 'grant_type=password&client_id=keycloak-mcp-admin&username=admin&password=admin' | jq -r .access_token)
+curl -sS "$MCP/admin/systems" \
+  -H "Authorization: Bearer $ADMIN_AT" | jq -c '[.systems[] | {alias, source}]'
+CLI_AT=$(curl -s "$TOKEN_URL" \
+  -d 'grant_type=password&client_id=admin-cli&username=admin&password=admin' | jq -r .access_token)
+curl -s "$MCP/admin/systems" \
+  -H "Authorization: Bearer $CLI_AT" \
+  -o /dev/null -w 'the same with an admin-cli token (no audience, no roles): HTTP %{http_code}\n'
 
 step "3. the realm acme-dev: public client mcp-consumer, groups with realm-management roles, users"
 if $KCADM get realms/acme-dev >/dev/null 2>&1; then

@@ -26,6 +26,8 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 
+import io.quarkus.runtime.Startup;
+
 /**
  * Who may do what:
  * <ul>
@@ -39,6 +41,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
  * realm: realm allow-list, roles, delegation, global {@link AccessCheck}s, then the
  * tool's own checks.
  */
+@Startup
 @ApplicationScoped
 public class AccessPolicy {
 

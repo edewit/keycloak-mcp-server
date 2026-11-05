@@ -18,12 +18,15 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 
+import io.quarkus.runtime.Startup;
+
 /**
  * Version and enabled features per Keycloak system, read from the admin server info with
  * the server's credentials and cached (like {@link RoleDiscovery}). A configured version
  * ({@code kc-mcp.version}, {@code kc-mcp.systems.<name>.version}) wins over the reported
  * one and stands in when the server info is not readable.
  */
+@Startup
 @ApplicationScoped
 public class CapabilityDiscovery {
 
@@ -75,7 +78,7 @@ public class CapabilityDiscovery {
 
     /** Capabilities of the single/default system. */
     public ServerCapabilities get() {
-        return get(systems.get(0));
+        return systems.isEmpty() ? ServerCapabilities.UNKNOWN : get(systems.get(0));
     }
 
     /**

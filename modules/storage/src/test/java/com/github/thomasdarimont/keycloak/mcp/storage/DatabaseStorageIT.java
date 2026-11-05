@@ -32,12 +32,16 @@ import com.github.thomasdarimont.keycloak.mcp.storage.keys.SigningKeyEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.DatabaseKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.SystemEntity;
 
+import io.quarkus.runtime.BlockingOperationControl;
+import io.quarkus.runtime.IOThreadDetector;
 import io.quarkus.test.junit.QuarkusTest;
+import io.vertx.core.Context;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -105,6 +109,23 @@ class DatabaseStorageIT {
         assertTrue(repo.rename(alias, renamed));
         assertTrue(repo.find(alias).isEmpty());
         assertEquals(row.id, repo.entity(renamed).orElseThrow().id);
+
+        // on an event loop thread the repository serves its snapshot and never touches
+        // the database
+        repo.names(); // a warm snapshot
+        BlockingOperationControl.setIoThreadDetector(new IOThreadDetector[] { () -> true });
+        try {
+            assertTrue(repo.names().contains(renamed), "served from the snapshot");
+            KeycloakSystem fromSnapshot = repo.find(renamed).orElseThrow();
+            assertEquals(renamed, fromSnapshot.name());
+            assertEquals("ACME Inc.", fromSnapshot.displayName().orElseThrow());
+            assertTrue(repo.find("nope-" + alias).isEmpty(), "unknown aliases do not throw either");
+            assertThrows(RuntimeException.class, () -> repo.delete(renamed), "writes stay worker-thread only");
+        }
+        finally {
+            // what Quarkus installs: the Vert.x event loop check
+            BlockingOperationControl.setIoThreadDetector(new IOThreadDetector[] { Context::isOnEventLoopThread });
+        }
 
         assertTrue(repo.delete(renamed));
         assertFalse(repo.delete(renamed));

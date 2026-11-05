@@ -18,12 +18,15 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessTokenSource;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 
+import io.quarkus.runtime.Startup;
+
 /**
  * Caches the {@link GrantedRoles} of the server's token per Keycloak system.
  * {@link #peek} never blocks (for the tool filter); {@link #get} fetches a token on first
  * use and refreshes every few minutes (for handlers, which run on virtual threads).
  * Failures leave the roles {@link GrantedRoles#UNKNOWN}, which disables filtering.
  */
+@Startup
 @ApplicationScoped
 public class RoleDiscovery {
 
@@ -77,11 +80,11 @@ public class RoleDiscovery {
 
     /** Roles of the single/default system (tests and single-system setups). */
     public GrantedRoles peek() {
-        return peek(systems.get(0));
+        return systems.isEmpty() ? GrantedRoles.UNKNOWN : peek(systems.get(0));
     }
 
     public GrantedRoles get() {
-        return get(systems.get(0));
+        return systems.isEmpty() ? GrantedRoles.UNKNOWN : get(systems.get(0));
     }
 
     /**

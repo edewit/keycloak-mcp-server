@@ -106,8 +106,16 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         List<KeycloakSystemRepository> all = new ArrayList<>();
         all.add(staticSystems);
         all.addAll(repositories);
-        this.repository = new CompositeKeycloakSystemRepository(all,
-                (r, e) -> LOG.warnf("Keycloak system repository '%s' failed: %s", r.id(), e.toString()));
+        this.repository = new CompositeKeycloakSystemRepository(all, (r, e) -> {
+            if (e instanceof io.quarkus.runtime.BlockingOperationNotAllowedException) {
+                // a programming error worth a stack trace: a caller resolved systems on
+                // the event loop
+                LOG.warnf(e, "Keycloak system repository '%s' was asked on an event loop thread", r.id());
+            }
+            else {
+                LOG.warnf("Keycloak system repository '%s' failed: %s", r.id(), e.toString());
+            }
+        });
         if (!allowedHosts.unrestricted()) {
             LOG.infof("Keycloak hosts restricted to %s", allowedHosts.patterns());
         }

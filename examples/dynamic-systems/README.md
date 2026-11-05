@@ -24,11 +24,30 @@ entry; `signingKey` is `generate` (a new key pair in the database vault), `exist
 provisioned by other means), or absent (existing if there is one, else generated). A `client_secret` system can name a
 vault secret instead of carrying one: `"clientSecret": "vault:acme/client-secret"`.
 
+```shell
+curl -s -X PUT localhost:8091/admin/systems/acme \
+  -H 'Authorization: Bearer demo-admin-token' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "displayName": "ACME Corp.",
+    "url": "http://keycloak:8080",
+    "issuer": "http://localhost:8090/realms/master",
+    "clientId": "keycloak-mcp-server",
+    "clientAuth": "private_key_jwt",
+    "defaultRealm": "acme-dev",
+    "allowedRealms": ["acme-dev"],
+    "version": "26.8.1",
+    "signingKey": "generate"
+  }' | jq .
 ```
-curl -s -X PUT localhost:8091/admin/systems/acme -H 'Authorization: Bearer demo-admin-token' -H 'Content-Type: application/json' -d '{
-  "displayName": "ACME Corp.", "url": "http://keycloak:8080", "issuer": "http://localhost:8090/realms/master",
-  "clientId": "keycloak-mcp-server", "clientAuth": "private_key_jwt",
-  "defaultRealm": "acme-dev", "allowedRealms": ["acme-dev"], "version": "26.8.1", "signingKey": "generate" }' | jq .
+
+With an access token instead of the static token (the public client `keycloak-mcp-admin` of step 2b):
+
+```shell
+TOKEN=$(curl -s http://localhost:8090/realms/master/protocol/openid-connect/token \
+  -d 'grant_type=password&client_id=keycloak-mcp-admin&username=admin&password=admin' | jq -r .access_token)
+curl -s localhost:8091/admin/systems \
+  -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
 The answer carries no secrets, but `signingKey.kid`, `signingKey.jwksPath` (`/auth/keys/acme/jwks.json`),

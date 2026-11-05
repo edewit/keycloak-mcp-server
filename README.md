@@ -274,7 +274,10 @@ prefix. `kc-mcp.storage.secret-key` (the base64 of 32 random bytes, or a passphr
 private keys, client secrets and passwords at rest with AES-256-GCM; without it they are stored in plain text and the
 startup log says so. In `kc_mcp_system` the `alias` column is what the server calls the system (`KeycloakSystem.name()`,
 the `system` argument, `/mcp/s/<alias>`), `name` is a display label and the primary key a UUID, so both can change; a
-row with `enabled=false` is kept but not served. A control plane writes rows through the module's
+row with `enabled=false` is kept but not served. The repository serves a snapshot of the rows that it reloads when
+older than `kc-mcp.spi.db-systems.cache-seconds` (10 by default, a write through the same server reloads at once),
+so tool calls cost no query and a system registered on another replica appears within that time; on event loop
+threads, where Quarkus allows no database call, the snapshot is served as is. A control plane writes rows through the module's
 `DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault` (`createSigningKey`
 rotates: the previous key keeps its row with `retired_at`, `putSecret`) and reads audit rows through
 `DatabaseAuditListener` (`recent`, `byCaller`); an admin API over them is the next step, and the audit table has no
