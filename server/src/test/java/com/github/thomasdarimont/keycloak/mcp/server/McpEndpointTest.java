@@ -76,6 +76,24 @@ class McpEndpointTest {
     }
 
     @Test
+    void resultsComeAsTextAndStructuredContent() {
+        JsonObject ok = mcp.callTool("keycloak_acme_ping", new JsonObject().put("name", "Tom"));
+        JsonObject structured = ok.getJsonObject("structuredContent");
+        assertEquals("Tom", structured.getString("name"), ok.encode());
+        assertEquals(McpClient.text(ok), structured, "text block and structured content carry the same data");
+
+        JsonObject denied = mcp.callTool("keycloak_acme_ping", new JsonObject().put("name", "mallory"));
+        assertTrue(denied.getBoolean("isError"));
+        assertEquals("blocked_name", denied.getJsonObject("structuredContent").getString("error"), denied.encode());
+
+        // a list payload is wrapped, since structured content must be an object
+        JsonObject list = mcp.callTool("keycloak_user_search",
+                new JsonObject().put("realm", "demo").put("search", "x"));
+        assertTrue(list.getJsonObject("structuredContent").containsKey("error")
+                || list.getJsonObject("structuredContent").containsKey("items"), list.encode());
+    }
+
+    @Test
     void executeToolDispatchesToExtensionWithProviderConfig() {
         JsonObject result = mcp.callTool("execute_tool",
                 new JsonObject().put("name", "acme_ping").put("arguments", new JsonObject().put("name", "Tom")));

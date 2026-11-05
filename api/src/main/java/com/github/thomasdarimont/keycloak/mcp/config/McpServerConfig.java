@@ -151,6 +151,13 @@ public interface McpServerConfig {
     int resultMaxItems();
 
     /**
+     * Also return every tool result as MCP {@code structuredContent} (the JSON object
+     * next to the text block), so clients can render it without parsing text.
+     */
+    @WithDefault("true")
+    boolean structuredContent();
+
+    /**
      * Per tool-provider settings: {@code kc-mcp.spi.<provider-id>.<key>=value} (env
      * {@code KC_MCP_SPI_<ID>_<KEY>}). {@code enabled=false} switches a provider off.
      */

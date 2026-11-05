@@ -10,6 +10,7 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
@@ -41,6 +42,8 @@ public class McpToolRegistrar {
 
     @Inject
     ToolManager toolManager;
+    @Inject
+    McpServerConfig config;
     @Inject
     ToolCatalog catalog;
     @Inject
@@ -160,8 +163,32 @@ public class McpToolRegistrar {
         return schema;
     }
 
-    static ToolResponse toResponse(ToolResult result) {
-        return new ToolResponse(result.isError(), java.util.List.of(new TextContent(result.toJson())));
+    private ToolResponse toResponse(ToolResult result) {
+        return toResponse(result, config.structuredContent());
+    }
+
+    /**
+     * The JSON text block every client understands, plus the same data as
+     * {@code structuredContent} when it is an object. A list payload is wrapped as
+     * {@code {"items": [...]}} there, since structured content must be an object.
+     */
+    static ToolResponse toResponse(ToolResult result, boolean structured) {
+        java.util.List<TextContent> text = java.util.List.of(new TextContent(result.toJson()));
+        Object payload = result.payload();
+        if (!structured || payload == null || payload instanceof String) {
+            return new ToolResponse(result.isError(), text);
+        }
+        Object structuredContent = switch (payload) {
+            case JsonObject jo -> jo.getMap();
+            case Map<?, ?> m -> m;
+            case java.util.List<?> l -> Map.of("items", l);
+            case io.vertx.core.json.JsonArray a -> Map.of("items", a.getList());
+            default -> null;
+        };
+        if (structuredContent == null) {
+            return new ToolResponse(result.isError(), text);
+        }
+        return new ToolResponse(result.isError(), text, structuredContent, null);
     }
 
     private static String str(Map<String, Object> args, String key) {

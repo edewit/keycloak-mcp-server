@@ -45,6 +45,9 @@ flows, events, realm) plus search, exposure modes, guardrails and the extension 
 * Identifiers are forgiving: users by id or username, clients by id or clientId, groups by id, path or name; the
   instructions tell the model to pass them directly instead of looking ids up first.
   Booleans/integers given as strings are coerced; `max` is clamped to `kc-mcp.result-max-items`.
+* Every result is returned twice: as the JSON text block all clients read, and as MCP `structuredContent` (the same
+  object; list payloads wrapped as `{"items": [...]}`), so client UIs can render tables without parsing text.
+  Errors carry their `error` code there too. `kc-mcp.structured-content=false` switches the second form off.
 * Fewer round trips: membership and role changes return the user's effective roles, `keycloak_user_roles_get`
   explains where each role comes from (`direct`, `group:/path`, `composite:<role>`) and keeps the realm's default
   roles apart, and `keycloak_group_get` shows what a group grants.
@@ -212,6 +215,7 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.hot-tools`              | user_search, user_get, realm_get_config, server_info | listed directly in hybrid mode |
 | `kc-mcp.search-limit-default`   | `5`                         | hits per `search_tools` call (max 10) |
 | `kc-mcp.result-max-items`       | `100`                       | cap for list results |
+| `kc-mcp.structured-content`     | `true`                      | mirror every result as MCP `structuredContent` next to the text block |
 | `kc-mcp.confirm-timeout-seconds`| `120`                       | elicitation timeout |
 | `kc-mcp.spi.<provider>.<key>`   |                             | per tool-provider settings, `enabled=false` disables one |
 | `quarkus.http.cors.origins`     | local origins               | browser based MCP clients only; set to the client origin(s) in production |
