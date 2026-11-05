@@ -12,7 +12,7 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.ProviderRegistry;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.DefaultExtensionRegistry;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
@@ -32,7 +32,7 @@ class CatalogLintTest {
     @Inject
     ToolCatalog catalog;
     @Inject
-    ProviderRegistry registry;
+    DefaultExtensionRegistry registry;
 
     @Test
     void schemasAreFlatAndSmallModelFriendly() {

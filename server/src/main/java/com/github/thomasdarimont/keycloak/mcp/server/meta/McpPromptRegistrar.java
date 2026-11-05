@@ -1,7 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.server.meta;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,8 +17,7 @@ import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.ProviderRegistry;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.PromptProvider;
 import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
 
@@ -63,24 +61,13 @@ public class McpPromptRegistrar {
     ProgressiveState progressive;
 
     @Inject
-    ProviderRegistry providers;
-
-    @Inject
-    Extensions extensions;
+    ExtensionRegistry registry;
 
     private final List<PromptSpec> registered = new ArrayList<>();
 
     void onStart(@Observes StartupEvent event) {
-        Map<String, PromptProvider> byId = new LinkedHashMap<>();
-        for (PromptProvider p : extensions.discover(PromptProvider.class)) {
-            byId.putIfAbsent(p.id(), p);
-        }
-        for (PromptProvider p : byId.values()) {
-            ToolProviderContext ctx = providers.context(p.id());
-            if (!ctx.config().getBoolean("enabled", true)) {
-                LOG.infof("Prompt provider '%s' disabled by configuration", p.id());
-                continue;
-            }
+        for (PromptProvider p : registry.extensions(PromptProvider.class)) {
+            ToolProviderContext ctx = registry.context(p.id());
             for (PromptSpec spec : p.prompts(ctx)) {
                 register(spec);
             }

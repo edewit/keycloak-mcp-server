@@ -14,14 +14,9 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
  * decision that is not {@link Decision#ABSTAIN}; the built-in one runs last and never
  * abstains.
  */
-public interface Confirmer {
+public interface Confirmer extends Extension {
 
     Decision confirm(Request request);
-
-    /** Confirmers with a lower order run earlier. */
-    default int order() {
-        return 0;
-    }
 
     /**
      * @param tool the destructive tool about to run

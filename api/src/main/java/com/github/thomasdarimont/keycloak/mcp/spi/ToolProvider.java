@@ -21,25 +21,11 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
  * Per-provider configuration lives under {@code kc-mcp.spi.<id>.*} (env
  * {@code KC_MCP_SPI_<ID>_*}); the key {@code enabled=false} switches a provider off.
  */
-public interface ToolProvider {
+public interface ToolProvider extends Extension {
 
     /** Unique, stable id such as {@code users} or {@code acme-custom}. */
+    @Override
     String id();
-
-    /** Human readable name, e.g. "User management". Defaults to the id. */
-    default String displayName() {
-        return id();
-    }
-
-    /** One or two sentences on what the provider's tools cover. */
-    default String description() {
-        return "";
-    }
-
-    /** Providers are initialised in ascending order; ties broken by id. */
-    default int order() {
-        return 0;
-    }
 
     /** Called once at startup before {@link #tools(ToolProviderContext)}. */
     default void init(ToolProviderContext context) {

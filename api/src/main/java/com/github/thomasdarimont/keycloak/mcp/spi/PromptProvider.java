@@ -11,9 +11,10 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.PromptSpec;
  * switches a provider off. Prompts whose tools are all disabled on this server are not
  * registered.
  */
-public interface PromptProvider {
+public interface PromptProvider extends Extension {
 
     /** Unique, stable id such as {@code prompts} or {@code acme-recipes}. */
+    @Override
     String id();
 
     List<PromptSpec> prompts(ToolProviderContext context);

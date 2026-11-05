@@ -14,8 +14,8 @@ import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.spi.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
 /**
  * Builds the {@link AuditListener.Event} of a finished call and hands it to every
@@ -41,10 +41,10 @@ public class AuditLog {
     private final List<AuditListener> listeners;
 
     @Inject
-    public AuditLog(Extensions extensions) {
+    public AuditLog(ExtensionRegistry registry) {
         List<AuditListener> all = new ArrayList<>();
         all.add(LOG_LINE);
-        all.addAll(extensions.discover(AuditListener.class));
+        all.addAll(registry.extensions(AuditListener.class));
         this.listeners = List.copyOf(all);
         for (AuditListener l : listeners) {
             if (l != LOG_LINE) {

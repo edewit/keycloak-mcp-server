@@ -9,8 +9,8 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
-import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
 /**
  * Runs the registered {@link Confirmer}s (ServiceLoader and CDI, by
@@ -27,10 +27,10 @@ public class ConfirmerChain implements Confirmer {
     private final List<Confirmer> chain;
 
     @Inject
-    public ConfirmerChain(Extensions extensions) {
-        List<Confirmer> all = new ArrayList<>(extensions.discover(Confirmer.class));
+    public ConfirmerChain(ExtensionRegistry registry) {
+        List<Confirmer> all = new ArrayList<>(registry.extensions(Confirmer.class));
         for (Confirmer c : all) {
-            LOG.infof("Confirmer %s registered (order %d)", c.getClass().getName(), c.order());
+            LOG.infof("Confirmer '%s' registered (%s, order %d)", c.id(), c.getClass().getName(), c.order());
         }
         all.add(new DefaultConfirmer());
         all.sort(Comparator.comparingInt(Confirmer::order));

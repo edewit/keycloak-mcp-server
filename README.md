@@ -257,7 +257,8 @@ The server listens on port 8081 (`quarkus.http.port`) so a local Keycloak can ke
 ## Extending: tool providers
 
 Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
-`AccessCheck`, `AuditListener`, `Caller`), the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
+`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, all `Extension`s with `id`, `displayName`,
+`description` and `order`; `ExtensionRegistry` to look them up; `Caller`), the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
 `InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client
 with the forgiving lookups, `GrantedRoles`, `Views`, `AbstractToolProvider` and the server configuration interface.
 It brings the Keycloak admin client and Vert.x JSON, but no Quarkus; on the module path it is the automatic
@@ -290,6 +291,12 @@ the class a CDI bean works too).
 Provider tools automatically get search, exposure modes, validation, realm checks, confirmation and the audit log.
 The built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`,
 `realm`) use the same SPI and can be switched off with `kc-mcp.spi.<id>.enabled=false`.
+
+Every extension point shares the `Extension` base: `id()` (keys `kc-mcp.spi.<id>.*`, where `enabled=false` switches
+any extension off; defaults to the class name), `displayName()`, `description()` and `order()` (lower runs or
+initialises first). The server's `ExtensionRegistry` (`extensions(Confirmer.class)`, `extension(ToolProvider.class,
+"users")`, `context(id)`) is the one place that applies discovery, deduplication by id, the enabled switch and the
+order; it is a CDI bean, so a provider that needs to see other extensions can inject it.
 
 Global `AccessCheck`s (see §Per-tool access checks) are extension points of their own: `@AutoService(AccessCheck.class)`
 on the class, a CDI bean, or `ToolProvider.accessChecks(...)` all register a check that runs on every call.

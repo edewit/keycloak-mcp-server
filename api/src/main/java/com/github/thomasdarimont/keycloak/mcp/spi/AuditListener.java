@@ -19,7 +19,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
  * slow deliveries off to your own executor.
  */
 @FunctionalInterface
-public interface AuditListener {
+public interface AuditListener extends Extension {
 
     void onToolCall(Event event);
 

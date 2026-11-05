@@ -15,7 +15,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
  * not block.
  */
 @FunctionalInterface
-public interface AccessCheck {
+public interface AccessCheck extends Extension {
 
     Decision check(Context context);
 

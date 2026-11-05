@@ -1,0 +1,61 @@
+package com.github.thomasdarimont.keycloak.mcp.server.spi;
+
+import java.util.List;
+import jakarta.inject.Inject;
+
+import org.junit.jupiter.api.Test;
+
+import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.spi.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.spi.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
+import com.github.thomasdarimont.keycloak.mcp.spi.PromptProvider;
+import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
+
+import io.quarkus.test.junit.QuarkusTest;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/** The registry as the server wires it: every SPI goes through one place. */
+@QuarkusTest
+class ExtensionRegistryTest {
+
+    @Inject
+    ExtensionRegistry registry;
+
+    @Inject
+    DefaultExtensionRegistry defaults;
+
+    @Test
+    void everySpiIsServedByTheRegistry() {
+        assertSame(defaults, registry);
+        assertTrue(registry.extensions(Confirmer.class).stream().anyMatch(c -> c instanceof TicketConfirmer));
+        assertTrue(
+                registry.extensions(AuditListener.class).stream().anyMatch(l -> l instanceof RecordingAuditListener));
+        assertTrue(registry.extensions(AccessCheck.class).stream().anyMatch(c -> c instanceof StandaloneDenyCheck));
+        assertTrue(registry.extensions(PromptProvider.class).stream().anyMatch(p -> p.id().equals("prompts")));
+        assertEquals("users", registry.extension(ToolProvider.class, "users").orElseThrow().id());
+        assertTrue(registry.extension(ToolProvider.class, "nope").isEmpty());
+    }
+
+    @Test
+    void extensionsAreOrderedAndIdsDefaultToTheClassName() {
+        List<Confirmer> confirmers = registry.extensions(Confirmer.class);
+        for (int i = 1; i < confirmers.size(); i++) {
+            assertTrue(confirmers.get(i - 1).order() <= confirmers.get(i).order(), confirmers.toString());
+        }
+        Extension ticket = registry.extensions(Confirmer.class)
+            .stream()
+            .filter(c -> c instanceof TicketConfirmer)
+            .findFirst()
+            .orElseThrow();
+        assertEquals(TicketConfirmer.class.getName(), ticket.id());
+        assertEquals(ticket.id(), ticket.displayName());
+        assertEquals("", ticket.description());
+        assertSame(registry.extensions(Confirmer.class), registry.extensions(Confirmer.class), "cached");
+        assertEquals("kc-mcp.spi.ticket.", registry.context("ticket").config().providerPrefix());
+    }
+}

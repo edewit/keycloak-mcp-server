@@ -1,0 +1,155 @@
+package com.github.thomasdarimont.keycloak.mcp.server.spi;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import jakarta.annotation.PreDestroy;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+import org.jboss.logging.Logger;
+
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
+import com.github.thomasdarimont.keycloak.mcp.spi.ToolProvider;
+import com.github.thomasdarimont.keycloak.mcp.spi.ToolProviderContext;
+
+/**
+ * The extensions found by {@link Extensions}, per type: deduplicated by id, minus the
+ * ones switched off with {@code kc-mcp.spi.<id>.enabled=false}, ordered. Tool providers
+ * are also initialised here, in order, and their tools and access checks collected.
+ */
+@ApplicationScoped
+public class DefaultExtensionRegistry implements ExtensionRegistry {
+
+    private static final Logger LOG = Logger.getLogger(DefaultExtensionRegistry.class);
+
+    private final Extensions discovery;
+
+    private final KeycloakSystems systems;
+
+    private final McpServerConfig serverConfig;
+
+    private final Map<Class<?>, List<?>> byType = new ConcurrentHashMap<>();
+
+    private final List<ToolProvider> providers;
+    private final List<ToolSpec> specs;
+    private final List<AccessCheck> accessChecks;
+
+    @Inject
+    public DefaultExtensionRegistry(Extensions extensions, KeycloakSystems systems, McpServerConfig serverConfig) {
+        this(extensions, null, systems, serverConfig);
+    }
+
+    /** Explicit tool providers instead of discovery (tests, embedding). */
+    public DefaultExtensionRegistry(List<ToolProvider> candidates, KeycloakSystems systems,
+            McpServerConfig serverConfig) {
+        this(null, candidates, systems, serverConfig);
+    }
+
+    private DefaultExtensionRegistry(Extensions discovery, List<ToolProvider> toolProviders, KeycloakSystems systems,
+            McpServerConfig serverConfig) {
+        this.discovery = discovery;
+        this.systems = systems;
+        this.serverConfig = serverConfig;
+        if (toolProviders != null) {
+            byType.put(ToolProvider.class, prepare(ToolProvider.class, toolProviders));
+        }
+        List<ToolProvider> active = new ArrayList<>();
+        List<ToolSpec> all = new ArrayList<>();
+        List<AccessCheck> checks = new ArrayList<>();
+        for (ToolProvider p : extensions(ToolProvider.class)) {
+            ToolProviderContext ctx = context(p.id());
+            p.init(ctx);
+            List<ToolSpec> tools = p.tools(ctx);
+            LOG.infof("Tool provider '%s' (%s): %d tools", p.id(), p.displayName(), tools.size());
+            all.addAll(tools);
+            checks.addAll(p.accessChecks(ctx));
+            active.add(p);
+        }
+        this.providers = List.copyOf(active);
+        this.specs = List.copyOf(all);
+        this.accessChecks = List.copyOf(checks);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T extends Extension> List<T> extensions(Class<T> type) {
+        return (List<T>) byType.computeIfAbsent(type,
+                t -> prepare(type, discovery == null ? List.of() : discovery.discover(type)));
+    }
+
+    /** Deduplicates by id, drops the disabled, sorts by order then id. */
+    private <T extends Extension> List<T> prepare(Class<T> type, List<T> candidates) {
+        Map<String, T> byId = new LinkedHashMap<>();
+        for (T e : candidates) {
+            T existing = byId.get(e.id());
+            if (existing != null) {
+                throw new IllegalStateException("Two " + type.getSimpleName() + " extensions share the id '" + e.id()
+                        + "': " + existing.getClass().getName() + " and " + e.getClass().getName());
+            }
+            byId.put(e.id(), e);
+        }
+        List<T> enabled = new ArrayList<>();
+        for (T e : byId.values()) {
+            if (!new ProviderConfig(e.id(), serverConfig.spi().get(e.id())).getBoolean("enabled", true)) {
+                LOG.infof("%s '%s' disabled by configuration", type.getSimpleName(), e.id());
+                continue;
+            }
+            enabled.add(e);
+        }
+        enabled.sort(Comparator.comparingInt(Extension::order).thenComparing(Extension::id));
+        return List.copyOf(enabled);
+    }
+
+    /**
+     * The context of an extension: its configuration ({@code kc-mcp.spi.<id>.*}), the
+     * systems.
+     */
+    @Override
+    public ToolProviderContext context(String extensionId) {
+        return new Context(systems, serverConfig, new ProviderConfig(extensionId, serverConfig.spi().get(extensionId)));
+    }
+
+    public List<ToolProvider> providers() {
+        return providers;
+    }
+
+    public List<ToolSpec> specs() {
+        return specs;
+    }
+
+    /** Global access checks contributed by the providers. */
+    public List<AccessCheck> accessChecks() {
+        return accessChecks;
+    }
+
+    @PreDestroy
+    void shutdown() {
+        for (ToolProvider p : providers) {
+            try {
+                p.close();
+            }
+            catch (RuntimeException e) {
+                LOG.warnf(e, "Tool provider '%s' failed to close", p.id());
+            }
+        }
+    }
+
+    private record Context(KeycloakSystems systems, McpServerConfig serverConfig,
+            ProviderConfig config) implements ToolProviderContext {
+        @Override
+        public KeycloakAdmin keycloak() {
+            return systems.defaultName().map(systems::get).orElseGet(() -> systems.all().get(0));
+        }
+    }
+}

@@ -21,8 +21,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.Extensions;
-import com.github.thomasdarimont.keycloak.mcp.server.spi.ProviderRegistry;
+import com.github.thomasdarimont.keycloak.mcp.server.spi.DefaultExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.spi.Delegation;
 import com.github.thomasdarimont.keycloak.mcp.spi.GrantedRoles;
@@ -75,19 +74,19 @@ public class AccessPolicy {
 
     @Inject
     public AccessPolicy(McpServerConfig config, RoleDiscovery roles, CapabilityDiscovery capabilities,
-            ProviderRegistry registry, Extensions extensions, KeycloakSystems systems) {
+            DefaultExtensionRegistry registry, KeycloakSystems systems) {
         this(config.readOnly(), config.allowedRealms().orElse(List.of()), config.allowedTools().orElse(List.of()),
                 config.deniedTools().orElse(List.of()), config.allowedCategories().orElse(List.of()), roles,
-                collectChecks(registry, extensions),
+                collectChecks(registry),
                 name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()), capabilities,
                 config.explanations());
     }
 
     /** The providers' checks first, then the ones registered on their own. */
-    private static List<AccessCheck> collectChecks(ProviderRegistry registry, Extensions extensions) {
+    private static List<AccessCheck> collectChecks(DefaultExtensionRegistry registry) {
         List<AccessCheck> checks = new ArrayList<>(registry.accessChecks());
-        for (AccessCheck c : extensions.discover(AccessCheck.class)) {
-            LOG.infof("Access check %s registered", c.getClass().getName());
+        for (AccessCheck c : registry.extensions(AccessCheck.class)) {
+            LOG.infof("Access check '%s' registered (%s)", c.id(), c.getClass().getName());
             checks.add(c);
         }
         return checks;
