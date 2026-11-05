@@ -4,14 +4,16 @@ Two tenants on one Keycloak. Tenant A owns the realms `realm-a-1` (employees) an
 tenant B owns `realm-b-1`. An onboarding job (`init/onboard-tenants.sh`, what a SaaS control plane would run)
 gives each tenant a confidential client `keycloak-mcp-server-<tenant>` in the master realm, authenticating with
 *Signed JWT* and the JWKS URL `http://mcp:8081/auth/keys/<tenant>/jwks.json`, and grants its service account
-the admin roles of the tenant's realms (master's `<realm>-realm` client roles). The MCP server learns the tenants from `systems.json`, generates a key pair
-per tenant on first use, and Keycloak fetches the public key from the MCP server when the first token is
-requested. No secret is configured anywhere.
+the admin roles of the tenant's realms (master's `<realm>-realm` client roles). `gen-keys.sh` provisions one
+private key per tenant (`keys/<tenant>.pem`, what operations or the control plane would do), the MCP server learns
+the tenants from `systems.json` and reads the keys from its read-only file vault, and Keycloak fetches the public
+key from the MCP server when the first token is requested. No secret is configured anywhere.
 
 In a real SaaS each tenant is its own Keycloak and the client is simply `keycloak-mcp-server` in that server's
 master realm; here the two share one Keycloak, hence the tenant suffix.
 
 ```
+./gen-keys.sh                      # keys/tenant-a.pem, keys/tenant-b.pem (needs openssl)
 docker compose up --build          # Keycloak on :8090 (admin/admin), MCP server on :8091
 ```
 
@@ -39,9 +41,9 @@ What the demo shows:
 - **`KC_MCP_STATIC_SYSTEMS=false` + `KC_MCP_DYNAMIC_SYSTEMS=true` + `KC_MCP_SYSTEMS_FILE`**: systems come from
   the mounted `systems.json` only, re-read when it changes. Add a tenant to the file (and run the onboarding
   for it) and its entry works on the next call, without a restart.
-- **Per-tenant keys**: `KC_MCP_KEYS_DIR` on a volume; `docker compose logs mcp` shows
-  `[tenant-a] generated a private_key_jwt key` on the first run and reuses the key afterwards. A tenant only
-  ever registers a public key.
+- **Per-tenant keys, provisioned**: the file vault is read-only; `keys/` is mounted at `KC_MCP_KEYS_DIR` and
+  `docker compose logs mcp` shows `[tenant-a] private_key_jwt key loaded from ...`. A tenant only ever registers a
+  public key; creating and rotating keys inside the server is the job of a database-backed `KeyVault`.
 - **`version` in `systems.json`**: the user-login server never uses its own credentials, so it cannot read the
   server info; the configured version keeps the version checks on (`whoami` shows `server.version`). Edit the
   file while the stack runs: it is re-read on the next call.
@@ -87,5 +89,5 @@ LM Studio opens the browser at the right realm for each entry. To switch users, 
 add it again, or log out in the Keycloak account console.
 
 ```
-docker compose down -v             # also drops the generated keys and the onboarded clients
+docker compose down -v             # drops the onboarded clients; the provisioned keys stay in keys/
 ```

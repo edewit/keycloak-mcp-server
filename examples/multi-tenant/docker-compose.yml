@@ -47,13 +47,13 @@ services:
       KC_MCP_SYSTEMS_FILE: /config/systems.json
       # the MCP server may only talk to this Keycloak
       KC_MCP_ALLOWED_HOSTS: keycloak:8080
-      # generated private_key_jwt keys, one per tenant, kept on the volume
+      # provisioned private_key_jwt keys, one per tenant (./gen-keys.sh), read-only
       KC_MCP_KEYS_DIR: /deployments/data/keys
       KC_MCP_TOOL_EXPOSURE: hybrid
       KC_MCP_STARTUP_CHECK: warn
     volumes:
       - ./systems.json:/config/systems.json:ro
-      - mcp-keys:/deployments/data/keys
+      - ./keys:/deployments/data/keys:ro
     ports:
       - "8091:8081"
     depends_on:
@@ -88,7 +88,7 @@ services:
       QUARKUS_OIDC_TOKEN_AUDIENCE: keycloak-mcp-server
     volumes:
       - ./systems.json:/config/systems.json:ro
-      - mcp-users-keys:/deployments/data/keys
+      - ./keys:/deployments/data/keys:ro
     ports:
       - "8092:8081"
     depends_on:
@@ -97,6 +97,3 @@ services:
       keycloak-init:
         condition: service_completed_successfully
 
-volumes:
-  mcp-keys:
-  mcp-users-keys:

@@ -201,15 +201,19 @@ registered, the `system` argument of every tool is free text (the names only ill
 Credentials follow a convention instead of a secret per tenant. Each system registers a confidential client
 named, say, `keycloak-mcp-server` with service accounts on and client authentication "Signed JWT", JWKS URL
 `https://<this server>/auth/keys/<system>/jwks.json`, and the `realm-management` roles the tools need. The
-server generates an RSA key pair per system on first use and keeps it in a `KeyVault`: the built-in one stores
-PEM files under `kc-mcp.keys-dir` (default `data/keys`, next to `quarkus-run.jar` when packaged; give it a
-persistent volume), and a `KeyVault` extension of your own keeps them in a database or a secrets manager such as
-HashiCorp Vault, so the server only ever handles key references. A configured `kc-mcp.jwt.key-file` keeps the
-previous behavior: one key for every system, published at `/.well-known/jwks.json` as well.
+server signs with a key pair per system from a `KeyVault` and publishes the public half at that URL. The built-in
+vault is read-only: it serves PKCS#8 PEM files that operations provisioned under `kc-mcp.keys-dir` (default
+`data/keys`, next to `quarkus-run.jar` when packaged; `<system>.pem` per system, raw secrets as files under
+`<dir>/secrets/<name>`). A `KeyVault` extension of your own (`findSigningKey`, `createSigningKey` when it
+`supportsKeyCreation()`, read-only `findSecret`) keeps keys in a database, which is also where they get created
+and rotated with the `SigningKeyGenerator` the server hands over (built-in: JDK RSA or EC keys for
+`kc-mcp.jwt.algorithm`, RSA size `kc-mcp.jwt.key-size`; your own for an HSM), or in a secrets manager such as
+HashiCorp Vault, so the server only ever handles key and secret references. A configured `kc-mcp.jwt.key-file`
+keeps the previous behavior: one key for every system, published at `/.well-known/jwks.json` as well.
 
 The built-in `FileSystemKeycloakSystemRepository` reads a JSON file (`kc-mcp.systems-file`, re-read when it changes), so a tenant registry
 can be a mounted file that another process maintains; `kc-mcp.static-systems=false` runs on repositories alone.
-`examples/multi-tenant/` is a complete two-tenant setup with generated keys and one MCP entry per tenant.
+`examples/multi-tenant/` is a complete two-tenant setup with provisioned keys and one MCP entry per tenant.
 
 ```json
 { "systems": [
@@ -281,7 +285,8 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.systems-file`           |                             | JSON file (`{"systems": [...]}`) of the built-in file repository, re-read when it changes; needs `dynamic-systems` |
 | `kc-mcp.static-systems-order`   | `-1000`                     | rank of the static configuration among the repositories (lower is asked first, repositories default to 0); raise it to let repositories override configured systems |
 | `kc-mcp.static-systems`         | `true`                      | `false`: no system from the top-level / `kc-mcp.systems.*` settings, repositories only |
-| `kc-mcp.keys-dir`               | `data/keys`                 | where the built-in `KeyVault` keeps the generated per-system `private_key_jwt` keys (PEM per system) |
+| `kc-mcp.jwt.key-size`           | `2048`                      | modulus bits of generated RSA keys; `kc-mcp.jwt.algorithm` decides the key kind (RSA for RS*/PS*, EC on the matching curve for ES*) |
+| `kc-mcp.keys-dir`               | `data/keys`                 | directory of the read-only built-in `KeyVault`: provisioned `<system>.pem` keys and `secrets/<name>` files |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.require-caller`         | `false`                     | refuse anonymous MCP requests with the OAuth challenge even with `delegation=off` |
@@ -338,7 +343,8 @@ The server listens on port 8081 (`quarkus.http.port`) so a local Keycloak can ke
 ## Extending: tool providers
 
 Extensions depend on `com.github.thomasdarimont.keycloak:keycloak-mcp-server-api` (the `api` module): the SPI (`ToolProvider`,
-`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, `KeycloakSystemRepository`, `KeyVault`, all
+`PromptProvider`, `AccessCheck`, `Confirmer`, `AuditListener`, `KeycloakSystemRepository`, `KeyVault`,
+`SigningKeyGenerator`, all
 `Extension`s with `id`, `displayName`, `description` and `order`; `ExtensionRegistry` to look them up; `Caller`),
 the tool catalog types (`ToolSpec`, `ToolCall`, `ToolResult`,
 `InputSchema`, `Category`, `ToolLevel`), the `KeycloakAdmin` / `KeycloakSystems` facades over the admin client

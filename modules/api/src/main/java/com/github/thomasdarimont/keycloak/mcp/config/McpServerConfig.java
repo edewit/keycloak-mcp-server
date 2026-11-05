@@ -330,9 +330,17 @@ public interface McpServerConfig {
         @WithDefault("/.well-known/jwks.json")
         String jwksPath();
 
-        /** RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384 or PS512. */
+        /**
+         * RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384 or PS512. Also decides
+         * what kind of key the vault generates for a system (RSA, or EC on the matching
+         * curve).
+         */
         @WithDefault("RS256")
         String algorithm();
+
+        /** Modulus bits of generated RSA keys (2048 or more). */
+        @WithDefault("2048")
+        int keySize();
 
         /** Lifetime of each client assertion in seconds. */
         @WithDefault("60")

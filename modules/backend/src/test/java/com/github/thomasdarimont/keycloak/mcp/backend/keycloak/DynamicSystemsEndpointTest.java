@@ -61,7 +61,7 @@ class DynamicSystemsEndpointTest {
     }
 
     @Test
-    void eachPrivateKeyJwtSystemPublishesItsOwnKey() {
+    void eachPrivateKeyJwtSystemPublishesItsProvisionedKey() {
         String body = given().get("/auth/keys/lab/jwks.json")
             .then()
             .statusCode(200)
@@ -72,7 +72,7 @@ class DynamicSystemsEndpointTest {
         assertEquals("RSA", key.getString("kty"));
         assertEquals("RS256", key.getString("alg"));
         assertTrue(key.getString("kid").length() > 10, key.encode());
-        // stable across requests: the key is stored, not regenerated
+        // stable across requests: the provisioned key
         assertEquals(body, given().get("/auth/keys/lab/jwks.json").then().statusCode(200).extract().asString());
         // the static default system authenticates with a password: no key
         given().get("/auth/keys/default/jwks.json").then().statusCode(404);
