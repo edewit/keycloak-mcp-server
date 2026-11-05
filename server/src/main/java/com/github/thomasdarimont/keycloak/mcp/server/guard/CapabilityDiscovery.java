@@ -12,6 +12,8 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
@@ -45,8 +47,10 @@ public class CapabilityDiscovery {
     private final Map<String, Boolean> warned = new ConcurrentHashMap<>();
 
     @Inject
-    public CapabilityDiscovery(KeycloakSystems systems) {
-        this(systems.names(), name -> load(systems.get(name)));
+    public CapabilityDiscovery(KeycloakSystems systems, McpServerConfig config) {
+        // in forward mode the server's own credentials are not meant to be used: only a
+        // configured version counts
+        this(systems.names(), name -> load(systems.get(name), config.delegation() == DelegationMode.OFF));
     }
 
     public CapabilityDiscovery(List<String> systems, Function<String, ServerCapabilities> loader) {
@@ -127,16 +131,22 @@ public class CapabilityDiscovery {
      * top.
      */
     static ServerCapabilities load(KeycloakAdmin admin) {
+        return load(admin, true);
+    }
+
+    /** @param useCredentials read the server info with the system's own credentials */
+    static ServerCapabilities load(KeycloakAdmin admin, boolean useCredentials) {
         String configured = admin.system().version().orElse(null);
-        ServerCapabilities caps;
-        try {
-            caps = ServerCapabilities.of(admin.client().serverInfo().getInfo());
-        }
-        catch (RuntimeException e) {
-            if (admin.system().hasCredentials()) {
-                LOG.debugf(e, "[%s] server info not readable", admin.name());
+        ServerCapabilities caps = ServerCapabilities.UNKNOWN;
+        if (useCredentials) {
+            try {
+                caps = ServerCapabilities.of(admin.client().serverInfo().getInfo());
             }
-            caps = ServerCapabilities.UNKNOWN;
+            catch (RuntimeException e) {
+                if (admin.system().hasCredentials()) {
+                    LOG.debugf(e, "[%s] server info not readable", admin.name());
+                }
+            }
         }
         if (configured != null) {
             if (caps.versionKnown() && ServerCapabilities.compareVersions(caps.version(), configured) != 0) {

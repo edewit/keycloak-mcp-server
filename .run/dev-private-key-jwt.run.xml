@@ -12,7 +12,7 @@
               <entry key="KC_MCP_CLIENT_AUTH" value="private_key_jwt" />
               <entry key="KC_MCP_AUTH_REALM" value="demo" />
               <entry key="KC_MCP_CLIENT_ID" value="mcp-jwt" />
-              <entry key="KC_MCP_JWT_KEY_FILE" value="example/keys/mcp-jwt.pem" />
+              <entry key="KC_MCP_JWT_KEY_FILE" value="examples/run-modes/keys/mcp-jwt.pem" />
               <entry key="KC_MCP_JWT_ALGORITHM" value="RS256" />
               <entry key="KC_MCP_DEFAULT_REALM" value="demo" />
               <entry key="KC_MCP_ALLOWED_REALMS" value="demo" />

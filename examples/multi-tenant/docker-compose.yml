@@ -1,0 +1,102 @@
+# Two tenants on one Keycloak: tenant-a owns realm-a-1 and realm-a-2, tenant-b owns realm-b-1. The onboarding job
+# gives each tenant a `keycloak-mcp-server-<tenant>` client in master (Signed JWT, public key fetched from the MCP
+# server at /auth/keys/<tenant>/jwks.json) with realm-admin on the tenant's realms. The MCP server knows the
+# tenants from systems.json and answers at one MCP entry per tenant or realm. See README.md.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8090
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8090:8080"
+      - "9090:9000"
+    volumes:
+      - ./realms:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  keycloak-init:
+    image: quay.io/keycloak/keycloak:26.8.1
+    entrypoint: ["/bin/bash", "/onboard-tenants.sh"]
+    volumes:
+      - ./init/onboard-tenants.sh:/onboard-tenants.sh:ro
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  mcp:
+    build:
+      context: ../..
+      dockerfile: server/src/main/docker/Dockerfile.jvm
+    environment:
+      QUARKUS_HTTP_PORT: "8081"
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      # systems come from systems.json only; no static system
+      KC_MCP_STATIC_SYSTEMS: "false"
+      KC_MCP_DYNAMIC_SYSTEMS: "true"
+      KC_MCP_SYSTEMS_FILE: /config/systems.json
+      # the MCP server may only talk to this Keycloak
+      KC_MCP_ALLOWED_HOSTS: keycloak:8080
+      # generated private_key_jwt keys, one per tenant, kept on the volume
+      KC_MCP_KEYS_DIR: /deployments/data/keys
+      KC_MCP_TOOL_EXPOSURE: hybrid
+      KC_MCP_STARTUP_CHECK: warn
+    volumes:
+      - ./systems.json:/config/systems.json:ro
+      - mcp-keys:/deployments/data/keys
+    ports:
+      - "8091:8081"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      keycloak-init:
+        condition: service_completed_successfully
+
+  # The same server with user login: the MCP endpoint requires an OAuth login, every call runs with the user's
+  # own token (forward delegation). A realm entry logs its users in at that realm.
+  mcp-users:
+    build:
+      context: ../..
+      dockerfile: server/src/main/docker/Dockerfile.jvm
+    environment:
+      QUARKUS_HTTP_PORT: "8081"
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      KC_MCP_STATIC_SYSTEMS: "false"
+      KC_MCP_DYNAMIC_SYSTEMS: "true"
+      KC_MCP_SYSTEMS_FILE: /config/systems.json
+      KC_MCP_ALLOWED_HOSTS: keycloak:8080
+      KC_MCP_KEYS_DIR: /deployments/data/keys
+      KC_MCP_TOOL_EXPOSURE: hybrid
+      KC_MCP_STARTUP_CHECK: "off"
+      # callers act with their own token; the default OIDC tenant (root /mcp) is the master realm,
+      # an entry /mcp/s/<tenant>/<realm> verifies tokens of that realm
+      KC_MCP_DELEGATION: forward
+      KC_MCP_URL: http://keycloak:8080
+      KC_MCP_AUTH_REALM: master
+      QUARKUS_OIDC_TENANT_ENABLED: "true"
+      # only tokens minted for the MCP server (audience mapper on mcp-consumer)
+      QUARKUS_OIDC_TOKEN_AUDIENCE: keycloak-mcp-server
+    volumes:
+      - ./systems.json:/config/systems.json:ro
+      - mcp-users-keys:/deployments/data/keys
+    ports:
+      - "8092:8081"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      keycloak-init:
+        condition: service_completed_successfully
+
+volumes:
+  mcp-keys:
+  mcp-users-keys:

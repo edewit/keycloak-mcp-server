@@ -93,6 +93,9 @@ COPY --chown=185 server/target/quarkus-app/quarkus/ /deployments/quarkus/
 # extension jars (see README, "Extension jars"); mount or copy more into this directory
 COPY --chown=185 server/target/quarkus-app/providers/ /deployments/providers/
 
+# writable home for generated private_key_jwt keys (kc-mcp.keys-dir); mount a volume at /deployments/data
+RUN mkdir -p /deployments/data/keys && chown -R 185:0 /deployments/data && chmod -R g+rwX /deployments/data
+
 EXPOSE 8080
 USER 185
 ENV JAVA_OPTS_APPEND="-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"

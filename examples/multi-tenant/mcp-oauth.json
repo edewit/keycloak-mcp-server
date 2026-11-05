@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "keycloak-tenant-a-employees": {
+      "url": "http://localhost:8092/mcp/s/tenant-a/realm-a-1",
+      "auth": {
+        "CLIENT_ID": "mcp-consumer"
+      }
+    },
+    "keycloak-tenant-a-customers": {
+      "url": "http://localhost:8092/mcp/s/tenant-a/realm-a-2",
+      "auth": {
+        "CLIENT_ID": "mcp-consumer"
+      }
+    },
+    "keycloak-tenant-b": {
+      "url": "http://localhost:8092/mcp/s/tenant-b/realm-b-1",
+      "auth": {
+        "CLIENT_ID": "mcp-consumer"
+      }
+    }
+  }
+}

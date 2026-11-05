@@ -1,7 +1,7 @@
 # keycloak-mcp-server
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for administering Keycloak, built with Quarkus
-and `quarkus-mcp-server` (streamable HTTP). Functionally modelled on
+and `quarkus-mcp-server` (streamable HTTP). Functionally modeled on
 [mcp-keycloak-admin](https://github.com/edewit/mcp-keycloak-admin) (72 `keycloak_*` tools), but designed for
 **small local models**: the model-facing surface is kept tiny through lazy tool loading.
 
@@ -152,7 +152,7 @@ server). Two modes build on that:
 The `401` challenge and the protected-resource metadata are what OAuth-capable MCP clients (LM Studio, Claude)
 act on: they discover the realm, open the browser, let the user log in (authorization code + PKCE) and retry with
 the token. Keycloak side: a public client for that login whose tokens carry an audience the server accepts (an
-*Audience* mapper, see `example/realms/demo-realm.json` → `mcp-consumer`), and `realm-management` roles on the
+*Audience* mapper, see `examples/run-modes/realms/demo-realm.json` → `mcp-consumer`), and `realm-management` roles on the
 humans who may administer (groups are the natural place). The audit line then reads `caller=alice(<sub>) delegated`.
 `Caller` carries the token for access checks that need more than roles: `claims()` / `claim("department")` give the
 parsed payload as plain Java values and `rawToken()` the bearer token; `toString()` never prints it and audit
@@ -204,6 +204,17 @@ persistent volume), and a `KeyVault` extension of your own keeps them in a datab
 HashiCorp Vault, so the server only ever handles key references. A configured `kc-mcp.jwt.key-file` keeps the
 previous behavior: one key for every system, published at `/.well-known/jwks.json` as well.
 
+The built-in source reads a JSON file (`kc-mcp.systems-file`, re-read when it changes), so a tenant registry
+can be a mounted file that another process maintains; `kc-mcp.static-systems=false` runs on sources alone.
+`examples/multi-tenant/` is a complete two-tenant setup with generated keys and one MCP entry per tenant.
+
+```json
+{ "systems": [
+  { "name": "tenant-a", "url": "http://keycloak:8080", "authRealm": "tenant-a",
+    "clientId": "keycloak-mcp-server", "clientAuth": "private_key_jwt",
+    "defaultRealm": "tenant-a", "allowedRealms": ["tenant-a"] } ] }
+```
+
 ```java
 @AutoService(KeycloakSystemSource.class)
 public class TenantRegistrySource implements KeycloakSystemSource {
@@ -219,7 +230,27 @@ public class TenantRegistrySource implements KeycloakSystemSource {
 
 Caller authentication is per MCP server entry, not per system: an MCP client logs in once per server URL. Operators
 of several systems therefore use one central identity, typically a master realm admin with access to the realms
-they manage, or separate MCP server entries per system.
+they manage, or separate MCP server entries per system (next section).
+
+### Entries per system or realm: `/mcp/s/<system>[/<realm>]`
+
+Besides the root `/mcp`, the server answers at `/mcp/s/<system>` and `/mcp/s/<system>/<realm>`: the same MCP
+server, bound to one system or one realm. A client configured with such a URL cannot leave it: the `system` and
+`realm` arguments are filled in from the entry, an argument that says otherwise is refused with `entry_mismatch`,
+`search_tools` and `whoami` judge roles and capabilities against that system, and `whoami` reports the `entry`.
+Global tools ignore the realm part. With caller authentication on (`quarkus.oidc.tenant-enabled=true`), a request
+to an entry is verified against the auth realm of its system (`<url>/realms/<auth-realm>`), so a user of tenant A
+logs in at tenant A's Keycloak and forward delegation works across systems; entries whose system shares the
+default tenant's realm keep the default tenant. Unknown systems answer `unknown_system` on every call, and the
+permission policy of `/mcp/*` covers the entries. Several logical MCP servers in one client, one URL each:
+
+```json
+{ "mcpServers": {
+    "keycloak-prod":      { "url": "https://mcp.example.com/mcp/s/prod" },
+    "keycloak-customers": { "url": "https://mcp.example.com/mcp/s/prod/customers" } } }
+```
+
+A support desk gets the realm entry and nothing else; an operator gets the system entry or the root.
 
 When you prefer one process per Keycloak, `kc-mcp.tool-prefix=prod_` renames the tools
 (`prod_keycloak_user_search`) so MCP clients that merge several servers keep them apart; `execute_tool` and the
@@ -244,6 +275,8 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `kc-mcp.jwt.public-key-file`    | derived                     | public key / certificate PEM to publish; derived from the private key when unset |
 | `kc-mcp.jwt.jwks-enabled` / `jwks-path` | `true` / `/.well-known/jwks.json` | serve the public keys as JWK Sets: the configured key (else the default system's) at `jwks-path`, every system's at `/auth/keys/<system>/jwks.json` |
 | `kc-mcp.dynamic-systems`        | `false`                     | let registered `KeycloakSystemSource`s add systems at runtime |
+| `kc-mcp.systems-file`           |                             | JSON file (`{"systems": [...]}`) of the built-in source, re-read when it changes; needs `dynamic-systems` |
+| `kc-mcp.static-systems`         | `true`                      | `false`: no system from the top-level / `kc-mcp.systems.*` settings, sources only |
 | `kc-mcp.keys-dir`               | `data/keys`                 | where the built-in `KeyVault` keeps the generated per-system `private_key_jwt` keys (PEM per system) |
 | `kc-mcp.username` / `password`  |                             | for the password grant |
 | `kc-mcp.delegation`             | `off`                       | `forward`: admin calls run with the caller's own token; requires `quarkus.oidc.tenant-enabled=true` |
@@ -252,8 +285,9 @@ Every property maps to an environment variable (`kc-mcp.grant-type` → `KC_MCP_
 | `quarkus.oidc.token.audience`   |                             | accept only tokens whose `aud` contains this value (recommended with `forward`) |
 | `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is an internal address (Docker) |
 | `kc-mcp.default-realm`          |                             | makes the `realm` argument optional |
-| `kc-mcp.systems.<name>.*`       |                             | per-system `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms`, `version` |
+| `kc-mcp.systems.<name>.*`       |                             | per-system `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms`, `version`, `issuer` |
 | `kc-mcp.explanations`           | `auto`                      | for whom refusals are worded: `admins` (configuration details, `howToFix`), `users` (plain words, an administrator can change it), `auto` (by the caller's roles in delegation mode, else admins) |
+| `kc-mcp.issuer`                 | `<url>/realms/<auth-realm>` | the realm's issuer as Keycloak states it, the audience of `private_key_jwt` assertions; set it when `kc-mcp.url` is an internal address and Keycloak's public hostname differs (also per system and in the systems file) |
 | `kc-mcp.version`                | read from the server        | Keycloak version of the (default) system when the server info is not readable or should be overridden (see §Supported Keycloak versions) |
 | `kc-mcp.default-system`         | the only system             | system used when the `system` argument is omitted |
 | `kc-mcp.allowed-hosts`          | any                         | `[scheme://]host[:port]` patterns with `*` the configured Keycloak URLs must match, checked at startup (`*.example.com`, `https://sso-*.corp.example.org`, `localhost:8080`) |
@@ -488,6 +522,14 @@ Two endpoints we use are missing from the published document (server info, user 
 `unspecified` with a reason. The Java admin client itself is versioned independently of the server since Keycloak
 26.1, so this test, together with the Testcontainers run, is what ties the tool surface to a server version.
 
+## Examples
+
+- `examples/run-modes/`: one Keycloak with a demo realm and an env file per run mode (full admin, realm admin,
+  read-only, `private_key_jwt`, several systems, user login with forward delegation), plus IntelliJ run
+  configurations generated from them.
+- `examples/multi-tenant/`: the SaaS scenario, two tenants with several realms, systems from a file, generated
+  per-tenant keys, one MCP entry per tenant or realm, and a second server with user login per realm.
+
 ## Running
 
 ```shell
@@ -507,7 +549,7 @@ Formatting is checked with [Spotless](https://github.com/diffplug/spotless) usin
 (`etc/eclipse-formatter.prefs`, imports ordered `java|javax|jakarta`, `org`, `com`, rest, static).
 
 LM Studio (`mcp.json`); with the OIDC tenant on add `"auth": { "CLIENT_ID": "mcp-consumer" }` so LM Studio logs the
-user in with that pre-registered client (`example/mcp-oauth.json`):
+user in with that pre-registered client (`examples/run-modes/mcp-oauth.json`):
 
 ```json
 { "mcpServers": { "keycloak": { "url": "http://localhost:8081/mcp" } } }

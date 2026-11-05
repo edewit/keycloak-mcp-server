@@ -43,10 +43,19 @@ public class ClientAssertionTokenManager implements AutoCloseable {
 
     public ClientAssertionTokenManager(Client client, String serverUrl, String realm, String clientId, JwtSigner signer,
             int assertionLifespan, GrantType grantType, String username, String password) {
+        this(client, serverUrl, realm, null, clientId, signer, assertionLifespan, grantType, username, password);
+    }
+
+    /**
+     * @param audience the {@code aud} of the assertions, Keycloak's issuer URL of the
+     * realm; {@code null} derives it from the server URL
+     */
+    public ClientAssertionTokenManager(Client client, String serverUrl, String realm, String audience, String clientId,
+            JwtSigner signer, int assertionLifespan, GrantType grantType, String username, String password) {
         this.client = client;
         String base = serverUrl.endsWith("/") ? serverUrl.substring(0, serverUrl.length() - 1) : serverUrl;
         this.tokenEndpoint = base + "/realms/" + realm + "/protocol/openid-connect/token";
-        this.audience = base + "/realms/" + realm;
+        this.audience = audience != null && !audience.isBlank() ? audience : base + "/realms/" + realm;
         this.clientId = clientId;
         this.signer = signer;
         this.assertionLifespan = assertionLifespan;

@@ -19,7 +19,7 @@ import io.quarkiverse.mcp.server.ToolManager.ToolArguments;
  * which is shown to policies and logs.
  */
 public record InvocationContext(McpConnection connection, Elicitation elicitation, McpLog log, String via,
-        Caller caller, String callerToken) {
+        Caller caller, String callerToken, EntryBinding binding) {
 
     public InvocationContext {
         caller = caller == null ? Caller.NONE : caller;
@@ -27,23 +27,36 @@ public record InvocationContext(McpConnection connection, Elicitation elicitatio
     }
 
     public InvocationContext(McpConnection connection, Elicitation elicitation, McpLog log, String via, Caller caller) {
-        this(connection, elicitation, log, via, caller, null);
+        this(connection, elicitation, log, via, caller, null, null);
+    }
+
+    public InvocationContext(McpConnection connection, Elicitation elicitation, McpLog log, String via, Caller caller,
+            String callerToken) {
+        this(connection, elicitation, log, via, caller, callerToken, null);
     }
 
     public static InvocationContext of(ToolArguments args, String via) {
-        return new InvocationContext(args.connection(), args.elicitation(), args.log(), via, Caller.NONE, null);
+        return new InvocationContext(args.connection(), args.elicitation(), args.log(), via, Caller.NONE, null, null);
     }
 
     public static InvocationContext none() {
-        return new InvocationContext(null, null, null, "test", Caller.NONE, null);
+        return new InvocationContext(null, null, null, "test", Caller.NONE, null, null);
     }
 
     public InvocationContext withCaller(Caller c) {
-        return new InvocationContext(connection, elicitation, log, via, c, callerToken);
+        return new InvocationContext(connection, elicitation, log, via, c, callerToken, binding);
     }
 
     public InvocationContext withCaller(Caller c, String token) {
-        return new InvocationContext(connection, elicitation, log, via, c, token);
+        return new InvocationContext(connection, elicitation, log, via, c, token, binding);
+    }
+
+    /**
+     * The entry's binding ({@code /mcp/s/<system>[/<realm>]}), {@code null} on the plain
+     * root.
+     */
+    public InvocationContext withBinding(EntryBinding s) {
+        return new InvocationContext(connection, elicitation, log, via, caller, callerToken, s);
     }
 
     /** Never prints the token. */

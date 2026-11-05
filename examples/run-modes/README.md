@@ -6,7 +6,7 @@ action emails. Everything is throw-away (`docker compose down -v` resets it).
 ## Start
 
 ```shell
-cd example
+cd examples/run-modes
 docker compose up -d
 # Keycloak: http://localhost:8080  (admin console: admin / admin)
 # Mailpit:  http://localhost:8025
@@ -16,7 +16,7 @@ Then run the MCP server on the host with one of the access levels in `env/`:
 
 ```shell
 cd ..
-set -a; source example/env/realm-admin.env; set +a
+set -a; source examples/run-modes/env/realm-admin.env; set +a
 ./mvnw quarkus:dev -pl server -am   # MCP endpoint: http://localhost:8081/mcp
 ```
 
@@ -32,7 +32,7 @@ previous image. With `quarkus:dev` on the host nothing is needed.
 
 Point your MCP client at `http://localhost:8081/mcp` (LM Studio: copy `mcp.json`; with `env/user-forward.env` copy
 `mcp-oauth.json` instead, see below). IntelliJ: `.run/` holds one `quarkus:dev` run configuration per env file
-(regenerate with `example/gen-run-configs.sh` after editing an env file).
+(regenerate with `examples/run-modes/gen-run-configs.sh` after editing an env file).
 
 An existing stack keeps its old realm: after changes to `realms/demo-realm.json` run `docker compose down -v` first.
 
@@ -65,8 +65,8 @@ An existing stack keeps its old realm: after changes to `realms/demo-realm.json`
 ## private_key_jwt demo
 
 ```shell
-./example/gen-key.sh                                  # writes example/keys/mcp-jwt.pem (git-ignored)
-set -a; source example/env/private-key-jwt.env; set +a
+./examples/run-modes/gen-key.sh                                  # writes examples/run-modes/keys/mcp-jwt.pem (git-ignored)
+set -a; source examples/run-modes/env/private-key-jwt.env; set +a
 ./mvnw quarkus:dev -pl server -am
 curl http://localhost:8081/.well-known/jwks.json      # the public key Keycloak will fetch
 ```
@@ -87,8 +87,8 @@ the user's access token. The server forwards that token to the Admin API, so Key
 `realm-management` roles and the audit line names the human.
 
 ```shell
-cd example && docker compose up -d && cd ..                 # Keycloak must be up before the server starts
-set -a; source example/env/user-forward.env; set +a
+cd examples/run-modes && docker compose up -d && cd ..                 # Keycloak must be up before the server starts
+set -a; source examples/run-modes/env/user-forward.env; set +a
 ./mvnw quarkus:dev -pl server -am
 curl -i http://localhost:8081/mcp                           # 401 + WWW-Authenticate … resource_metadata=…
 curl http://localhost:8081/.well-known/oauth-protected-resource
@@ -115,9 +115,9 @@ with the tools it needs attached. Clients that expose prompts show them in their
 not, fetch the rendered text and paste it into the chat:
 
 ```shell
-example/prompt.sh                                                       # list prompts and arguments
-example/prompt.sh keycloak_onboard_user realm=demo username=nina email=nina@example.com groups=/devs
-MCP_TOKEN=<access token> example/prompt.sh ...                          # with env/user-forward.env
+examples/run-modes/prompt.sh                                                       # list prompts and arguments
+examples/run-modes/prompt.sh keycloak_onboard_user realm=demo username=nina email=nina@example.com groups=/devs
+MCP_TOKEN=<access token> examples/run-modes/prompt.sh ...                          # with env/user-forward.env
 ```
 
 ## Prompts to try

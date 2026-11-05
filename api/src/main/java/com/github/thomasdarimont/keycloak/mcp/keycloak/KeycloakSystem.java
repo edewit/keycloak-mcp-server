@@ -14,9 +14,45 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
  */
 public record KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
         Optional<String> clientId, Optional<String> clientSecret, Optional<String> username, Optional<String> password,
-        Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version) {
+        Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version, Optional<String> issuer) {
 
     public static final String DEFAULT_NAME = "default";
+
+    /** Without an issuer: the audience of client assertions is derived from the URL. */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, Optional.empty());
+    }
+
+    /**
+     * The issuer of the auth realm as Keycloak states it, the {@code aud} of
+     * {@code private_key_jwt} client assertions: the configured {@code issuer} when the
+     * server is reached through an internal URL that differs from its public hostname,
+     * else {@code <url>/realms/<auth realm>}.
+     */
+    /**
+     * The base URL users and browsers reach this Keycloak at: derived from the configured
+     * issuer when it names the auth realm ({@code https://sso.example.com/realms/master}
+     * -> {@code https://sso.example.com}), else the {@link #url()} the server itself
+     * uses.
+     */
+    public String publicUrl() {
+        String suffix = "/realms/" + authRealm;
+        return issuer.map(String::trim)
+            .filter(i -> i.endsWith(suffix))
+            .map(i -> i.substring(0, i.length() - suffix.length()))
+            .orElseGet(() -> url.endsWith("/") ? url.substring(0, url.length() - 1) : url);
+    }
+
+    public String assertionAudience() {
+        return issuer.filter(v -> !v.isBlank()).orElseGet(() -> {
+            String base = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+            return base + "/realms/" + authRealm;
+        });
+    }
 
     public static KeycloakSystem fromTopLevel(McpServerConfig c) {
         return resolve(DEFAULT_NAME, c, null);
@@ -44,6 +80,8 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
                 pick(s == null ? Optional.empty() : s.defaultRealm(), c.defaultRealm()),
                 Set.copyOf(realms.stream().map(String::trim).filter(v -> !v.isEmpty()).toList()),
                 pick(s == null ? Optional.empty() : s.version(), c.version()).map(String::trim)
+                    .filter(v -> !v.isEmpty()),
+                pick(s == null ? Optional.empty() : s.issuer(), c.issuer()).map(String::trim)
                     .filter(v -> !v.isEmpty()));
     }
 

@@ -16,6 +16,15 @@ public class McpClient {
     private final AtomicInteger ids = new AtomicInteger();
     private String sessionId;
     private String bearer;
+    private String path = "/mcp";
+
+    /**
+     * Talk to a scoped entry such as {@code /mcp/s/prod/customers} instead of the root.
+     */
+    public McpClient path(String path) {
+        this.path = path;
+        return this;
+    }
 
     /**
      * Sends {@code Authorization: Bearer <token>} with every request (OIDC-protected
@@ -116,7 +125,7 @@ public class McpClient {
         if (bearer != null) {
             spec = spec.header("Authorization", "Bearer " + bearer);
         }
-        Response r = spec.body(body.encode()).post("/mcp");
+        Response r = spec.body(body.encode()).post(path);
         if (r.statusCode() >= 400) {
             throw new IllegalStateException("HTTP " + r.statusCode() + ": " + r.asString());
         }

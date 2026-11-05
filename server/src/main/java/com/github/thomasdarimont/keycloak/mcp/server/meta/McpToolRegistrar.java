@@ -16,6 +16,7 @@ import com.github.thomasdarimont.keycloak.mcp.server.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.ToolInvoker;
+import com.github.thomasdarimont.keycloak.mcp.server.http.EntryRoutes;
 
 import io.quarkiverse.mcp.server.TextContent;
 import io.quarkiverse.mcp.server.ToolManager;
@@ -99,7 +100,8 @@ public class McpToolRegistrar {
                     intOf(args.args(), "limit"), args.connection() == null ? null : args.connection().id(),
                     exposure.mode(),
                     InvocationContext.of(args, MetaTools.SEARCH_TOOLS)
-                        .withCaller(callers.current(args), callers.accessToken(args)))),
+                        .withCaller(callers.current(args), callers.accessToken(args))
+                        .withBinding(EntryRoutes.current().orElse(null)))),
                     VIRTUAL_THREADS)
             .register();
 
@@ -110,11 +112,11 @@ public class McpToolRegistrar {
                     + "view or manage. Call it when an action was forbidden or the user asks what they can do.")
             .setAnnotations(new ToolAnnotations("Who am I", true, false, true, false))
             .setInputSchema(metaTools.whoamiSchema())
-            .setHandler(
-                    args -> toResponse(
-                            metaTools.whoami(str(args.args(), "language"), str(args.args(), InputSchema.SYSTEM),
-                                    InvocationContext.of(args, MetaTools.WHOAMI)
-                                        .withCaller(callers.current(args), callers.accessToken(args)))),
+            .setHandler(args -> toResponse(
+                    metaTools.whoami(str(args.args(), "language"), str(args.args(), InputSchema.SYSTEM),
+                            InvocationContext.of(args, MetaTools.WHOAMI)
+                                .withCaller(callers.current(args), callers.accessToken(args))
+                                .withBinding(EntryRoutes.current().orElse(null)))),
                     VIRTUAL_THREADS)
             .register();
 
@@ -125,9 +127,11 @@ public class McpToolRegistrar {
             .setInputSchema(metaTools.executeSchema())
             .setHandler(args -> {
                 Map<String, Object> a = args.args();
-                return toResponse(metaTools.execute(str(a, "name"), mapOf(a.get("arguments")),
-                        boolOf(a.get(InputSchema.CONFIRM)), InvocationContext.of(args, MetaTools.EXECUTE_TOOL)
-                            .withCaller(callers.current(args), callers.accessToken(args))));
+                return toResponse(
+                        metaTools.execute(str(a, "name"), mapOf(a.get("arguments")), boolOf(a.get(InputSchema.CONFIRM)),
+                                InvocationContext.of(args, MetaTools.EXECUTE_TOOL)
+                                    .withCaller(callers.current(args), callers.accessToken(args))
+                                    .withBinding(EntryRoutes.current().orElse(null))));
             }, VIRTUAL_THREADS)
             .register();
     }
@@ -142,8 +146,10 @@ public class McpToolRegistrar {
             .setHandler(args -> {
                 Map<String, Object> a = args.args();
                 boolean confirm = Boolean.TRUE.equals(boolOf(a.get(InputSchema.CONFIRM)));
-                return toResponse(invoker.invoke(spec, a, confirm, InvocationContext.of(args, "direct")
-                    .withCaller(callers.current(args), callers.accessToken(args))));
+                return toResponse(invoker.invoke(spec, a, confirm,
+                        InvocationContext.of(args, "direct")
+                            .withCaller(callers.current(args), callers.accessToken(args))
+                            .withBinding(EntryRoutes.current().orElse(null))));
             }, VIRTUAL_THREADS)
             .register();
     }

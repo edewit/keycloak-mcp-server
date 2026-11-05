@@ -57,6 +57,30 @@ class ForwardIT {
     }
 
     @Test
+    void boundEntriesWorkWithTheCallersLogin() {
+        // anonymous: the bound entry challenges like the root
+        Response r = given().header("Accept", "application/json, text/event-stream")
+            .header("Content-Type", "application/json")
+            .body("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}")
+            .post("/mcp/s/default/demo");
+        assertEquals(401, r.statusCode());
+        assertTrue(r.header("WWW-Authenticate").startsWith("Bearer"), r.header("WWW-Authenticate"));
+
+        McpClient alice = new McpClient().path("/mcp/s/default/demo")
+            .bearer(ForwardTestResource.token("mcp-consumer", "alice", "alice"))
+            .initialize(false);
+        JsonObject who = McpClient.text(alice.callTool("whoami", new JsonObject()));
+        assertEquals("alice", who.getJsonObject("caller").getString("username"), who.encode());
+        assertEquals("demo", who.getJsonObject("entry").getString("realm"), who.encode());
+        JsonObject found = McpClient
+            .text(alice.callTool("keycloak_user_search", new JsonObject().put("search", "carol")));
+        assertEquals("carol", found.getJsonArray("items").getJsonObject(0).getString("username"), found.encode());
+        JsonObject elsewhere = McpClient
+            .text(alice.callTool("keycloak_user_search", new JsonObject().put("realm", "master").put("search", "x")));
+        assertEquals("entry_mismatch", elsewhere.getString("error"), elsewhere.encode());
+    }
+
+    @Test
     void adminUserActsWithHerOwnToken() {
         McpClient alice = as("alice");
         assertFalse(alice.listTools().isEmpty());

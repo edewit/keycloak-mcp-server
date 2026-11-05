@@ -51,6 +51,15 @@ public interface McpServerConfig {
     Optional<String> version();
 
     /**
+     * Issuer URL of the auth realm as Keycloak states it
+     * ({@code https://sso.example.com/realms/master}), used as the audience of
+     * {@code private_key_jwt} client assertions when {@code kc-mcp.url} is an internal
+     * address that differs from Keycloak's public hostname. Defaults to
+     * {@code <url>/realms/<auth-realm>}.
+     */
+    Optional<String> issuer();
+
+    /**
      * Optional prefix for every tool name, e.g. {@code prod_} ->
      * {@code prod_keycloak_user_search}.
      */
@@ -99,6 +108,21 @@ public interface McpServerConfig {
      */
     @WithDefault("false")
     boolean dynamicSystems();
+
+    /**
+     * JSON file the built-in system source reads ({@code {"systems": [...]}}), re-read
+     * when it changes; needs {@code kc-mcp.dynamic-systems=true}. A relative path is
+     * resolved like {@code kc-mcp.providers-dir}.
+     */
+    Optional<String> systemsFile();
+
+    /**
+     * Whether the top-level / {@code kc-mcp.systems.*} settings define systems.
+     * {@code false} for deployments whose systems come from sources only; then at least
+     * one source must be registered and enabled.
+     */
+    @WithDefault("true")
+    boolean staticSystems();
 
     /**
      * Directory of the built-in
@@ -248,6 +272,9 @@ public interface McpServerConfig {
 
         /** Keycloak version of this system; see {@link McpServerConfig#version()}. */
         Optional<String> version();
+
+        /** Issuer of this system's auth realm; see {@link McpServerConfig#issuer()}. */
+        Optional<String> issuer();
     }
 
     interface Jwt {

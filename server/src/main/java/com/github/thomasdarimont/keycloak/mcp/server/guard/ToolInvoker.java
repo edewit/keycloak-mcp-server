@@ -90,8 +90,14 @@ public class ToolInvoker {
                 result = policy.forbids(spec, null).orElseThrow();
             }
             else {
-                ArgumentValidator.Outcome outcome = ArgumentValidator.validate(spec.inputSchema(), rawArgs);
-                if (!outcome.valid()) {
+                EntryBinding binding = ctx.binding();
+                ToolResult bindingError = binding == null ? null : bindingMismatch(spec, rawArgs, binding);
+                ArgumentValidator.Outcome outcome = ArgumentValidator.validate(spec.inputSchema(),
+                        binding == null ? rawArgs : withBinding(spec, rawArgs, binding));
+                if (bindingError != null) {
+                    result = bindingError;
+                }
+                else if (!outcome.valid()) {
                     result = ToolResult.error("invalid_arguments", "Arguments do not match the tool schema.",
                             "problems", outcome.problems().stream().map(ArgumentValidator.Problem::toMap).toList(),
                             "inputSchema", spec.inputSchema().getMap());
@@ -100,8 +106,8 @@ public class ToolInvoker {
                     Map<String, Object> args = outcome.values();
                     KeycloakAdmin admin = null;
                     ToolResult systemError = null;
+                    String requested = binding != null ? binding.system() : (String) args.get(InputSchema.SYSTEM);
                     if (systems != null) {
-                        String requested = (String) args.get(InputSchema.SYSTEM);
                         system = requested != null ? requested : systems.defaultName().orElse(null);
                         if (system == null) {
                             systemError = ToolResult.error("system_required", "Pass the system argument.", "systems",
@@ -119,7 +125,8 @@ public class ToolInvoker {
                         }
                     }
                     if (spec.realmScoped()) {
-                        realm = (String) args.get(InputSchema.REALM);
+                        realm = binding != null && binding.realm() != null ? binding.realm()
+                                : (String) args.get(InputSchema.REALM);
                         if (realm == null) {
                             realm = admin != null ? admin.system().defaultRealm().orElse(null) : catalog.defaultRealm();
                         }
@@ -144,6 +151,54 @@ public class ToolInvoker {
         }
         audit.record(spec, system, realm, rawArgs, result, ctx, System.nanoTime() - start);
         return result;
+    }
+
+    /**
+     * Whether a system of that name exists; {@code true} when systems are not wired
+     * (tests).
+     */
+    public boolean hasSystem(String name) {
+        return systems == null || name == null || systems.find(name).isPresent();
+    }
+
+    public static ToolResult bindingMismatch(EntryBinding binding, String argument, String value) {
+        return ToolResult.error("entry_mismatch",
+                "This MCP entry is bound to " + binding.describe() + "; the " + argument + " argument '" + value
+                        + "' does not match. Leave it out, or use an entry for that " + argument + ".",
+                "entry", binding.asMap());
+    }
+
+    /**
+     * A {@code system} or {@code realm} argument that contradicts the entry's binding,
+     * judged on the raw arguments because the schema may not even declare them.
+     */
+    private static ToolResult bindingMismatch(ToolSpec spec, Map<String, Object> rawArgs, EntryBinding binding) {
+        Object system = rawArgs.get(InputSchema.SYSTEM);
+        if (system != null && !binding.system().equals(String.valueOf(system))) {
+            return bindingMismatch(binding, InputSchema.SYSTEM, String.valueOf(system));
+        }
+        Object realm = rawArgs.get(InputSchema.REALM);
+        if (binding.realm() != null && spec.realmScoped() && realm != null
+                && !binding.realm().equals(String.valueOf(realm))) {
+            return bindingMismatch(binding, InputSchema.REALM, String.valueOf(realm));
+        }
+        return null;
+    }
+
+    /**
+     * The raw arguments with the entry's system and realm filled in where the schema
+     * takes them.
+     */
+    private static Map<String, Object> withBinding(ToolSpec spec, Map<String, Object> rawArgs, EntryBinding binding) {
+        Map<String, Object> prepared = new java.util.LinkedHashMap<>(rawArgs);
+        io.vertx.core.json.JsonObject props = spec.inputSchema().getJsonObject("properties");
+        if (props != null && props.containsKey(InputSchema.SYSTEM)) {
+            prepared.put(InputSchema.SYSTEM, binding.system());
+        }
+        if (binding.realm() != null && spec.realmScoped() && props != null && props.containsKey(InputSchema.REALM)) {
+            prepared.put(InputSchema.REALM, binding.realm());
+        }
+        return prepared;
     }
 
     private ToolResult runWithConfirmation(ToolSpec spec, String system, KeycloakAdmin admin, String realm,

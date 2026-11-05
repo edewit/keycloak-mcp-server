@@ -25,6 +25,7 @@ import com.github.thomasdarimont.keycloak.mcp.server.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.server.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.CapabilityDiscovery;
+import com.github.thomasdarimont.keycloak.mcp.server.guard.EntryBinding;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.server.guard.ToolInvoker;
 import com.github.thomasdarimont.keycloak.mcp.server.search.SearchHit;
@@ -146,9 +147,10 @@ public class MetaTools {
         }
         int limit = limitArg == null ? defaultLimit : Math.clamp(limitArg, 1, SEARCH_LIMIT_MAX);
         List<SearchHit> hits = index.search(query, category, limit, policy::visibleNow);
-        GrantedRoles granted = policy.granted(catalog.defaultSystem(), ctx);
+        String judgedSystem = ctx.binding() != null ? ctx.binding().system() : catalog.defaultSystem();
+        GrantedRoles granted = policy.granted(judgedSystem, ctx);
         boolean judge = granted != null && granted.known();
-        ServerCapabilities caps = policy.capabilities(catalog.defaultSystem());
+        ServerCapabilities caps = policy.capabilities(judgedSystem);
         Explanations explanations = policy.explanationsFor(granted, ctx.caller().delegated());
         JsonArray tools = new JsonArray();
         List<String> names = new ArrayList<>();
@@ -240,9 +242,15 @@ public class MetaTools {
     public ToolResult whoami(String languageArg, String systemArg, InvocationContext rawCtx) {
         InvocationContext ctx = effective(rawCtx);
         String language = RoleLabels.language(languageArg);
-        String system = systemArg != null && !systemArg.isBlank() ? systemArg.trim() : catalog.defaultSystem();
-        if (system != null && !catalog.dynamic() && !catalog.systems().isEmpty()
-                && !catalog.systems().contains(system)) {
+        EntryBinding binding = ctx.binding();
+        String system = systemArg != null && !systemArg.isBlank() ? systemArg.trim()
+                : binding != null ? binding.system() : catalog.defaultSystem();
+        if (binding != null && !binding.system().equals(system)) {
+            return ToolInvoker.bindingMismatch(binding, InputSchema.SYSTEM, system);
+        }
+        if (system != null
+                && ((!catalog.dynamic() && !catalog.systems().isEmpty() && !catalog.systems().contains(system))
+                        || !invoker.hasSystem(system))) {
             return ToolResult.error("unknown_system", "No Keycloak system named '" + system + "'.", "systems",
                     catalog.systems());
         }
@@ -265,6 +273,9 @@ public class MetaTools {
                 delegated ? "the caller's own account (delegated)" : "the server's service account");
         if (system != null) {
             out.put("system", system);
+        }
+        if (binding != null) {
+            out.put("entry", binding.asMap());
         }
         if (policy.readOnly()) {
             out.put("readOnly", true);

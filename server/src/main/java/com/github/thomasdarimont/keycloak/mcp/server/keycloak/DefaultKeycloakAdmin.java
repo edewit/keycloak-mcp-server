@@ -200,8 +200,9 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
             case PRIVATE_KEY_JWT -> {
                 Client restClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
                 Client tokenClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
-                jwtTokens = new ClientAssertionTokenManager(tokenClient, system.url(), system.authRealm(), clientId,
-                        jwtKeys.signerFor(system), jwtKeys.assertionLifespan(), grant, username, password);
+                jwtTokens = new ClientAssertionTokenManager(tokenClient, system.url(), system.authRealm(),
+                        system.assertionAudience(), clientId, jwtKeys.signerFor(system), jwtKeys.assertionLifespan(),
+                        grant, username, password);
                 restClient.register(new PrivateKeyJwtAuthFilter(jwtTokens));
                 // A fixed placeholder token makes the admin client skip its own
                 // TokenManager; the filter above

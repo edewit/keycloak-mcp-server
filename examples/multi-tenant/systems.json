@@ -1,0 +1,31 @@
+{
+  "systems": [
+    {
+      "name": "tenant-a",
+      "url": "http://keycloak:8080",
+      "issuer": "http://localhost:8090/realms/master",
+      "authRealm": "master",
+      "clientId": "keycloak-mcp-server-tenant-a",
+      "clientAuth": "private_key_jwt",
+      "defaultRealm": "realm-a-1",
+      "allowedRealms": [
+        "realm-a-1",
+        "realm-a-2"
+      ],
+      "version": "26.8.1"
+    },
+    {
+      "name": "tenant-b",
+      "url": "http://keycloak:8080",
+      "issuer": "http://localhost:8090/realms/master",
+      "authRealm": "master",
+      "clientId": "keycloak-mcp-server-tenant-b",
+      "clientAuth": "private_key_jwt",
+      "defaultRealm": "realm-b-1",
+      "allowedRealms": [
+        "realm-b-1"
+      ],
+      "version": "26.8.1"
+    }
+  ]
+}

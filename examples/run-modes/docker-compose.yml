@@ -64,7 +64,7 @@ services:
   mcp:
     profiles: ["mcp"]
     build:
-      context: ..
+      context: ../..
       dockerfile: server/src/main/docker/Dockerfile.jvm
     env_file:
       - ${KC_MCP_ENV_FILE:-env/realm-admin.env}

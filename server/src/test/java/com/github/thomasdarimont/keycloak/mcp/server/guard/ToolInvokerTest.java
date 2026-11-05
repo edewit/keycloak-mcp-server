@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
@@ -188,5 +189,46 @@ class ToolInvokerTest {
                 payload(inv2.invoke(cat2.get("keycloak_echo").orElseThrow(), Map.of("realm", "demo"), false, ctx))
                     .get("error"),
                 "system is required in the schema when there is no default");
+    }
+
+    @Test
+    void boundEntriesPinSystemAndRealm() {
+        com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem a = new com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem(
+                "a", "http://a", com.github.thomasdarimont.keycloak.mcp.config.GrantType.PASSWORD,
+                com.github.thomasdarimont.keycloak.mcp.config.ClientAuth.NONE, "master", java.util.Optional.empty(),
+                java.util.Optional.empty(), java.util.Optional.of("admin"), java.util.Optional.of("admin"),
+                java.util.Optional.of("demo"), java.util.Set.of(), java.util.Optional.empty());
+        com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem b = new com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem(
+                "b", "http://b", com.github.thomasdarimont.keycloak.mcp.config.GrantType.PASSWORD,
+                com.github.thomasdarimont.keycloak.mcp.config.ClientAuth.NONE, "master", java.util.Optional.empty(),
+                java.util.Optional.empty(), java.util.Optional.of("admin"), java.util.Optional.of("admin"),
+                java.util.Optional.of("b-default"), java.util.Set.of("only-b", "b-default"),
+                java.util.Optional.empty());
+        com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems systems = new com.github.thomasdarimont.keycloak.mcp.server.keycloak.DefaultKeycloakSystems(
+                List.of(a, b), "a", null);
+        ToolSpec echo = ToolSpec.builder("keycloak_echo")
+            .title("e")
+            .description("d")
+            .category(Category.USERS)
+            .read()
+            .handler(call -> ToolResult.ok(Map.of("system", call.system(), "realm", call.realm())))
+            .build();
+        ToolCatalog c = new ToolCatalog(List.of(echo), null, 50, List.of(), "", List.of("a", "b"), "a");
+        ToolInvoker inv = new ToolInvoker(c, new AccessPolicy(false, List.of()), fixed(Confirmer.Decision.CONFIRMED),
+                10, systems);
+
+        InvocationContext onB = InvocationContext.none().withBinding(new EntryBinding("b", null));
+        Map<String, Object> r = payload(inv.invoke(echo, Map.of("realm", "only-b"), false, onB));
+        assertEquals("b", r.get("system"), "the entry decides, not the default system");
+        Map<String, Object> mismatch = payload(inv.invoke(echo, Map.of("system", "a", "realm", "only-b"), false, onB));
+        assertEquals("entry_mismatch", mismatch.get("error"), mismatch.toString());
+
+        InvocationContext onBRealm = InvocationContext.none().withBinding(new EntryBinding("b", "only-b"));
+        Map<String, Object> pinned = payload(inv.invoke(echo, Map.of(), false, onBRealm));
+        assertEquals("only-b", pinned.get("realm"), pinned.toString());
+        Map<String, Object> realmMismatch = payload(inv.invoke(echo, Map.of("realm", "b-default"), false, onBRealm));
+        assertEquals("entry_mismatch", realmMismatch.get("error"), realmMismatch.toString());
+        assertTrue(inv.hasSystem("b"));
+        assertFalse(inv.hasSystem("nope"));
     }
 }

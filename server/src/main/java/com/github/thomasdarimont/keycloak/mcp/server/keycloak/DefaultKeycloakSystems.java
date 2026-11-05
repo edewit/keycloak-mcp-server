@@ -107,6 +107,9 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     }
 
     public static List<KeycloakSystem> resolve(McpServerConfig config) {
+        if (!config.staticSystems()) {
+            return List.of();
+        }
         if (config.systems().isEmpty()) {
             return List.of(KeycloakSystem.fromTopLevel(config));
         }

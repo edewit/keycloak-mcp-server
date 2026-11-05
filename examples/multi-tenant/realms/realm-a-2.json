@@ -1,0 +1,142 @@
+{
+  "realm": "realm-a-2",
+  "displayName": "Tenant A / customers",
+  "enabled": true,
+  "sslRequired": "external",
+  "loginWithEmailAllowed": true,
+  "bruteForceProtected": true,
+  "eventsEnabled": true,
+  "enabledEventTypes": [
+    "LOGIN",
+    "LOGIN_ERROR",
+    "LOGOUT"
+  ],
+  "adminEventsEnabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "support",
+        "description": "Support desk"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "staff",
+      "path": "/staff"
+    },
+    {
+      "name": "mcp-admins",
+      "path": "/mcp-admins",
+      "clientRoles": {
+        "realm-management": [
+          "realm-admin"
+        ]
+      }
+    },
+    {
+      "name": "mcp-support",
+      "path": "/mcp-support",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "view-events",
+          "query-users",
+          "query-groups"
+        ]
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "mcp-consumer",
+      "name": "MCP consumer (LLM client)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:33389/mcp-oauth-callback",
+        "http://localhost:33389/mcp-oauth-callback"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "fullScopeAllowed": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "1800"
+      },
+      "description": "Public PKCE client MCP clients log the user in with (direct grants on for the demo script); tokens carry aud=keycloak-mcp-server",
+      "protocolMappers": [
+        {
+          "name": "mcp server audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "keycloak-mcp-server",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "mcp-consumer",
+        "roles": [
+          "create-client",
+          "impersonation",
+          "manage-authorization",
+          "manage-clients",
+          "manage-events",
+          "manage-identity-providers",
+          "manage-realm",
+          "manage-users",
+          "query-clients",
+          "query-groups",
+          "query-realms",
+          "query-users",
+          "realm-admin",
+          "view-authorization",
+          "view-clients",
+          "view-events",
+          "view-identity-providers",
+          "view-realm",
+          "view-users"
+        ]
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "anna",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Anna",
+      "lastName": "Arendt",
+      "email": "anna@customer.example",
+      "groups": [
+        "/staff",
+        "/mcp-admins"
+      ],
+      "realmRoles": [
+        "default-roles-realm-a-2"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "anna-demo",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

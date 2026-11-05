@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generates IntelliJ run configurations (.run/*.run.xml, shared via git) from the env files in example/env:
+# Generates IntelliJ run configurations (.run/*.run.xml, shared via git) from the env files in examples/run-modes/env:
 # one "quarkus:dev (<scenario>)" Maven configuration per env file (quarkus:dev -pl server -am, so the api module is
 # built in the same reactor) with the file's variables as environment,
 # plus two shell configurations for the demo stack. Re-run after changing an env file.
@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 mkdir -p .run
 xml() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' <<<"$1"; }
 
-for f in example/env/*.env; do
+for f in examples/run-modes/env/*.env; do
   name=$(basename "$f" .env)
   out=".run/dev-$name.run.xml"
   {
@@ -63,7 +63,7 @@ shell() { # name, file, script
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />
     <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
-    <option name="SCRIPT_WORKING_DIRECTORY" value="\$PROJECT_DIR\$/example" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="\$PROJECT_DIR\$/examples/run-modes" />
     <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
     <option name="INTERPRETER_PATH" value="/bin/zsh" />
     <option name="INTERPRETER_OPTIONS" value="" />
