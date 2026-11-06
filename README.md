@@ -614,6 +614,7 @@ Modules under `modules/`:
 - `backend`: `keycloak-mcp-server-backend`, Quarkus application, `...mcp.backend`
 
 Dev mode needs `-pl modules/backend -am`; other goals run from the root. `StorageTest` (backend, in-memory H2) always runs.
+IntelliJ: `.run/` holds run configurations for every example and the conformance suite (`examples/gen-run-configs.sh`).
 
 Formatting: [Spotless](https://github.com/diffplug/spotless), [Spring Java Format](https://github.com/spring-io/spring-javaformat)
 with spaces (`etc/eclipse-formatter.prefs`; imports `java|javax|jakarta`, `org`, `com`, rest, static).

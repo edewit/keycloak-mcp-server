@@ -1,0 +1,46 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="quarkus:dev (extensions: realm-admin + examples/extensions/target as providers)" type="MavenRunConfiguration" factoryName="Maven">
+    <MavenSettings>
+      <option name="myGeneralSettings" />
+      <option name="myRunnerSettings">
+        <MavenRunnerSettings>
+          <option name="delegateBuildToMaven" value="false" />
+          <option name="environmentProperties">
+            <map>
+              <entry key="KC_MCP_URL" value="http://localhost:8080" />
+              <entry key="KC_MCP_GRANT_TYPE" value="client_credentials" />
+              <entry key="KC_MCP_AUTH_REALM" value="demo" />
+              <entry key="KC_MCP_CLIENT_ID" value="mcp-admin" />
+              <entry key="KC_MCP_CLIENT_SECRET" value="mcp-admin-secret" />
+              <entry key="KC_MCP_DEFAULT_REALM" value="demo" />
+              <entry key="KC_MCP_ALLOWED_REALMS" value="demo" />
+              <entry key="KC_MCP_TOOL_EXPOSURE" value="hybrid" />
+              <entry key="KC_MCP_STARTUP_CHECK" value="warn" />
+              <entry key="KC_MCP_PROVIDERS_DIR" value="examples/extensions/target" />
+              <entry key="KC_MCP_SPI_ACME_AUDIT_FILE" value="target/acme-audit.jsonl" />
+              <entry key="KC_MCP_DYNAMIC_SYSTEMS" value="true" />
+              <entry key="KC_MCP_SPI_ACME_TENANTS_SYSTEMS" value="globex=https://sso.globex.example|globex-prod" />
+            </map>
+          </option>
+          <option name="jreName" value="#USE_PROJECT_JDK" />
+          <option name="mavenProperties"><map /></option>
+          <option name="passParentEnv" value="true" />
+          <option name="runMavenInBackground" value="true" />
+          <option name="skipTests" value="false" />
+          <option name="vmOptions" value="" />
+        </MavenRunnerSettings>
+      </option>
+      <option name="myRunnerParameters">
+        <MavenRunnerParameters>
+          <option name="profiles"><set /></option>
+          <option name="goals"><list><option value="quarkus:dev" /><option value="-pl" /><option value="modules/backend" /><option value="-am" /></list></option>
+          <option name="pomFileName" value="pom.xml" />
+          <option name="profilesMap"><map /></option>
+          <option name="resolveToWorkspace" value="false" />
+          <option name="workingDirPath" value="$PROJECT_DIR$" />
+        </MavenRunnerParameters>
+      </option>
+    </MavenSettings>
+    <method v="2" />
+  </configuration>
+</component>

@@ -52,7 +52,8 @@ tail -1 /tmp/acme-audit.jsonl
 ```
 
 Dev mode instead of the jar: `KC_MCP_PROVIDERS_DIR=examples/extensions/target ./mvnw quarkus:dev -pl modules/backend -am`
-(the directory's jars are loaded; `target/` holds the one jar).
+(the directory's jars are loaded; `target/` holds the one jar). IntelliJ: `quarkus:dev (extensions)` in `.run/` does
+exactly that against the run-modes stack, `extensions: *` run the compose demo.
 
 ## Rules of the road
 

@@ -31,8 +31,9 @@ After changing the server, run `./mvnw package` and `up --build` again; without 
 previous image. With `quarkus:dev` on the host nothing is needed.
 
 Point your MCP client at `http://localhost:8081/mcp` (LM Studio: copy `mcp.json`; with `env/user-forward.env` copy
-`mcp-oauth.json` instead, see below). IntelliJ: `.run/` holds one `quarkus:dev` run configuration per env file
-(regenerate with `examples/run-modes/gen-run-configs.sh` after editing an env file).
+`mcp-oauth.json` instead, see below). IntelliJ: `.run/` holds one `quarkus:dev` run configuration per env file and the
+demo stack, next to the configurations of the other examples (regenerate all with `examples/gen-run-configs.sh` after
+editing an env file).
 
 An existing stack keeps its old realm: after changes to `realms/demo-realm.json` run `docker compose down -v` first.
 
@@ -107,6 +108,10 @@ LM Studio: copy `mcp-oauth.json` (`"auth": {"CLIENT_ID": "mcp-consumer"}`), conn
 To switch users, remove the server in LM Studio and add it again, or log the user out in the Keycloak account
 console. Other MCP clients need their own callback added to `mcp-consumer`'s redirect URIs (Keycloak allows `*`
 only at the end of a URI). A token obtained for `demo-app` is rejected with `401` because it lacks `aud=mcp-admin`.
+
+`mcp-consumer` has direct access grants off, so a script cannot fetch a user token with a password grant. For scripted
+checks (curl, `examples/dynamic-systems/mcp-call.py --login alice:alice-demo@demo`), switch them on for the running stack
+only: `kcadm.sh update clients/<id> -r demo -s directAccessGrantsEnabled=true`. `docker compose down -v` forgets it.
 
 ## MCP prompts
 

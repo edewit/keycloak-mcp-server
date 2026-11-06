@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Generates the IntelliJ run configurations in .run/ (shared via git). Re-run after changing an env file or a demo.
+#
+#   run-modes:        one "quarkus:dev (<scenario>)" Maven configuration per examples/run-modes/env/*.env, the demo stack
+#   extensions:       "quarkus:dev (extensions)" loading examples/extensions/target as providers directory, build/demo/down
+#   dynamic-systems:  PostgreSQL build + stack, mounted-jar dev stack, demo, down
+#   multi-tenant:     keys + stack, down
+#   conformance:      conformance/run.sh
+set -euo pipefail
+cd "$(dirname "$0")/.."
+mkdir -p .run
+xml() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' <<<"$1"; }
+
+# quarkus:dev -pl modules/backend -am with environment variables: name, file, env lines on stdin ("KEY=value", # comments)
+maven_dev() {
+  local name=$1 out=".run/$2.run.xml"
+  {
+    echo '<component name="ProjectRunConfigurationManager">'
+    echo "  <configuration default=\"false\" name=\"$(xml "$name")\" type=\"MavenRunConfiguration\" factoryName=\"Maven\">"
+    echo '    <MavenSettings>'
+    echo '      <option name="myGeneralSettings" />'
+    echo '      <option name="myRunnerSettings">'
+    echo '        <MavenRunnerSettings>'
+    echo '          <option name="delegateBuildToMaven" value="false" />'
+    echo '          <option name="environmentProperties">'
+    echo '            <map>'
+    while IFS= read -r line || [ -n "$line" ]; do
+      [[ "$line" =~ ^[[:space:]]*# || -z "${line// }" ]] && continue
+      key=${line%%=*}; value=${line#*=}
+      echo "              <entry key=\"$(xml "$key")\" value=\"$(xml "$value")\" />"
+    done
+    echo '            </map>'
+    echo '          </option>'
+    echo '          <option name="jreName" value="#USE_PROJECT_JDK" />'
+    echo '          <option name="mavenProperties"><map /></option>'
+    echo '          <option name="passParentEnv" value="true" />'
+    echo '          <option name="runMavenInBackground" value="true" />'
+    echo '          <option name="skipTests" value="false" />'
+    echo '          <option name="vmOptions" value="" />'
+    echo '        </MavenRunnerSettings>'
+    echo '      </option>'
+    echo '      <option name="myRunnerParameters">'
+    echo '        <MavenRunnerParameters>'
+    echo '          <option name="profiles"><set /></option>'
+    echo '          <option name="goals"><list><option value="quarkus:dev" /><option value="-pl" /><option value="modules/backend" /><option value="-am" /></list></option>'
+    echo '          <option name="pomFileName" value="pom.xml" />'
+    echo '          <option name="profilesMap"><map /></option>'
+    echo '          <option name="resolveToWorkspace" value="false" />'
+    echo '          <option name="workingDirPath" value="$PROJECT_DIR$" />'
+    echo '        </MavenRunnerParameters>'
+    echo '      </option>'
+    echo '    </MavenSettings>'
+    echo '    <method v="2" />'
+    echo '  </configuration>'
+    echo '</component>'
+  } > "$out"
+  echo "wrote $out"
+}
+
+# a shell command in a terminal: name, file, working directory (below the project), script
+shell() {
+  cat > ".run/$2.run.xml" <<XML
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="$(xml "$1")" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value="$(xml "$4")" />
+    <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
+    <option name="SCRIPT_PATH" value="" />
+    <option name="SCRIPT_OPTIONS" value="" />
+    <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="\$PROJECT_DIR\$${3:+/$3}" />
+    <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
+    <option name="INTERPRETER_PATH" value="/bin/zsh" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="EXECUTE_IN_TERMINAL" value="true" />
+    <option name="EXECUTE_SCRIPT_FILE" value="false" />
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>
+XML
+  echo "wrote .run/$2.run.xml"
+}
+
+# --- run-modes: one dev configuration per access level, the demo stack
+for f in examples/run-modes/env/*.env; do
+  name=$(basename "$f" .env)
+  maven_dev "quarkus:dev ($name)" "dev-$name" < "$f"
+done
+shell "demo stack: up (Keycloak + Mailpit)" "demo-stack-up" "examples/run-modes" \
+  "docker compose up -d && docker compose logs -f keycloak"
+shell "demo stack: reset (down -v, re-imports the realm)" "demo-stack-reset" "examples/run-modes" \
+  "docker compose down -v && docker compose up -d && docker compose logs -f keycloak"
+
+# --- extensions: dev mode against the demo stack, with the example jar as providers directory
+{
+  grep -v '^#' examples/run-modes/env/realm-admin.env
+  echo "KC_MCP_PROVIDERS_DIR=examples/extensions/target"
+  echo "KC_MCP_SPI_ACME_AUDIT_FILE=target/acme-audit.jsonl"
+  echo "KC_MCP_DYNAMIC_SYSTEMS=true"
+  echo "KC_MCP_SPI_ACME_TENANTS_SYSTEMS=globex=https://sso.globex.example|globex-prod"
+} | maven_dev "quarkus:dev (extensions: realm-admin + examples/extensions/target as providers)" "dev-extensions"
+shell "extensions: build jar + stack up (Keycloak :8093, MCP :8094)" "extensions-up" "examples/extensions" \
+  "../../mvnw -f ../../pom.xml package -DskipTests && docker compose up -d --build && docker compose logs -f mcp"
+shell "extensions: demo.sh" "extensions-demo" "examples/extensions" "./demo.sh"
+shell "extensions: down -v" "extensions-down" "examples/extensions" "docker compose down -v"
+
+# --- dynamic-systems: the PostgreSQL build in Docker, the mounted-jar variant, the demo
+shell "dynamic-systems: build (PostgreSQL) + stack up (:8090-8092, :5490)" "dynamic-systems-up" "examples/dynamic-systems" \
+  "../../mvnw -f ../../pom.xml package -DskipTests -Ppostgresql && docker compose up -d --build && docker compose logs -f mcp"
+shell "dynamic-systems: dev stack (target/quarkus-app mounted, no image build)" "dynamic-systems-dev-up" "examples/dynamic-systems" \
+  "../../mvnw -f ../../pom.xml package -DskipTests -Ppostgresql && docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d && docker compose logs -f mcp"
+shell "dynamic-systems: restart servers from target/quarkus-app (dev stack)" "dynamic-systems-dev-restart" "examples/dynamic-systems" \
+  "../../mvnw -f ../../pom.xml package -DskipTests -Ppostgresql && docker compose -f docker-compose.yml -f docker-compose.dev.yml restart mcp mcp-users && docker compose logs -f mcp"
+shell "dynamic-systems: demo.sh" "dynamic-systems-demo" "examples/dynamic-systems" "./demo.sh"
+shell "dynamic-systems: down -v" "dynamic-systems-down" "examples/dynamic-systems" \
+  "docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v"
+
+# --- multi-tenant
+shell "multi-tenant: keys + stack up (:8090-8092)" "multi-tenant-up" "examples/multi-tenant" \
+  "./gen-keys.sh && ../../mvnw -f ../../pom.xml package -DskipTests && docker compose up -d --build && docker compose logs -f mcp"
+shell "multi-tenant: down -v" "multi-tenant-down" "examples/multi-tenant" "docker compose down -v"
+
+# --- conformance
+shell "conformance: run.sh (packaged server + fixtures)" "conformance-run" "" \
+  "./mvnw package -DskipTests && conformance/run.sh"

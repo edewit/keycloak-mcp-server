@@ -14,6 +14,7 @@ docker compose down -v                                            # drops databa
 ```
 
 Iterating on the server: `docker-compose.dev.yml` mounts `target/quarkus-app` into a plain JDK image, no image build.
+IntelliJ: the `dynamic-systems: *` run configurations in `.run/` cover build + up, the dev stack, restart, demo, down.
 
 ```
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
