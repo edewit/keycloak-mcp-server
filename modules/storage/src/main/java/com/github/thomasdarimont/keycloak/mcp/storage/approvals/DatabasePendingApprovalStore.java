@@ -143,6 +143,12 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
         return PendingApprovalEntity.delete("expiresAt <= ?1", now);
     }
 
+    @Override
+    @Transactional
+    public long countLive(long now) {
+        return PendingApprovalEntity.count("expiresAt > ?1", now);
+    }
+
     @Scheduled(every = "1h", delayed = "10m")
     void purge() {
         long n = deleteExpired(System.currentTimeMillis());

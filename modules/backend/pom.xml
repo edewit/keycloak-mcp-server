@@ -56,8 +56,19 @@
             <artifactId>quarkus-arc</artifactId>
         </dependency>
         <dependency>
+            <!-- metrics (and traces) over OTLP; the SDK is off until QUARKUS_OTEL_SDK_DISABLED=false -->
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-opentelemetry</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- InMemoryMetricReader for the metrics tests; version from the OpenTelemetry BOM Quarkus imports -->
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

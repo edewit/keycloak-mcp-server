@@ -469,6 +469,8 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.providers-dir`          | `providers`                 | extension jars (§Extension jars) |
 | `kc-mcp.spi.<id>.<key>`         |                             | per extension; `enabled=false` disables; id kebab-case (`acmeTicketChecker` → `acme-ticket-checker`, env `KC_MCP_SPI_ACME_TICKET_CHECKER_*`, resolved by the server) |
 | `quarkus.http.cors.origins`     | local origins               | browser MCP clients; set to the client origin(s) in production |
+| `quarkus.otel.sdk.disabled`     | `true`                      | `false` exports metrics and traces to `quarkus.otel.exporter.otlp.endpoint` (§Metrics) |
+| `kc-mcp.metrics.include-realm` | `false`                    | tool call metrics carry the realm |
 
 ```properties
 # service account with a secret (recommended)
@@ -489,6 +491,34 @@ kc-mcp.password=admin
 ```
 
 Port 8081 (`quarkus.http.port`), endpoint `http://localhost:8081/mcp`. Service account roles: §Access levels.
+
+## Metrics (OpenTelemetry)
+
+Off until asked for; then exported over OTLP to a collector (Prometheus, Grafana, Datadog ... behind it):
+
+```shell
+QUARKUS_OTEL_SDK_DISABLED=false
+QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+# QUARKUS_OTEL_METRIC_EXPORT_INTERVAL=60s   QUARKUS_OTEL_TRACES_ENABLED=false (metrics only)
+```
+
+Quarkus reports HTTP server metrics per route (MCP endpoint, BFF, admin API), JVM metrics and a trace per request.
+The server adds its own:
+
+| metric | type | attributes | what it answers |
+|---|---|---|---|
+| `kc_mcp.tool.call.duration` | histogram, s (count = calls) | `tool`, `level`, `outcome` (`ok` or the error code), `via`, `system`, `realm` (opt-in) | is it used, is it working, what fails how |
+| `kc_mcp.policy.refusals` | counter | `reason` (`forbidden`, `privilege_escalation`, `realm_not_allowed`, `read_only_mode`, `entry_mismatch`, ...), `tool`, `level`, `system` | misconfigured roles, or someone probing |
+| `kc_mcp.confirmation.decisions` | counter | `confirmer` (`ciba-confirmer`, `built-in`, an extension's id, `none`), `outcome`, `tool` | who confirms destructive tools, how often they are declined |
+| `kc_mcp.ciba.requests` | counter | `system` | approvals asked for |
+| `kc_mcp.ciba.decisions`, `kc_mcp.ciba.decision.duration` | counter, histogram s | `outcome` (`approved`, `declined`, `expired`, `timeout`, `rejected`), `system` | how fast people answer; `rejected` = the approval's ID token was invalid or named someone else: alert on it |
+| `kc_mcp.ciba.pending` | gauge | | approvals waiting for a device |
+
+No user, subject, argument or client-supplied value becomes an attribute; who did what is the audit log's. Values
+are cut to short tokens, so an extension's odd error code cannot create unbounded series.
+`kc-mcp.metrics.include-realm=true` adds the realm to the tool calls (one series per realm: think before turning
+it on for a server with thousands). The tool and refusal metrics come from the audit hook (`AuditListener` id
+`metrics`, `kc-mcp.spi.metrics.enabled=false` switches it off), so they count exactly what the audit log records.
 
 ## Extending
 

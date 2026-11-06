@@ -27,6 +27,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.CibaExcept
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Poll;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Started;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaSettings.Flow;
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
@@ -83,8 +84,14 @@ public class CibaConfirmer implements Confirmer {
     private final Map<String, CibaClient> byIssuer = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private Duration pollFloor = Duration.ofSeconds(1);
+    private KcMcpMetrics metrics = KcMcpMetrics.noop();
 
     @Inject
+    public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry, KcMcpMetrics metrics) {
+        this(config, registry);
+        this.metrics = metrics;
+    }
+
     public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry) {
         this(CibaSettings.from(config), config.url() + "/realms/" + config.authRealm(), null, null,
                 registry.extensions(PendingApprovalStore.class)
@@ -122,6 +129,7 @@ public class CibaConfirmer implements Confirmer {
                     + " quarkus.oidc.tenant-enabled=true), kc-mcp.delegation=forward|exchange, or"
                     + " kc-mcp.profile=shared");
         }
+        metrics.pendingApprovals(() -> store.countLive(System.currentTimeMillis()));
         LOG.infof(
                 "CIBA confirmer on: destructive tools need the caller's approval on their device (client '%s'"
                         + " at %s, %s, %s flow%s, login hint %s, %d s, approvals in %s)",
@@ -163,6 +171,12 @@ public class CibaConfirmer implements Confirmer {
 
     public PendingApprovalStore store() {
         return store;
+    }
+
+    /** Where the CIBA counters go (tests). */
+    CibaConfirmer metrics(KcMcpMetrics metrics) {
+        this.metrics = metrics == null ? KcMcpMetrics.noop() : metrics;
+        return this;
     }
 
     /** Shortest pause between polls (tests lower it). */
@@ -267,6 +281,7 @@ public class CibaConfirmer implements Confirmer {
                 extra);
         int budget = Math.min(settings.timeoutSeconds(), started.expiresIn());
         String requestId = fingerprint(started.authReqId());
+        metrics.cibaFiled(r.system());
         LOG.infof("CIBA request %s for %s: %s %s (binding message %s%s, up to %d s, session %s)", requestId, hint,
                 r.tool().name(), r.realm() == null ? "" : "realm " + r.realm(), binding == null ? "none" : binding,
                 code == null ? "" : ", code " + code, budget, r.connectionId() == null ? "-" : r.connectionId());
@@ -290,6 +305,7 @@ public class CibaConfirmer implements Confirmer {
         }
         while (true) {
             if (p.expired()) {
+                decided(p, "timeout");
                 return Decision.confirmationRequired("No approval for '" + p.operation() + "' arrived in time: "
                         + p.loginHint() + " was asked on their device" + bindingNote(p.bindingMessage())
                         + ". Nothing was changed; call again to send a new request when they are ready to approve.",
@@ -315,19 +331,23 @@ public class CibaConfirmer implements Confirmer {
                     }
                     catch (CibaException e) {
                         LOG.warnf("CIBA request %s: approval rejected: %s", p.requestId(), e.getMessage());
+                        decided(p, "rejected");
                         return Decision.declined(e.getMessage(), Map.of("approval", Map.of("status", "rejected")));
                     }
                     LOG.infof("CIBA request %s approved by %s (sub %s)", p.requestId(), p.loginHint(), who.subject());
+                    decided(p, "approved");
                     return Decision.confirmed();
                 }
                 case DENIED -> {
                     LOG.infof("CIBA request %s declined by %s", p.requestId(), p.loginHint());
+                    decided(p, "declined");
                     return Decision.declined(
                             p.loginHint() + " declined '" + p.operation() + "' on their device"
                                     + bindingNote(p.bindingMessage()) + ".",
                             Map.of("approval", Map.of("status", "declined")));
                 }
                 case EXPIRED -> {
+                    decided(p, "expired");
                     return Decision.confirmationRequired("The approval request for '" + p.operation()
                             + "' expired before " + p.loginHint() + " answered" + bindingNote(p.bindingMessage())
                             + ". Nothing was changed; call again to send a new request when they are ready to approve.",
@@ -365,6 +385,10 @@ public class CibaConfirmer implements Confirmer {
                 + (p.code() == null ? "" : " and to enter the number " + p.code() + " when asked")
                 + ", then call again with the same arguments to continue. Nothing has been changed yet.";
         return Decision.confirmationRequired(message, Map.of("approval", approval, "howTo", howTo));
+    }
+
+    private void decided(PendingApproval p, String outcome) {
+        metrics.cibaDecision(outcome, p.system(), Duration.ofMillis(System.currentTimeMillis() - p.createdAt()));
     }
 
     /** Keycloak's {@code auth_req_id} is a long JWE; the log shows its tail. */

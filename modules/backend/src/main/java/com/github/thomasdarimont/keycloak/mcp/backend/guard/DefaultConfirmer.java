@@ -53,6 +53,11 @@ public class DefaultConfirmer implements Confirmer {
     }
 
     @Override
+    public String id() {
+        return "built-in";
+    }
+
+    @Override
     public int order() {
         return Integer.MAX_VALUE;
     }

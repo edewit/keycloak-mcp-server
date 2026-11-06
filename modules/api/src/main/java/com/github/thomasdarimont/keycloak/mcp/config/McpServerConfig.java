@@ -389,6 +389,21 @@ public interface McpServerConfig {
      */
     Ui ui();
 
+    /**
+     * The server's OpenTelemetry metrics ({@code kc-mcp.metrics.*}); export is Quarkus'
+     * {@code quarkus.otel.*}.
+     */
+    Metrics metrics();
+
+    interface Metrics {
+        /**
+         * Add the {@code realm} attribute to the tool call metrics. Off by default: a
+         * multi-tenant server can have thousands of realms, one series each.
+         */
+        @WithDefault("false")
+        boolean includeRealm();
+    }
+
     interface Admin {
         /** Off by default; on needs a {@link #token()} or an {@link #issuer()}. */
         @WithDefault("false")

@@ -52,6 +52,7 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
     public static final String DEFAULT_CLIENT_ID = "keycloak-mcp-server";
 
     private final Path file;
+    private final java.util.concurrent.locks.ReentrantLock reload = new java.util.concurrent.locks.ReentrantLock();
     private volatile FileTime loadedAt;
     private volatile Map<String, KeycloakSystem> systems = Map.of();
 
@@ -101,12 +102,19 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
         try {
             FileTime modified = Files.getLastModifiedTime(file);
             if (!modified.equals(loadedAt)) {
-                synchronized (this) {
+                // a lock, not synchronized: the file is read while holding it, which
+                // would pin a virtual
+                // thread's carrier on JDK 21
+                reload.lock();
+                try {
                     if (!modified.equals(loadedAt)) {
                         systems = parse(new JsonObject(Files.readString(file)));
                         loadedAt = modified;
                         LOG.infof("Keycloak systems file %s: %s", file, systems.keySet());
                     }
+                }
+                finally {
+                    reload.unlock();
                 }
             }
         }

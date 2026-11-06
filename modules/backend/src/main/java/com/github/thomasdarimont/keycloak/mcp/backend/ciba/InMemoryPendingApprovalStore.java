@@ -77,6 +77,11 @@ public class InMemoryPendingApprovalStore implements PendingApprovalStore {
         return before - entries.size();
     }
 
+    @Override
+    public long countLive(long now) {
+        return entries.values().stream().filter(p -> p.expiresAt() > now).count();
+    }
+
     public int size() {
         deleteExpired(System.currentTimeMillis());
         return entries.size();

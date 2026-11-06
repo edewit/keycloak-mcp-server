@@ -39,4 +39,12 @@ public interface PendingApprovalStore extends Extension {
 
     /** Removes entries past their expiry; how many. */
     long deleteExpired(long now);
+
+    /**
+     * How many live entries there are (for the pending gauge); negative when the store
+     * cannot tell.
+     */
+    default long countLive(long now) {
+        return -1;
+    }
 }

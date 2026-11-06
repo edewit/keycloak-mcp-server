@@ -77,7 +77,7 @@ class CibaConfirmerTest {
     private final Deque<String> tokenAnswers = new ArrayDeque<>();
     private final List<Map<String, String>> backchannelRequests = new CopyOnWriteArrayList<>();
     private final List<String> authHeaders = new CopyOnWriteArrayList<>();
-    private int requestCounter;
+    private final java.util.concurrent.atomic.AtomicInteger requestCounter = new java.util.concurrent.atomic.AtomicInteger();
 
     @BeforeEach
     void start() throws IOException {
@@ -102,11 +102,8 @@ class CibaConfirmerTest {
         server.createContext("/realms/demo/protocol/openid-connect/ext/ciba/auth", x -> {
             authHeaders.add(x.getRequestHeaders().getFirst("Authorization"));
             backchannelRequests.add(form(x));
-            synchronized (this) {
-                requestCounter++;
-            }
             json(x, 200,
-                    new JsonObject().put("auth_req_id", "req-" + requestCounter)
+                    new JsonObject().put("auth_req_id", "req-" + requestCounter.incrementAndGet())
                         .put("expires_in", 10)
                         .put("interval", 1));
         });
@@ -479,5 +476,41 @@ class CibaConfirmerTest {
         assertEquals(Decision.Outcome.CONFIRMED,
                 confirmer(Map.of("token-issuer", issuer)).confirm(request(alice(), Prompter.NONE)).outcome(),
                 "the value the tokens carry");
+    }
+
+    @Test
+    void decisionsAreCounted() {
+        var reader = io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader.create();
+        try (var provider = io.opentelemetry.sdk.metrics.SdkMeterProvider.builder()
+            .registerMetricReader(reader)
+            .build()) {
+            var metrics = new com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics(provider.get("test"),
+                    false);
+            tokenAnswers.add("200");
+            confirmer(Map.of()).metrics(metrics).confirm(request(alice(), Prompter.NONE));
+            tokenAnswers.add("200:sub-9:mallory");
+            confirmer(Map.of()).metrics(metrics).confirm(request(alice(), Prompter.NONE));
+            var all = reader.collectAllMetrics();
+            var decisions = all.stream()
+                .filter(d -> d.getName().equals("kc_mcp.ciba.decisions"))
+                .findFirst()
+                .orElseThrow()
+                .getLongSumData()
+                .getPoints();
+            assertEquals(Set.of("approved", "rejected"),
+                    decisions.stream()
+                        .map(p -> p.getAttributes().get(io.opentelemetry.api.common.AttributeKey.stringKey("outcome")))
+                        .collect(java.util.stream.Collectors.toSet()));
+            assertEquals(2,
+                    all.stream()
+                        .filter(d -> d.getName().equals("kc_mcp.ciba.requests"))
+                        .findFirst()
+                        .orElseThrow()
+                        .getLongSumData()
+                        .getPoints()
+                        .iterator()
+                        .next()
+                        .getValue());
+        }
     }
 }
