@@ -708,4 +708,15 @@ class CibaConfirmerTest {
         assertEquals(DELETE.title() + ": dave (realm demo)", CibaConfirmer.operation(prod, false),
                 "a server with one system does not name it, whatever it is called");
     }
+
+    @Test
+    void aLongTargetIsShortenedButTheSystemAndRealmStay() {
+        String name = "u".repeat(250);
+        ConfirmationRequest r = new ConfirmationRequest(DELETE, "prod", "demo", Map.of("id", "u1", "username", name),
+                false, Caller.NONE, Prompter.NONE);
+        String text = CibaConfirmer.operation(r);
+        assertEquals(CibaConfirmer.MAX_OPERATION, text.length());
+        assertTrue(text.startsWith(DELETE.title() + ": uuu"), text);
+        assertTrue(text.endsWith("u… (system prod, realm demo)"), text);
+    }
 }

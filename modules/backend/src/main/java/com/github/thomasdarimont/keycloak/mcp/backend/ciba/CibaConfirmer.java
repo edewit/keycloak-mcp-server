@@ -132,6 +132,9 @@ public class CibaConfirmer implements Confirmer {
     private final SecureRandom random = new SecureRandom();
     private Duration pollFloor = Duration.ofSeconds(1);
     private KcMcpMetrics metrics = KcMcpMetrics.noop();
+    /** The longest operation summary sent to the device. */
+    static final int MAX_OPERATION = 200;
+
     /**
      * Whether the server has several Keycloak systems: then the device names the one an
      * operation targets.
@@ -687,8 +690,17 @@ public class CibaConfirmer implements Confirmer {
         String system = showSystem ? r.system() : null;
         String where = system != null && r.realm() != null ? " (system " + system + ", realm " + r.realm() + ")"
                 : system != null ? " (system " + system + ")" : r.realm() != null ? " (realm " + r.realm() + ")" : "";
-        String text = r.tool().title() + (what != null ? ": " + what : "") + where;
-        return text.length() <= 200 ? text : text.substring(0, 199) + "…";
+        String head = r.tool().title();
+        if (what != null) {
+            // shorten the target, never the system and realm after it
+            int room = MAX_OPERATION - head.length() - 2 - where.length();
+            if (what.length() > room && room > 1) {
+                what = what.substring(0, room - 1) + "…";
+            }
+            head += ": " + what;
+        }
+        String text = head + where;
+        return text.length() <= MAX_OPERATION ? text : text.substring(0, MAX_OPERATION - 1) + "…";
     }
 
 }
