@@ -106,12 +106,7 @@ public final class Sensitive {
      * all), lists walked.
      */
     private static Object nested(Object value, JsonObject schema, String argument, int depth) {
-        if (value instanceof JsonObject json) {
-            value = json.getMap();
-        }
-        else if (value instanceof JsonArray array) {
-            value = array.getList();
-        }
+        value = plain(value);
         if (!(value instanceof Map<?, ?>) && !(value instanceof Collection<?>)) {
             return value;
         }
@@ -159,6 +154,7 @@ public final class Sensitive {
 
     /** The original values wherever the redacted copy has the mask. */
     private static void collect(Object original, Object redacted, Set<String> into) {
+        original = plain(original);
         if (MASK.equals(redacted) && original != null && !MASK.equals(original)) {
             if (original instanceof Map<?, ?> || original instanceof Collection<?>) {
                 flatten(original, into);
@@ -167,9 +163,6 @@ public final class Sensitive {
                 into.add(String.valueOf(original));
             }
             return;
-        }
-        if (original instanceof JsonObject json) {
-            original = json.getMap();
         }
         if (original instanceof Map<?, ?> o && redacted instanceof Map<?, ?> r) {
             o.forEach((k, v) -> collect(v, r.get(String.valueOf(k)), into));
@@ -182,6 +175,7 @@ public final class Sensitive {
     }
 
     private static void flatten(Object value, Set<String> into) {
+        value = plain(value);
         if (value instanceof Map<?, ?> m) {
             m.values().forEach(v -> flatten(v, into));
         }
@@ -191,6 +185,20 @@ public final class Sensitive {
         else if (value != null && String.valueOf(value).length() >= 4) {
             into.add(String.valueOf(value));
         }
+    }
+
+    /**
+     * Vert.x JSON containers as the plain maps and lists they wrap, so that every walk
+     * (redaction, finding the values to scrub, flattening) sees the same structure.
+     */
+    private static Object plain(Object value) {
+        if (value instanceof JsonObject json) {
+            return json.getMap();
+        }
+        if (value instanceof JsonArray array) {
+            return array.getList();
+        }
+        return value;
     }
 
     private static JsonObject property(JsonObject schema, String name) {

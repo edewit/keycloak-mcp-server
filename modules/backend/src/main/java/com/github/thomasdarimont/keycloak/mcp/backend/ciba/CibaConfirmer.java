@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import jakarta.annotation.PreDestroy;
@@ -41,6 +42,7 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
@@ -130,6 +132,12 @@ public class CibaConfirmer implements Confirmer {
     private final SecureRandom random = new SecureRandom();
     private Duration pollFloor = Duration.ofSeconds(1);
     private KcMcpMetrics metrics = KcMcpMetrics.noop();
+    /**
+     * Whether the server has several Keycloak systems: then the device names the one an
+     * operation targets.
+     */
+    private BooleanSupplier severalSystems = () -> true;
+
     /** How long one poll of the provider may take: the read timeout of its client. */
     private final Duration readTimeout;
     /**
@@ -140,7 +148,7 @@ public class CibaConfirmer implements Confirmer {
 
     @Inject
     public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry, KcMcpMetrics metrics,
-            Instance<TlsConfigurationRegistry> tls) {
+            Instance<TlsConfigurationRegistry> tls, Instance<KeycloakSystems> systems) {
         this(CibaSettings.from(config), config.url() + "/realms/" + config.authRealm(), null, null,
                 registry.extensions(PendingApprovalStore.class)
                     .stream()
@@ -149,6 +157,10 @@ public class CibaConfirmer implements Confirmer {
                 config.callerRequired() || config.delegation().delegating(), tls.isResolvable() ? tls.get() : null,
                 OutboundClients.Timeouts.of(config));
         this.metrics = metrics;
+        if (systems.isResolvable()) {
+            KeycloakSystems all = systems.get();
+            this.severalSystems = all::multiple;
+        }
     }
 
     public CibaConfirmer(CibaSettings settings, String defaultIssuer, Function<String, CibaClient> clients,
@@ -296,7 +308,7 @@ public class CibaConfirmer implements Confirmer {
         }
         String issuer = settings.issuerFromCaller() ? issuerOf(caller) : settings.issuer();
         CibaClient client = byIssuer.computeIfAbsent(issuer, clients);
-        String operation = operation(r);
+        String operation = operation(r, severalSystems.getAsBoolean());
         String operationHash = operationHash(r);
         if (settings.flow() == Flow.BLOCKING || r.sessionless() || r.connectionId() == null) {
             // no MCP session, nothing ties a second call to this one: decide within the
@@ -642,6 +654,11 @@ public class CibaConfirmer implements Confirmer {
      * values. At most 200 characters, Keycloak's limit for an additional parameter.
      */
     static String operation(ConfirmationRequest r) {
+        return operation(r, true);
+    }
+
+    /** @param showSystem whether to name the system (the server has several) */
+    static String operation(ConfirmationRequest r, boolean showSystem) {
         List<String[]> targets = new ArrayList<>();
         for (Map.Entry<String, String> e : TARGET_ARGS.entrySet()) {
             Object v = r.args().get(e.getKey());
@@ -658,7 +675,7 @@ public class CibaConfirmer implements Confirmer {
         }
         String what;
         if (targets.size() == 1) {
-            what = targets.get(0)[1];
+            what = targets.getFirst()[1];
         }
         else if (!targets.isEmpty()) {
             what = String.join(", ", targets.stream().map(t -> t[0] + " " + t[1]).toList());
@@ -667,8 +684,10 @@ public class CibaConfirmer implements Confirmer {
             List<String> changed = r.args().keySet().stream().sorted().toList();
             what = changed.isEmpty() ? null : "changes " + String.join(", ", changed);
         }
-        String text = r.tool().title() + (what != null ? ": " + what : "")
-                + (r.realm() != null ? " (realm " + r.realm() + ")" : "");
+        String system = showSystem ? r.system() : null;
+        String where = system != null && r.realm() != null ? " (system " + system + ", realm " + r.realm() + ")"
+                : system != null ? " (system " + system + ")" : r.realm() != null ? " (realm " + r.realm() + ")" : "";
+        String text = r.tool().title() + (what != null ? ": " + what : "") + where;
         return text.length() <= 200 ? text : text.substring(0, 199) + "…";
     }
 

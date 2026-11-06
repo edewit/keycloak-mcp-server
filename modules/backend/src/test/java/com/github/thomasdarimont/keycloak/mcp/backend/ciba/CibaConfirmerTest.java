@@ -411,7 +411,8 @@ class CibaConfirmerTest {
         Map<String, String> bc = backchannelRequests.get(0);
         assertEquals(code, bc.get("code"), "the device gets the number as an additional parameter");
         assertEquals("LM Studio", bc.get("requester"));
-        assertEquals(DELETE.title() + ": dave (realm demo)", bc.get("operation"), "the device names the target");
+        assertEquals(DELETE.title() + ": dave (system prod, realm demo)", bc.get("operation"),
+                "the device names the target");
         assertEquals(approval.get("bindingMessage"), bc.get("binding_message"));
 
         // nobody answered yet: the collecting call waits a moment and reports pending
@@ -690,5 +691,21 @@ class CibaConfirmerTest {
             slowPolls.set(false);
             first.get();
         }
+    }
+
+    @Test
+    void theDeviceSeesWhichSystemAnOperationTargets() {
+        ConfirmationRequest prod = new ConfirmationRequest(DELETE, "prod", "demo",
+                Map.of("id", "u1", "username", "dave"), false, Caller.NONE, Prompter.NONE);
+        ConfirmationRequest staging = new ConfirmationRequest(DELETE, "staging", "demo",
+                Map.of("id", "u1", "username", "dave"), false, Caller.NONE, Prompter.NONE);
+        assertEquals(DELETE.title() + ": dave (system prod, realm demo)", CibaConfirmer.operation(prod));
+        assertTrue(!CibaConfirmer.operation(prod).equals(CibaConfirmer.operation(staging)),
+                "the same user in two systems reads differently on the device");
+        ConfirmationRequest single = new ConfirmationRequest(DELETE, null, "demo",
+                Map.of("id", "u1", "username", "dave"), false, Caller.NONE, Prompter.NONE);
+        assertEquals(DELETE.title() + ": dave (realm demo)", CibaConfirmer.operation(single), "one system: no name");
+        assertEquals(DELETE.title() + ": dave (realm demo)", CibaConfirmer.operation(prod, false),
+                "a server with one system does not name it, whatever it is called");
     }
 }

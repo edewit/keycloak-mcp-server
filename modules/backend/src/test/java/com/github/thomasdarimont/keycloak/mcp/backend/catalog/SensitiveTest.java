@@ -25,6 +25,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Prompter;
 
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -220,5 +221,19 @@ class SensitiveTest {
                 ToolResult.error("tool_failed", "password Hunter2! violates the policy"));
         assertEquals("tool_failed", events.get(0).outcome());
         assertFalse(events.get(0).message().contains("Hunter2"), events.get(0).message());
+    }
+
+    @Test
+    void aSensitiveJsonArgumentIsScrubbedValueByValue() {
+        JsonObject schema = InputSchema.builder().anyMap("credentials", "c").sensitive().build();
+        Map<String, Object> args = Map.of("credentials",
+                new JsonObject().put("user", "svc-batch")
+                    .put("pass", "Tr0ub4dor")
+                    .put("keys", new JsonArray().add("first-key-1").add("second-key-2")));
+        assertEquals(Sensitive.MASK, Sensitive.redact(schema, args).get("credentials"));
+        String scrubbed = Sensitive.scrub("login of svc-batch with Tr0ub4dor failed, tried second-key-2", schema, args);
+        assertFalse(scrubbed.contains("Tr0ub4dor"), scrubbed);
+        assertFalse(scrubbed.contains("svc-batch"), scrubbed);
+        assertFalse(scrubbed.contains("second-key-2"), "inside a JsonArray too: " + scrubbed);
     }
 }
