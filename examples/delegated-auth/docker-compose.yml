@@ -55,6 +55,8 @@ services:
       KC_MCP_URL: http://keycloak:8080
       KC_MCP_ISSUER: http://localhost:8096/realms/demo
       QUARKUS_OIDC_TOKEN_ISSUER: http://localhost:8096/realms/demo
+      # what the protected resource metadata sends MCP clients (LM Studio) to for the login: the public address
+      QUARKUS_OIDC_RESOURCE_METADATA_AUTHORIZATION_SERVER: http://localhost:8096/realms/demo
       QUARKUS_HTTP_PORT: "8081"
       QUARKUS_HTTP_HOST: 0.0.0.0
     ports:

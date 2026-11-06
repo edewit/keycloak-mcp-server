@@ -64,6 +64,8 @@ services:
       # inside the compose network Keycloak is reached as keycloak:8080; the tokens still name the public issuer
       KC_MCP_URL: http://keycloak:8080
       QUARKUS_OIDC_TOKEN_ISSUER: http://localhost:8098/realms/demo
+      # what the protected resource metadata sends MCP clients (LM Studio) to for the login: the public address
+      QUARKUS_OIDC_RESOURCE_METADATA_AUTHORIZATION_SERVER: http://localhost:8098/realms/demo
       # the container reaches the realm as keycloak:8080, the tokens it issues name the public issuer
       KC_MCP_SPI_CIBA_CONFIRMER_ISSUER: http://keycloak:8080/realms/demo
       KC_MCP_SPI_CIBA_CONFIRMER_TOKEN_ISSUER: http://localhost:8098/realms/demo
