@@ -132,7 +132,11 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         }
     }
 
-    private void grant() {
+    /**
+     * A signed client assertion (RFC 7523): {@code iss} and {@code sub} the client,
+     * {@code aud} the realm's issuer, valid for {@code lifespan} seconds from now.
+     */
+    public static String clientAssertion(String clientId, String audience, JwtSigner signer, int lifespan) {
         long now = Instant.now().getEpochSecond();
         JsonObject claims = new JsonObject().put("iss", clientId)
             .put("sub", clientId)
@@ -140,8 +144,13 @@ public class ClientAssertionTokenManager implements AutoCloseable {
             .put("jti", UUID.randomUUID().toString())
             .put("iat", now)
             .put("nbf", now)
-            .put("exp", now + assertionLifespan);
-        String assertion = signer.get().sign(claims);
+            .put("exp", now + lifespan);
+        return signer.sign(claims);
+    }
+
+    private void grant() {
+        long now = Instant.now().getEpochSecond();
+        String assertion = clientAssertion(clientId, audience, signer.get(), assertionLifespan);
         Form form = new Form().param("grant_type", grantType.oauthValue())
             .param("client_id", clientId)
             .param("client_assertion_type", ASSERTION_TYPE)

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "keycloak-delegated": {
+      "url": "http://localhost:8097/mcp",
+      "auth": {
+        "CLIENT_ID": "mcp-consumer"
+      }
+    }
+  }
+}

@@ -4,6 +4,7 @@
 #   run-modes:        one "quarkus:dev (<scenario>)" Maven configuration per examples/run-modes/env/*.env, the demo stack
 #   extensions:       "quarkus:dev (extensions)" loading examples/extensions/target as providers directory, build/demo/down
 #   dynamic-systems:  PostgreSQL build + stack, mounted-jar dev stack, demo, down
+#   delegated-auth:   one quarkus:dev per env file, stack up, demo, down
 #   multi-tenant:     keys + stack, down
 #   conformance:      conformance/run.sh
 set -euo pipefail
@@ -114,6 +115,16 @@ shell "dynamic-systems: restart servers from target/quarkus-app (dev stack)" "dy
 shell "dynamic-systems: demo.sh" "dynamic-systems-demo" "examples/dynamic-systems" "./demo.sh"
 shell "dynamic-systems: down -v" "dynamic-systems-down" "examples/dynamic-systems" \
   "docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v"
+
+# --- delegated-auth: dev mode as the actor client against its own stack (Keycloak :8096 with delegation), the demo
+for f in examples/delegated-auth/env/*.env; do
+  name=$(basename "$f" .env)
+  maven_dev "quarkus:dev ($name: delegated-auth stack on :8096, MCP :8097)" "dev-$name" < "$f"
+done
+shell "delegated-auth: stack up (Keycloak :8096 + delegation grant)" "delegated-auth-up" "examples/delegated-auth" \
+  "docker compose up -d && docker compose logs keycloak-init && docker compose logs -f keycloak"
+shell "delegated-auth: demo.sh" "delegated-auth-demo" "examples/delegated-auth" "./demo.sh"
+shell "delegated-auth: down -v" "delegated-auth-down" "examples/delegated-auth" "docker compose down -v"
 
 # --- multi-tenant
 shell "multi-tenant: keys + stack up (:8090-8092)" "multi-tenant-up" "examples/multi-tenant" \

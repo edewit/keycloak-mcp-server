@@ -20,9 +20,12 @@ import com.github.thomasdarimont.keycloak.mcp.backend.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.CapabilityDiscovery;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.RoleDiscovery;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
+import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
 
@@ -89,6 +92,9 @@ public class StartupChecks {
                     + " startup check skipped", sys);
             return problems;
         }
+        if (config.delegation() == DelegationMode.EXCHANGE) {
+            return checkActor(admin);
+        }
         GrantedRoles granted;
         try {
             granted = roles.get(sys);
@@ -131,6 +137,37 @@ public class StartupChecks {
                     LOG.error("Keycloak startup check: " + msg);
                 }
             }
+        }
+        problems.addAll(checkCapabilities(sys));
+        return problems;
+    }
+
+    /**
+     * Delegation mode {@code exchange}: the actor client must be able to log in; it holds
+     * no admin roles by design, so the realm check does not apply.
+     */
+    List<String> checkActor(KeycloakAdmin admin) {
+        String sys = admin.name();
+        List<String> problems = new ArrayList<>();
+        KeycloakSystem s = admin.system();
+        if (s.grantType() != GrantType.CLIENT_CREDENTIALS || s.clientAuth() == ClientAuth.NONE) {
+            String msg = "[" + sys + "] delegation=exchange needs a confidential client with a service account as the"
+                    + " actor (grant client_credentials with kc-mcp.client-secret or a private_key_jwt key)";
+            problems.add(msg);
+            LOG.error("Keycloak startup check: " + msg);
+            return problems;
+        }
+        String clientId = s.clientId().orElse("?");
+        try {
+            admin.accessToken();
+            LOG.infof("[%s] delegation=exchange: actor client '%s' logs in; admin calls run with the delegated tokens"
+                    + " Keycloak exchanges for the callers (they must consent to the scope '%s'), realm check skipped",
+                    sys, clientId, TokenExchange.delegationScope(clientId));
+        }
+        catch (RuntimeException e) {
+            String msg = "[" + sys + "] actor client '" + clientId + "' cannot obtain a token: " + root(e);
+            problems.add(msg);
+            LOG.error("Keycloak startup check: " + msg);
         }
         problems.addAll(checkCapabilities(sys));
         return problems;

@@ -14,6 +14,7 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ErrorMapper;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
+import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.CompositeKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAllowList;
@@ -56,12 +57,13 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     private final String defaultName;
     private final HostAllowList allowedHosts;
     private final SigningKeys keys;
+    private final DelegationMode delegation;
 
     @Inject
     public DefaultKeycloakSystems(McpServerConfig config, SigningKeys keys, Extensions extensions) {
         this(resolve(config), config.defaultSystem().orElse(null), keys,
                 HostAllowList.of(config.allowedHosts().orElse(List.of())), repositories(config, extensions),
-                config.staticSystemsOrder());
+                config.staticSystemsOrder(), config.delegation());
     }
 
     public DefaultKeycloakSystems(List<KeycloakSystem> systems, String defaultSystem, SigningKeys keys) {
@@ -90,7 +92,18 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
      */
     public DefaultKeycloakSystems(List<KeycloakSystem> systems, String defaultSystem, SigningKeys keys,
             HostAllowList allowedHosts, List<KeycloakSystemRepository> repositories, int staticOrder) {
+        this(systems, defaultSystem, keys, allowedHosts, repositories, staticOrder, DelegationMode.OFF);
+    }
+
+    /**
+     * @param delegation whose credentials the admin clients send: with {@code exchange}
+     * every client exchanges the caller's token for a delegated one
+     */
+    public DefaultKeycloakSystems(List<KeycloakSystem> systems, String defaultSystem, SigningKeys keys,
+            HostAllowList allowedHosts, List<KeycloakSystemRepository> repositories, int staticOrder,
+            DelegationMode delegation) {
         this.keys = keys;
+        this.delegation = delegation == null ? DelegationMode.OFF : delegation;
         this.allowedHosts = allowedHosts;
         this.dynamic = !repositories.isEmpty();
         if (systems.isEmpty() && repositories.isEmpty()) {
@@ -286,7 +299,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                     system.url(), allowedHosts.patterns());
             return Optional.empty();
         }
-        KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys);
+        KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation);
         KeycloakAdmin previous = admins.put(name, created);
         if (previous != null) {
             LOG.infof("Keycloak system '%s' changed at its repository, reconnecting to %s", name, system.url());

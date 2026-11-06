@@ -20,6 +20,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Requirement;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.Explanations;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
@@ -74,6 +75,9 @@ public class AccessPolicy {
     private final CapabilityDiscovery capabilities;
     private final Explanations explanations;
     private final List<AccessCheck> globalChecks;
+    /** For delegation mode {@code exchange}: where the delegated tokens come from. */
+    private final KeycloakSystems systems;
+    private final DelegationMode delegation;
 
     @Inject
     public AccessPolicy(McpServerConfig config, RoleDiscovery roles, CapabilityDiscovery capabilities,
@@ -82,7 +86,7 @@ public class AccessPolicy {
                 config.deniedTools().orElse(List.of()), config.allowedCategories().orElse(List.of()), roles,
                 collectChecks(registry),
                 name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()), capabilities,
-                config.explanations());
+                config.explanations(), systems, config.delegation());
     }
 
     /** The providers' checks first, then the ones registered on their own. */
@@ -137,6 +141,21 @@ public class AccessPolicy {
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
             List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
             CapabilityDiscovery capabilities, Explanations explanations) {
+        this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
+                allowedRealmsBySystem, capabilities, explanations, null, DelegationMode.OFF);
+    }
+
+    /**
+     * @param systems the systems whose admin clients exchange caller tokens in delegation
+     * mode {@code exchange}; {@code null} otherwise
+     */
+    public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
+            List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
+            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            CapabilityDiscovery capabilities, Explanations explanations, KeycloakSystems systems,
+            DelegationMode delegation) {
+        this.systems = systems;
+        this.delegation = delegation == null ? DelegationMode.OFF : delegation;
         this.readOnly = readOnly;
         this.capabilities = capabilities;
         this.explanations = explanations == null ? Explanations.AUTO : explanations;
@@ -353,20 +372,38 @@ public class AccessPolicy {
     }
 
     /**
-     * Roles that decide a call: the caller's own (parsed from the forwarded token) when
-     * the call is delegated, otherwise the server token's as discovered; {@code null}
-     * when role checks are off.
+     * Roles that decide a call: the caller's own when the call is delegated (parsed from
+     * the forwarded token, or in mode {@code exchange} from the delegated token Keycloak
+     * issued for the caller, which carries their roles within the actor client's scope),
+     * otherwise the server token's as discovered; {@code null} when role checks are off.
      *
      * @param system Keycloak system name, or {@code null} for the single/default system
+     * @throws com.github.thomasdarimont.keycloak.mcp.catalog.ToolException
+     * {@code delegation_failed} when Keycloak refuses the exchange
      */
     public GrantedRoles granted(String system, InvocationContext ctx) {
         if (ctx.caller().delegated() && ctx.callerToken() != null) {
-            return GrantedRoles.fromToken(ctx.callerToken(), ctx.caller().realm());
+            return GrantedRoles.fromToken(decidingToken(system, ctx.callerToken()), ctx.caller().realm());
         }
         if (roles == null) {
             return null;
         }
         return system == null ? roles.get() : roles.get(system);
+    }
+
+    /**
+     * The token whose roles decide a delegated call: the caller's own, or in mode
+     * {@code exchange} the delegated token (cached per caller token by the admin client).
+     */
+    private String decidingToken(String system, String callerToken) {
+        if (delegation != DelegationMode.EXCHANGE || systems == null) {
+            return callerToken;
+        }
+        String name = system != null ? system : systems.defaultName().orElse(null);
+        if (name == null) {
+            return callerToken;
+        }
+        return systems.find(name).map(admin -> admin.forToken(callerToken).accessToken()).orElse(callerToken);
     }
 
     private static Optional<ToolResult> evaluate(AccessCheck check, AccessCheck.Context context) {

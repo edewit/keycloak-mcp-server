@@ -1,0 +1,216 @@
+{
+  "realm": "demo",
+  "displayName": "Demo (delegated keycloak-mcp-server)",
+  "enabled": true,
+  "sslRequired": "external",
+  "loginWithEmailAllowed": true,
+  "bruteForceProtected": true,
+  "adminPermissionsEnabled": true,
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "enabledEventTypes": [
+    "LOGIN", "LOGIN_ERROR", "LOGOUT", "CODE_TO_TOKEN", "CLIENT_LOGIN", "CLIENT_LOGIN_ERROR",
+    "TOKEN_EXCHANGE", "TOKEN_EXCHANGE_ERROR", "GRANT_CONSENT", "REVOKE_GRANT"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "defaultLocale": "en",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "de"],
+  "roles": {
+    "realm": [
+      { "name": "group-manager", "description": "May manage the groups they belong to (policies provider)" },
+      { "name": "support", "description": "Support staff" }
+    ]
+  },
+  "groups": [
+    {
+      "name": "mcp-admins",
+      "path": "/mcp-admins",
+      "clientRoles": { "realm-management": ["realm-admin"] }
+    },
+    {
+      "name": "mcp-support",
+      "path": "/mcp-support",
+      "clientRoles": { "realm-management": ["view-users", "view-events"] }
+    },
+    { "name": "team-a", "path": "/team-a" },
+    { "name": "team-b", "path": "/team-b" }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@acme.com",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Liddell",
+      "groups": ["/mcp-admins", "/team-a"],
+      "realmRoles": ["default-roles-demo", "group-manager"],
+      "attributes": { "department": ["R&D"] },
+      "credentials": [{ "type": "password", "value": "alice-demo", "temporary": false }]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@acme.com",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Builder",
+      "groups": ["/team-b"],
+      "realmRoles": ["default-roles-demo"],
+      "credentials": [{ "type": "password", "value": "bob-demo", "temporary": false }]
+    },
+    {
+      "username": "carol",
+      "enabled": true,
+      "email": "carol@example.org",
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Danvers",
+      "groups": ["/mcp-support", "/team-b"],
+      "realmRoles": ["default-roles-demo", "support"],
+      "credentials": [{ "type": "password", "value": "carol-demo", "temporary": false }]
+    },
+    {
+      "username": "dave",
+      "enabled": false,
+      "email": "dave@example.org",
+      "emailVerified": true,
+      "firstName": "Dave",
+      "lastName": "Disabled",
+      "realmRoles": ["default-roles-demo"],
+      "credentials": [{ "type": "password", "value": "dave-demo", "temporary": false }]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "mcp-consumer",
+      "name": "MCP consumer (LLM client)",
+      "description": "Public PKCE client that MCP clients (LM Studio, Claude) log the user in with. Consent required: Keycloak asks the user every session whether keycloak-mcp may act on their behalf (scope delegation:client:keycloak-mcp).",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "consentRequired": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://127.0.0.1:33389/mcp-oauth-callback",
+        "http://localhost:33389/mcp-oauth-callback",
+        "http://localhost:9999/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "1800"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email"],
+      "optionalClientScopes": ["delegation:client", "address", "phone", "offline_access", "organization", "microprofile-jwt"],
+      "protocolMappers": [
+        {
+          "name": "mcp server audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "keycloak-mcp",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "keycloak-mcp",
+      "name": "keycloak-mcp (AI agent, actor)",
+      "description": "The MCP server's own client: a service account without any admin role, allowed to perform token exchange. Its role scope (clientScopeMappings below) caps what a delegated token may carry, whoever the user is.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "keycloak-mcp-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "standard.token.exchange.enabled": "true"
+      },
+      "defaultClientScopes": ["acr", "basic", "roles", "profile", "kc-admin-api", "service_account"],
+      "optionalClientScopes": []
+    }
+  ],
+  "clientProfiles": {
+    "profiles": [
+      {
+        "name": "may-act-validate",
+        "description": "Re-validates every may_act claim a token response carries, whatever produced it (the delegation scope, or a protocol mapper that bypassed permission and consent): issuer, actor, delegate permission, consent.",
+        "executors": [
+          {
+            "executor": "may-act",
+            "configuration": { "reject-any": false, "avoid-permission-check": false, "avoid-consent-check": false }
+          }
+        ]
+      },
+      {
+        "name": "may-act-reject",
+        "description": "Rejects every token carrying a may_act claim: for clients that must never take part in delegation.",
+        "executors": [
+          {
+            "executor": "may-act",
+            "configuration": { "reject-any": true, "avoid-permission-check": false, "avoid-consent-check": false }
+          }
+        ]
+      }
+    ]
+  },
+  "clientPolicies": {
+    "policies": [
+      {
+        "name": "validate-delegation-claims",
+        "description": "Switch on to have Keycloak re-check every may_act claim it issues (any client). Off by default: the demo works without it; enable it in Realm settings > Client policies or with kcadm to see that nothing changes for a legitimate delegation.",
+        "enabled": false,
+        "conditions": [{ "condition": "any-client", "configuration": { "is-negative-logic": false } }],
+        "profiles": ["may-act-validate"]
+      },
+      {
+        "name": "no-delegation-for-confidential-clients",
+        "description": "Switch on to refuse may_act claims in tokens of confidential clients: only the public mcp-consumer may hand keycloak-mcp a delegation. Off by default.",
+        "enabled": false,
+        "conditions": [
+          { "condition": "client-access-type", "configuration": { "type": ["confidential"], "is-negative-logic": false } }
+        ],
+        "profiles": ["may-act-reject"]
+      }
+    ]
+  },
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "keycloak-mcp",
+        "roles": ["view-realm", "view-users", "manage-users", "query-users", "query-groups", "view-events"]
+      }
+    ]
+  },
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}],\"unmanagedAttributePolicy\":\"ENABLED\"}"
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -75,6 +75,7 @@ The real boundary is the service account's roles in Keycloak. Server flags are a
 | realm admin    | confidential client **in the realm** with `realm-admin` | `KC_MCP_ALLOWED_REALMS=<realm>`, `KC_MCP_DEFAULT_REALM=<realm>` |
 | realm manager  | client in the realm with only the `realm-management` roles needed | as realm admin; role filtering hides the rest. Narrow further: `KC_MCP_DENIED_TOOLS=keycloak_user_delete`, `KC_MCP_READ_ONLY=true` |
 | user (forward) | the human holds the roles; public PKCE client whose tokens carry the server's audience | `KC_MCP_DELEGATION=forward` + `QUARKUS_OIDC_TENANT_ENABLED=true`; no server credentials (§Callers) |
+| delegated agent (exchange) | the human holds the roles and consents to the server's client acting for them (Keycloak 26.8 token exchange delegation, preview); the client's role scope caps every delegated token | `KC_MCP_DELEGATION=exchange` + the client's `client_credentials` + `QUARKUS_OIDC_TENANT_ENABLED=true` (§Callers, `examples/delegated-auth`) |
 
 A `master` client may also manage realms via `<realm>-realm` client roles; the filter understands both.
 
@@ -126,17 +127,23 @@ Denials: `group_out_of_scope`, `manager_role_required`, `privilege_escalation`, 
 default (anonymous endpoint). `QUARKUS_OIDC_TENANT_ENABLED=true` verifies tokens of `KC_MCP_URL/realms/KC_MCP_AUTH_REALM`
 (`quarkus.oidc.auth-server-url` to change, `QUARKUS_OIDC_TOKEN_AUDIENCE` to require an audience).
 
-| | `KC_MCP_DELEGATION=off` (default) | `KC_MCP_DELEGATION=forward` |
-|---|---|---|
-| admin calls run as | service account | the caller's own token |
-| roles that count | service account's (role filter) | caller's `realm-management` roles from their token, per call; Keycloak enforces again |
-| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` | `401` + `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` |
-| server credentials | required | optional (policies provider falls back to them for lookups) |
+| | `KC_MCP_DELEGATION=off` (default) | `KC_MCP_DELEGATION=forward` | `KC_MCP_DELEGATION=exchange` |
+|---|---|---|---|
+| admin calls run as | service account | the caller's own token | a delegated token Keycloak exchanges the caller's for: `sub` the caller, `act` the server's client |
+| roles that count | service account's (role filter) | caller's `realm-management` roles from their token, per call; Keycloak enforces again | the delegated token's: the caller's roles within the client's role scope; Keycloak enforces again |
+| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` | `401` + `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` | as forward |
+| server credentials | required | optional (policies provider falls back to them for lookups) | the client's `client_credentials` (secret or `private_key_jwt`); no admin role on it |
+| Keycloak side | | public client with an *Audience* mapper for the server | plus consent on that client, *Standard Token Exchange* on the server's client, an Admin Permissions `delegate` grant for it; Keycloak ≥ 26.8 with `--features=token-exchange-delegation,parameterized-scopes` (preview) |
 
 - The `401` challenge drives OAuth-capable MCP clients (LM Studio, Claude): discover realm, browser login (code + PKCE), retry.
 - Keycloak side: public client with an *Audience* mapper for the server (`examples/run-modes/realms/demo-realm.json`,
   `mcp-consumer`); `realm-management` roles on the humans, groups preferred.
 - Audit line: `caller=alice(<sub>) delegated`.
+- `exchange`: the MCP client must request the scope `delegation:client:<client id>` (advertised as `scopes_supported`
+  in the protected resource metadata) and the user consents at login, every session. Without that the token has no
+  `may_act` claim and every tool answers `delegation_failed` with what to do; `whoami` shows `delegation: {consented,
+  actor}`. Keycloak's `TOKEN_EXCHANGE` event names the actor, its admin events the user. Walkthrough and the Keycloak
+  setup: `examples/delegated-auth/`.
 - `Caller`: `claims()`, `claim("department")`, `rawToken()`; `toString()` never prints the token; audit events get
   `withoutToken()`. Per-caller admin clients cached until token expiry.
 - Token exchange (acting with narrowed, consented permissions): not implemented.
@@ -355,7 +362,7 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the JWKS |
 | `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | `keep`, `pseudonymize`, `drop`; `pii-args` argument names, `targets` listeners (default `db-audit`) |
 | `kc-mcp.username` / `password`  |                             | password grant (static configuration only) |
-| `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; needs `quarkus.oidc.tenant-enabled=true` |
+| `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; `exchange`: with a delegated token Keycloak issues for caller + server client (26.8 token exchange delegation); both need `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
 | `kc-mcp.dns-rebinding-protection` | `auto`                    | `auto` (on while anonymous), `on`, `off`: `Host`/`Origin` of MCP requests must be localhost or in `kc-mcp.dns-rebinding-allowed-hosts` |
 | `kc-mcp.require-caller`         | `false`                     | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
@@ -595,6 +602,9 @@ curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org
   Keycloak client with its JWKS URL, realm with public `mcp-consumer`, admin/support/developer users.
 - `examples/extensions/`: an extension jar for `providers/`: tools, prompt, confirmer, global access check, audit
   listener, scrubber, system repository, with unit tests against the api alone.
+- `examples/delegated-auth/`: the server as a delegated agent (`KC_MCP_DELEGATION=exchange`): Keycloak 26.8 with
+  token exchange delegation, consent, Admin Permissions grant, an actor client whose role scope caps every delegated
+  token, a scripted browser login and the audit trail on both sides.
 
 ## Running
 

@@ -31,7 +31,7 @@ public class CallerAuth {
 
     public CallerAuth(DelegationMode delegation, boolean requireCaller, boolean oidcEnabled) {
         this.delegation = delegation;
-        this.required = requireCaller || delegation == DelegationMode.FORWARD;
+        this.required = requireCaller || delegation.delegating();
         this.oidcEnabled = oidcEnabled;
     }
 
@@ -48,8 +48,9 @@ public class CallerAuth {
         return delegation;
     }
 
-    public boolean forward() {
-        return delegation == DelegationMode.FORWARD;
+    /** Admin calls run on behalf of the caller ({@code forward} or {@code exchange}). */
+    public boolean delegating() {
+        return delegation.delegating();
     }
 
     /** Unauthenticated MCP requests are refused with a 401 challenge. */

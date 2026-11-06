@@ -47,6 +47,8 @@ nb-configuration.xml
 sketch/__pycache__/
 sketch/
 
+__pycache__/
+
 # MCP conformance runs
 conformance/results/
 conformance/results-server.log

@@ -10,6 +10,8 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminAccessFilter;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminResource;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.EntryBinding;
+import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.TokenExchange;
+import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
@@ -128,16 +130,21 @@ public class EntryTenantResolver implements TenantConfigResolver {
             .resourceMetadata()
             .resource(entryPath)
             .authorizationServer(system.publicUrl() + "/realms/" + realm)
-            .scopes(adminApiScopes())
+            .scopes(scopesFor(system))
             .end()
             .build();
     }
 
     /**
-     * The scope MCP clients should ask for ({@code kc-mcp.admin-api-scope}), empty for
-     * none.
+     * The scopes MCP clients should ask for: in delegation mode {@code exchange} the one
+     * that lets the caller delegate to the system's client, else
+     * {@code kc-mcp.admin-api-scope}; empty for none.
      */
-    private java.util.Set<String> adminApiScopes() {
+    private java.util.Set<String> scopesFor(KeycloakSystem system) {
+        if (config.delegation() == DelegationMode.EXCHANGE && system.clientId().filter(v -> !v.isBlank()).isPresent()) {
+            return new java.util.LinkedHashSet<>(
+                    java.util.List.of("openid", TokenExchange.delegationScope(system.clientId().get())));
+        }
         String scope = config.adminApiScope();
         return scope == null || scope.isBlank() ? java.util.Set.of() : java.util.Set.of(scope.trim());
     }

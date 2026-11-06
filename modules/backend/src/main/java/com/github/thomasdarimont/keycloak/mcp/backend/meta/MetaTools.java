@@ -23,6 +23,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.search.SearchHit;
 import com.github.thomasdarimont.keycloak.mcp.backend.search.ToolIndex;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
@@ -104,14 +105,36 @@ public class MetaTools {
     }
 
     /**
-     * In delegation mode {@code forward} an authenticated caller acts on their own behalf
-     * (as in the invoker).
+     * In the delegation modes an authenticated caller acts on their own behalf (as in the
+     * invoker).
      */
     private InvocationContext effective(InvocationContext ctx) {
-        if (delegation == DelegationMode.FORWARD && ctx.callerToken() != null && !ctx.caller().delegated()) {
+        if (delegation.delegating() && ctx.callerToken() != null && !ctx.caller().delegated()) {
             return ctx.withCaller(ctx.caller().asDelegated());
         }
         return ctx;
+    }
+
+    /**
+     * Delegation mode {@code exchange}: whether the caller's token lets this server act
+     * for them (the {@code may_act} claim their consent at login produced).
+     */
+    private static Map<String, Object> delegationJson(Caller caller) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("mode", "exchange");
+        if (caller.claim("may_act") instanceof Map<?, ?> mayAct) {
+            out.put("consented", true);
+            if (mayAct.get("client_id") != null) {
+                out.put("actor", String.valueOf(mayAct.get("client_id")));
+            }
+        }
+        else {
+            out.put("consented", false);
+            out.put("hint", "The caller's token carries no may_act claim: the login did not request the delegation "
+                    + "scope of this server, the user did not consent, or the server's client lacks the delegate "
+                    + "permission in Keycloak.");
+        }
+        return out;
     }
 
     public static boolean isMetaTool(String name) {
@@ -165,7 +188,14 @@ public class MetaTools {
         int limit = limitArg == null ? defaultLimit : Math.clamp(limitArg, 1, SEARCH_LIMIT_MAX);
         List<SearchHit> hits = index.search(query, category, limit, policy::visibleNow);
         String judgedSystem = ctx.binding() != null ? ctx.binding().system() : catalog.defaultSystem();
-        GrantedRoles granted = policy.granted(judgedSystem, ctx);
+        GrantedRoles granted;
+        try {
+            granted = policy.granted(judgedSystem, ctx);
+        }
+        catch (ToolException e) {
+            // delegation mode exchange: Keycloak refused the delegated token
+            return ToolResult.error(e.code(), e.getMessage());
+        }
         boolean judge = granted != null && granted.known();
         ServerCapabilities caps = policy.capabilities(judgedSystem);
         Explanations explanations = policy.explanationsFor(granted, ctx.caller().delegated());
@@ -305,8 +335,10 @@ public class MetaTools {
             out.put("caller", who);
         }
         boolean delegated = caller.delegated() && ctx.callerToken() != null;
-        out.put("keycloakCallsRunAs",
-                delegated ? "the caller's own account (delegated)" : "the server's service account");
+        boolean exchanged = delegated && delegation == DelegationMode.EXCHANGE;
+        out.put("keycloakCallsRunAs", exchanged
+                ? "the caller's own account through a delegated token (delegated; Keycloak's act claim names this server)"
+                : delegated ? "the caller's own account (delegated)" : "the server's service account");
         if (system != null) {
             out.put("system", system);
         }
@@ -317,7 +349,25 @@ public class MetaTools {
             out.put("readOnly", true);
         }
         ServerCapabilities caps = policy.capabilities(system);
-        GrantedRoles granted = policy.granted(system, ctx);
+        if (exchanged) {
+            out.put("delegation", delegationJson(caller));
+        }
+        GrantedRoles granted;
+        try {
+            granted = policy.granted(system, ctx);
+        }
+        catch (ToolException e) {
+            // the exchange failed: say why instead of guessing at roles
+            Map<String, Object> info = new LinkedHashMap<>(delegationJson(caller));
+            info.put("error", e.code());
+            info.put("message", e.getMessage());
+            out.put("delegation", info);
+            out.put("keycloakCallsRunAs", "nobody yet: Keycloak refused the delegated token (see delegation)");
+            out.put("server", serverJson(caps, policy.explanationsFor(null, delegated)));
+            out.put("roles", "unknown");
+            out.put("tools", toolCounts(null, caps));
+            return ToolResult.ok(out);
+        }
         out.put("server", serverJson(caps, policy.explanationsFor(granted, delegated)));
         if (granted == null || !granted.known()) {
             out.put("roles", "unknown");

@@ -13,6 +13,7 @@ import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.RealmResource;
 
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
+import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
@@ -21,8 +22,9 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.ScopeEvaluation;
 /**
  * The server's {@link KeycloakAdmin}: a lazily built admin client for one
  * {@link KeycloakSystem} (password, client secret or private_key_jwt) plus the per-caller
- * clients of delegation mode {@code forward}. Instances are managed by
- * {@link DefaultKeycloakSystems}.
+ * clients of the delegation modes: {@code forward} sends the caller's token as is,
+ * {@code exchange} first turns it into a delegated token at Keycloak's token endpoint
+ * ({@link TokenExchange}). Instances are managed by {@link DefaultKeycloakSystems}.
  */
 public class DefaultKeycloakAdmin implements KeycloakAdmin {
 
@@ -45,30 +47,53 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
      */
     private volatile boolean scopeRefused;
     private volatile ClientAssertionTokenManager jwtTokens;
-    /** Set on instances returned by {@link #forToken}: the forwarded caller token. */
+    /**
+     * Set on instances returned by {@link #forToken}: the token sent on behalf of the
+     * caller (their own, or the delegated one Keycloak exchanged it for).
+     */
     private final String forwardedToken;
+    private final DelegationMode delegation;
+    private volatile TokenExchange exchange;
     private final Map<String, Delegate> delegates = new ConcurrentHashMap<>();
 
     public DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys) {
-        this(system, jwtKeys, null, null);
+        this(system, jwtKeys, DelegationMode.OFF);
     }
 
-    private DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys, Keycloak prebuilt, String forwardedToken) {
+    /**
+     * @param delegation what {@link #forToken} does with a caller's token: forward it, or
+     * exchange it for a delegated token first
+     */
+    public DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys, DelegationMode delegation) {
+        this(system, jwtKeys, null, null, delegation);
+    }
+
+    private DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys, Keycloak prebuilt, String forwardedToken,
+            DelegationMode delegation) {
         this.system = system;
         this.jwtKeys = jwtKeys;
         this.keycloak = prebuilt;
         this.forwardedToken = forwardedToken;
+        this.delegation = delegation == null ? DelegationMode.OFF : delegation;
     }
 
     /**
-     * An admin client of the same system that sends the given caller token instead of the
-     * server's credentials (delegation mode {@code forward}). Instances are cached per
-     * token until the token expires.
+     * An admin client of the same system that acts for the caller of the given token
+     * instead of with the server's credentials: delegation mode {@code forward} sends the
+     * token itself, {@code exchange} the delegated token Keycloak issues for it (actor =
+     * this system's client). Instances are cached per caller token until it, or the
+     * delegated token, expires.
+     *
+     * @throws com.github.thomasdarimont.keycloak.mcp.catalog.ToolException
+     * {@value TokenExchange#ERROR} when Keycloak refuses the exchange
      */
     @Override
     public KeycloakAdmin forToken(String bearerToken) {
         if (bearerToken == null || bearerToken.isBlank()) {
             throw new IllegalArgumentException("caller token required");
+        }
+        if (forwardedToken != null) {
+            throw new IllegalStateException("this client already acts for a caller");
         }
         long now = System.currentTimeMillis();
         Delegate d = delegates.get(bearerToken);
@@ -81,6 +106,9 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         else if (d != null) {
             purgeDelegates(now, false);
         }
+        // the exchange is a network call: outside the map's lock
+        String token = delegation == DelegationMode.EXCHANGE ? exchange().exchange(bearerToken) : bearerToken;
+        long expiresAt = Math.min(expiryOf(bearerToken, now), expiryOf(token, now));
         return delegates.compute(bearerToken, (k, old) -> {
             if (old != null && old.expiresAt() > now) {
                 return old;
@@ -92,10 +120,32 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
                 .serverUrl(system.url())
                 .realm(system.authRealm())
                 .clientId(system.clientId().filter(v -> !v.isBlank()).orElse("keycloak-mcp-server"))
-                .authorization(bearerToken)
+                .authorization(token)
                 .build();
-            return new Delegate(new DefaultKeycloakAdmin(system, jwtKeys, k2, bearerToken), expiryOf(bearerToken, now));
+            return new Delegate(new DefaultKeycloakAdmin(system, jwtKeys, k2, token, delegation), expiresAt);
         }).admin();
+    }
+
+    /**
+     * The token exchange of delegation mode {@code exchange}, built on first use; the
+     * actor token is this instance's own service-account token.
+     */
+    private TokenExchange exchange() {
+        TokenExchange x = exchange;
+        if (x != null) {
+            return x;
+        }
+        initLock.lock();
+        try {
+            if (exchange == null) {
+                exchange = new TokenExchange(Keycloak.getClientProvider().newRestEasyClient(null, null, false), system,
+                        jwtKeys, this::accessToken);
+            }
+            return exchange;
+        }
+        finally {
+            initLock.unlock();
+        }
     }
 
     /**
@@ -306,6 +356,10 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         }
         if (jwtTokens != null) {
             jwtTokens.close();
+        }
+        TokenExchange x = exchange;
+        if (x != null) {
+            x.close();
         }
     }
 }

@@ -25,8 +25,9 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 /**
  * The single execution path for every tool, whether called directly or through
  * {@code execute_tool}: policy -> validation -> realm -> confirmation -> handler ->
- * audit. In delegation mode {@code forward} the caller's token replaces the server's
- * credentials for the handler and the role checks.
+ * audit. In the delegation modes the caller's token ({@code forward}), or the delegated
+ * token exchanged for it ({@code exchange}), replaces the server's credentials for the
+ * handler and the role checks.
  */
 @ApplicationScoped
 public class ToolInvoker {
@@ -81,11 +82,11 @@ public class ToolInvoker {
         String realm = null;
         String system = null;
         try {
-            if (delegation == DelegationMode.FORWARD && ctx.callerToken() == null) {
-                result = ToolResult.error("caller_required", "This server runs every Keycloak call with the caller's "
-                        + "own token; connect through an authenticated (OAuth) MCP session first.");
+            if (delegation.delegating() && ctx.callerToken() == null) {
+                result = ToolResult.error("caller_required", "This server runs every Keycloak call on behalf of the "
+                        + "caller; connect through an authenticated (OAuth) MCP session first.");
             }
-            else if (delegation == DelegationMode.FORWARD && !ctx.caller().delegated()) {
+            else if (delegation.delegating() && !ctx.caller().delegated()) {
                 return invoke(spec, rawArgs, confirmFlag, ctx.withCaller(ctx.caller().asDelegated()));
             }
             else if (!policy.permits(spec)) {
@@ -121,7 +122,7 @@ public class ToolInvoker {
                         }
                         else {
                             admin = systems.get(system);
-                            if (delegation == DelegationMode.FORWARD) {
+                            if (delegation.delegating()) {
                                 admin = admin.forToken(ctx.callerToken());
                             }
                         }
