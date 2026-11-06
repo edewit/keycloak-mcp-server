@@ -127,6 +127,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                         .stringMap("smtpServer",
                                 "SMTP settings: host, port, from, fromDisplayName, auth, user, "
                                         + "password, starttls, ssl, replyTo")
+                        .sensitiveKeys("password")
                         .anyMap("webAuthnPasswordlessPolicy",
                                 "Keys: rpEntityName, rpId, signatureAlgorithms "
                                         + "(list), userVerificationRequirement, requireResidentKey, "

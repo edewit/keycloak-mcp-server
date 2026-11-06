@@ -599,4 +599,38 @@ class CibaConfirmerTest {
                 "b", issuer, "alice", "sub", issuer, "op", "h", null, "demo", now + 60_000, 1, now, null, 0);
         assertTrue(!store.put(late), "a late filer of the expired reservation cannot overwrite the new one");
     }
+
+    private static ConfirmationRequest op(String title, Map<String, Object> args) {
+        ToolSpec spec = ToolSpec.builder("keycloak_x")
+            .title(title)
+            .description("d")
+            .category(com.github.thomasdarimont.keycloak.mcp.catalog.Category.USERS)
+            .destructive()
+            .handler(call -> null)
+            .build();
+        return new ConfirmationRequest(spec, null, "demo", args, false, Caller.NONE, Prompter.NONE);
+    }
+
+    @Test
+    void theDeviceSeesWhatAnOperationActsOn() {
+        assertEquals("Delete user: dave (realm demo)",
+                CibaConfirmer.operation(op("Delete user", Map.of("id", "u1", "username", "dave"))),
+                "the username names the user, the id is left out");
+        assertEquals("Remove group member: user u1, group g7 (realm demo)",
+                CibaConfirmer.operation(op("Remove group member", Map.of("userId", "u1", "groupId", "g7"))));
+        assertEquals("Unassign client role: user u1, client app, role viewer (realm demo)", CibaConfirmer
+            .operation(op("Unassign client role", Map.of("userId", "u1", "clientId", "app", "role", "viewer"))));
+        assertEquals("Delete organization: o9 (realm demo)",
+                CibaConfirmer.operation(op("Delete organization", Map.of("organizationId", "o9"))));
+        assertEquals("Bind flow: flow browser-mfa, binding browser (realm demo)",
+                CibaConfirmer.operation(op("Bind flow", Map.of("flowAlias", "browser-mfa", "binding", "browser"))));
+        assertEquals("Update realm: changes enabled, passwordPolicy (realm demo)",
+                CibaConfirmer.operation(op("Update realm", Map.of("passwordPolicy", "length(12)", "enabled", false))),
+                "settings: names only, never values");
+        String reset = CibaConfirmer
+            .operation(op("Reset password", Map.of("id", "u1", "password", "Secret-123", "temporary", true)));
+        assertEquals("Reset password: u1 (realm demo)", reset);
+        assertTrue(!reset.contains("Secret"), "a password never reaches the device");
+        assertTrue(CibaConfirmer.operation(op("Delete user", Map.of("username", "x".repeat(400)))).length() <= 200);
+    }
 }

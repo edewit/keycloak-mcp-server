@@ -88,8 +88,33 @@ public class CibaConfirmer implements Confirmer {
      */
     static final Duration CLAIM_MARGIN = Duration.ofSeconds(15);
 
-    /** Arguments that name what a destructive tool acts on, in order of preference. */
-    static final List<String> TARGET_ARGS = List.of("username", "clientId", "alias", "path", "name", "id");
+    /**
+     * Arguments that identify what a destructive tool acts on, with the label the device
+     * shows when there are several, in display order. Only these values are ever shown;
+     * passwords, secrets and settings values never are.
+     */
+    static final Map<String, String> TARGET_ARGS = targetArgs();
+
+    private static Map<String, String> targetArgs() {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("username", "user");
+        m.put("userId", "user");
+        m.put("id", "id");
+        m.put("clientId", "client");
+        m.put("groupId", "group");
+        m.put("path", "group");
+        m.put("organizationId", "organization");
+        m.put("alias", "alias");
+        m.put("idpAlias", "identity provider");
+        m.put("flowAlias", "flow");
+        m.put("binding", "binding");
+        m.put("executionId", "execution");
+        m.put("role", "role");
+        m.put("scope", "scope");
+        m.put("type", "type");
+        m.put("name", "name");
+        return java.util.Collections.unmodifiableMap(m);
+    }
 
     private final CibaSettings settings;
     private final String defaultIssuer;
@@ -569,20 +594,40 @@ public class CibaConfirmer implements Confirmer {
     }
 
     /**
-     * What the device shows: the tool, its target (the identifying argument: username,
-     * client id, alias, group path, name or id) and the realm, e.g.
-     * {@code Delete user: dave (realm demo)}.
+     * What the device shows: the tool, what it acts on and the realm, e.g.
+     * {@code Delete user: dave (realm demo)} or, with several identifiers,
+     * {@code Unassign realm role: user 1a2b..., role admin (realm demo)}. The {@code id}
+     * is left out when a {@code username} names the user. A tool without identifying
+     * arguments (realm settings) lists the names of the arguments it changes, never their
+     * values. At most 200 characters, Keycloak's limit for an additional parameter.
      */
     static String operation(ConfirmationRequest r) {
-        String target = null;
-        for (String arg : TARGET_ARGS) {
-            Object v = r.args().get(arg);
-            if (v != null && !String.valueOf(v).isBlank()) {
-                target = String.valueOf(v);
-                break;
+        List<String[]> targets = new java.util.ArrayList<>();
+        for (Map.Entry<String, String> e : TARGET_ARGS.entrySet()) {
+            Object v = r.args().get(e.getKey());
+            if (v == null || String.valueOf(v).isBlank()) {
+                continue;
             }
+            if (e.getKey().equals("id") && r.args().get("username") != null) {
+                continue;
+            }
+            if (com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive.argument(r.tool().inputSchema(), e.getKey())) {
+                continue; // never on the device
+            }
+            targets.add(new String[] { e.getValue(), String.valueOf(v) });
         }
-        String text = r.tool().title() + (target != null ? ": " + target : "")
+        String what;
+        if (targets.size() == 1) {
+            what = targets.get(0)[1];
+        }
+        else if (!targets.isEmpty()) {
+            what = String.join(", ", targets.stream().map(t -> t[0] + " " + t[1]).toList());
+        }
+        else {
+            List<String> changed = r.args().keySet().stream().sorted().toList();
+            what = changed.isEmpty() ? null : "changes " + String.join(", ", changed);
+        }
+        String text = r.tool().title() + (what != null ? ": " + what : "")
                 + (r.realm() != null ? " (realm " + r.realm() + ")" : "");
         return text.length() <= 200 ? text : text.substring(0, 199) + "…";
     }

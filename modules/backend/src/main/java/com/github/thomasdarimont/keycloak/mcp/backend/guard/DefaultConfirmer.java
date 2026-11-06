@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
 import java.util.Optional;
 
+import com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive;
 import com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
@@ -42,7 +43,7 @@ public class DefaultConfirmer implements Confirmer {
         if (r.prompter().available()) {
             String message = "Confirm " + r.tool().title().toLowerCase()
                     + (r.realm() != null ? " in realm '" + r.realm() + "'" : "") + "?\n" + r.tool().name() + " "
-                    + new JsonObject(r.args()).encode();
+                    + new JsonObject(Sensitive.redact(r.tool().inputSchema(), r.args())).encode();
             Optional<Boolean> answer = r.prompter().askYesNo(message);
             return answer.orElse(false) ? Decision.CONFIRMED : Decision.DECLINED;
         }

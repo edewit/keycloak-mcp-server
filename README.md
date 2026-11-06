@@ -98,6 +98,13 @@ Open items: §Roadmap.
   as destructive (lock-out risk).
 - One audit line per executed tool (`com.github.thomasdarimont.keycloak.mcp.audit`); `AuditListener` SPI gets the same
   event (tool, level, system, realm, redacted arguments, outcome, caller, client, duration).
+- Sensitive values: arguments declared `.sensitive()` (JSON Schema `writeOnly`, `format: password`, so clients can mask
+  them) and keys of map arguments declared `.sensitiveKeys(...)` never reach the audit log, the elicitation prompt or
+  the CIBA device; undeclared names that end like a secret (`password`, `clientSecret`, `bindCredential`,
+  `privateKey`, ...) are treated the same way, settings that only mention the word (`passwordPolicy`) are not. Tools
+  whose result is a secret (`keycloak_client_get_secret`, `..._regenerate_secret`) declare `.sensitiveResult()`: the
+  caller still gets it, the audit line says `result=sensitive`. The MCP traffic log
+  (`quarkus.mcp.server.traffic-logging.enabled`) writes everything verbatim; profile `shared` does not start with it.
 
 ## Access levels
 
@@ -576,6 +583,9 @@ public class AcmeToolProvider implements ToolProvider {
 
 - Register: `@AutoService(ToolProvider.class)` (generates `META-INF/services/...tools.ToolProvider`), a hand-written
   services file, or a CDI bean.
+- Secrets: `InputSchema.builder().string("pin", "...").sensitive()` for an argument, `.stringMap("config", "...")
+  .sensitiveKeys("clientSecret")` for keys of a map, `ToolSpec.builder(...).sensitiveResult()` for a result that is a
+  secret; `catalog.Sensitive` tells listeners and confirmers what to hide.
 - Every tool declares its level, `.read()`, `.write()` or `.destructive()`; `build()` refuses a tool without one, so a
   forgotten call cannot slip past the read-only filter or the confirmation. The level is in every `search_tools` hit
   (`level`) and in the MCP tool annotations (`readOnlyHint`, `destructiveHint`).

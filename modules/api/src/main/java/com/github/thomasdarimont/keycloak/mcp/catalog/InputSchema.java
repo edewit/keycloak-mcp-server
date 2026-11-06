@@ -202,6 +202,37 @@ public final class InputSchema {
             return this;
         }
 
+        /**
+         * Marks the most recently added property as sensitive (a password, a secret):
+         * JSON Schema {@code writeOnly}, and {@code format: password} for a string, so
+         * clients can mask it; the server never shows or records its value (audit log,
+         * confirmation prompts, the CIBA device), see {@link Sensitive}.
+         */
+        public Builder sensitive() {
+            current.put("writeOnly", true);
+            if ("string".equals(current.getString("type"))) {
+                current.put("format", "password");
+            }
+            return this;
+        }
+
+        /**
+         * Marks keys of the most recently added map property as sensitive, e.g. the
+         * {@code clientSecret} in an identity provider's {@code config}: they become
+         * declared {@code writeOnly} properties of the object, other keys stay free.
+         */
+        public Builder sensitiveKeys(String... keys) {
+            JsonObject props = current.getJsonObject("properties");
+            if (props == null) {
+                props = new JsonObject();
+                current.put("properties", props);
+            }
+            for (String k : keys) {
+                props.put(k, new JsonObject().put("type", "string").put("writeOnly", true).put("format", "password"));
+            }
+            return this;
+        }
+
         /** Marks the most recently added property as required. */
         public Builder required() {
             String last = null;
