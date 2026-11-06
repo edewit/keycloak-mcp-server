@@ -15,6 +15,7 @@
               <entry key="KC_MCP_TOOL_EXPOSURE" value="hybrid" />
               <entry key="QUARKUS_OIDC_TENANT_ENABLED" value="true" />
               <entry key="QUARKUS_OIDC_TOKEN_AUDIENCE" value="mcp-admin" />
+              <entry key="KC_MCP_MODEL_CONFIRMATION_TRUSTED_ROLES" value="realm-management.realm-admin" />
             </map>
           </option>
           <option name="jreName" value="#USE_PROJECT_JDK" />
