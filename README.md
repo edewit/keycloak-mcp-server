@@ -4,7 +4,8 @@
 HTTP. 72 `keycloak_*` tools after [mcp-keycloak-admin](https://github.com/edewit/mcp-keycloak-admin), exposed lazily
 so small local models cope.
 
-Status: all reference tools, search, exposure modes, guardrails, extension SPI, database storage and admin API done.
+Status: all reference tools, search, exposure modes, guardrails, extension SPI, database storage, admin API and the
+management UI bootstrap (login, logout, BFF) done.
 Open items: §Roadmap.
 
 ## How the model sees it
@@ -239,7 +240,8 @@ Module `storage` (`keycloak-mcp-server-storage`, backend dependency).
 
 - Stores: systems (`KeycloakSystemRepository` `db-systems`, `kc_mcp_system`), keys and secrets (`KeyVault` `db-key-vault`,
   `kc_mcp_signing_key`, `kc_mcp_secret`), audit (`AuditListener` `db-audit`, `kc_mcp_audit_event`, one row per call
-  incl. denials and reads).
+  incl. denials and reads), browser sessions of the management UI (`UserSessionStore` `db-user-sessions`,
+  `kc_mcp_user_session`, tokens encrypted, expired rows purged hourly).
 - Hibernate ORM Panache; Liquibase at startup (`db/kc-mcp/changelog.xml` includes one file per schema version,
   `0.1.0-changelog.xml` first); timestamps `bigint` epoch millis as in Keycloak.
 - Dormant without `quarkus.datasource.jdbc.url`. With one, `kc-mcp.storage.enabled` turns on (set explicitly to force);
@@ -302,6 +304,42 @@ public class TenantRegistryRepository implements KeycloakSystemRepository {
 
 Caller authentication is per MCP entry, not per system: one login per server URL. Several systems: one central identity
 (master admin), or one entry per system (next section).
+
+### Management UI (optional): `/ui`, BFF under `/bff`
+
+Module `frontend` (`keycloak-mcp-server-frontend`, a Lit single-page app; the BFF is in the backend, package `ui`).
+The server is the OIDC relying party: authorization code flow with PKCE, the browser holds an HttpOnly, Secure,
+`SameSite=Lax` cookie with an opaque id, the tokens stay in the database (`kc_mcp_user_session`, encrypted like the
+other secrets, `UserSessionStore` SPI, `db-user-sessions`). Needs database storage and HTTPS. Bootstrap:
+`examples/management-ui/`, `modules/frontend/README.md`.
+
+- `kc-mcp.ui.enabled=true`; `kc-mcp.ui.issuer` (default `kc-mcp.admin.issuer`, else the auth realm) and
+  `kc-mcp.ui.client-id` (`keycloak-mcp-ui`: public, PKCE S256, redirect URI `<server>/bff/login`, post logout redirect
+  URI `<server>/ui/*`; `kc-mcp.ui.client-secret` for a confidential client)
+- Several identity providers: `kc-mcp.ui.idps.<alias>.issuer|client-id|client-secret|display-name`, one tenant
+  `kc-mcp-ui-<alias>` and one sign-in button each (`/bff/login?idp=<alias>`); sessions record `idp` and `subject`
+- `GET /bff/me` (who is signed in, the providers), `GET /bff/login[?idp=]`, `GET /bff/logout` (RP-initiated),
+  `GET /bff/api/systems` (as `GET /admin/systems`); the API needs `kc-mcp.admin.role` on the access token, browser
+  requests carry `X-Requested-With: JavaScript` (499 instead of a redirect without a session; required on writes)
+- Nothing remembers a provider between sessions: a logout returns to `/ui/?idp=<alias>` and the page offers that
+  provider first. `kc-mcp.ui.idps.<alias>.hide-on-login-page=true`
+  keeps a provider off the login page, so a shared server does not advertise its tenants; its users sign in through
+  `/bff/login?idp=<alias>`, and the UI names the provider once they are signed in
+- Session check (activity tracking): `POST /bff/check-session`, which the UI calls whenever its tab becomes visible
+  again, redeems the refresh token at the provider: proves the SSO session still exists and extends it, renews the
+  stored tokens and the cookie; a session that ended elsewhere (account console, another application, an
+  administrator, the idle timeout) answers 401 `session_ended` and loses its row, 503 when the provider cannot be asked
+- Back-channel logout: `POST /bff/backchannel-logout` takes the provider's logout token (verified against the
+  provider the token's `iss` and `aud` name) and deletes the sessions with that issuer and `sid` (or `sub`) at once,
+  on every instance. Keycloak client: *Backchannel logout URL* = `<server>/bff/backchannel-logout`, *session required* on
+- Sessions are renewed with the refresh token for `kc-mcp.ui.session-age-extension` (default 30 min, the provider's
+  SSO idle timeout; per provider `kc-mcp.ui.idps.<alias>.session-age-extension`) past the ID token's expiry; rows
+  carry `idp`, `issuer`, `subject`, `sid` and go when the tokens are of no use any more
+- HTTPS: `etc/mkcert.sh` writes `.certs/localhost*.pem`; `QUARKUS_TLS_KEY_STORE_PEM_UI_CERT/KEY` point at them, port
+  `quarkus.http.ssl-port=8443`; behind a TLS proxy `quarkus.http.proxy.proxy-address-forwarding=true`
+- Several instances: set `QUARKUS_OIDC_KC_MCP_UI_<ALIAS>_AUTHENTICATION_STATE_SECRET` so any instance can finish a login
+  another one started; the session rows are shared through the database
+- Build: `./mvnw package` runs npm (Node downloaded once into `modules/frontend/node/`); `-Dui.skip=true` leaves the UI out
 
 ### Entries per system or realm: `/mcp/systems/<system>[/<realm>]`
 
@@ -602,6 +640,8 @@ curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org
   Keycloak client with its JWKS URL, realm with public `mcp-consumer`, admin/support/developer users.
 - `examples/extensions/`: an extension jar for `providers/`: tools, prompt, confirmer, global access check, audit
   listener, scrubber, system repository, with unit tests against the api alone.
+- `examples/management-ui/`: the management UI on the run-modes stack: mkcert certificate, one or two identity
+  providers, alice (admin) and carol (forbidden), the Vite dev server
 - `examples/delegated-auth/`: the server as a delegated agent (`KC_MCP_DELEGATION=exchange`): Keycloak 26.8 with
   token exchange delegation, consent, Admin Permissions grant, an actor client whose role scope caps every delegated
   token, a scripted browser login and the audit trail on both sides.

@@ -140,7 +140,7 @@ public class AdminResource {
      * first (or let {@code quarkus.http.proxy.proxy-address-forwarding} fold them into
      * the request), else the request's own.
      */
-    static String publicBase(UriInfo uri, HttpHeaders headers) {
+    public static String publicBase(UriInfo uri, HttpHeaders headers) {
         String proto = headers.getHeaderString("X-Forwarded-Proto");
         String host = headers.getHeaderString("X-Forwarded-Host");
         if (proto == null || proto.isBlank()) {

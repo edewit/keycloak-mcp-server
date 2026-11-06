@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.github.thomasdarimont.keycloak</groupId>
+        <artifactId>keycloak-mcp-server</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+    <artifactId>keycloak-mcp-server-frontend</artifactId>
+    <name>Keycloak MCP Server Frontend</name>
+    <description>The management UI of the Keycloak MCP server: a Lit single-page application (src/main/webui, built
+        with Vite) packaged as static resources under META-INF/resources/ui, served by the backend at /ui. The
+        backend-for-frontend it talks to (/bff) lives in the backend module.</description>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${frontend-maven-plugin.version}</version>
+                <configuration>
+                    <workingDirectory>src/main/webui</workingDirectory>
+                    <installDirectory>${project.basedir}</installDirectory>
+                    <skip>${ui.skip}</skip>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>install-node-and-npm</id>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                        <configuration>
+                            <nodeVersion>${frontend.node.version}</nodeVersion>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-ci</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>ci --no-audit --no-fund</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-build</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run build</arguments>
+                            <environmentVariables>
+                                <!-- vite.config.ts writes straight into the jar's resources and empties the
+                                     directory first, so no stale bundle of an earlier build survives -->
+                                <KC_MCP_UI_OUT_DIR>${project.build.outputDirectory}/META-INF/resources/ui</KC_MCP_UI_OUT_DIR>
+                            </environmentVariables>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -39,6 +39,11 @@ nb-configuration.xml
 # Local environment
 .env
 
+# frontend module: Node downloaded by the build, npm packages, Vite output
+modules/frontend/node/
+node_modules/
+modules/frontend/target/
+
 # Plugin directory
 /.quarkus/cli/plugins/
 # TLS Certificates
@@ -53,3 +58,6 @@ __pycache__/
 conformance/results/
 conformance/results-server.log
 conformance/providers/
+
+# H2 file database of examples/management-ui/env/ui.env and the keys of kc-mcp.keys-dir
+/data/

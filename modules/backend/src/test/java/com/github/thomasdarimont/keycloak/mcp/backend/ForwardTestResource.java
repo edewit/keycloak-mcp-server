@@ -40,6 +40,8 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
             .withEnv("KC_FEATURES", "identity-brokering-api:v2")
             .withEnv("KC_FEATURES_DISABLED", "twitter-broker")
             .withCommand("start-dev")
+            // back-channel logout posts from the container to the test server on the host
+            .withExtraHost("host.docker.internal", "host-gateway")
             .waitingFor(
                     Wait.forLogMessage(".*Keycloak .* started in .*\\n", 1).withStartupTimeout(Duration.ofMinutes(3)));
         keycloak.start();
@@ -64,7 +66,7 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
                 Map.entry("kc-mcp.admin.role", "realm-management.realm-admin"));
     }
 
-    private void bootstrap() throws IOException, InterruptedException {
+    void bootstrap() throws IOException, InterruptedException {
         adminToken = new JsonObject(form("/realms/master/protocol/openid-connect/token",
                 "grant_type=password&client_id=admin-cli&username=admin&password=admin"))
             .getString("access_token");
@@ -91,23 +93,29 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
     }
 
     private String publicClient(String clientId) throws IOException, InterruptedException {
-        return post("/admin/realms/demo/clients",
-                new JsonObject().put("clientId", clientId)
-                    .put("publicClient", true)
-                    .put("standardFlowEnabled", true)
-                    .put("directAccessGrantsEnabled", true)
-                    .put("fullScopeAllowed", true)
-                    // Keycloak 26.8.2+: tokens that reach the Admin API need the
-                    // kc-admin-api audience
-                    .put("defaultClientScopes",
-                            new JsonArray().add("web-origins")
-                                .add("acr")
-                                .add("roles")
-                                .add("profile")
-                                .add("basic")
-                                .add("email")
-                                .add("kc-admin-api"))
-                    .put("redirectUris", new JsonArray().add("http://127.0.0.1:*/*")));
+        return publicClient(clientId, "http://127.0.0.1:*/*");
+    }
+
+    /** A public PKCE client of the demo realm with one redirect URI pattern. */
+    String publicClient(String clientId, String redirectUri) throws IOException, InterruptedException {
+        return post("/admin/realms/demo/clients", new JsonObject().put("clientId", clientId)
+            .put("publicClient", true)
+            .put("standardFlowEnabled", true)
+            .put("directAccessGrantsEnabled", true)
+            .put("fullScopeAllowed", true)
+            // Keycloak 26.8.2+: tokens that reach the Admin API need the
+            // kc-admin-api audience
+            .put("defaultClientScopes",
+                    new JsonArray().add("web-origins")
+                        .add("acr")
+                        .add("roles")
+                        .add("profile")
+                        .add("basic")
+                        .add("email")
+                        .add("kc-admin-api"))
+            .put("redirectUris", new JsonArray().add(redirectUri))
+            .put("attributes",
+                    new JsonObject().put("pkce.code.challenge.method", "S256").put("post.logout.redirect.uris", "+")));
     }
 
     private void user(String name, String realmManagementClientId, String... roles)
@@ -166,6 +174,33 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
             .build(), HttpResponse.BodyHandlers.ofString());
         check(r, path);
         return r.body();
+    }
+
+    /** Replaces a representation. */
+    void putJson(String path, Object json) throws IOException, InterruptedException {
+        HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(base + path))
+            .header("Authorization", "Bearer " + adminToken)
+            .header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(json.toString()))
+            .build(), HttpResponse.BodyHandlers.ofString());
+        check(r, path);
+    }
+
+    /** A freshly minted admin token of the master realm. */
+    static String adminToken() {
+        try {
+            HttpResponse<String> r = HttpClient.newHttpClient()
+                .send(HttpRequest.newBuilder(URI.create(base + "/realms/master/protocol/openid-connect/token"))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers
+                        .ofString("grant_type=password&client_id=admin-cli&username=admin&password=admin"))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            check(r, "admin token");
+            return new JsonObject(r.body()).getString("access_token");
+        }
+        catch (IOException | InterruptedException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private void put(String path) throws IOException, InterruptedException {

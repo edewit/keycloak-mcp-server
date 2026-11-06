@@ -325,7 +325,16 @@
   "clients": [
     {
       "clientId": "mcp-admin",
-      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "service_account", "kc-admin-api"],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email",
+        "service_account",
+        "kc-admin-api"
+      ],
       "name": "MCP server (realm admin)",
       "enabled": true,
       "protocol": "openid-connect",
@@ -343,7 +352,16 @@
     },
     {
       "clientId": "mcp-manager",
-      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "service_account", "kc-admin-api"],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email",
+        "service_account",
+        "kc-admin-api"
+      ],
       "name": "MCP server (realm manager)",
       "enabled": true,
       "protocol": "openid-connect",
@@ -361,7 +379,16 @@
     },
     {
       "clientId": "mcp-readonly",
-      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "service_account", "kc-admin-api"],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email",
+        "service_account",
+        "kc-admin-api"
+      ],
       "name": "MCP server (read-only)",
       "enabled": true,
       "protocol": "openid-connect",
@@ -404,7 +431,15 @@
     },
     {
       "clientId": "mcp-consumer",
-      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "kc-admin-api"],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email",
+        "kc-admin-api"
+      ],
       "name": "MCP consumer (LLM client)",
       "enabled": true,
       "protocol": "openid-connect",
@@ -442,8 +477,66 @@
       ]
     },
     {
+      "clientId": "keycloak-mcp-ui",
+      "name": "Keycloak MCP server UI",
+      "description": "Public PKCE client the MCP server's management UI signs people in with (authorization code flow, the server is the relying party); tokens carry aud=mcp-admin like mcp-consumer's",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "https://localhost:8443/bff/login",
+        "https://localhost:5173/bff/login"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email",
+        "kc-admin-api"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://localhost:8443/ui/*##https://localhost:5173/ui/*",
+        "backchannel.logout.url": "http://host.docker.internal:8081/bff/backchannel-logout",
+        "backchannel.logout.session.required": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "mcp server audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "mcp-admin",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "mcp-jwt",
-      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "service_account", "kc-admin-api"],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email",
+        "service_account",
+        "kc-admin-api"
+      ],
       "name": "MCP server (private_key_jwt)",
       "enabled": true,
       "protocol": "openid-connect",

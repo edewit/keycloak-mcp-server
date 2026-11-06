@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.config;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -300,6 +301,14 @@ public interface McpServerConfig {
      */
     Admin admin();
 
+    /**
+     * The management UI ({@code kc-mcp.ui.*}, served at {@code /ui} with its BFF under
+     * {@code /bff}): the server acts as an OIDC relying party (authorization code flow
+     * with PKCE) and keeps the tokens of a browser session in a {@code UserSessionStore},
+     * the browser only holds an opaque session id in an HttpOnly, Secure cookie.
+     */
+    Ui ui();
+
     interface Admin {
         /** Off by default; on needs a {@link #token()} or an {@link #issuer()}. */
         @WithDefault("false")
@@ -337,6 +346,81 @@ public interface McpServerConfig {
          */
         @WithDefault("true")
         boolean allowNewSystems();
+    }
+
+    interface Ui {
+        /**
+         * Off by default. On needs a {@code UserSessionStore} (the database storage); the
+         * identity providers are contacted on the first login.
+         */
+        @WithDefault("false")
+        boolean enabled();
+
+        /**
+         * Identity provider the UI's users log in at when no {@link #idps()} are
+         * configured, as the realm URL ({@code https://sso.example.com/realms/master}).
+         * Defaults to {@code kc-mcp.admin.issuer}, else
+         * {@code <url>/realms/<auth-realm>}.
+         */
+        Optional<String> issuer();
+
+        /**
+         * The OIDC client the server logs users in with at that provider: a public client
+         * (PKCE S256) unless {@link #clientSecret()} is set; standard flow, redirect URI
+         * {@code <server>/bff/login}, post logout redirect URI {@code <server>/ui/*}.
+         */
+        @WithDefault("keycloak-mcp-ui")
+        String clientId();
+
+        /** Set for a confidential client; unset keeps the client public. */
+        Optional<String> clientSecret();
+
+        /**
+         * How long after its ID token expired a browser session is still renewed with the
+         * refresh token before the user has to sign in again: the provider's SSO idle
+         * timeout (Keycloak's default is 30 minutes). Per provider in
+         * {@link IdpSettings#sessionAgeExtension()}.
+         */
+        @WithDefault("PT30M")
+        Duration sessionAgeExtension();
+
+        /**
+         * Named identity providers ({@code kc-mcp.ui.idps.<alias>.issuer} etc.) when the
+         * UI offers more than one way to sign in: each becomes a login choice
+         * ({@code /bff/login?idp=<alias>}) and its own OIDC tenant; a session remembers
+         * the alias it came from. Without any, the top-level issuer and client form the
+         * single provider {@code default}.
+         */
+        Map<String, IdpSettings> idps();
+    }
+
+    /** One identity provider of the management UI. */
+    interface IdpSettings {
+        /** Realm URL of the provider; required. */
+        String issuer();
+
+        /** Falls back to {@link Ui#clientId()}. */
+        Optional<String> clientId();
+
+        /**
+         * Falls back to {@link Ui#clientSecret()} when neither is set the client is
+         * public.
+         */
+        Optional<String> clientSecret();
+
+        /** What the sign-in button says; defaults to the alias. */
+        Optional<String> displayName();
+
+        /** Falls back to {@link Ui#sessionAgeExtension()}. */
+        Optional<Duration> sessionAgeExtension();
+
+        /**
+         * {@code true} keeps the provider off the login page (a tenant's provider on a
+         * shared server); its users sign in through {@code /bff/login?idp=<alias>}, and
+         * the UI names it once they are signed in. As Keycloak's own identity provider
+         * setting of that name.
+         */
+        Optional<Boolean> hideOnLoginPage();
     }
 
     interface SystemSettings {

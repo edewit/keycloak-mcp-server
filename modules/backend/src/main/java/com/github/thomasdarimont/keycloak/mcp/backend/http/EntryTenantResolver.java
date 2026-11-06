@@ -11,6 +11,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminAccessFilter;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminResource;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.EntryBinding;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.TokenExchange;
+import com.github.thomasdarimont.keycloak.mcp.backend.ui.UiTenant;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
@@ -38,6 +39,10 @@ import io.vertx.ext.web.RoutingContext;
  * {@code kc-mcp.admin.issuer}, whatever the default tenant is; one carrying the static
  * {@code kc-mcp.admin.token} gets a disabled tenant, so OIDC leaves it alone and the
  * admin filter checks the token.
+ * <p>
+ * Requests to the BFF of the management UI ({@code /bff/*}) get the web-app tenant of the
+ * identity provider they belong to ({@code kc-mcp-ui-<alias>}, {@link UiTenant}):
+ * authorization code flow with PKCE, the session kept server-side.
  */
 @ApplicationScoped
 public class EntryTenantResolver implements TenantConfigResolver {
@@ -53,6 +58,8 @@ public class EntryTenantResolver implements TenantConfigResolver {
     OidcConfig oidcConfig;
     @Inject
     McpServerConfig config;
+    @Inject
+    UiTenant uiTenant;
     @ConfigProperty(name = "quarkus.mcp.server.root-path", defaultValue = "/mcp")
     String rootPath;
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
@@ -64,6 +71,9 @@ public class EntryTenantResolver implements TenantConfigResolver {
         if (path != null && (path.equals(AdminResource.PATH) || path.startsWith(AdminResource.PATH + "/"))
                 && config.admin().enabled()) {
             return Uni.createFrom().item(adminTenant(context.request().getHeader("Authorization")));
+        }
+        if (path != null && UiTenant.isBffPath(path) && config.ui().enabled()) {
+            return Uni.createFrom().item(uiTenant.resolve(context));
         }
         if (!tenantEnabled) {
             return Uni.createFrom().nullItem();

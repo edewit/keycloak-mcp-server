@@ -29,6 +29,12 @@
             <artifactId>keycloak-mcp-server-storage</artifactId>
         </dependency>
         <dependency>
+            <!-- the management UI (static files under META-INF/resources/ui); the BFF is in this module (package ui).
+                 Drop it to build a server without the UI: /bff keeps working, /ui answers 404. -->
+            <groupId>com.github.thomasdarimont.keycloak</groupId>
+            <artifactId>keycloak-mcp-server-frontend</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.quarkiverse.mcp</groupId>
             <artifactId>quarkus-mcp-server-http</artifactId>
         </dependency>

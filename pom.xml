@@ -12,6 +12,8 @@
         <module>modules/api</module>
         <!-- optional database storage: systems, key material and audit events in PostgreSQL -->
         <module>modules/storage</module>
+        <!-- the management UI: a Lit single-page app built with npm, packaged as static resources -->
+        <module>modules/frontend</module>
         <!-- the Quarkus application -->
         <module>modules/backend</module>
         <!-- test_* tools and prompts for the MCP conformance suite, an extension jar; see conformance/README.md -->
@@ -37,6 +39,11 @@
         <jackson.version>2.21.8</jackson.version>
         <auto-service.version>1.1.1</auto-service.version>
         <jandex-maven-plugin.version>3.4.0</jandex-maven-plugin.version>
+        <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
+        <!-- Node the frontend module is built with (downloaded once into modules/frontend/node, git-ignored) -->
+        <frontend.node.version>v22.12.0</frontend.node.version>
+        <!-- -Dui.skip=true builds the frontend jar without running npm (no UI files inside) -->
+        <ui.skip>false</ui.skip>
         <!-- database kind of the storage module, baked into the backend at build time: h2 or postgresql (-Ppostgresql) -->
         <storage.db-kind>h2</storage.db-kind>
     </properties>
@@ -76,6 +83,11 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.github.thomasdarimont.keycloak</groupId>
+                <artifactId>keycloak-mcp-server-frontend</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.google.auto.service</groupId>
                 <artifactId>auto-service-annotations</artifactId>
                 <version>${auto-service.version}</version>
@@ -93,6 +105,10 @@
                     <configuration>
                         <!-- `quarkus:dev -pl modules/backend -am` also visits the api module, which is a plain library -->
                         <warnIfBuildGoalMissing>false</warnIfBuildGoalMissing>
+                        <!-- dev mode runs from the repository root, like the packaged server started there, so the
+                             relative paths of the examples' env files (.certs/, data/, examples/run-modes/keys/)
+                             resolve the same way in both -->
+                        <workingDir>${maven.multiModuleProjectDirectory}</workingDir>
                     </configuration>
                 </plugin>
                 <plugin>

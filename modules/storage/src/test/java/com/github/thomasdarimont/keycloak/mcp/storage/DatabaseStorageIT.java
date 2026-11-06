@@ -33,6 +33,9 @@ import com.github.thomasdarimont.keycloak.mcp.storage.keys.SecretEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.SigningKeyEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.DatabaseKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.SystemEntity;
+import com.github.thomasdarimont.keycloak.mcp.storage.web.UserSessionEntity;
+import com.github.thomasdarimont.keycloak.mcp.web.UserSession;
+import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
 
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.runtime.BlockingOperationControl;
@@ -57,6 +60,10 @@ class DatabaseStorageIT {
     @Inject
     @Any
     Instance<KeycloakSystemRepository> repositories;
+
+    @Inject
+    @Any
+    Instance<UserSessionStore> sessionStores;
 
     @Inject
     @Any
@@ -315,5 +322,42 @@ class DatabaseStorageIT {
 
         assertEquals(0, audit.purgeOlderThan(now.minus(Duration.ofDays(30)).toEpochMilli()), "nothing older left");
         assertTrue(audit.purgeOlderThan(now.minus(Duration.ofDays(1)).toEpochMilli()) >= 1, "an explicit cutoff");
+    }
+
+    @Test
+    void userSessionsAreStoredEncryptedAndExpire() {
+        UserSessionStore store = sessionStores.get();
+        assertEquals("db-user-sessions", store.id());
+        long now = System.currentTimeMillis();
+        String id = UUID.randomUUID().toString();
+        String issuer = "https://sso.example.com/realms/corp";
+        store.save(new UserSession(id, "corp", issuer, "sub-1", "sid-1", "id.token.value", "access.token",
+                "refresh.token", 300L, "openid", now, now + 60_000));
+        UserSession found = store.find(id).orElseThrow();
+        assertEquals("corp", found.idp());
+        assertEquals(issuer, found.issuer());
+        assertEquals("sub-1", found.subject());
+        assertEquals("sid-1", found.sid());
+        assertEquals("id.token.value", found.idToken());
+        assertEquals("refresh.token", found.refreshToken());
+        assertEquals(300L, found.accessTokenExpiresIn());
+        UserSessionEntity row = QuarkusTransaction.requiringNew().call(() -> UserSessionEntity.findById(id));
+        assertTrue(row.idToken.startsWith("enc:v2:"), row.idToken);
+        assertTrue(row.accessToken.startsWith("enc:v2:"), row.accessToken);
+        assertTrue(row.refreshToken.startsWith("enc:v2:"), row.refreshToken);
+        assertEquals("sub-1", row.subject);
+        // back-channel logout: by the provider's session id or by the user, within one
+        // issuer
+        assertEquals(0, store.deleteBySession("https://other.example.com/realms/x", "sid-1"));
+        assertEquals(1, store.deleteBySession(issuer, "sid-1"));
+        store.save(new UserSession(id, "corp", issuer, "sub-1", "sid-2", "id.token.value", null, null, null, null, now,
+                now + 60_000));
+        assertEquals(1, store.deleteBySubject(issuer, "sub-1"));
+        // replacing keeps the id, expired rows are invisible and purged
+        store.save(new UserSession(id, "corp", issuer, "sub-1", "sid-3", "id2", null, null, null, null, now, now - 1));
+        assertTrue(store.find(id).isEmpty(), "expired sessions are not served");
+        assertEquals(1, store.deleteExpired(now));
+        assertEquals(0, store.deleteExpired(now));
+        store.delete("unknown");
     }
 }

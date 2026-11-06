@@ -47,8 +47,8 @@ public class AdminStorage {
                 result.remaining().isEmpty() ? "" : ", still under other keys: " + result.remaining());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("currentKeyId", result.currentKeyId());
-        out.put("rewritten",
-                Map.of("systems", result.systems(), "signingKeys", result.signingKeys(), "secrets", result.secrets()));
+        out.put("rewritten", Map.of("systems", result.systems(), "signingKeys", result.signingKeys(), "secrets",
+                result.secrets(), "userSessions", result.userSessions()));
         out.put("remaining", result.remaining());
         return out;
     }

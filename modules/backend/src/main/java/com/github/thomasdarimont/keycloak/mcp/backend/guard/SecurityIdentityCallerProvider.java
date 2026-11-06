@@ -86,27 +86,51 @@ public class SecurityIdentityCallerProvider implements CallerProvider {
             return Caller.NONE;
         }
         Principal principal = identity.getPrincipal();
+        if (principal instanceof JsonWebToken jwt) {
+            return fromToken(identity, jwt, tokenOf(identity));
+        }
+        return Caller.of(principal.getName(), principal.getName(), null, identityRoles(identity));
+    }
+
+    /**
+     * The caller behind an identity whose principal is not the token that carries the
+     * roles: a browser session of the management UI, where the principal is the ID token
+     * and {@code token} the access token with {@code realm_access} and
+     * {@code resource_access}.
+     */
+    public static Caller fromIdentity(SecurityIdentity identity, JsonWebToken token) {
+        if (identity == null || identity.isAnonymous()) {
+            return Caller.NONE;
+        }
+        if (token == null || token.getRawToken() == null) {
+            return fromIdentity(identity);
+        }
+        return fromToken(identity, token, token.getRawToken());
+    }
+
+    private static Caller fromToken(SecurityIdentity identity, JsonWebToken jwt, String rawToken) {
+        Set<String> roles = identityRoles(identity);
+        String name = jwt.getClaim("preferred_username");
+        if (name == null) {
+            name = jwt.getName();
+        }
+        Object realmAccess = jwt.getClaim("realm_access");
+        addRoles(roles, realmAccess, "realm:");
+        Object resourceAccess = jwt.getClaim("resource_access");
+        if (resourceAccess instanceof jakarta.json.JsonObject ra) {
+            for (String client : ra.keySet()) {
+                addRoles(roles, ra.get(client), client + ".");
+            }
+        }
+        return Caller.of(jwt.getSubject(), name, realmOf(jwt.getIssuer()), roles).withToken(rawToken, claimsOf(jwt));
+    }
+
+    private static Set<String> identityRoles(SecurityIdentity identity) {
         Set<String> roles = new LinkedHashSet<>();
         for (String r : identity.getRoles()) {
             roles.add(r.contains(".") || r.startsWith("realm:") ? r : "realm:" + r);
         }
-        if (principal instanceof JsonWebToken jwt) {
-            String name = jwt.getClaim("preferred_username");
-            if (name == null) {
-                name = jwt.getName();
-            }
-            Object realmAccess = jwt.getClaim("realm_access");
-            addRoles(roles, realmAccess, "realm:");
-            Object resourceAccess = jwt.getClaim("resource_access");
-            if (resourceAccess instanceof jakarta.json.JsonObject ra) {
-                for (String client : ra.keySet()) {
-                    addRoles(roles, ra.get(client), client + ".");
-                }
-            }
-            return Caller.of(jwt.getSubject(), name, realmOf(jwt.getIssuer()), roles)
-                .withToken(tokenOf(identity), claimsOf(jwt));
-        }
-        return Caller.of(principal.getName(), principal.getName(), null, roles);
+        return roles;
     }
 
     /** Every claim as plain Java values, so access checks need no JSON-P types. */

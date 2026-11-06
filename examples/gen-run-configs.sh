@@ -5,6 +5,7 @@
 #   extensions:       "quarkus:dev (extensions)" loading examples/extensions/target as providers directory, build/demo/down
 #   dynamic-systems:  PostgreSQL build + stack, mounted-jar dev stack, demo, down
 #   delegated-auth:   one quarkus:dev per env file, stack up, demo, down
+#   management-ui:    mkcert, one quarkus:dev per env file with the UI on, the Vite dev server
 #   multi-tenant:     keys + stack, down
 #   conformance:      conformance/run.sh
 set -euo pipefail
@@ -125,6 +126,15 @@ shell "delegated-auth: stack up (Keycloak :8096 + delegation grant)" "delegated-
   "docker compose up -d && docker compose logs keycloak-init && docker compose logs -f keycloak"
 shell "delegated-auth: demo.sh" "delegated-auth-demo" "examples/delegated-auth" "./demo.sh"
 shell "delegated-auth: down -v" "delegated-auth-down" "examples/delegated-auth" "docker compose down -v"
+
+# --- management-ui: dev mode with the UI on https://localhost:8443/ui/ against the run-modes stack, the certificate
+shell "management-ui: mkcert (writes .certs/localhost*.pem)" "management-ui-mkcert" "" "etc/mkcert.sh"
+for f in examples/management-ui/env/*.env; do
+  name=$(basename "$f" .env)
+  maven_dev "quarkus:dev ($name: run-modes stack :8080, UI https://localhost:8443/ui/)" "dev-$name" < "$f"
+done
+shell "management-ui: vite dev server (https://localhost:5173/ui/, BFF proxied to :8443)" "management-ui-vite" "modules/frontend/src/main/webui" \
+  "npm install --no-audit --no-fund && npm run dev"
 
 # --- multi-tenant
 shell "multi-tenant: keys + stack up (:8090-8092)" "multi-tenant-up" "examples/multi-tenant" \
