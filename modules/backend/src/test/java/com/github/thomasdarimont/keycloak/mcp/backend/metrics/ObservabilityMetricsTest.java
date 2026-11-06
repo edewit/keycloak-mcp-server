@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import io.opentelemetry.api.common.AttributeKey;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Entity;
@@ -31,6 +29,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.sun.net.httpserver.HttpServer;
 
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;

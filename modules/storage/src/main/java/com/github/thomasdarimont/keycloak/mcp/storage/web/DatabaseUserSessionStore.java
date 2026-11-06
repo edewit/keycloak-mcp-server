@@ -7,6 +7,7 @@ import jakarta.transaction.Transactional;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSession;
@@ -30,6 +31,9 @@ public class DatabaseUserSessionStore implements UserSessionStore {
     private static final Logger LOG = Logger.getLogger(DatabaseUserSessionStore.class);
 
     private final StorageCrypto crypto;
+
+    @Inject
+    StorageConfig storage;
 
     @Inject
     public DatabaseUserSessionStore(StorageCrypto crypto) {
@@ -125,6 +129,11 @@ public class DatabaseUserSessionStore implements UserSessionStore {
 
     @Scheduled(every = "1h", delayed = "2m", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     void purge() {
+        if (storage == null || !storage.enabled()) {
+            // the bean exists, the scheduler calls it, but without a datasource there is
+            // nothing to purge
+            return;
+        }
         try {
             long removed = deleteExpired(System.currentTimeMillis());
             if (removed > 0) {

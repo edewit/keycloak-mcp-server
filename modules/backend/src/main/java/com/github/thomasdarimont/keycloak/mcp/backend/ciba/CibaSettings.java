@@ -49,13 +49,21 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
  * @param extraParameters send {@code requester} (the MCP client's name) and
  * {@code operation} as additional request parameters for the device to show; providers
  * ignore parameters they do not know (Keycloak forwards up to five)
+ * @param connectTimeout connect timeout of the calls to the provider; {@code null} for
+ * {@code kc-mcp.http.connect-timeout}
+ * @param readTimeout read timeout of those calls; {@code null} for
+ * {@code kc-mcp.http.read-timeout}
+ * @param tlsConfigurationName named TLS configuration ({@code quarkus.tls.<name>.*}) for
+ * the calls to the provider, e.g. a trust store for a private CA; {@code null} for the
+ * JVM's default trust
  * @param pollWaitSeconds two-step only: how long the collecting call waits for the device
  * before answering "still waiting"
  */
 public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, String clientId, String clientSecret,
         ClientAuth clientAuth, String scope, String acrValues, String loginHint, boolean bindingMessage,
         String bindingMessagePrefix, boolean requestedExpiry, int timeoutSeconds, When when, Flow flow,
-        boolean numberMatching, boolean extraParameters, int pollWaitSeconds) {
+        boolean numberMatching, boolean extraParameters, int pollWaitSeconds, String tlsConfigurationName,
+        java.time.Duration connectTimeout, java.time.Duration readTimeout) {
 
     public enum Flow {
         TWO_STEP, BLOCKING;
@@ -119,7 +127,14 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
                 config.get("binding-message-prefix", "kc-mcp"), config.getBoolean("requested-expiry", false),
                 config.getInt("timeout-seconds", defaultTimeout), When.parse(config.get("when", "always")),
                 Flow.parse(config.get("flow", "two-step")), config.getBoolean("number-matching", true),
-                config.getBoolean("extra-parameters", true), config.getInt("poll-wait-seconds", 5));
+                config.getBoolean("extra-parameters", true), config.getInt("poll-wait-seconds", 5),
+                config.get("tls-configuration-name").filter(v -> !v.isBlank()).orElse(null),
+                com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients
+                    .duration(config.get("connect-timeout"), "kc-mcp.spi.ciba-confirmer.connect-timeout")
+                    .orElse(null),
+                com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients
+                    .duration(config.get("read-timeout"), "kc-mcp.spi.ciba-confirmer.read-timeout")
+                    .orElse(null));
     }
 
     /** Whether the issuer comes from the caller's token. */

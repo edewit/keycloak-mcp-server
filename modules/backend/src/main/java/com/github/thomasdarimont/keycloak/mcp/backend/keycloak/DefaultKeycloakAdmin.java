@@ -12,6 +12,7 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.RealmResource;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
@@ -57,6 +58,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     private volatile TokenExchange exchange;
     private final Map<String, Delegate> delegates = new ConcurrentHashMap<>();
     private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
+    private volatile java.time.Duration readTimeout = OutboundClients.Timeouts.DEFAULT.read();
 
     public DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys) {
         this(system, jwtKeys, DelegationMode.OFF);
@@ -125,8 +127,8 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
                 .authorization(token)
                 .resteasyClient(newClient())
                 .build();
-            return new Delegate(new DefaultKeycloakAdmin(system, jwtKeys, k2, token, delegation).metrics(metrics),
-                    expiresAt);
+            return new Delegate(new DefaultKeycloakAdmin(system, jwtKeys, k2, token, delegation).metrics(metrics)
+                .readTimeout(readTimeout), expiresAt);
         }).admin();
     }
 
@@ -201,11 +203,25 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         return this;
     }
 
-    /** A RESTEasy client for this system whose requests are measured. */
+    /**
+     * The read timeout of the calls to this system ({@code kc-mcp.http.read-timeout});
+     * set before the first call.
+     */
+    public DefaultKeycloakAdmin readTimeout(java.time.Duration readTimeout) {
+        this.readTimeout = readTimeout == null ? OutboundClients.Timeouts.DEFAULT.read() : readTimeout;
+        return this;
+    }
+
+    /**
+     * A RESTEasy client for this system whose requests are measured and bounded by the
+     * read timeout. The Keycloak admin client's provider builds it (Keycloak's JSON
+     * settings, the {@code quarkus.keycloak.admin-client} TLS); its connect timeout is
+     * the provider's.
+     */
     private Client newClient() {
         Client c = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
         c.register(new KeycloakClientMetricsFilter(system.name(), metrics));
-        return c;
+        return OutboundClients.readTimeout(c, readTimeout);
     }
 
     @Override

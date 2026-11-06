@@ -395,6 +395,28 @@ public interface McpServerConfig {
      */
     Metrics metrics();
 
+    /**
+     * Outbound HTTP of the server's own clients ({@code kc-mcp.http.*}): the Keycloak
+     * admin client (read timeout; its connect timeout is the client's built-in 15 s), the
+     * CIBA confirmer and the UI's calls to its identity providers, each overridable.
+     */
+    Http http();
+
+    interface Http {
+        /** Time to establish a connection ({@code 10s}, {@code 500ms}, {@code PT10S}). */
+        @WithDefault("10s")
+        @WithConverter(Durations.DurationConverter.class)
+        Duration connectTimeout();
+
+        /**
+         * Time to wait for an answer. Generous by default: admin calls such as a
+         * directory sync or a partial export can take a while.
+         */
+        @WithDefault("60s")
+        @WithConverter(Durations.DurationConverter.class)
+        Duration readTimeout();
+    }
+
     interface Metrics {
         /**
          * Add the {@code realm} attribute to the tool call metrics. Off by default: a
@@ -487,6 +509,27 @@ public interface McpServerConfig {
          * single provider {@code default}.
          */
         Map<String, IdpSettings> idps();
+
+        /**
+         * Named TLS configuration ({@code quarkus.tls.<name>.*}) the server's own calls
+         * to the identity providers use (discovery, keys, session checks), for providers
+         * behind a private CA. Unset: the JVM's default trust. Quarkus' OIDC login has
+         * its own ({@code quarkus.oidc.tls.tls-configuration-name}).
+         */
+        Optional<String> tlsConfigurationName();
+
+        /**
+         * Connect timeout of those calls; falls back to
+         * {@code kc-mcp.http.connect-timeout}.
+         */
+        @WithConverter(Durations.DurationConverter.class)
+        Optional<Duration> connectTimeout();
+
+        /**
+         * Read timeout of those calls; falls back to {@code kc-mcp.http.read-timeout}.
+         */
+        @WithConverter(Durations.DurationConverter.class)
+        Optional<Duration> readTimeout();
     }
 
     /** One identity provider of the management UI. */

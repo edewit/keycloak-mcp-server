@@ -11,6 +11,7 @@ import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
@@ -35,6 +36,9 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
     private static final Logger LOG = Logger.getLogger(DatabasePendingApprovalStore.class);
 
     private final StorageCrypto crypto;
+
+    @Inject
+    StorageConfig storage;
 
     @Inject
     public DatabasePendingApprovalStore(StorageCrypto crypto) {
@@ -149,11 +153,21 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
         return PendingApprovalEntity.count("expiresAt > ?1", now);
     }
 
-    @Scheduled(every = "1h", delayed = "10m")
+    @Scheduled(every = "1h", delayed = "10m", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     void purge() {
-        long n = deleteExpired(System.currentTimeMillis());
-        if (n > 0) {
-            LOG.infof("Removed %d expired pending approvals", n);
+        if (storage == null || !storage.enabled()) {
+            // the bean exists, the scheduler calls it, but without a datasource there is
+            // nothing to purge
+            return;
+        }
+        try {
+            long n = deleteExpired(System.currentTimeMillis());
+            if (n > 0) {
+                LOG.infof("Removed %d expired pending approvals", n);
+            }
+        }
+        catch (RuntimeException e) {
+            LOG.warnf(e, "Pending approvals: purge failed, next attempt in an hour: %s", e.getMessage());
         }
     }
 

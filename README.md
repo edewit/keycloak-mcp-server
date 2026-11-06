@@ -471,6 +471,9 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `quarkus.http.cors.origins`     | local origins               | browser MCP clients; set to the client origin(s) in production |
 | `quarkus.otel.sdk.disabled`     | `true`                      | `false` exports metrics and traces to `quarkus.otel.exporter.otlp.endpoint` (§Metrics) |
 | `kc-mcp.metrics.include-realm` | `false`                    | tool call metrics carry the realm |
+| `kc-mcp.ui.tls-configuration-name` |                        | named `quarkus.tls` configuration (trust store) for the server's own calls to the UI's identity providers: discovery, keys, session checks |
+| `kc-mcp.http.connect-timeout` / `read-timeout` | `10s` / `60s` | outbound HTTP of the server's own clients (`10s`, `500ms`, `2m`, `PT1M`): CIBA, the UI's provider calls, and the read timeout of the Keycloak admin client (its connect timeout is the client's built-in 15 s); the read default leaves room for long admin calls such as a directory sync |
+| `kc-mcp.ui.connect-timeout` / `read-timeout` | `kc-mcp.http.*` | the same for the UI's calls to its identity providers |
 
 ```properties
 # service account with a secret (recommended)
@@ -526,7 +529,7 @@ The server adds its own:
 The Keycloak metrics come from a JAX-RS client filter on every RESTEasy client the server builds for a system (admin
 client, `private_key_jwt` token manager, token exchange), since Quarkus does not instrument clients made outside CDI;
 a request that gets no response at all is not measured there and shows up as `keycloak_unreachable` in the tool
-calls. The CIBA client's own requests go through the JDK HTTP client and are covered by `kc_mcp.ciba.*`.
+calls. The CIBA client's requests to its provider are covered by `kc_mcp.ciba.*`.
 
 No user, subject, argument or client-supplied value becomes an attribute; who did what is the audit log's. Values
 are cut to short tokens, so an extension's odd error code cannot create unbounded series.
@@ -659,6 +662,8 @@ What makes the approval trustworthy:
 | `enabled` | `false` | |
 | `issuer` | `caller` | issuer URL of the CIBA client; `caller` follows the `iss` of the caller's token (the auth realm without one) |
 | `token-issuer` | = `issuer` | the `iss` the provider's tokens carry when the server reaches it at an internal URL (Docker) |
+| `tls-configuration-name` | | named `quarkus.tls.<name>.*` configuration whose trust store the calls to the provider use (private CA); unset: the JVM's default trust |
+| `connect-timeout` / `read-timeout` | `kc-mcp.http.*` | timeouts of the calls to the provider (`10s`, `500ms`, ...) |
 | `client-id` / `client-secret` | | the confidential client registered for CIBA (required when on) |
 | `client-auth` | `client_secret_basic` | or `client_secret_post` |
 | `scope` | `openid` | |

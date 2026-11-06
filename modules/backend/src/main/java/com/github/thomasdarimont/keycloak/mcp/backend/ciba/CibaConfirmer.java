@@ -1,6 +1,5 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.ciba;
 
-import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -16,9 +15,12 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.client.Client;
 
 import org.jboss.logging.Logger;
 
@@ -27,6 +29,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.CibaExcept
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Poll;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Started;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaSettings.Flow;
+import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
@@ -34,9 +37,11 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
 import io.quarkus.runtime.StartupEvent;
+import io.quarkus.tls.TlsConfigurationRegistry;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -85,38 +90,63 @@ public class CibaConfirmer implements Confirmer {
     private final SecureRandom random = new SecureRandom();
     private Duration pollFloor = Duration.ofSeconds(1);
     private KcMcpMetrics metrics = KcMcpMetrics.noop();
+    /**
+     * The JAX-RS client shared by the providers' CIBA clients; {@code null} when the
+     * clients come from outside.
+     */
+    private final Client http;
 
     @Inject
-    public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry, KcMcpMetrics metrics) {
-        this(config, registry);
-        this.metrics = metrics;
-    }
-
-    public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry) {
+    public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry, KcMcpMetrics metrics,
+            Instance<TlsConfigurationRegistry> tls) {
         this(CibaSettings.from(config), config.url() + "/realms/" + config.authRealm(), null, null,
                 registry.extensions(PendingApprovalStore.class)
                     .stream()
-                    .min(Comparator.comparingInt(s -> s.order()))
+                    .min(Comparator.comparingInt(Extension::order))
                     .orElseGet(InMemoryPendingApprovalStore::new),
-                config.callerRequired() || config.delegation().delegating());
+                config.callerRequired() || config.delegation().delegating(), tls.isResolvable() ? tls.get() : null,
+                OutboundClients.Timeouts.of(config));
+        this.metrics = metrics;
+    }
+
+    public CibaConfirmer(CibaSettings settings, String defaultIssuer, Function<String, CibaClient> clients,
+            Function<CibaClient, CibaIdentityVerifier> verifiers, PendingApprovalStore store, boolean callersRequired) {
+        this(settings, defaultIssuer, clients, verifiers, store, callersRequired, null,
+                OutboundClients.Timeouts.DEFAULT);
     }
 
     /**
      * @param clients makes the client of an issuer; {@code null} for the real HTTP one
      * @param verifiers makes the verifier of a client; {@code null} for the real one (the
      * client's issuer, its JWKS, the CIBA client as audience)
+     * @param tls the registry {@link CibaSettings#tlsConfigurationName()} is looked up
+     * in; {@code null} when none is named
+     * @param timeouts the global {@code kc-mcp.http.*} timeouts; the confirmer's own
+     * settings override them
      */
     public CibaConfirmer(CibaSettings settings, String defaultIssuer, Function<String, CibaClient> clients,
-            Function<CibaClient, CibaIdentityVerifier> verifiers, PendingApprovalStore store, boolean callersRequired) {
+            Function<CibaClient, CibaIdentityVerifier> verifiers, PendingApprovalStore store, boolean callersRequired,
+            TlsConfigurationRegistry tls, OutboundClients.Timeouts timeouts) {
         this.settings = settings;
         this.defaultIssuer = defaultIssuer;
-        HttpClient http = clients == null ? CibaClient.newHttpClient() : null;
+        Client http = clients == null && settings.enabled() ? OutboundClients.create(
+                timeouts.with(java.util.Optional.ofNullable(settings.connectTimeout()),
+                        java.util.Optional.ofNullable(settings.readTimeout())),
+                settings.tlsConfigurationName(), tls, "kc-mcp.spi.ciba-confirmer.tls-configuration-name") : null;
+        this.http = http;
         this.clients = clients != null ? clients : issuer -> new CibaClient(http, issuer, settings.clientId(),
                 settings.clientSecret(), settings.clientAuth(), settings.scope(), settings.acrValues());
         this.verifiers = verifiers != null ? verifiers : client -> new CibaIdentityVerifier(client.jwksUri(),
                 settings.tokenIssuer() != null ? settings.tokenIssuer() : client.issuer(), settings.clientId());
         this.store = store == null ? new InMemoryPendingApprovalStore() : store;
         this.callersRequired = callersRequired;
+    }
+
+    @PreDestroy
+    void close() {
+        if (http != null) {
+            http.close();
+        }
     }
 
     void onStart(@Observes StartupEvent event) {

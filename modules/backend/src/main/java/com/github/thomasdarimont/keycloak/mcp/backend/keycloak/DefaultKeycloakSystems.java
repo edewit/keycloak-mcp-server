@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ErrorMapper;
+import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
@@ -63,6 +65,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     private final DelegationMode delegation;
     private volatile PrivateHosts dynamicPrivateHosts = PrivateHosts.ALLOW;
     private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
+    private volatile Duration readTimeout = OutboundClients.Timeouts.DEFAULT.read();
 
     @Inject
     public DefaultKeycloakSystems(McpServerConfig config, SigningKeys keys, Extensions extensions,
@@ -71,6 +74,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                 HostAllowList.of(config.allowedHosts().orElse(List.of())), repositories(config, extensions),
                 config.staticSystemsOrder(), config.delegation());
         this.metrics = metrics;
+        this.readTimeout = config.http().readTimeout();
         this.dynamicPrivateHosts = config.effectiveDynamicPrivateHosts();
     }
 
@@ -177,7 +181,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
             this.defaultName = defaultSystem;
         }
         else if (systems.size() == 1 && !dynamic) {
-            this.defaultName = systems.get(0).name();
+            this.defaultName = systems.getFirst().name();
         }
         else {
             this.defaultName = staticSystems.find(KeycloakSystem.DEFAULT_NAME).isPresent() ? KeycloakSystem.DEFAULT_NAME
@@ -289,7 +293,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     public List<String> names() {
         List<String> out = new ArrayList<>(repository.names());
         if (defaultName != null && out.remove(defaultName)) {
-            out.add(0, defaultName);
+            out.addFirst(defaultName);
         }
         return List.copyOf(out);
     }
@@ -340,7 +344,8 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                 return Optional.empty();
             }
         }
-        KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation).metrics(metrics);
+        KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation).metrics(metrics)
+            .readTimeout(readTimeout);
         KeycloakAdmin previous = admins.put(name, created);
         if (previous != null) {
             LOG.infof("Keycloak system '%s' changed at its repository, reconnecting to %s", name, system.url());

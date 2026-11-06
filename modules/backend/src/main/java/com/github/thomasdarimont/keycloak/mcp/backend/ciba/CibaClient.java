@@ -1,16 +1,18 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.ciba;
 
-import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.Entity;
+import jakarta.ws.rs.client.Invocation;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+
+import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 
 import io.vertx.core.json.JsonObject;
 
@@ -27,8 +29,6 @@ public class CibaClient {
 
     /** CIBA grant type at the token endpoint. */
     public static final String GRANT_TYPE = "urn:openid:params:grant-type:ciba";
-
-    static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     /** What the token endpoint said. */
     public enum Status {
@@ -62,7 +62,11 @@ public class CibaClient {
     private record Endpoints(String backchannel, String token, String jwks) {
     }
 
-    private final HttpClient http;
+    /** Status and body of an answer. */
+    private record Answer(int status, String body) {
+    }
+
+    private final Client http;
     private final String issuer;
     private final String clientId;
     private final String clientSecret;
@@ -71,13 +75,17 @@ public class CibaClient {
     private final String acrValues;
     private final Map<String, Endpoints> endpoints = new ConcurrentHashMap<>();
 
-    public CibaClient(HttpClient http, String issuer, String clientId, String clientSecret, String scope) {
+    public CibaClient(Client http, String issuer, String clientId, String clientSecret, String scope) {
         this(http, issuer, clientId, clientSecret, CibaSettings.ClientAuth.BASIC, scope, null);
     }
 
-    public CibaClient(HttpClient http, String issuer, String clientId, String clientSecret,
+    /**
+     * @param http the JAX-RS client to use (shared, closed by its owner); {@code null}
+     * makes one with the default trust
+     */
+    public CibaClient(Client http, String issuer, String clientId, String clientSecret,
             CibaSettings.ClientAuth clientAuth, String scope, String acrValues) {
-        this.http = http == null ? newHttpClient() : http;
+        this.http = http == null ? OutboundClients.create() : http;
         this.issuer = issuer.endsWith("/") ? issuer.substring(0, issuer.length() - 1) : issuer;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
@@ -93,18 +101,6 @@ public class CibaClient {
     /** The provider's {@code jwks_uri}, for verifying the ID token of an approval. */
     public String jwksUri() {
         return endpoints().jwks();
-    }
-
-    /**
-     * {@code send} parks the calling (virtual) thread while the request is in flight; the
-     * client's own callbacks run on virtual threads too instead of its default platform
-     * thread pool.
-     */
-    public static HttpClient newHttpClient() {
-        return HttpClient.newBuilder()
-            .connectTimeout(TIMEOUT)
-            .executor(java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor())
-            .build();
     }
 
     /**
@@ -134,11 +130,11 @@ public class CibaClient {
         if (requestedExpiry > 0) {
             form.append("&requested_expiry=").append(requestedExpiry);
         }
-        HttpResponse<String> r = send(endpoints().backchannel(), form.toString());
+        Answer r = send(endpoints().backchannel(), form.toString());
         JsonObject body = json(r);
-        if (r.statusCode() != 200) {
-            throw new CibaException("CIBA authentication request refused by " + issuer + ": HTTP " + r.statusCode()
-                    + " " + body.getString("error", "") + " " + body.getString("error_description", ""));
+        if (r.status() != 200) {
+            throw new CibaException("CIBA authentication request refused by " + issuer + ": HTTP " + r.status() + " "
+                    + body.getString("error", "") + " " + body.getString("error_description", ""));
         }
         String id = body.getString("auth_req_id");
         if (id == null) {
@@ -149,9 +145,8 @@ public class CibaClient {
 
     /** Asks the token endpoint whether the request was approved. */
     public Poll poll(String authReqId) {
-        HttpResponse<String> r = send(endpoints().token(),
-                "grant_type=" + enc(GRANT_TYPE) + "&auth_req_id=" + enc(authReqId));
-        if (r.statusCode() == 200) {
+        Answer r = send(endpoints().token(), "grant_type=" + enc(GRANT_TYPE) + "&auth_req_id=" + enc(authReqId));
+        if (r.status() == 200) {
             return new Poll(Status.APPROVED, null, json(r).getString("id_token"));
         }
         JsonObject body = json(r);
@@ -163,28 +158,23 @@ public class CibaClient {
             case "access_denied" -> new Poll(Status.DENIED, detail);
             case "expired_token", "invalid_grant" -> new Poll(Status.EXPIRED, detail);
             default -> throw new CibaException(
-                    "CIBA token request failed at " + issuer + ": HTTP " + r.statusCode() + " " + error + " " + detail);
+                    "CIBA token request failed at " + issuer + ": HTTP " + r.status() + " " + error + " " + detail);
         };
     }
 
     private Endpoints endpoints() {
         return endpoints.computeIfAbsent(issuer, i -> {
-            HttpResponse<String> r;
-            try {
-                r = http.send(HttpRequest.newBuilder(URI.create(i + "/.well-known/openid-configuration"))
-                    .timeout(TIMEOUT)
-                    .GET()
-                    .build(), HttpResponse.BodyHandlers.ofString());
+            Answer r;
+            try (Response resp = http.target(i + "/.well-known/openid-configuration")
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .get()) {
+                r = new Answer(resp.getStatus(), resp.hasEntity() ? resp.readEntity(String.class) : "");
             }
-            catch (IOException e) {
-                throw new CibaException("OpenID discovery of " + i + " failed: " + e.getMessage(), e);
+            catch (ProcessingException e) {
+                throw new CibaException("OpenID discovery of " + i + " failed: " + rootMessage(e), e);
             }
-            catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new CibaException("OpenID discovery of " + i + " interrupted", e);
-            }
-            if (r.statusCode() != 200) {
-                throw new CibaException("OpenID discovery of " + i + " answered HTTP " + r.statusCode());
+            if (r.status() != 200) {
+                throw new CibaException("OpenID discovery of " + i + " answered HTTP " + r.status());
             }
             JsonObject meta = new JsonObject(r.body());
             String bc = meta.getString("backchannel_authentication_endpoint");
@@ -200,11 +190,8 @@ public class CibaClient {
         });
     }
 
-    private HttpResponse<String> send(String url, String form) {
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
-            .timeout(TIMEOUT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "application/json");
+    private Answer send(String url, String form) {
+        Invocation.Builder request = http.target(url).request(MediaType.APPLICATION_JSON_TYPE);
         String body = form;
         if (clientAuth == CibaSettings.ClientAuth.POST) {
             body = form + "&client_id=" + enc(clientId) + "&client_secret=" + enc(clientSecret);
@@ -214,20 +201,23 @@ public class CibaClient {
             request.header("Authorization", "Basic " + Base64.getEncoder()
                 .encodeToString((enc(clientId) + ":" + enc(clientSecret)).getBytes(StandardCharsets.UTF_8)));
         }
-        try {
-            return http.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(),
-                    HttpResponse.BodyHandlers.ofString());
+        try (Response r = request.post(Entity.entity(body, MediaType.APPLICATION_FORM_URLENCODED_TYPE))) {
+            return new Answer(r.getStatus(), r.hasEntity() ? r.readEntity(String.class) : "");
         }
-        catch (IOException e) {
-            throw new CibaException("CIBA request to " + url + " failed: " + e.getMessage(), e);
-        }
-        catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new CibaException("CIBA request to " + url + " interrupted", e);
+        catch (ProcessingException e) {
+            throw new CibaException("CIBA request to " + url + " failed: " + rootMessage(e), e);
         }
     }
 
-    private static JsonObject json(HttpResponse<String> r) {
+    private static String rootMessage(Throwable t) {
+        Throwable c = t;
+        while (c.getCause() != null && c.getCause() != c) {
+            c = c.getCause();
+        }
+        return c.getMessage() == null ? c.getClass().getSimpleName() : c.getMessage();
+    }
+
+    private static JsonObject json(Answer r) {
         try {
             return r.body() == null || r.body().isBlank() ? new JsonObject() : new JsonObject(r.body());
         }

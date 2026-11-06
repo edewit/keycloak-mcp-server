@@ -1,15 +1,16 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.ui;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Optional;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.client.Entity;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import org.jboss.logging.Logger;
 
@@ -75,35 +76,31 @@ public class UserSessionCheck {
         String form = "grant_type=refresh_token&client_id=" + encode(idp.clientId()) + "&refresh_token="
                 + encode(session.refreshToken())
                 + idp.clientSecret().filter(v -> !v.isBlank()).map(s -> "&client_secret=" + encode(s)).orElse("");
-        HttpResponse<String> r;
-        try {
-            r = discovery.http()
-                .send(HttpRequest.newBuilder(URI.create(metadata.tokenEndpoint()))
-                    .timeout(IdpDiscovery.TIMEOUT)
-                    .header("Content-Type", "application/x-www-form-urlencoded")
-                    .POST(HttpRequest.BodyPublishers.ofString(form))
-                    .build(), HttpResponse.BodyHandlers.ofString());
+        int status;
+        String body;
+        try (Response r = discovery.client()
+            .target(metadata.tokenEndpoint())
+            .request(MediaType.APPLICATION_JSON_TYPE)
+            .post(Entity.entity(form, MediaType.APPLICATION_FORM_URLENCODED_TYPE))) {
+            status = r.getStatus();
+            body = r.hasEntity() ? r.readEntity(String.class) : "";
         }
-        catch (IOException e) {
-            throw new IdpDiscovery.Unavailable("token endpoint of " + session.issuer() + " failed: " + e.getMessage());
+        catch (ProcessingException e) {
+            throw new IdpDiscovery.Unavailable(
+                    "token endpoint of " + session.issuer() + " failed: " + IdpDiscovery.rootMessage(e));
         }
-        catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IdpDiscovery.Unavailable("token endpoint of " + session.issuer() + " interrupted");
-        }
-        if (r.statusCode() == 400 || r.statusCode() == 401) {
-            String error = errorOf(r.body());
+        if (status == 400 || status == 401) {
+            String error = errorOf(body);
             LOG.infof("Session check: %s ended at %s (%s), row deleted", session, session.issuer(), error);
             store.delete(sessionId);
             return Result.ended();
         }
-        if (r.statusCode() != 200) {
-            throw new IdpDiscovery.Unavailable(
-                    "token endpoint of " + session.issuer() + " answered HTTP " + r.statusCode());
+        if (status != 200) {
+            throw new IdpDiscovery.Unavailable("token endpoint of " + session.issuer() + " answered HTTP " + status);
         }
         JsonNode tokens;
         try {
-            tokens = json.readTree(r.body());
+            tokens = json.readTree(body);
         }
         catch (IOException e) {
             throw new IdpDiscovery.Unavailable("token endpoint of " + session.issuer() + " answered no JSON");
