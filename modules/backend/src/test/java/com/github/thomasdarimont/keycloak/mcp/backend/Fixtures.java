@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.backend;
 
 import java.util.List;
+import java.util.Map;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
@@ -30,8 +31,8 @@ public final class Fixtures {
                         .string("search", "Free text")
                         .string("username", "Exact username")
                         .pagination())
-                    .handler(call -> ToolResult.ok(List.of(java.util.Map.of("realm", call.realm(), "max", call.max(),
-                            "search", String.valueOf(call.str("search"))))))
+                    .handler(call -> ToolResult.ok(List.of(Map.of("realm", call.realm(), "max", call.max(), "search",
+                            String.valueOf(call.str("search"))))))
                     .build(),
                 ToolSpec.builder("keycloak_user_set_enabled")
                     .title("Enable or disable a user")
@@ -63,7 +64,7 @@ public final class Fixtures {
                     .read()
                     .global()
                     .synonyms("version")
-                    .handler(call -> ToolResult.ok(java.util.Map.of("version", "test")))
+                    .handler(call -> ToolResult.ok(Map.of("version", "test")))
                     .build(),
                 ToolSpec.builder("keycloak_federation_sync")
                     .title("Sync a user federation provider")

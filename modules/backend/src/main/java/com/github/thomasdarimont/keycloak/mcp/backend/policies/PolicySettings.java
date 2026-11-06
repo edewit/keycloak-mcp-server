@@ -1,6 +1,9 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.policies;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
@@ -18,22 +21,20 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
  * @param superRoles callers holding one of these role keys bypass both checks
  */
 public record PolicySettings(GroupScope groupScope, String managerRole, boolean noEscalation, boolean denyAnonymous,
-        java.util.Set<String> superRoles) {
+        Set<String> superRoles) {
 
     public enum GroupScope {
         OFF, GROUP, ORGANIZATION
     }
 
-    public static final PolicySettings DISABLED = new PolicySettings(GroupScope.OFF, null, false, false,
-            java.util.Set.of());
+    public static final PolicySettings DISABLED = new PolicySettings(GroupScope.OFF, null, false, false, Set.of());
 
     public static PolicySettings from(ProviderConfig config) {
         GroupScope scope = GroupScope.valueOf(config.get("group-scope", "off").trim().toUpperCase(Locale.ROOT));
         String manager = config.get("manager-role").orElse(null);
         boolean noEscalation = config.getBoolean("no-escalation", true);
         boolean denyAnonymous = "deny".equalsIgnoreCase(config.get("anonymous", "allow"));
-        java.util.Set<String> supers = new java.util.LinkedHashSet<>(
-                java.util.List.of("realm:admin", "realm-management.realm-admin"));
+        Set<String> supers = new LinkedHashSet<>(List.of("realm:admin", "realm-management.realm-admin"));
         config.get("super-roles").ifPresent(v -> {
             for (String s : v.split(",")) {
                 if (!s.isBlank()) {

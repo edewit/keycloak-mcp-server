@@ -162,4 +162,63 @@ class SensitiveTest {
         return new AuditEvent(Instant.now(), "t", null, null, null, Map.of(), "ok", null, "direct", Caller.NONE, "-",
                 "-", Duration.ZERO);
     }
+
+    @Test
+    void redactionLooksIntoNestedMapsListsAndJsonUpToADepth() {
+        Map<String, Object> args = Map.of("config",
+                Map.of("connection", Map.of("clientSecret", "s3cr3t", "url", "https://x")), "items",
+                List.of(Map.of("password", "pw-1"), Map.of("name", "ok")), "json",
+                new JsonObject().put("inner", new JsonObject().put("refreshToken", "rt-1")));
+        Map<String, Object> out = Sensitive.redact(null, args);
+        Map<?, ?> connection = (Map<?, ?>) ((Map<?, ?>) out.get("config")).get("connection");
+        assertEquals(Sensitive.MASK, connection.get("clientSecret"));
+        assertEquals("https://x", connection.get("url"));
+        List<?> items = (List<?>) out.get("items");
+        assertEquals(Sensitive.MASK, ((Map<?, ?>) items.get(0)).get("password"));
+        assertEquals("ok", ((Map<?, ?>) items.get(1)).get("name"));
+        assertEquals(Sensitive.MASK, ((Map<?, ?>) ((Map<?, ?>) out.get("json")).get("inner")).get("refreshToken"));
+
+        Object deep = "bottom";
+        for (int i = 0; i < 12; i++) {
+            deep = Map.of("level", deep);
+        }
+        Object cut = Sensitive.redact(null, Map.of("deep", deep)).get("deep");
+        int levels = 0;
+        while (cut instanceof Map<?, ?> m) {
+            cut = m.get("level");
+            levels++;
+        }
+        assertEquals(Sensitive.MASK, cut, "past the depth limit the rest is masked, not shown");
+        assertTrue(levels <= 8, String.valueOf(levels));
+    }
+
+    @Test
+    void auditMessagesLoseSecretsAndStayShort() {
+        JsonObject schema = InputSchema.builder().string("id", "u").string("password", "p").sensitive().build();
+        Map<String, Object> args = Map.of("id", "u1", "password", "Hunter2!");
+        String scrubbed = Sensitive.scrub(
+                "Keycloak refused password Hunter2! for u1; Authorization: Bearer abcdef123456;"
+                        + " token eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjMifQ.c2lnbmF0dXJl; client_secret=very-secret",
+                schema, args);
+        assertFalse(scrubbed.contains("Hunter2"), scrubbed);
+        assertFalse(scrubbed.contains("abcdef123456"), scrubbed);
+        assertFalse(scrubbed.contains("eyJhbGciOiJSUzI1NiJ9"), scrubbed);
+        assertFalse(scrubbed.contains("very-secret"), scrubbed);
+        assertTrue(scrubbed.contains("u1"), "what identifies the call stays: " + scrubbed);
+        assertTrue(Sensitive.scrub("x".repeat(2000), schema, args).length() <= 500);
+
+        List<AuditEvent> events = new ArrayList<>();
+        ToolSpec reset = ToolSpec.builder("keycloak_user_reset_password")
+            .title("Reset password")
+            .description("d")
+            .category(Category.USERS)
+            .destructive()
+            .schema(InputSchema.builder().string("id", "u").string("password", "p").sensitive())
+            .handler(call -> ToolResult.ok(Map.of()))
+            .build();
+        AuditLogAccess.recordResult(List.of(events::add), reset, args,
+                ToolResult.error("tool_failed", "password Hunter2! violates the policy"));
+        assertEquals("tool_failed", events.get(0).outcome());
+        assertFalse(events.get(0).message().contains("Hunter2"), events.get(0).message());
+    }
 }

@@ -82,7 +82,7 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
         int taken = PendingApprovalEntity.update("generation = ?1, authReqId = null, requestId = null, code = null,"
                 + " bindingMessage = null, issuer = null, loginHint = null, callerSubject = null, callerIssuer = null,"
                 + " operation = null, operationHash = null, system = null, realm = null, intervalSeconds = 0,"
-                + " claimedBy = null, claimedUntil = null, expiresAt = ?2, createdAt = ?3"
+                + " claimedBy = null, claimedUntil = null, approvedAt = null, expiresAt = ?2, createdAt = ?3"
                 + " where id = ?4 and expiresAt <= ?3", generation, until, now, key);
         if (taken == 1) {
             return true;
@@ -129,6 +129,14 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
                 "claimedBy = ?1, claimedUntil = ?2 where id = ?3 and generation = ?4"
                         + " and expiresAt > ?5 and (claimedBy is null or claimedBy = ?1 or claimedUntil <= ?5)",
                 collector, until, key, generation, now) == 1;
+    }
+
+    @Override
+    @Transactional
+    public boolean markApproved(String key, String generation) {
+        long now = System.currentTimeMillis();
+        return PendingApprovalEntity.update("approvedAt = ?1 where id = ?2 and generation = ?3 and expiresAt > ?1", now,
+                key, generation) == 1;
     }
 
     @Override
@@ -185,6 +193,6 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
         return new PendingApproval(e.id, e.generation, e.authReqId == null ? null : crypto.reveal(e.authReqId),
                 e.requestId, e.code, e.bindingMessage, e.issuer, e.loginHint, e.callerSubject, e.callerIssuer,
                 e.operation, e.operationHash, e.system, e.realm, e.expiresAt, e.intervalSeconds, e.createdAt,
-                e.claimedBy, e.claimedUntil == null ? 0 : e.claimedUntil);
+                e.claimedBy, e.claimedUntil == null ? 0 : e.claimedUntil, e.approvedAt != null);
     }
 }

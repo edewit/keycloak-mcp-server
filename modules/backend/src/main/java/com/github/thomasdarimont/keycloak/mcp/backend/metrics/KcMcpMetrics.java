@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.metrics;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -299,7 +300,7 @@ public class KcMcpMetrics {
             .ofLongs()
             .setDescription("Open MCP sessions, by client")
             .buildWithCallback(m -> {
-                Map<String, Long> byClient = new java.util.HashMap<>();
+                Map<String, Long> byClient = new HashMap<>();
                 try {
                     for (String c : clients.get()) {
                         byClient.merge(clientName(c), 1L, Long::sum);

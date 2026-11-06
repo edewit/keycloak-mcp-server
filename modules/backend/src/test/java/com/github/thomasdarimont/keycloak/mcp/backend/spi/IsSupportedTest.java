@@ -2,7 +2,9 @@ package com.github.thomasdarimont.keycloak.mcp.backend.spi;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
@@ -94,11 +96,11 @@ class IsSupportedTest {
     @Test
     void requiredExtensionsFailClosed() {
         Picky p = new Picky("picky");
-        IllegalStateException off = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+        IllegalStateException off = Assertions.assertThrows(IllegalStateException.class,
                 () -> Extensions.usable(p, "AccessCheck", config(Map.of("kc-mcp.spi.picky.required", "true",
                         "kc-mcp.spi.picky.enabled", "false", "kc-mcp.spi.picky.needs", "x"))));
         assertTrue(off.getMessage().contains("switched off"), off.getMessage());
-        IllegalStateException unsupported = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+        IllegalStateException unsupported = Assertions.assertThrows(IllegalStateException.class,
                 () -> Extensions.usable(p, "AccessCheck", config(Map.of("kc-mcp.spi.picky.required", "true"))));
         assertTrue(unsupported.getMessage().contains("not supported"), unsupported.getMessage());
         assertTrue(Extensions.usable(p, "AccessCheck",
@@ -108,11 +110,32 @@ class IsSupportedTest {
     @Test
     void aFailingIsSupportedStopsASharedServer() {
         Picky p = new Picky("picky");
-        IllegalStateException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
-                () -> Extensions.usable(p, "Confirmer",
-                        config(Map.of("kc-mcp.spi.picky.boom", "true", "kc-mcp.profile", "shared"))));
+        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, () -> Extensions.usable(p,
+                "Confirmer", config(Map.of("kc-mcp.spi.picky.boom", "true", "kc-mcp.profile", "shared"))));
         assertTrue(e.getMessage().contains("profile shared"), e.getMessage());
         assertFalse(Extensions.usable(p, "Confirmer", config(Map.of("kc-mcp.spi.picky.boom", "true"))),
                 "local: logged and left out");
+    }
+
+    @Test
+    void aRequiredExtensionThatIsNotInstalledStopsTheStart() {
+        assertEquals(List.of("acme-policy"),
+                Extensions.missingRequired(
+                        config(Map.of("kc-mcp.spi.acme-policy.required", "true", "kc-mcp.spi.other.required", "false")),
+                        Set.of()));
+        assertTrue(Extensions
+            .missingRequired(config(Map.of("kc-mcp.spi.acme-policy.required", "true")), Set.of("acme-policy"))
+            .isEmpty(), "installed");
+
+        Extensions empty = new Extensions(null, getClass().getClassLoader(), null) {
+            @Override
+            public <T> List<T> discover(Class<T> spi) {
+                return List.of();
+            }
+        };
+        DefaultExtensionRegistry registry = new DefaultExtensionRegistry(empty, null,
+                config(Map.of("kc-mcp.spi.acme-policy.required", "true")));
+        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, () -> registry.onStart(null));
+        assertTrue(e.getMessage().contains("acme-policy"), e.getMessage());
     }
 }

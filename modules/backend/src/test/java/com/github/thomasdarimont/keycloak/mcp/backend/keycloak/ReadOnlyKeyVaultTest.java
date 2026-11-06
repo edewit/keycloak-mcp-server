@@ -3,14 +3,17 @@ package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.github.thomasdarimont.keycloak.mcp.keycloak.DefaultSigningKeyGenerator;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKeyGenerator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,8 +70,8 @@ class ReadOnlyKeyVaultTest {
         // a vault that can create (a database-backed one) is asked on first use, with the
         // server's generator
         KeyVault creating = new KeyVault() {
-            final Map<String, SigningKey> keys = new java.util.HashMap<>();
-            com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKeyGenerator generator;
+            final Map<String, SigningKey> keys = new HashMap<>();
+            SigningKeyGenerator generator;
 
             @Override
             public String id() {
@@ -81,7 +84,7 @@ class ReadOnlyKeyVaultTest {
             }
 
             @Override
-            public void useSigningKeyGenerator(com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKeyGenerator g) {
+            public void useSigningKeyGenerator(SigningKeyGenerator g) {
                 generator = g;
             }
 
@@ -97,8 +100,7 @@ class ReadOnlyKeyVaultTest {
                 return Optional.ofNullable(keys.get(system));
             }
         };
-        creating
-            .useSigningKeyGenerator(new com.github.thomasdarimont.keycloak.mcp.keycloak.DefaultSigningKeyGenerator());
+        creating.useSigningKeyGenerator(new DefaultSigningKeyGenerator());
         SigningKey made = SigningKeys.resolve(creating, "tenant-b").orElseThrow();
         assertEquals("ES256", made.algorithm());
         assertSame(made, SigningKeys.resolve(creating, "tenant-b").orElseThrow(), "found afterwards, not recreated");

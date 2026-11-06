@@ -1,8 +1,10 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -23,6 +25,8 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+
+import io.vertx.core.json.JsonObject;
 
 /**
  * The single execution path for every tool, whether called directly or through
@@ -198,7 +202,7 @@ public class ToolInvoker {
                                 "defaultRealm", realm);
                     }
                     else {
-                        java.util.Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin);
+                        Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin);
                         result = denied.isPresent() ? denied.get()
                                 : runWithConfirmation(spec, system, admin, realm, args, confirmFlag, ctx);
                     }
@@ -250,8 +254,8 @@ public class ToolInvoker {
      * takes them.
      */
     private static Map<String, Object> withBinding(ToolSpec spec, Map<String, Object> rawArgs, EntryBinding binding) {
-        Map<String, Object> prepared = new java.util.LinkedHashMap<>(rawArgs);
-        io.vertx.core.json.JsonObject props = spec.inputSchema().getJsonObject("properties");
+        Map<String, Object> prepared = new LinkedHashMap<>(rawArgs);
+        JsonObject props = spec.inputSchema().getJsonObject("properties");
         if (props != null && props.containsKey(InputSchema.SYSTEM)) {
             prepared.put(InputSchema.SYSTEM, binding.system());
         }
@@ -284,7 +288,7 @@ public class ToolInvoker {
                             : "The user declined to confirm " + spec.name() + ".", flatten(decision.details()));
                 }
                 case CONFIRMATION_REQUIRED, ABSTAIN -> {
-                    Map<String, Object> fields = new java.util.LinkedHashMap<>();
+                    Map<String, Object> fields = new LinkedHashMap<>();
                     ConfirmationGuidance.Mode mode = guidance.mode(ctx);
                     if (mode == ConfirmationGuidance.Mode.ASK && !confirmFallback.acceptsFlag()) {
                         mode = ConfirmationGuidance.Mode.SERVER;

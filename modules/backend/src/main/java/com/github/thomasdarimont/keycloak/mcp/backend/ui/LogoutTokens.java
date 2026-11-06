@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.json.JsonObject;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
@@ -93,7 +94,7 @@ public class LogoutTokens {
 
     private LogoutToken checked(JsonWebToken jwt, UiTenant.Idp idp) {
         Object events = jwt.getClaim("events");
-        if (!(events instanceof jakarta.json.JsonObject o) || !o.containsKey(EVENT)) {
+        if (!(events instanceof JsonObject o) || !o.containsKey(EVENT)) {
             throw new InvalidLogoutToken("logout_token without the events entry " + EVENT);
         }
         if (jwt.containsClaim("nonce")) {

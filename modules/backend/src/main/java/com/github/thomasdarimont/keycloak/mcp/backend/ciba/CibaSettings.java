@@ -1,8 +1,10 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.ciba;
 
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
@@ -63,7 +65,7 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
         ClientAuth clientAuth, String scope, String acrValues, String loginHint, boolean bindingMessage,
         String bindingMessagePrefix, boolean requestedExpiry, int timeoutSeconds, When when, Flow flow,
         boolean numberMatching, boolean extraParameters, int pollWaitSeconds, String tlsConfigurationName,
-        java.time.Duration connectTimeout, java.time.Duration readTimeout) {
+        Duration connectTimeout, Duration readTimeout) {
 
     public enum Flow {
         TWO_STEP, BLOCKING;
@@ -129,11 +131,9 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
                 Flow.parse(config.get("flow", "two-step")), config.getBoolean("number-matching", true),
                 config.getBoolean("extra-parameters", true), config.getInt("poll-wait-seconds", 5),
                 config.get("tls-configuration-name").filter(v -> !v.isBlank()).orElse(null),
-                com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients
-                    .duration(config.get("connect-timeout"), "kc-mcp.spi.ciba-confirmer.connect-timeout")
+                OutboundClients.duration(config.get("connect-timeout"), "kc-mcp.spi.ciba-confirmer.connect-timeout")
                     .orElse(null),
-                com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients
-                    .duration(config.get("read-timeout"), "kc-mcp.spi.ciba-confirmer.read-timeout")
+                OutboundClients.duration(config.get("read-timeout"), "kc-mcp.spi.ciba-confirmer.read-timeout")
                     .orElse(null));
     }
 

@@ -5,6 +5,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -32,6 +34,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Started;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaSettings.Flow;
 import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
+import com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
@@ -83,8 +86,9 @@ public class CibaConfirmer implements Confirmer {
     static final Duration RESERVATION = Duration.ofSeconds(30);
 
     /**
-     * A collector's claim lasts its poll wait plus this, so that a crashed collector does
-     * not block for long.
+     * A collector's claim lasts one poll (the read timeout) plus this, renewed before
+     * every poll, so that it cannot run out while a poll is in flight; a crashed
+     * collector blocks for at most that long.
      */
     static final Duration CLAIM_MARGIN = Duration.ofSeconds(15);
 
@@ -113,7 +117,7 @@ public class CibaConfirmer implements Confirmer {
         m.put("scope", "scope");
         m.put("type", "type");
         m.put("name", "name");
-        return java.util.Collections.unmodifiableMap(m);
+        return Collections.unmodifiableMap(m);
     }
 
     private final CibaSettings settings;
@@ -126,6 +130,8 @@ public class CibaConfirmer implements Confirmer {
     private final SecureRandom random = new SecureRandom();
     private Duration pollFloor = Duration.ofSeconds(1);
     private KcMcpMetrics metrics = KcMcpMetrics.noop();
+    /** How long one poll of the provider may take: the read timeout of its client. */
+    private final Duration readTimeout;
     /**
      * The JAX-RS client shared by the providers' CIBA clients; {@code null} when the
      * clients come from outside.
@@ -165,9 +171,12 @@ public class CibaConfirmer implements Confirmer {
             TlsConfigurationRegistry tls, OutboundClients.Timeouts timeouts) {
         this.settings = settings;
         this.defaultIssuer = defaultIssuer;
+        this.readTimeout = timeouts
+            .with(Optional.ofNullable(settings.connectTimeout()), Optional.ofNullable(settings.readTimeout()))
+            .read();
         Client http = clients == null && settings.enabled() ? OutboundClients.create(
-                timeouts.with(java.util.Optional.ofNullable(settings.connectTimeout()),
-                        java.util.Optional.ofNullable(settings.readTimeout())),
+                timeouts.with(Optional.ofNullable(settings.connectTimeout()),
+                        Optional.ofNullable(settings.readTimeout())),
                 settings.tlsConfigurationName(), tls, "kc-mcp.spi.ciba-confirmer.tls-configuration-name") : null;
         this.http = http;
         this.clients = clients != null ? clients : issuer -> new CibaClient(http, issuer, settings.clientId(),
@@ -351,17 +360,26 @@ public class CibaConfirmer implements Confirmer {
             return Decision.declined("The pending approval belongs to another operation; nothing was changed.",
                     Map.of("approval", Map.of("status", "mismatch")));
         }
+        if (p.approved()) {
+            // a collector got the provider's approval and stalled before consuming it:
+            // consume it now
+            return store.remove(key, p.generation()) ? Decision.confirmed()
+                    : Decision.confirmationRequired(
+                            "The approval of '" + operation + "' was already used by a"
+                                    + " parallel call; nothing was changed by this one.",
+                            Map.of("approval", Map.of("status", "consumed")));
+        }
         long now = System.currentTimeMillis();
         long waitUntil = Math.min(p.expiresAt(), now + Duration.ofSeconds(settings.pollWaitSeconds()).toMillis());
         String collector = UUID.randomUUID().toString();
-        if (!store.claim(key, p.generation(), collector, waitUntil + CLAIM_MARGIN.toMillis())) {
+        if (!store.claim(key, p.generation(), collector, now + lease())) {
             // another call is polling the provider right now: report pending without
             // polling twice
             return awaiting(p, false);
         }
         Decision d;
         try {
-            d = await(client, p, waitUntil);
+            d = await(client, p, waitUntil, key, collector);
         }
         catch (RuntimeException e) {
             store.release(key, p.generation(), collector);
@@ -419,6 +437,20 @@ public class CibaConfirmer implements Confirmer {
      * asked.
      */
     private Decision await(CibaClient client, PendingApproval p, long untilMillis) {
+        return await(client, p, untilMillis, null, null);
+    }
+
+    /** How long a claim must last: one poll at most, plus the margin. */
+    private long lease() {
+        return readTimeout.toMillis() + CLAIM_MARGIN.toMillis();
+    }
+
+    /**
+     * @param key the store key in the two-step flow, {@code null} in the blocking one
+     * @param collector the claim holder; the claim is renewed before every poll, and a
+     * collector that lost it stops without polling
+     */
+    private Decision await(CibaClient client, PendingApproval p, long untilMillis, String key, String collector) {
         Duration interval = Duration.ofSeconds(p.intervalSeconds());
         if (interval.compareTo(pollFloor) < 0) {
             interval = pollFloor;
@@ -442,6 +474,11 @@ public class CibaConfirmer implements Confirmer {
                 Thread.currentThread().interrupt();
                 return Decision.declined("Confirmation of '" + p.operation() + "' interrupted.");
             }
+            if (key != null && !store.claim(key, p.generation(), collector, System.currentTimeMillis() + lease())) {
+                // another collector took over (or the approval is gone): leave the
+                // polling to it
+                return Decision.confirmationRequired("still waiting", Map.of("waiting", true));
+            }
             Poll poll = client.poll(p.authReqId());
             switch (poll.status()) {
                 case APPROVED -> {
@@ -456,6 +493,9 @@ public class CibaConfirmer implements Confirmer {
                     }
                     LOG.infof("CIBA request %s approved by %s (sub %s)", p.requestId(), p.loginHint(), who.subject());
                     decided(p, "approved");
+                    if (key != null && !store.markApproved(key, p.generation())) {
+                        LOG.warnf("CIBA request %s: approved, but the approval is gone from the store", p.requestId());
+                    }
                     return Decision.confirmed();
                 }
                 case DENIED -> {
@@ -602,7 +642,7 @@ public class CibaConfirmer implements Confirmer {
      * values. At most 200 characters, Keycloak's limit for an additional parameter.
      */
     static String operation(ConfirmationRequest r) {
-        List<String[]> targets = new java.util.ArrayList<>();
+        List<String[]> targets = new ArrayList<>();
         for (Map.Entry<String, String> e : TARGET_ARGS.entrySet()) {
             Object v = r.args().get(e.getKey());
             if (v == null || String.valueOf(v).isBlank()) {
@@ -611,7 +651,7 @@ public class CibaConfirmer implements Confirmer {
             if (e.getKey().equals("id") && r.args().get("username") != null) {
                 continue;
             }
-            if (com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive.argument(r.tool().inputSchema(), e.getKey())) {
+            if (Sensitive.argument(r.tool().inputSchema(), e.getKey())) {
                 continue; // never on the device
             }
             targets.add(new String[] { e.getValue(), String.valueOf(v) });

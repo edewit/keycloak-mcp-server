@@ -1,6 +1,9 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.http;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -150,12 +153,11 @@ public class EntryTenantResolver implements TenantConfigResolver {
      * that lets the caller delegate to the system's client, else
      * {@code kc-mcp.admin-api-scope}; empty for none.
      */
-    private java.util.Set<String> scopesFor(KeycloakSystem system) {
+    private Set<String> scopesFor(KeycloakSystem system) {
         if (config.delegation() == DelegationMode.EXCHANGE && system.clientId().filter(v -> !v.isBlank()).isPresent()) {
-            return new java.util.LinkedHashSet<>(
-                    java.util.List.of("openid", TokenExchange.delegationScope(system.clientId().get())));
+            return new LinkedHashSet<>(List.of("openid", TokenExchange.delegationScope(system.clientId().get())));
         }
         String scope = config.adminApiScope();
-        return scope == null || scope.isBlank() ? java.util.Set.of() : java.util.Set.of(scope.trim());
+        return scope == null || scope.isBlank() ? Set.of() : Set.of(scope.trim());
     }
 }

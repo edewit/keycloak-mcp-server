@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.keycloak;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import jakarta.ws.rs.NotFoundException;
@@ -140,7 +141,7 @@ public interface KeycloakAdmin extends AccessTokenSource {
         }
         // search returns the top-level ancestors with matching subgroups nested
         // underneath: flatten first
-        List<GroupRepresentation> found = new java.util.ArrayList<>();
+        List<GroupRepresentation> found = new ArrayList<>();
         flattenGroups(r.groups().groups(idOrPathOrName, true, 0, 20, false), found);
         List<GroupRepresentation> exact = found.stream().filter(g -> idOrPathOrName.equals(g.getName())).toList();
         if (exact.size() == 1) {

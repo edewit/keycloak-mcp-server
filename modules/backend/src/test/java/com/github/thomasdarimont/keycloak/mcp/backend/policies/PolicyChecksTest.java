@@ -10,6 +10,7 @@ import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
+import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 
@@ -39,7 +40,7 @@ class PolicyChecksTest {
         .group("/admins", Set.of("realm:admin"), Set.of());
 
     static ToolSpec tool(String name, String... params) {
-        var schema = com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema.builder();
+        var schema = InputSchema.builder();
         for (String p : params) {
             schema.string(p, p);
         }

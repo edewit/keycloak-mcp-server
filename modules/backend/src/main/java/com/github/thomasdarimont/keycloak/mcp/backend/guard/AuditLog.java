@@ -80,11 +80,15 @@ public class AuditLog {
         String message = null;
         if (result.isError() && result.payload() instanceof Map<?, ?> m && m.get("error") != null) {
             outcome = String.valueOf(m.get("error"));
-            message = m.get("message") == null ? null : String.valueOf(m.get("message"));
+            // a raw exception text may echo what the caller sent or what a server
+            // answered:
+            // secrets out, length capped
+            message = m.get("message") == null ? null
+                    : Sensitive.scrub(String.valueOf(m.get("message")), spec.inputSchema(), args);
         }
         else if (result.isError()) {
+            // no structured error: the code only, never the result itself
             outcome = "error";
-            message = result.toJson();
         }
         AuditEvent event = new AuditEvent(Instant.now(), spec.name(), spec.level(), system, realm,
                 Sensitive.redact(spec.inputSchema(), args), outcome, message, ctx.via(), ctx.caller().withoutToken(),

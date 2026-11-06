@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.backend.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
@@ -67,14 +68,12 @@ class ConfirmerChainTest {
 
     @Test
     void denyFallbackIgnoresTheFlag() {
-        ConfirmerChain chain = new ConfirmerChain(
-                List.of(new DefaultConfirmer(com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback.DENY)));
+        ConfirmerChain chain = new ConfirmerChain(List.of(new DefaultConfirmer(ConfirmFallback.DENY)));
         Decision d = chain.confirm(request(true));
         assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, d.outcome());
         assertEquals(DefaultConfirmer.ELICITATION_REQUIRED, d.message());
         assertEquals(Decision.Outcome.CONFIRMED,
-                new ConfirmerChain(List.of(ordered(1, Decision.CONFIRMED),
-                        new DefaultConfirmer(com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback.DENY)))
+                new ConfirmerChain(List.of(ordered(1, Decision.CONFIRMED), new DefaultConfirmer(ConfirmFallback.DENY)))
                     .confirm(request(false))
                     .outcome(),
                 "another confirmer (ticket, CIBA) may still confirm");

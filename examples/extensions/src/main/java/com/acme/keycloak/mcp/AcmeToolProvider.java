@@ -1,6 +1,7 @@
 package com.acme.keycloak.mcp;
 
 import java.util.List;
+import java.util.Map;
 
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -60,7 +61,7 @@ public class AcmeToolProvider extends AbstractToolProvider {
                             .stream()
                             .map(GroupRepresentation::getPath)
                             .toList();
-                        return ToolResult.ok(java.util.Map.of("user", Views.user(u), "groups", groups, "summary",
+                        return ToolResult.ok(Map.of("user", Views.user(u), "groups", groups, "summary",
                                 u.getUsername() + " is " + (Boolean.TRUE.equals(u.isEnabled()) ? "enabled" : "disabled")
                                         + ", " + groups.size() + " group(s)"));
                     })

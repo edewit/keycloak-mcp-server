@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -67,7 +68,7 @@ public class AccessPolicy {
 
     private final boolean readOnly;
     private final Set<String> allowedRealms;
-    private final java.util.function.Function<String, Set<String>> allowedRealmsBySystem;
+    private final Function<String, Set<String>> allowedRealmsBySystem;
     private final Set<String> allowedTools;
     private final Set<String> deniedTools;
     private final Set<Category> allowedCategories;
@@ -116,7 +117,7 @@ public class AccessPolicy {
 
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
-            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem) {
+            List<AccessCheck> globalChecks, Function<String, Set<String>> allowedRealmsBySystem) {
         this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
                 allowedRealmsBySystem, null);
     }
@@ -127,7 +128,7 @@ public class AccessPolicy {
      */
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
-            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            List<AccessCheck> globalChecks, Function<String, Set<String>> allowedRealmsBySystem,
             CapabilityDiscovery capabilities) {
         this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
                 allowedRealmsBySystem, capabilities, Explanations.AUTO);
@@ -139,7 +140,7 @@ public class AccessPolicy {
      */
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
-            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            List<AccessCheck> globalChecks, Function<String, Set<String>> allowedRealmsBySystem,
             CapabilityDiscovery capabilities, Explanations explanations) {
         this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
                 allowedRealmsBySystem, capabilities, explanations, null, DelegationMode.OFF);
@@ -151,7 +152,7 @@ public class AccessPolicy {
      */
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
-            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            List<AccessCheck> globalChecks, Function<String, Set<String>> allowedRealmsBySystem,
             CapabilityDiscovery capabilities, Explanations explanations, KeycloakSystems systems,
             DelegationMode delegation) {
         this.systems = systems;

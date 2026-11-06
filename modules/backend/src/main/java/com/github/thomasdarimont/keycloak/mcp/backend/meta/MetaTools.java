@@ -1,12 +1,15 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.meta;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -80,7 +83,7 @@ public class MetaTools {
      * rephrasing. Lock-free; past {@link #MAX_MISSES_TRACKED} entries the map is cleared,
      * which only resets the brake for abandoned connections.
      */
-    private final java.util.concurrent.ConcurrentMap<String, Integer> misses = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Integer> misses = new ConcurrentHashMap<>();
     private final int defaultLimit;
     private final DelegationMode delegation;
     private ConfirmationGuidance guidance = ConfirmationGuidance.standalone();
@@ -173,7 +176,7 @@ public class MetaTools {
         return InputSchema.builder()
             .string("query", "What you want to do, e.g. \"disable user\", \"list clients\", \"ldap sync\"")
             .enumeration("category", "Restrict to one area",
-                    java.util.Arrays.stream(Category.values()).map(Category::id).toArray(String[]::new))
+                    Arrays.stream(Category.values()).map(Category::id).toArray(String[]::new))
             .integer("limit", "Max tools to return")
             .min(1)
             .max(SEARCH_LIMIT_MAX)

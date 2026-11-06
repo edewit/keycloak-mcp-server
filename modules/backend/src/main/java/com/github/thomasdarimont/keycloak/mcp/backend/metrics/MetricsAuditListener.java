@@ -3,8 +3,12 @@ package com.github.thomasdarimont.keycloak.mcp.backend.metrics;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.eclipse.microprofile.config.ConfigProvider;
+
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
  * Turns every audited tool call into the tool and refusal metrics: the audit log is the
@@ -41,11 +45,8 @@ public class MetricsAuditListener implements AuditListener {
      * otherwise every call would be a no-op.
      */
     @Override
-    public boolean isSupported(com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig serverConfig,
-            com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig config) {
-        return !org.eclipse.microprofile.config.ConfigProvider.getConfig()
-            .getOptionalValue("quarkus.otel.sdk.disabled", Boolean.class)
-            .orElse(false);
+    public boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {
+        return !ConfigProvider.getConfig().getOptionalValue("quarkus.otel.sdk.disabled", Boolean.class).orElse(false);
     }
 
     @Override

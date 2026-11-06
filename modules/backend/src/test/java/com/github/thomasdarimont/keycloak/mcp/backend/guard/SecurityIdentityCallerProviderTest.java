@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import jakarta.json.Json;
@@ -73,7 +74,7 @@ class SecurityIdentityCallerProviderTest {
         // the token and its claims travel along for access checks, as plain Java values
         assertEquals("eyJhbGciOiJub25lIn0.e30.sig", c.rawToken());
         assertEquals("alice", c.claim("preferred_username"));
-        assertEquals(java.util.List.of("group-manager"), ((Map<?, ?>) c.claim("realm_access")).get("roles"));
+        assertEquals(List.of("group-manager"), ((Map<?, ?>) c.claim("realm_access")).get("roles"));
         assertFalse(c.claims().containsKey("raw_token"));
         assertFalse(c.toString().contains("eyJ"), c.toString());
         assertTrue(c.toString().contains("token=present"), c.toString());

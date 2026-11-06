@@ -1,5 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.access;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -31,8 +33,7 @@ public record Caller(String subject, String name, String realm, boolean delegate
 
     public Caller {
         roles = Set.copyOf(roles == null ? Set.of() : roles);
-        claims = claims == null ? Map.of()
-                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(claims));
+        claims = claims == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(claims));
     }
 
     public Caller(String subject, String name, String realm, boolean delegated, Set<String> roles) {

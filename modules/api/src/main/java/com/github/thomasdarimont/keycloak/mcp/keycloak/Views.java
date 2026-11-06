@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.GroupRepresentation;
@@ -100,8 +101,7 @@ public final class Views {
         return m;
     }
 
-    public static <T> List<Map<String, Object>> list(List<T> items,
-            java.util.function.Function<T, Map<String, Object>> f) {
+    public static <T> List<Map<String, Object>> list(List<T> items, Function<T, Map<String, Object>> f) {
         List<Map<String, Object>> out = new ArrayList<>(items.size());
         for (T t : items) {
             out.add(f.apply(t));

@@ -15,14 +15,17 @@ import com.github.thomasdarimont.keycloak.mcp.backend.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.CapabilityDiscovery;
+import com.github.thomasdarimont.keycloak.mcp.backend.guard.ConfirmationGuidance;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ToolInvoker;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
+import com.github.thomasdarimont.keycloak.mcp.config.ModelConfirmation;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
@@ -426,9 +429,7 @@ class MetaToolsTest {
             .orElse(null);
         assertTrue(search == null || !search.containsKey("confirmation"), "read tools carry no guidance");
 
-        m.guidance(new com.github.thomasdarimont.keycloak.mcp.backend.guard.ConfirmationGuidance(
-                com.github.thomasdarimont.keycloak.mcp.config.ModelConfirmation.SERVER,
-                com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback.FLAG, true, java.util.Set.of()));
+        m.guidance(new ConfirmationGuidance(ModelConfirmation.SERVER, ConfirmFallback.FLAG, true, Set.of()));
         Map<String, Object> server = payload(m.search("delete user", null, 5, "c1", ExposureMode.HYBRID));
         Map<?, ?> again = ((List<?>) server.get("tools")).stream()
             .map(t -> (Map<?, ?>) t)

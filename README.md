@@ -101,7 +101,9 @@ Open items: §Roadmap.
 - Sensitive values: arguments declared `.sensitive()` (JSON Schema `writeOnly`, `format: password`, so clients can mask
   them) and keys of map arguments declared `.sensitiveKeys(...)` never reach the audit log, the elicitation prompt or
   the CIBA device; undeclared names that end like a secret (`password`, `clientSecret`, `bindCredential`,
-  `privateKey`, ...) are treated the same way, settings that only mention the word (`passwordPolicy`) are not. Tools
+  `privateKey`, ...) are treated the same way at any depth of nested maps and lists, settings that only mention the
+  word (`passwordPolicy`) are not. Error messages reach the audit with the values of sensitive arguments, bearer
+  tokens, JWTs and `password=...` assignments taken out, at most 500 characters. Tools
   whose result is a secret (`keycloak_client_get_secret`, `..._regenerate_secret`) declare `.sensitiveResult()`: the
   caller still gets it, the audit line says `result=sensitive`. The MCP traffic log
   (`quarkus.mcp.server.traffic-logging.enabled`) writes everything verbatim; profile `shared` does not start with it.
@@ -598,8 +600,8 @@ public class AcmeToolProvider implements ToolProvider {
   extension that needs a setting, a feature or a capability answers `false` when it is missing and is left out as if
   it were not installed (logged, not fatal; an exception counts as `false`). Applies to every extension point: tools,
   prompts, access checks, confirmers, audit listeners and scrubbers, profile checks, system repositories, key vaults,
-  key generators, session and approval stores. Fail closed: `kc-mcp.spi.<id>.required=true` makes a switched-off or
-  unsupported extension stop the start (mark security controls such as an `AccessCheck` or a `Confirmer` this way),
+  key generators, session and approval stores. Fail closed: `kc-mcp.spi.<id>.required=true` makes a missing,
+  switched-off or unsupported extension stop the start (mark security controls such as an `AccessCheck` or a `Confirmer` this way),
   and an `isSupported` that throws stops a server in profile `shared`. Extension points are resolved at startup, so
   these rules apply before the first call. To refuse the start for other reasons, contribute a `ProfileCheck`. Built in:
   the CIBA confirmer is supported only with `kc-mcp.spi.ciba-confirmer.enabled=true`, the metrics audit listener only
@@ -668,7 +670,9 @@ What makes the approval trustworthy:
 - One approval per session and operation, reserved atomically in the `PendingApprovalStore` with an opaque generation
   that every later change names: a late filer whose reservation expired cannot overwrite the next one, and an old
   generation cannot be consumed. One collector at a time holds a short claim and polls the provider; parallel calls
-  answer pending without polling, and a decision is consumed once.
+  answer pending without polling, and a decision is consumed once. The claim is renewed before every poll and lasts
+  the read timeout plus a margin, so it cannot run out during a slow poll; an approval the provider confirmed is
+  recorded for its generation before it is consumed, so a collector that stalls afterwards cannot lose it.
 - No session, no two-step: a stateless MCP request (no `Mcp-Session-Id`) waits for the device within the call
   instead, since nothing would tie a second call to the first.
 - Who approved is verified: the ID token the token endpoint returns on approval must verify against the provider's

@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.testcontainers.containers.GenericContainer;
@@ -54,7 +55,7 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
         catch (IOException | InterruptedException e) {
             throw new IllegalStateException("Keycloak bootstrap failed", e);
         }
-        Map<String, String> config = new java.util.HashMap<>(baseConfig());
+        Map<String, String> config = new HashMap<>(baseConfig());
         config.putAll(extraConfig());
         return config;
     }

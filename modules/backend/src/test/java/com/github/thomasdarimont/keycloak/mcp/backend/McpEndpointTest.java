@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend;
 
 import java.util.List;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -9,6 +10,7 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.RecordingAuditListener;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.RestAssured;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -33,20 +35,20 @@ class McpEndpointTest {
 
     @Test
     void corsAllowsLocalOriginsOnly() {
-        io.restassured.RestAssured.given()
+        RestAssured.given()
             .header("Origin", "http://localhost:5173")
             .header("Access-Control-Request-Method", "POST")
             .header("Access-Control-Request-Headers", "content-type,mcp-session-id,mcp-protocol-version")
             .options("/mcp")
             .then()
             .header("Access-Control-Allow-Origin", "http://localhost:5173")
-            .header("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsStringIgnoringCase("mcp-session-id"));
-        io.restassured.RestAssured.given()
+            .header("Access-Control-Allow-Headers", Matchers.containsStringIgnoringCase("mcp-session-id"));
+        RestAssured.given()
             .header("Origin", "https://evil.example")
             .header("Access-Control-Request-Method", "POST")
             .options("/mcp")
             .then()
-            .header("Access-Control-Allow-Origin", org.hamcrest.Matchers.nullValue());
+            .header("Access-Control-Allow-Origin", Matchers.nullValue());
     }
 
     @Test

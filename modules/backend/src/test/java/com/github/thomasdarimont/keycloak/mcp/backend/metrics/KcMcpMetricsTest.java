@@ -6,12 +6,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
+import com.github.thomasdarimont.keycloak.mcp.backend.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ConfirmerChain;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
@@ -132,9 +134,7 @@ class KcMcpMetricsTest {
         assertEquals(2, metric(all, "kc_mcp.ciba.requests").getLongSumData().getPoints().iterator().next().getValue());
         var decisions = metric(all, "kc_mcp.ciba.decisions").getLongSumData().getPoints();
         assertEquals(Set.of("approved", "rejected"),
-                decisions.stream()
-                    .map(p -> p.getAttributes().get(KcMcpMetrics.OUTCOME))
-                    .collect(java.util.stream.Collectors.toSet()));
+                decisions.stream().map(p -> p.getAttributes().get(KcMcpMetrics.OUTCOME)).collect(Collectors.toSet()));
         assertEquals(2, metric(all, "kc_mcp.ciba.decision.duration").getHistogramData().getPoints().size());
         assertEquals(3, metric(all, "kc_mcp.ciba.pending").getLongGaugeData().getPoints().iterator().next().getValue());
     }
@@ -173,7 +173,7 @@ class KcMcpMetricsTest {
             }
         };
         ConfirmerChain chain = new ConfirmerChain(List.of(boom, ticket)).metrics(m);
-        var spec = com.github.thomasdarimont.keycloak.mcp.backend.Fixtures.specs()
+        var spec = Fixtures.specs()
             .stream()
             .filter(s -> s.name().equals("keycloak_user_delete"))
             .findFirst()
@@ -184,6 +184,6 @@ class KcMcpMetricsTest {
         var points = metric(reader.collectAllMetrics(), "kc_mcp.confirmation.decisions").getLongSumData().getPoints();
         assertEquals(Set.of("acme-ticket/confirmed", "none/confirmation_required", "flaky/failed"), points.stream()
             .map(p -> p.getAttributes().get(KcMcpMetrics.CONFIRMER) + "/" + p.getAttributes().get(KcMcpMetrics.OUTCOME))
-            .collect(java.util.stream.Collectors.toSet()));
+            .collect(Collectors.toSet()));
     }
 }

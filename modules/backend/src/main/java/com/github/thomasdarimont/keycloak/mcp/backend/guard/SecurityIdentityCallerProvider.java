@@ -10,6 +10,11 @@ import java.util.Set;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
@@ -117,7 +122,7 @@ public class SecurityIdentityCallerProvider implements CallerProvider {
         Object realmAccess = jwt.getClaim("realm_access");
         addRoles(roles, realmAccess, "realm:");
         Object resourceAccess = jwt.getClaim("resource_access");
-        if (resourceAccess instanceof jakarta.json.JsonObject ra) {
+        if (resourceAccess instanceof JsonObject ra) {
             for (String client : ra.keySet()) {
                 addRoles(roles, ra.get(client), client + ".");
             }
@@ -153,38 +158,38 @@ public class SecurityIdentityCallerProvider implements CallerProvider {
     }
 
     private static Object plain(Object v) {
-        if (v instanceof jakarta.json.JsonString s) {
+        if (v instanceof JsonString s) {
             return s.getString();
         }
-        if (v instanceof jakarta.json.JsonNumber n) {
+        if (v instanceof JsonNumber n) {
             return n.isIntegral() ? (Object) n.longValue() : (Object) n.doubleValue();
         }
-        if (v instanceof jakarta.json.JsonObject o) {
+        if (v instanceof JsonObject o) {
             Map<String, Object> m = new LinkedHashMap<>();
             o.forEach((k, x) -> m.put(k, plain(x)));
             return m;
         }
-        if (v instanceof jakarta.json.JsonArray a) {
+        if (v instanceof JsonArray a) {
             List<Object> l = new ArrayList<>();
             a.forEach(x -> l.add(plain(x)));
             return l;
         }
-        if (v == jakarta.json.JsonValue.TRUE) {
+        if (v == JsonValue.TRUE) {
             return Boolean.TRUE;
         }
-        if (v == jakarta.json.JsonValue.FALSE) {
+        if (v == JsonValue.FALSE) {
             return Boolean.FALSE;
         }
-        if (v == jakarta.json.JsonValue.NULL) {
+        if (v == JsonValue.NULL) {
             return null;
         }
         return v;
     }
 
     private static void addRoles(Set<String> roles, Object access, String prefix) {
-        if (access instanceof jakarta.json.JsonObject o && o.containsKey("roles")) {
-            for (jakarta.json.JsonValue v : o.getJsonArray("roles")) {
-                if (v instanceof jakarta.json.JsonString s) {
+        if (access instanceof JsonObject o && o.containsKey("roles")) {
+            for (JsonValue v : o.getJsonArray("roles")) {
+                if (v instanceof JsonString s) {
                     roles.add(prefix + s.getString());
                 }
             }

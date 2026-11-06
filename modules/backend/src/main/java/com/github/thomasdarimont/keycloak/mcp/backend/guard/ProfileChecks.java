@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -84,7 +85,7 @@ public class ProfileChecks {
 
     /** Whether a listen address only reaches this machine. */
     static boolean isLoopback(String host) {
-        return switch (host.trim().toLowerCase(java.util.Locale.ROOT)) {
+        return switch (host.trim().toLowerCase(Locale.ROOT)) {
             case "localhost", "127.0.0.1", "::1", "[::1]", "0:0:0:0:0:0:0:1" -> true;
             default -> host.trim().startsWith("127.");
         };

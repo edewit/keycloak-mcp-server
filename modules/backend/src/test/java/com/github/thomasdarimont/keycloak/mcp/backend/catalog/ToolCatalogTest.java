@@ -3,9 +3,12 @@ package com.github.thomasdarimont.keycloak.mcp.backend.catalog;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.Fixtures;
+import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 
 import io.vertx.core.json.JsonObject;
@@ -116,15 +119,13 @@ class ToolCatalogTest {
 
     @Test
     void builderRefusesAToolWithoutALevel() {
-        com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec.Builder b = com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec
-            .builder("keycloak_nolevel")
+        ToolSpec.Builder b = ToolSpec.builder("keycloak_nolevel")
             .title("n")
             .description("d")
-            .category(com.github.thomasdarimont.keycloak.mcp.catalog.Category.USERS)
+            .category(Category.USERS)
             .handler(call -> null);
-        IllegalStateException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, b::build);
-        org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("keycloak_nolevel"), e.getMessage());
-        org.junit.jupiter.api.Assertions.assertEquals(com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel.READ,
-                b.read().build().level());
+        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, b::build);
+        Assertions.assertTrue(e.getMessage().contains("keycloak_nolevel"), e.getMessage());
+        Assertions.assertEquals(ToolLevel.READ, b.read().build().level());
     }
 }

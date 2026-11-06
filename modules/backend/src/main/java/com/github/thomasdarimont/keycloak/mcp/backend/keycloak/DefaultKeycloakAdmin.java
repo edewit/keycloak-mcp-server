@@ -1,10 +1,14 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.client.Client;
 
 import org.jboss.logging.Logger;
@@ -20,6 +24,8 @@ import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ScopeEvaluation;
+
+import io.vertx.core.json.JsonObject;
 
 /**
  * The server's {@link KeycloakAdmin}: a lazily built admin client for one
@@ -58,7 +64,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     private volatile TokenExchange exchange;
     private final Map<String, Delegate> delegates = new ConcurrentHashMap<>();
     private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
-    private volatile java.time.Duration readTimeout = OutboundClients.Timeouts.DEFAULT.read();
+    private volatile Duration readTimeout = OutboundClients.Timeouts.DEFAULT.read();
 
     public DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys) {
         this(system, jwtKeys, DelegationMode.OFF);
@@ -180,7 +186,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         try {
             String[] parts = jwt.split("\\.");
             if (parts.length >= 2) {
-                var payload = new io.vertx.core.json.JsonObject(
+                var payload = new JsonObject(
                         new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
                 Long exp = payload.getLong("exp");
                 if (exp != null) {
@@ -207,7 +213,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
      * The read timeout of the calls to this system ({@code kc-mcp.http.read-timeout});
      * set before the first call.
      */
-    public DefaultKeycloakAdmin readTimeout(java.time.Duration readTimeout) {
+    public DefaultKeycloakAdmin readTimeout(Duration readTimeout) {
         this.readTimeout = readTimeout == null ? OutboundClients.Timeouts.DEFAULT.read() : readTimeout;
         return this;
     }
@@ -313,7 +319,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         return builder.build();
     }
 
-    private static String require(java.util.Optional<String> value, String key) {
+    private static String require(Optional<String> value, String key) {
         return value.filter(v -> !v.isBlank())
             .orElseThrow(() -> new IllegalStateException("Missing configuration '" + key + "' for auth mode"));
     }
@@ -335,7 +341,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         try {
             return k.tokenManager().getAccessTokenString();
         }
-        catch (jakarta.ws.rs.BadRequestException e) {
+        catch (BadRequestException e) {
             // the admin client hides the body; a 400 on a token request that asked for a
             // scope
             // is retried once without it (RFC 6749 invalid_scope on servers without
@@ -373,7 +379,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
      */
     @Override
     public ScopeEvaluation scopeEvaluation() {
-        return client().proxy(ScopeEvaluation.class, java.net.URI.create(system.url()));
+        return client().proxy(ScopeEvaluation.class, URI.create(system.url()));
     }
 
     @Override

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema version 0.6.0: a confirmed approval is recorded before it is consumed. -->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="9-pending-approval-approved-at" author="keycloak-mcp-server">
+        <comment>When the provider confirmed an approval: a collector that stalls between the provider's answer and the
+            consumption cannot lose it, the next call of the session consumes it</comment>
+        <addColumn tableName="kc_mcp_pending_approval">
+            <column name="approved_at" type="bigint"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

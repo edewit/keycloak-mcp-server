@@ -47,6 +47,14 @@ public interface PendingApprovalStore extends Extension {
     boolean claim(String key, String generation, String collector, long until);
 
     /**
+     * Records that the provider confirmed this generation, before it is consumed: a
+     * collector that stalls between the provider's answer and {@link #remove} cannot lose
+     * the approval, the next call finds it and consumes it. {@code false} when the
+     * generation is gone.
+     */
+    boolean markApproved(String key, String generation);
+
+    /**
      * Gives a claim back without consuming the approval (the device has not answered
      * yet).
      */

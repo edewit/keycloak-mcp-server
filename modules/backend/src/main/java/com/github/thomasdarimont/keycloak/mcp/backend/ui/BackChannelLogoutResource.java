@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.Response;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
 
 /**
@@ -36,7 +37,7 @@ public class BackChannelLogoutResource {
     @Inject
     UserSessionTokenStateManager sessions;
     @Inject
-    com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics metrics;
+    KcMcpMetrics metrics;
 
     @POST
     @Path("backchannel-logout")

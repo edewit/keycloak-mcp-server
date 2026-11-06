@@ -1,9 +1,12 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback;
 import com.github.thomasdarimont.keycloak.mcp.config.ExplicitTarget;
 import com.github.thomasdarimont.keycloak.mcp.config.Profile;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
@@ -67,8 +70,7 @@ class ProfileChecksTest {
     void profileParsesAliases() {
         assertEquals(Profile.SHARED, Profile.parse("prod"));
         assertEquals(Profile.LOCAL, Profile.parse(" Local "));
-        assertEquals(com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback.DENY,
-                com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback.parse("elicitation-only"));
+        assertEquals(ConfirmFallback.DENY, ConfirmFallback.parse("elicitation-only"));
         assertEquals(ExplicitTarget.WRITE, ExplicitTarget.parse("mutations"));
     }
 
@@ -94,8 +96,8 @@ class ProfileChecksTest {
         };
     }
 
-    private static java.util.function.Function<String, ProfileCheckContext> contexts(Profile profile) {
-        return id -> new ProfileCheckContext(profile, true, null, new ProviderConfig(id, java.util.Map.of()), null);
+    private static Function<String, ProfileCheckContext> contexts(Profile profile) {
+        return id -> new ProfileCheckContext(profile, true, null, new ProviderConfig(id, Map.of()), null);
     }
 
     @Test

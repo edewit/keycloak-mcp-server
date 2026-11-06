@@ -32,6 +32,8 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
 
+import io.quarkus.runtime.BlockingOperationNotAllowedException;
+
 /**
  * The Keycloak systems: a {@link CompositeKeycloakSystemRepository} of the static
  * configuration (an {@link InMemoryKeycloakSystemRepository} named {@code static-config})
@@ -157,7 +159,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         all.add(staticSystems);
         all.addAll(repositories);
         this.repository = new CompositeKeycloakSystemRepository(all, (r, e) -> {
-            if (e instanceof io.quarkus.runtime.BlockingOperationNotAllowedException) {
+            if (e instanceof BlockingOperationNotAllowedException) {
                 // a programming error worth a stack trace: a caller resolved systems on
                 // the event loop
                 LOG.warnf(e, "Keycloak system repository '%s' was asked on an event loop thread", r.id());

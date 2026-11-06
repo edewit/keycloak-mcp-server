@@ -1,6 +1,9 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.policies;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
@@ -18,7 +21,7 @@ import com.google.auto.service.AutoService;
 @AutoService(ToolProvider.class)
 public class PolicyToolProvider implements ToolProvider {
 
-    private java.util.function.Function<AccessCheck.Context, RealmDirectory> directories;
+    private Function<AccessCheck.Context, RealmDirectory> directories;
     private PolicySettings settings = PolicySettings.DISABLED;
 
     public PolicyToolProvider() {
@@ -53,7 +56,7 @@ public class PolicyToolProvider implements ToolProvider {
     @Override
     public void init(ToolProviderContext context) {
         if (directories == null) {
-            java.util.Map<String, RealmDirectory> cache = new java.util.concurrent.ConcurrentHashMap<>();
+            Map<String, RealmDirectory> cache = new ConcurrentHashMap<>();
             directories = ctx -> {
                 if (ctx.keycloak() != null && ctx.keycloak().isDelegated()) {
                     // delegated call: look things up with the caller's own token, the

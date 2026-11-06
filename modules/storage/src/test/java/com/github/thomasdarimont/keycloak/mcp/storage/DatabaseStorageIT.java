@@ -20,10 +20,14 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
+import com.github.thomasdarimont.keycloak.mcp.storage.approvals.DatabasePendingApprovalStore;
+import com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.AuditEventEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.AuditRetention;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.DatabaseAuditListener;
@@ -363,13 +367,11 @@ class DatabaseStorageIT {
 
     @Inject
     @Any
-    Instance<com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore> approvalStores;
+    Instance<PendingApprovalStore> approvalStores;
 
     @Test
     void pendingApprovalsAreFencedByGenerationAndClaimedByOneCollector() {
-        var store = approvalStores
-            .select(com.github.thomasdarimont.keycloak.mcp.storage.approvals.DatabasePendingApprovalStore.class)
-            .get();
+        var store = approvalStores.select(DatabasePendingApprovalStore.class).get();
         assertEquals("db-approvals", store.id());
         String key = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
         long now = System.currentTimeMillis();
@@ -377,12 +379,11 @@ class DatabaseStorageIT {
         assertTrue(store.reserve(key, now + 30_000).isEmpty(), "the second is refused while the first lives");
         assertTrue(!store.find(key).orElseThrow().filed(), "reserved, not filed yet");
 
-        var approval = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval(key, gen,
-                "auth-req-id-secret", "…id", "42", "kc-mcp-abc", "https://sso.example.com/realms/demo", "alice", "sub",
-                "https://sso.example.com/realms/demo", "Delete user: dave (realm demo)", "f".repeat(64), "prod", "demo",
-                now + 60_000, 2, now, null, 0);
-        var stale = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval(key, "other-generation", "x",
-                "x", "x", "x", "x", "x", "x", "x", "x", "0".repeat(64), "x", "x", now + 60_000, 2, now, null, 0);
+        var approval = new PendingApproval(key, gen, "auth-req-id-secret", "…id", "42", "kc-mcp-abc",
+                "https://sso.example.com/realms/demo", "alice", "sub", "https://sso.example.com/realms/demo",
+                "Delete user: dave (realm demo)", "f".repeat(64), "prod", "demo", now + 60_000, 2, now, null, 0);
+        var stale = new PendingApproval(key, "other-generation", "x", "x", "x", "x", "x", "x", "x", "x", "x",
+                "0".repeat(64), "x", "x", now + 60_000, 2, now, null, 0);
         assertTrue(!store.put(stale), "another generation cannot overwrite");
         assertTrue(store.put(approval));
         var filed = store.find(key).orElseThrow();
@@ -390,8 +391,7 @@ class DatabaseStorageIT {
         assertEquals("f".repeat(64), filed.operationHash());
         assertEquals("prod", filed.system());
         assertEquals("demo", filed.realm());
-        var row = com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity.<com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity>findById(
-                key);
+        var row = PendingApprovalEntity.<PendingApprovalEntity>findById(key);
         assertTrue(StorageCrypto.isEncrypted(row.authReqId), "auth_req_id encrypted at rest: " + row.authReqId);
 
         assertTrue(store.claim(key, gen, "collector-a", now + 20_000));
@@ -403,6 +403,10 @@ class DatabaseStorageIT {
         store.release(key, gen, "collector-a");
         assertTrue(store.claim(key, gen, "collector-b", now + 20_000), "released: free for the next collector");
 
+        assertTrue(!store.find(key).orElseThrow().approved());
+        assertTrue(!store.markApproved(key, "other-generation"), "only this generation is marked");
+        assertTrue(store.markApproved(key, gen));
+        assertTrue(store.find(key).orElseThrow().approved(), "recorded before it is consumed");
         assertTrue(!store.remove(key, "other-generation"), "another generation cannot consume");
         assertTrue(store.remove(key, gen), "consumed once");
         assertTrue(!store.remove(key, gen), "not twice");

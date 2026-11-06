@@ -4,8 +4,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
@@ -21,9 +24,12 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.Profile;
+import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.vertx.core.json.JsonObject;
 
@@ -129,7 +135,7 @@ class AcmeExtensionsTest {
     void tenantRepositoryParsesItsSetting() {
         AcmeTenantRepository repo = new AcmeTenantRepository(
                 "acme=https://sso.acme.example|acme-dev; globex = https://sso.globex.example ;;broken");
-        assertEquals(java.util.List.of("acme", "globex"), repo.names());
+        assertEquals(List.of("acme", "globex"), repo.names());
         KeycloakSystem acme = repo.find("acme").orElseThrow();
         assertEquals("https://sso.acme.example", acme.url());
         assertEquals("keycloak-mcp-server", acme.clientId().orElseThrow());
@@ -142,18 +148,13 @@ class AcmeExtensionsTest {
     @Test
     void auditFileCheckStopsASharedServerAndWarnsALocalOne() {
         AuditFileProfileCheck check = new AuditFileProfileCheck();
-        java.util.function.Function<java.util.Map<String, String>, com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext> shared = props -> new com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext(
-                com.github.thomasdarimont.keycloak.mcp.config.Profile.SHARED, true, null, null,
-                name -> java.util.Optional.ofNullable(props.get(name)));
-        assertEquals(1, check.problems(shared.apply(java.util.Map.of())).size(), "unset");
-        assertEquals(1,
-                check.problems(shared.apply(java.util.Map.of(AuditFileProfileCheck.FILE, "/tmp/a.jsonl"))).size(),
+        Function<Map<String, String>, ProfileCheckContext> shared = props -> new ProfileCheckContext(Profile.SHARED,
+                true, null, null, name -> Optional.ofNullable(props.get(name)));
+        assertEquals(1, check.problems(shared.apply(Map.of())).size(), "unset");
+        assertEquals(1, check.problems(shared.apply(Map.of(AuditFileProfileCheck.FILE, "/tmp/a.jsonl"))).size(),
                 "temporary");
-        assertTrue(check.problems(shared.apply(java.util.Map.of(AuditFileProfileCheck.FILE, "/var/log/acme/a.jsonl")))
-            .isEmpty());
-        var local = new com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext(
-                com.github.thomasdarimont.keycloak.mcp.config.Profile.LOCAL, false, null, null,
-                name -> java.util.Optional.empty());
+        assertTrue(check.problems(shared.apply(Map.of(AuditFileProfileCheck.FILE, "/var/log/acme/a.jsonl"))).isEmpty());
+        var local = new ProfileCheckContext(Profile.LOCAL, false, null, null, name -> Optional.empty());
         assertTrue(check.problems(local).isEmpty(), "local: never stops");
         assertEquals(1, check.warnings(local).size());
     }
@@ -161,9 +162,8 @@ class AcmeExtensionsTest {
     @Test
     void tenantRepositoryIsOnlySupportedWithTenants() {
         AcmeTenantRepository repo = new AcmeTenantRepository("");
-        assertTrue(!repo.isSupported(null,
-                new com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig("acme-tenants", java.util.Map.of())));
-        assertTrue(repo.isSupported(null, new com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig("acme-tenants",
-                java.util.Map.of("systems", "globex=https://sso.globex.example|globex-prod"))));
+        assertTrue(!repo.isSupported(null, new ProviderConfig("acme-tenants", Map.of())));
+        assertTrue(repo.isSupported(null, new ProviderConfig("acme-tenants",
+                Map.of("systems", "globex=https://sso.globex.example|globex-prod"))));
     }
 }

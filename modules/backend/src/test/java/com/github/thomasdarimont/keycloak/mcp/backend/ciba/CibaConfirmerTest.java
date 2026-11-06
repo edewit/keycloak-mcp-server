@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -12,15 +13,22 @@ import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,14 +37,20 @@ import org.junit.jupiter.api.Test;
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.backend.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaSettings.When;
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
+import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Prompter;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -77,12 +91,14 @@ class CibaConfirmerTest {
     private final Deque<String> tokenAnswers = new ArrayDeque<>();
     private final List<Map<String, String>> backchannelRequests = new CopyOnWriteArrayList<>();
     private final List<String> authHeaders = new CopyOnWriteArrayList<>();
-    private final java.util.concurrent.atomic.AtomicInteger tokenRequests = new java.util.concurrent.atomic.AtomicInteger();
-    private final java.util.concurrent.atomic.AtomicInteger requestCounter = new java.util.concurrent.atomic.AtomicInteger();
+    private final AtomicBoolean slowPolls = new AtomicBoolean();
+    private final AtomicInteger tokenRequests = new AtomicInteger();
+    private final AtomicInteger requestCounter = new AtomicInteger();
 
     @BeforeEach
     void start() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         issuer = "http://127.0.0.1:" + server.getAddress().getPort() + "/realms/demo";
         server.createContext("/realms/demo/.well-known/openid-configuration",
                 x -> json(x, 200, new JsonObject().put("issuer", issuer)
@@ -110,6 +126,14 @@ class CibaConfirmerTest {
         });
         server.createContext("/realms/demo/protocol/openid-connect/token", x -> {
             tokenRequests.incrementAndGet();
+            while (slowPolls.get()) {
+                try {
+                    Thread.sleep(50);
+                }
+                catch (InterruptedException e) {
+                    break;
+                }
+            }
             Map<String, String> f = form(x);
             assertEquals(CibaClient.GRANT_TYPE, f.get("grant_type"));
             assertTrue(f.get("auth_req_id").startsWith("req-"), f.toString());
@@ -167,7 +191,7 @@ class CibaConfirmerTest {
 
     private static byte[] unsigned(BigInteger i) {
         byte[] b = i.toByteArray();
-        return b[0] == 0 ? java.util.Arrays.copyOfRange(b, 1, b.length) : b;
+        return b[0] == 0 ? Arrays.copyOfRange(b, 1, b.length) : b;
     }
 
     private static String b64(byte[] b) {
@@ -176,10 +200,10 @@ class CibaConfirmerTest {
 
     private static Map<String, String> form(HttpExchange x) throws IOException {
         String body = new String(x.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        return java.util.Arrays.stream(body.split("&"))
+        return Arrays.stream(body.split("&"))
             .map(kv -> kv.split("=", 2))
-            .collect(java.util.stream.Collectors.toMap(kv -> kv[0],
-                    kv -> java.net.URLDecoder.decode(kv.length > 1 ? kv[1] : "", StandardCharsets.UTF_8)));
+            .collect(Collectors.toMap(kv -> kv[0],
+                    kv -> URLDecoder.decode(kv.length > 1 ? kv[1] : "", StandardCharsets.UTF_8)));
     }
 
     private static void json(HttpExchange x, int status, JsonObject body) throws IOException {
@@ -192,8 +216,8 @@ class CibaConfirmerTest {
     }
 
     private CibaConfirmer confirmer(Map<String, String> extra) {
-        Map<String, String> values = new java.util.HashMap<>(Map.of("enabled", "true", "client-id", "mcp-ciba",
-                "client-secret", "s3cr3t", "issuer", issuer, "timeout-seconds", "5", "flow", "blocking"));
+        Map<String, String> values = new HashMap<>(Map.of("enabled", "true", "client-id", "mcp-ciba", "client-secret",
+                "s3cr3t", "issuer", issuer, "timeout-seconds", "5", "flow", "blocking"));
         values.putAll(extra);
         CibaSettings settings = CibaSettings.from(new ProviderConfig(CibaSettings.ID, values), 120);
         return new CibaConfirmer(settings, "http://unused/realms/x", null, null, new InMemoryPendingApprovalStore(),
@@ -289,8 +313,8 @@ class CibaConfirmerTest {
             }
 
             @Override
-            public java.util.Optional<Boolean> askYesNo(String message) {
-                return java.util.Optional.of(true);
+            public Optional<Boolean> askYesNo(String message) {
+                return Optional.of(true);
             }
         };
         assertEquals(Decision.Outcome.ABSTAIN,
@@ -440,7 +464,7 @@ class CibaConfirmerTest {
         CibaConfirmer fresh = confirmer(Map.of("flow", "two-step", "poll-wait-seconds", "1"));
         CountDownLatch go = new CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(4)) {
-            List<Future<Decision>> calls = new java.util.ArrayList<>();
+            List<Future<Decision>> calls = new ArrayList<>();
             for (int i = 0; i < 4; i++) {
                 calls.add(pool.submit(() -> {
                     go.await();
@@ -484,12 +508,9 @@ class CibaConfirmerTest {
 
     @Test
     void decisionsAreCounted() {
-        var reader = io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader.create();
-        try (var provider = io.opentelemetry.sdk.metrics.SdkMeterProvider.builder()
-            .registerMetricReader(reader)
-            .build()) {
-            var metrics = new com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics(provider.get("test"),
-                    false);
+        var reader = InMemoryMetricReader.create();
+        try (var provider = SdkMeterProvider.builder().registerMetricReader(reader).build()) {
+            var metrics = new KcMcpMetrics(provider.get("test"), false);
             tokenAnswers.add("200");
             confirmer(Map.of()).metrics(metrics).confirm(request(alice(), Prompter.NONE));
             tokenAnswers.add("200:sub-9:mallory");
@@ -503,8 +524,8 @@ class CibaConfirmerTest {
                 .getPoints();
             assertEquals(Set.of("approved", "rejected"),
                     decisions.stream()
-                        .map(p -> p.getAttributes().get(io.opentelemetry.api.common.AttributeKey.stringKey("outcome")))
-                        .collect(java.util.stream.Collectors.toSet()));
+                        .map(p -> p.getAttributes().get(AttributeKey.stringKey("outcome")))
+                        .collect(Collectors.toSet()));
             assertEquals(2,
                     all.stream()
                         .filter(d -> d.getName().equals("kc_mcp.ciba.requests"))
@@ -554,9 +575,9 @@ class CibaConfirmerTest {
         CibaConfirmer c = confirmer(Map.of("flow", "two-step", "poll-wait-seconds", "2"));
         c.confirm(request(alice(), Prompter.NONE));
         int before = tokenRequests.get();
-        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
-        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(4)) {
-            List<java.util.concurrent.Future<Decision>> calls = new java.util.ArrayList<>();
+        CountDownLatch go = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(4)) {
+            List<Future<Decision>> calls = new ArrayList<>();
             for (int i = 0; i < 4; i++) {
                 calls.add(pool.submit(() -> {
                     go.await();
@@ -579,10 +600,10 @@ class CibaConfirmerTest {
         long now = System.currentTimeMillis();
         String gen = store.reserve("k", now + 30_000).orElseThrow();
         assertTrue(store.reserve("k", now + 30_000).isEmpty());
-        var filed = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval("k", gen, "req", "r", "42", "b",
-                issuer, "alice", "sub", issuer, "op", "h", null, "demo", now + 60_000, 1, now, null, 0);
-        var stale = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval("k", "old", "req2", "r", "1",
-                "b", issuer, "alice", "sub", issuer, "op", "h", null, "demo", now + 60_000, 1, now, null, 0);
+        var filed = new PendingApproval("k", gen, "req", "r", "42", "b", issuer, "alice", "sub", issuer, "op", "h",
+                null, "demo", now + 60_000, 1, now, null, 0);
+        var stale = new PendingApproval("k", "old", "req2", "r", "1", "b", issuer, "alice", "sub", issuer, "op", "h",
+                null, "demo", now + 60_000, 1, now, null, 0);
         assertTrue(!store.put(stale), "another generation cannot overwrite");
         assertTrue(store.put(filed));
         assertTrue(store.claim("k", gen, "a", now + 10_000));
@@ -595,8 +616,8 @@ class CibaConfirmerTest {
         String expired = store.reserve("k", now - 1).orElseThrow();
         String next = store.reserve("k", now + 30_000).orElseThrow();
         assertTrue(!expired.equals(next));
-        var late = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval("k", expired, "req3", "r", "1",
-                "b", issuer, "alice", "sub", issuer, "op", "h", null, "demo", now + 60_000, 1, now, null, 0);
+        var late = new PendingApproval("k", expired, "req3", "r", "1", "b", issuer, "alice", "sub", issuer, "op", "h",
+                null, "demo", now + 60_000, 1, now, null, 0);
         assertTrue(!store.put(late), "a late filer of the expired reservation cannot overwrite the new one");
     }
 
@@ -604,7 +625,7 @@ class CibaConfirmerTest {
         ToolSpec spec = ToolSpec.builder("keycloak_x")
             .title(title)
             .description("d")
-            .category(com.github.thomasdarimont.keycloak.mcp.catalog.Category.USERS)
+            .category(Category.USERS)
             .destructive()
             .handler(call -> null)
             .build();
@@ -632,5 +653,42 @@ class CibaConfirmerTest {
         assertEquals("Reset password: u1 (realm demo)", reset);
         assertTrue(!reset.contains("Secret"), "a password never reaches the device");
         assertTrue(CibaConfirmer.operation(op("Delete user", Map.of("username", "x".repeat(400)))).length() <= 200);
+    }
+
+    @Test
+    void anApprovalRecordedByAStalledCollectorIsConsumedWithoutPolling() {
+        CibaConfirmer c = confirmer(Map.of("flow", "two-step", "poll-wait-seconds", "1"));
+        ConfirmationRequest req = request(alice(), Prompter.NONE);
+        c.confirm(req);
+        String key = CibaConfirmer.approvalKey("session-1", "sub-1", issuer, CibaConfirmer.operationHash(req));
+        var pending = c.store().find(key).orElseThrow();
+        // a collector got the approval from the provider, recorded it, and stalled before
+        // consuming it
+        assertTrue(c.store().markApproved(key, pending.generation()));
+        int before = tokenRequests.get();
+        assertEquals(Decision.Outcome.CONFIRMED, c.confirm(req).outcome(), "the next call acts on it");
+        assertEquals(before, tokenRequests.get(), "without asking the provider again (it answers a token once)");
+        assertEquals(0, ((InMemoryPendingApprovalStore) c.store()).size());
+    }
+
+    @Test
+    void theClaimCoversAPollThatTakesAsLongAsTheReadTimeout() throws Exception {
+        CibaConfirmer c = confirmer(Map.of("flow", "two-step", "poll-wait-seconds", "1"));
+        ConfirmationRequest req = request(alice(), Prompter.NONE);
+        c.confirm(req);
+        String key = CibaConfirmer.approvalKey("session-1", "sub-1", issuer, CibaConfirmer.operationHash(req));
+        slowPolls.set(true);
+        try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+            var first = pool.submit(() -> c.confirm(req));
+            Thread.sleep(700); // the first collector is inside a slow poll now
+            var p = c.store().find(key).orElseThrow();
+            assertTrue(p.claimedUntil() - System.currentTimeMillis() > Duration.ofSeconds(60).toMillis(),
+                    "the claim outlasts a poll as long as the read timeout (60 s by default) plus the margin");
+            int before = tokenRequests.get();
+            assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, c.confirm(req).outcome());
+            assertEquals(before, tokenRequests.get(), "a second collector does not poll while the first one waits");
+            slowPolls.set(false);
+            first.get();
+        }
     }
 }

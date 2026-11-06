@@ -1,6 +1,8 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.systems;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -145,11 +147,11 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
                 return s.systems();
             }
             Map<String, KeycloakSystem> loaded = QuarkusTransaction.requiringNew().call(() -> {
-                Map<String, KeycloakSystem> out = new java.util.LinkedHashMap<>();
+                Map<String, KeycloakSystem> out = new LinkedHashMap<>();
                 for (SystemEntity e : SystemEntity.<SystemEntity>list(ENABLED_IN_ORDER)) {
                     out.put(e.alias, toSystem(e));
                 }
-                return java.util.Collections.unmodifiableMap(out);
+                return Collections.unmodifiableMap(out);
             });
             snapshot = new Snapshot(loaded, System.currentTimeMillis(), true);
             return loaded;

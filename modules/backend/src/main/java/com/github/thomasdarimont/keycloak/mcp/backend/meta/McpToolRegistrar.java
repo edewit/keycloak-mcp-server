@@ -1,18 +1,22 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.meta;
 
+import java.util.List;
 import java.util.Map;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.backend.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.AccessPolicy;
+import com.github.thomasdarimont.keycloak.mcp.backend.guard.CallerAuth;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ToolInvoker;
 import com.github.thomasdarimont.keycloak.mcp.backend.http.EntryRoutes;
+import com.github.thomasdarimont.keycloak.mcp.backend.spi.CallerProvider;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
@@ -23,6 +27,7 @@ import io.quarkiverse.mcp.server.ToolManager;
 import io.quarkiverse.mcp.server.ToolManager.ToolAnnotations;
 import io.quarkiverse.mcp.server.ToolResponse;
 import io.quarkus.runtime.StartupEvent;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -56,9 +61,9 @@ public class McpToolRegistrar {
     @Inject
     ExposurePolicy exposure;
     @Inject
-    com.github.thomasdarimont.keycloak.mcp.backend.spi.CallerProvider callers;
+    CallerProvider callers;
     @Inject
-    com.github.thomasdarimont.keycloak.mcp.backend.guard.CallerAuth callerAuth;
+    CallerAuth callerAuth;
 
     void onStart(@Observes StartupEvent event) {
         registerMetaTools();
@@ -83,7 +88,7 @@ public class McpToolRegistrar {
         Package p = McpToolRegistrar.class.getPackage();
         String v = p == null ? null : p.getImplementationVersion();
         String version = v == null ? "dev" : v;
-        String built = org.eclipse.microprofile.config.ConfigProvider.getConfig()
+        String built = ConfigProvider.getConfig()
             .getOptionalValue("keycloak-mcp.build-time", String.class)
             .orElse(null);
         return built == null ? version : version + " (built " + built + ")";
@@ -179,7 +184,7 @@ public class McpToolRegistrar {
      * {@code {"items": [...]}} there, since structured content must be an object.
      */
     static ToolResponse toResponse(ToolResult result, boolean structured) {
-        java.util.List<TextContent> text = java.util.List.of(new TextContent(result.toJson()));
+        List<TextContent> text = List.of(new TextContent(result.toJson()));
         Object payload = result.payload();
         if (!structured || payload == null || payload instanceof String) {
             return new ToolResponse(result.isError(), text);
@@ -187,8 +192,8 @@ public class McpToolRegistrar {
         Object structuredContent = switch (payload) {
             case JsonObject jo -> jo.getMap();
             case Map<?, ?> m -> m;
-            case java.util.List<?> l -> Map.of("items", l);
-            case io.vertx.core.json.JsonArray a -> Map.of("items", a.getList());
+            case List<?> l -> Map.of("items", l);
+            case JsonArray a -> Map.of("items", a.getList());
             default -> null;
         };
         if (structuredContent == null) {

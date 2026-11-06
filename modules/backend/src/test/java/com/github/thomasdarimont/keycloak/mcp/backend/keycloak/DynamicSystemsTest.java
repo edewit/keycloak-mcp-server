@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
+import com.github.thomasdarimont.keycloak.mcp.config.PrivateHosts;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAllowList;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.InMemoryKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
@@ -131,7 +132,7 @@ class DynamicSystemsTest {
         // the static system sits on loopback too and is the operator's own choice
         DefaultKeycloakSystems systems = new DefaultKeycloakSystems(List.of(system("hub", "http://127.0.0.1:2")), null,
                 null, HostAllowList.of(List.of("*", "localhost")), List.of(source))
-            .dynamicPrivateHosts(com.github.thomasdarimont.keycloak.mcp.config.PrivateHosts.LISTED);
+            .dynamicPrivateHosts(PrivateHosts.LISTED);
         try {
             assertTrue(systems.find("hub").isPresent(), "static systems are not checked");
             assertTrue(systems.find("inside").isEmpty(), "loopback through a wildcard pattern");
@@ -140,7 +141,7 @@ class DynamicSystemsTest {
             assertTrue(systems.dynamicHostProblem("http://127.0.0.1:1").orElseThrow().contains("loopback"));
             assertTrue(systems.dynamicHostProblem("https://8.8.8.8").isEmpty());
 
-            systems.dynamicPrivateHosts(com.github.thomasdarimont.keycloak.mcp.config.PrivateHosts.ALLOW);
+            systems.dynamicPrivateHosts(PrivateHosts.ALLOW);
             assertTrue(systems.find("inside").isPresent(), "allow: any address");
         }
         finally {

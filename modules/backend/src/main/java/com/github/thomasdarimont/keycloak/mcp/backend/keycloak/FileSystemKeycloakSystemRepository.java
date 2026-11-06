@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
@@ -52,7 +53,7 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
     public static final String DEFAULT_CLIENT_ID = "keycloak-mcp-server";
 
     private final Path file;
-    private final java.util.concurrent.locks.ReentrantLock reload = new java.util.concurrent.locks.ReentrantLock();
+    private final ReentrantLock reload = new ReentrantLock();
     private volatile FileTime loadedAt;
     private volatile Map<String, KeycloakSystem> systems = Map.of();
 

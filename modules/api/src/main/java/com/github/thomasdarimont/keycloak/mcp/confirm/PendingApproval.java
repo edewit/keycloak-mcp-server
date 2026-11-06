@@ -30,11 +30,23 @@ package com.github.thomasdarimont.keycloak.mcp.confirm;
  * @param createdAt epoch milliseconds
  * @param claimedBy the collector currently polling the provider for it, or {@code null}
  * @param claimedUntil epoch milliseconds that claim lasts
+ * @param approved the provider confirmed the approval (and its ID token named the
+ * caller); recorded before it is consumed, so a collector that stalls afterwards cannot
+ * lose it
  */
 public record PendingApproval(String key, String generation, String authReqId, String requestId, String code,
         String bindingMessage, String issuer, String loginHint, String callerSubject, String callerIssuer,
         String operation, String operationHash, String system, String realm, long expiresAt, int intervalSeconds,
-        long createdAt, String claimedBy, long claimedUntil) {
+        long createdAt, String claimedBy, long claimedUntil, boolean approved) {
+
+    public PendingApproval(String key, String generation, String authReqId, String requestId, String code,
+            String bindingMessage, String issuer, String loginHint, String callerSubject, String callerIssuer,
+            String operation, String operationHash, String system, String realm, long expiresAt, int intervalSeconds,
+            long createdAt, String claimedBy, long claimedUntil) {
+        this(key, generation, authReqId, requestId, code, bindingMessage, issuer, loginHint, callerSubject,
+                callerIssuer, operation, operationHash, system, realm, expiresAt, intervalSeconds, createdAt, claimedBy,
+                claimedUntil, false);
+    }
 
     /** A bare reservation: nothing filed yet. */
     public static PendingApproval reservation(String key, String generation, long until) {
@@ -58,6 +70,12 @@ public record PendingApproval(String key, String generation, String authReqId, S
     public PendingApproval withClaim(String collector, long until) {
         return new PendingApproval(key, generation, authReqId, requestId, code, bindingMessage, issuer, loginHint,
                 callerSubject, callerIssuer, operation, operationHash, system, realm, expiresAt, intervalSeconds,
-                createdAt, collector, until);
+                createdAt, collector, until, approved);
+    }
+
+    public PendingApproval asApproved() {
+        return new PendingApproval(key, generation, authReqId, requestId, code, bindingMessage, issuer, loginHint,
+                callerSubject, callerIssuer, operation, operationHash, system, realm, expiresAt, intervalSeconds,
+                createdAt, claimedBy, claimedUntil, true);
     }
 }

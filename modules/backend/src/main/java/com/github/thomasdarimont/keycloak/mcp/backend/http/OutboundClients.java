@@ -7,7 +7,9 @@ import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 
 import org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties;
+import org.jboss.resteasy.reactive.client.impl.ClientBuilderImpl;
 
+import com.github.thomasdarimont.keycloak.mcp.config.Durations;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 
 import io.quarkus.tls.TlsConfiguration;
@@ -96,7 +98,7 @@ public final class OutboundClients {
         // Quarkus REST's ClientBuilder takes key stores, not an SSLContext
         ClientBuilder b = builder(timeouts);
         if (tls.isTrustAll()) {
-            if (b instanceof org.jboss.resteasy.reactive.client.impl.ClientBuilderImpl impl) {
+            if (b instanceof ClientBuilderImpl impl) {
                 impl.trustAll(true);
             }
             b.hostnameVerifier((host, session) -> true);
@@ -131,7 +133,7 @@ public final class OutboundClients {
     public static Optional<Duration> duration(Optional<String> value, String setting) {
         return value.filter(v -> !v.isBlank()).map(v -> {
             try {
-                return com.github.thomasdarimont.keycloak.mcp.config.Durations.parse(v);
+                return Durations.parse(v);
             }
             catch (RuntimeException e) {
                 throw new IllegalArgumentException(setting + " is not a duration: '" + v + "' (e.g. 10s, 500ms, PT1M)");

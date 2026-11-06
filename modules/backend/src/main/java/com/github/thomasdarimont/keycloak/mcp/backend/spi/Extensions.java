@@ -8,10 +8,13 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -44,6 +47,7 @@ public class Extensions {
 
     private static final Logger LOG = Logger.getLogger(Extensions.class);
 
+    private final Set<String> seen = ConcurrentHashMap.newKeySet();
     private final Path dir;
     private final List<Path> jars;
     private final ClassLoader loader;
@@ -97,7 +101,37 @@ public class Extensions {
                 byClass.computeIfAbsent(h.getBean().getBeanClass().getName(), k -> h.get());
             }
         }
+        for (T t : byClass.values()) {
+            if (t instanceof Extension e) {
+                seen.add(ProviderConfig.configId(e.id()));
+            }
+        }
         return List.copyOf(byClass.values());
+    }
+
+    /**
+     * The ids ({@code kc-mcp.spi.<id>} form) of every extension discovered so far, of any
+     * extension point.
+     */
+    public Set<String> seen() {
+        return Set.copyOf(seen);
+    }
+
+    /**
+     * The ids that {@code kc-mcp.spi.<id>.required=true} names but no discovered
+     * extension has: a required security control whose jar is missing must stop the
+     * start, not be skipped because there is nothing to check.
+     */
+    public static List<String> missingRequired(McpServerConfig config, Set<String> seen) {
+        List<String> missing = new ArrayList<>();
+        config.spi().forEach((id, settings) -> {
+            if (Boolean.parseBoolean(String.valueOf(settings.get("required")).trim())
+                    && !seen.contains(ProviderConfig.configId(id))) {
+                missing.add(id);
+            }
+        });
+        Collections.sort(missing);
+        return missing;
     }
 
     /** The providers directory, {@code null} when none is configured. */

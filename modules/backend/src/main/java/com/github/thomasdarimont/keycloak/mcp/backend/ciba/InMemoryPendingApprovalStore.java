@@ -90,6 +90,19 @@ public class InMemoryPendingApprovalStore implements PendingApprovalStore {
     }
 
     @Override
+    public boolean markApproved(String key, String generation) {
+        AtomicBoolean marked = new AtomicBoolean();
+        entries.computeIfPresent(key, (k, existing) -> {
+            if (!existing.generation().equals(generation) || existing.expired()) {
+                return existing;
+            }
+            marked.set(true);
+            return existing.asApproved();
+        });
+        return marked.get();
+    }
+
+    @Override
     public void release(String key, String generation, String collector) {
         entries.computeIfPresent(key,
                 (k, existing) -> existing.generation().equals(generation) && collector.equals(existing.claimedBy())

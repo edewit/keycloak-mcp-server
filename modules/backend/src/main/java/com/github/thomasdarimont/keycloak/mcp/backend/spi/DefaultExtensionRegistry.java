@@ -21,14 +21,18 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKeyGenerator;
 import com.github.thomasdarimont.keycloak.mcp.prompts.PromptProvider;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
+import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
 
 import io.quarkus.runtime.StartupEvent;
 
@@ -149,9 +153,27 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
      * required extension that cannot take part stops the start rather than the first
      * call.
      */
+    /**
+     * Extension points picked outside the registry; discovered here too, so that their
+     * ids count as present.
+     */
+    static final List<Class<? extends Extension>> OTHER_TYPES = List.of(KeycloakSystemRepository.class, KeyVault.class,
+            SigningKeyGenerator.class, UserSessionStore.class);
+
     void onStart(@Observes StartupEvent event) {
         for (Class<? extends Extension> type : STARTUP_TYPES) {
             extensions(type);
+        }
+        if (discovery == null) {
+            return;
+        }
+        for (Class<? extends Extension> type : OTHER_TYPES) {
+            discovery.discover(type);
+        }
+        List<String> missing = Extensions.missingRequired(serverConfig, discovery.seen());
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("Required extensions are not installed: " + missing
+                    + " (kc-mcp.spi.<id>.required=true; is the jar in the providers directory?)");
         }
     }
 

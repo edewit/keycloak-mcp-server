@@ -1,16 +1,23 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.tools;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
+import org.keycloak.admin.client.resource.AuthorizationResource;
 import org.keycloak.admin.client.resource.ClientResource;
+import org.keycloak.admin.client.resource.PoliciesResource;
+import org.keycloak.admin.client.resource.PolicyResource;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ClientScopeRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.ProtocolMapperRepresentation;
+import org.keycloak.representations.idm.RoleRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.authorization.PolicyRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceRepresentation;
 import org.keycloak.representations.idm.authorization.ScopeRepresentation;
@@ -18,6 +25,7 @@ import org.keycloak.representations.idm.authorization.ScopeRepresentation;
 import com.github.thomasdarimont.keycloak.mcp.access.Delegation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ApiOperation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
+import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolCall;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
@@ -320,8 +328,7 @@ public class ClientToolProvider extends AbstractToolProvider {
                 "policy sub-resources are not part of the published OpenAPI document");
     }
 
-    private static com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema.Builder clientFields(
-            com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema.Builder b) {
+    private static InputSchema.Builder clientFields(InputSchema.Builder b) {
         return b.string("name", "Display name")
             .string("description", "Description")
             .bool("enabled", "Client enabled (default true)")
@@ -373,7 +380,7 @@ public class ClientToolProvider extends AbstractToolProvider {
             Views.put(m, "pkceMethod", c.getAttributes().get("pkce.code.challenge.method"));
             Views.put(m, "postLogoutRedirectUris", c.getAttributes().get("post.logout.redirect.uris"));
             Views.put(m, "accessTokenLifespan", c.getAttributes().get("access.token.lifespan"));
-            Map<String, String> attrs = new java.util.TreeMap<>();
+            Map<String, String> attrs = new TreeMap<>();
             c.getAttributes().forEach((k, v) -> {
                 if (v != null && !v.isBlank()) {
                     attrs.put(k, v);
@@ -559,7 +566,7 @@ public class ClientToolProvider extends AbstractToolProvider {
 
     ToolResult exampleToken(ToolCall call) {
         ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
-        org.keycloak.representations.idm.UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
+        UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
         String type = call.str("type", "access_token");
         boolean saml = "saml".equals(c.getProtocol());
         if (saml != "saml_response".equals(type)) {
@@ -605,17 +612,17 @@ public class ClientToolProvider extends AbstractToolProvider {
             v.put("from", m.get("containerType") + " " + m.get("containerName"));
             mappers.add(v);
         }
-        mappers.sort(java.util.Comparator.comparing(m -> String.valueOf(m.get("from")) + m.get("name")));
+        mappers.sort(Comparator.comparing(m -> String.valueOf(m.get("from")) + m.get("name")));
         // the role container is the realm itself, which Keycloak addresses by name here
         // (clients by internal id)
         List<String> granted = eval.grantedRoles(call.realm(), c.getId(), call.realm(), scope)
             .stream()
-            .map(org.keycloak.representations.idm.RoleRepresentation::getName)
+            .map(RoleRepresentation::getName)
             .sorted()
             .toList();
         List<String> notGranted = eval.notGrantedRoles(call.realm(), c.getId(), call.realm(), scope)
             .stream()
-            .map(org.keycloak.representations.idm.RoleRepresentation::getName)
+            .map(RoleRepresentation::getName)
             .sorted()
             .toList();
         Map<String, Object> out = new LinkedHashMap<>();
@@ -635,8 +642,7 @@ public class ClientToolProvider extends AbstractToolProvider {
      * The client's resource server, or an error result when authorization services are
      * off.
      */
-    private static org.keycloak.admin.client.resource.AuthorizationResource authz(ToolCall call,
-            ClientRepresentation c) {
+    private static AuthorizationResource authz(ToolCall call, ClientRepresentation c) {
         if (!Boolean.TRUE.equals(c.getAuthorizationServicesEnabled())) {
             throw new ToolException("authorization_disabled",
                     "Client '" + c.getClientId()
@@ -692,7 +698,7 @@ public class ClientToolProvider extends AbstractToolProvider {
     ToolResult authzPermissions(ToolCall call) {
         ClientRepresentation c = call.kc().findClient(call.realm(), call.str("clientId"));
         List<Map<String, Object>> items = new ArrayList<>();
-        org.keycloak.admin.client.resource.PoliciesResource policies = authz(call, c).policies();
+        PoliciesResource policies = authz(call, c).policies();
         for (PolicyRepresentation p : policies.policies()) {
             if (!isPermission(p)) {
                 continue;
@@ -700,7 +706,7 @@ public class ClientToolProvider extends AbstractToolProvider {
             Map<String, Object> v = policyView(p);
             // the listing carries no associations; one small call each tells what the
             // permission guards and by what
-            org.keycloak.admin.client.resource.PolicyResource one = policies.policy(p.getId());
+            PolicyResource one = policies.policy(p.getId());
             if (!v.containsKey("resources")) {
                 List<String> names = one.resources().stream().map(ResourceRepresentation::getName).sorted().toList();
                 if (!names.isEmpty()) {

@@ -12,6 +12,7 @@ import com.github.thomasdarimont.keycloak.mcp.access.Delegation;
 import com.github.thomasdarimont.keycloak.mcp.backend.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
+import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.Explanations;
@@ -133,7 +134,7 @@ class AccessPolicyTest {
             .description("d")
             .category(Category.USERS)
             .write()
-            .schema(com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema.builder().string("id", "id"))
+            .schema(InputSchema.builder().string("id", "id"))
             .handler(c -> ToolResult.ok(""));
     }
 

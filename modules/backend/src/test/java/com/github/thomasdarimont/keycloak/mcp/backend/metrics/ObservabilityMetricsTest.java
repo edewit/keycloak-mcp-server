@@ -33,11 +33,13 @@ import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.metrics.data.PointData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import io.quarkiverse.mcp.server.Implementation;
 import io.quarkiverse.mcp.server.InitialRequest;
 import io.quarkiverse.mcp.server.McpConnection;
 import io.quarkiverse.mcp.server.McpLog;
+import io.quarkiverse.mcp.server.McpProtocolVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -61,8 +63,7 @@ class ObservabilityMetricsTest {
             .orElseThrow(() -> new AssertionError(name + " not in " + all.stream().map(MetricData::getName).toList()));
     }
 
-    private static Set<String> values(Collection<? extends io.opentelemetry.sdk.metrics.data.PointData> points,
-            AttributeKey<String> key) {
+    private static Set<String> values(Collection<? extends PointData> points, AttributeKey<String> key) {
         return points.stream().map(p -> p.getAttributes().get(key)).collect(Collectors.toSet());
     }
 
@@ -191,10 +192,8 @@ class ObservabilityMetricsTest {
     }
 
     private static McpConnection connection(String client, boolean transientConnection) {
-        InitialRequest init = client == null ? null
-                : new InitialRequest(new Implementation(client, "1", client),
-                        io.quarkiverse.mcp.server.McpProtocolVersion.V_2025_06_18, List.of(),
-                        InitialRequest.Transport.STREAMABLE_HTTP);
+        InitialRequest init = client == null ? null : new InitialRequest(new Implementation(client, "1", client),
+                McpProtocolVersion.V_2025_06_18, List.of(), InitialRequest.Transport.STREAMABLE_HTTP);
         return new McpConnection() {
             @Override
             public String id() {

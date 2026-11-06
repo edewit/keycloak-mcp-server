@@ -37,6 +37,10 @@ public class PendingApprovalEntity extends PanacheEntityBase {
     @Column(name = "claimed_until")
     public Long claimedUntil;
 
+    /** When the provider confirmed the approval; recorded before it is consumed. */
+    @Column(name = "approved_at")
+    public Long approvedAt;
+
     /**
      * The provider's {@code auth_req_id}, encrypted when
      * {@code kc-mcp.storage.secret-key} is set; null while reserved.

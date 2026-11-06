@@ -6,6 +6,7 @@ import java.security.interfaces.RSAPrivateCrtKey;
 import java.util.Base64;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -27,8 +28,8 @@ class JwksEndpointTest {
         String body = given().get("/.well-known/jwks.json")
             .then()
             .statusCode(200)
-            .header("Content-Type", org.hamcrest.Matchers.containsString("application/json"))
-            .header("Cache-Control", org.hamcrest.Matchers.containsString("max-age"))
+            .header("Content-Type", Matchers.containsString("application/json"))
+            .header("Cache-Control", Matchers.containsString("max-age"))
             .extract()
             .asString();
         JsonObject key = new JsonObject(body).getJsonArray("keys").getJsonObject(0);

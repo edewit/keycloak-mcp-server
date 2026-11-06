@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.ui;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -142,8 +143,7 @@ public class UserSessionTokenStateManager implements TokenStateManager {
     public Optional<UserSessionStore> resolve() {
         List<UserSessionStore> found = new ArrayList<>();
         for (UserSessionStore candidate : extensions.discover(UserSessionStore.class)) {
-            if (com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions.usable(candidate, "UserSessionStore",
-                    config)) {
+            if (Extensions.usable(candidate, "UserSessionStore", config)) {
                 found.add(candidate);
             }
         }
@@ -199,7 +199,7 @@ public class UserSessionTokenStateManager implements TokenStateManager {
         try {
             return json.readTree(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
         }
-        catch (RuntimeException | java.io.IOException e) {
+        catch (RuntimeException | IOException e) {
             LOG.debugf("Cannot read the payload of a token (%d parts, head %s, part1 head %s): %s", parts.length,
                     jwt.substring(0, Math.min(16, jwt.length())),
                     parts[1].substring(0, Math.min(16, parts[1].length())), e.toString());

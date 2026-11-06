@@ -2,10 +2,12 @@ package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 
 import java.util.Optional;
 import java.util.Set;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.backend.McpClient;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
@@ -13,6 +15,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.DatabaseAuditListener;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.DatabaseKeyVault;
@@ -115,13 +118,13 @@ class StorageTest {
     /**
      * Reaches the database audit listener the way the server does: through the registry.
      */
-    @jakarta.enterprise.context.ApplicationScoped
+    @ApplicationScoped
     public static class AuditLogAccess {
         @Inject
-        com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry registry;
+        ExtensionRegistry registry;
 
         DatabaseAuditListener listener() {
-            return registry.extensions(com.github.thomasdarimont.keycloak.mcp.audit.AuditListener.class)
+            return registry.extensions(AuditListener.class)
                 .stream()
                 .filter(DatabaseAuditListener.class::isInstance)
                 .map(DatabaseAuditListener.class::cast)

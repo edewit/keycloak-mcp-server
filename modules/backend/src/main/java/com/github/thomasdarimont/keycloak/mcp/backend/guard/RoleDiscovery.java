@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -201,7 +202,7 @@ public class RoleDiscovery {
     }
 
     /** Whether the roles are held in any system (non-blocking). */
-    public boolean anySystemPeek(java.util.function.Predicate<GrantedRoles> test) {
+    public boolean anySystemPeek(Predicate<GrantedRoles> test) {
         List<String> current = systems();
         if (current.isEmpty()) {
             // no system yet (dynamic systems before the first registration): nothing to
@@ -217,7 +218,7 @@ public class RoleDiscovery {
     }
 
     /** Whether the roles are held in any system (may discover). */
-    public boolean anySystem(java.util.function.Predicate<GrantedRoles> test) {
+    public boolean anySystem(Predicate<GrantedRoles> test) {
         List<String> current = systems();
         if (current.isEmpty()) {
             return test.test(GrantedRoles.UNKNOWN);

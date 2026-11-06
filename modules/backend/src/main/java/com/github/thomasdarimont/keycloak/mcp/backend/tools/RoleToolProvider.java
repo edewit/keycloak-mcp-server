@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.tools;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import jakarta.ws.rs.NotFoundException;
@@ -192,7 +193,7 @@ public class RoleToolProvider extends AbstractToolProvider {
 
     ToolResult userRoles(ToolCall call) {
         UserRepresentation u = call.kc().findUser(call.realm(), call.str("userId"));
-        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        Map<String, Object> m = new LinkedHashMap<>();
         m.put("username", u.getUsername());
         m.putAll(EffectiveRoles.ofUser(call.kc(), call.realm(), u.getId()).toView(true));
         return ToolResult.ok(m);
