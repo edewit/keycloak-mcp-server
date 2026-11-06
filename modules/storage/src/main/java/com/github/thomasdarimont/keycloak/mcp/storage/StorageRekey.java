@@ -22,9 +22,9 @@ import io.quarkus.runtime.StartupEvent;
 /**
  * Rotates the encryption key of the stored values. A pass reads every encrypted column
  * ({@code kc_mcp_signing_key.private_key}, {@code kc_mcp_secret.secret_value},
- * {@code kc_mcp_system.client_secret} and {@code password}), decrypts what the current
- * key did not write (a previous key, the old format, or plain text from before encryption
- * was on) and writes it back under the current key. Idempotent; runs at startup while
+ * {@code kc_mcp_system.client_secret}), decrypts what the current key did not write (a
+ * previous key, the old format, or plain text from before encryption was on) and writes
+ * it back under the current key. Idempotent; runs at startup while
  * {@code kc-mcp.storage.previous-secret-keys} is set and on demand through the admin API
  * ({@code POST /admin/storage/rekey}). Values under a key that is configured nowhere are
  * left alone and reported, so the operator knows which key is still needed.
@@ -83,8 +83,7 @@ public class StorageRekey {
         Map<String, Long> remaining = new TreeMap<>();
         long systems = 0;
         for (SystemEntity e : SystemEntity.<SystemEntity>listAll()) {
-            boolean changed = rewrite(() -> e.clientSecret, v -> e.clientSecret = v, remaining)
-                    | rewrite(() -> e.password, v -> e.password = v, remaining);
+            boolean changed = rewrite(() -> e.clientSecret, v -> e.clientSecret = v, remaining);
             if (changed) {
                 e.updatedAt = System.currentTimeMillis();
                 systems++;
@@ -133,7 +132,6 @@ public class StorageRekey {
         Map<String, Long> systems = new TreeMap<>();
         for (SystemEntity e : SystemEntity.<SystemEntity>listAll()) {
             count(systems, e.clientSecret);
-            count(systems, e.password);
         }
         tables.put("kc_mcp_system", systems);
         Map<String, Long> keys = new TreeMap<>();

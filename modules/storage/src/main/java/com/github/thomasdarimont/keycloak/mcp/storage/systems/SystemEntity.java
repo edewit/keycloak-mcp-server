@@ -36,7 +36,7 @@ public class SystemEntity extends PanacheEntityBase {
     @Column(name = "url", nullable = false, length = 1024)
     public String url;
 
-    /** {@code client_credentials} or {@code password}. */
+    /** {@code client_credentials}; stored systems authenticate as service clients. */
     @Column(name = "grant_type", nullable = false, length = 32)
     public String grantType;
 
@@ -53,13 +53,6 @@ public class SystemEntity extends PanacheEntityBase {
     /** Encrypted when {@code kc-mcp.storage.secret-key} is set. */
     @Column(name = "client_secret")
     public String clientSecret;
-
-    @Column(name = "username", length = 255)
-    public String username;
-
-    /** Encrypted when {@code kc-mcp.storage.secret-key} is set. */
-    @Column(name = "password")
-    public String password;
 
     @Column(name = "default_realm", length = 255)
     public String defaultRealm;

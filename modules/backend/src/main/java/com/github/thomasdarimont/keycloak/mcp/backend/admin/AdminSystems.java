@@ -21,6 +21,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.Jwks;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.JwksEndpoint;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.SigningKeys;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
+import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
@@ -118,6 +119,13 @@ public class AdminSystems {
         }
         if (!system.url().startsWith("http://") && !system.url().startsWith("https://")) {
             throw new AdminException(400, "invalid_url", "The url must be http(s).");
+        }
+        if (system.grantType() != GrantType.CLIENT_CREDENTIALS) {
+            throw new AdminException(400, "grant_not_supported",
+                    "Registered systems authenticate as service clients:"
+                            + " grantType must be client_credentials (private_key_jwt or client_secret). The "
+                            + system.grantType().oauthValue()
+                            + " grant is deprecated by OAuth 2.1 and only the static configuration supports it.");
         }
         if (!systems.allowedHosts().permits(system.url())) {
             throw new AdminException(400, "host_not_allowed", "The url " + system.url()

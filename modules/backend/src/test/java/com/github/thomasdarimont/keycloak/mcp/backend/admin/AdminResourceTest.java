@@ -150,6 +150,13 @@ class AdminResourceTest {
             .then()
             .statusCode(400)
             .body("error", equalTo("invalid_alias"));
+        admin()
+            .body("{\"url\": \"http://127.0.0.1:1\", \"grantType\": \"password\", \"clientAuth\": \"none\","
+                    + " \"username\": \"admin\", \"password\": \"admin\"}")
+            .put("/admin/systems/by-password")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("grant_not_supported"));
         admin().body("{\"url\": \"http://kc.evil.test\"}")
             .put("/admin/systems/evil")
             .then()

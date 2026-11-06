@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Schema version 0.2.0: a description per system. -->
+<!-- Schema version 0.2.0: a description per system; no more username/password (stored systems are service clients). -->
 <databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
@@ -10,5 +10,12 @@
         <addColumn tableName="kc_mcp_system">
             <column name="description" type="clob"/>
         </addColumn>
+    </changeSet>
+
+    <changeSet id="5-drop-password-grant" author="keycloak-mcp-server">
+        <comment>Stored systems authenticate as service clients (client_credentials); the password grant, deprecated by
+            OAuth 2.1, stays available to the static configuration only</comment>
+        <dropColumn tableName="kc_mcp_system" columnName="username"/>
+        <dropColumn tableName="kc_mcp_system" columnName="password"/>
     </changeSet>
 </databaseChangeLog>

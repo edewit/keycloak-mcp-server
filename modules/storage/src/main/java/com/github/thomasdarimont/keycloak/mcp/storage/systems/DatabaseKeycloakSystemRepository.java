@@ -194,6 +194,11 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
     /** {@link #save} returning the row. */
     @Transactional
     public SystemEntity saveEntity(KeycloakSystem system) {
+        if (system.grantType() != GrantType.CLIENT_CREDENTIALS) {
+            throw new IllegalArgumentException("Stored systems authenticate as service clients (client_credentials); '"
+                    + system.name() + "' asks for the " + system.grantType().oauthValue()
+                    + " grant, which only the static configuration supports");
+        }
         long now = System.currentTimeMillis();
         SystemEntity e = entity(system.name()).orElse(null);
         if (e == null) {
@@ -214,8 +219,6 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
         e.authRealm = system.authRealm();
         e.clientId = system.clientId().orElse(null);
         e.clientSecret = crypto.protect(system.clientSecret().orElse(null));
-        e.username = system.username().orElse(null);
-        e.password = crypto.protect(system.password().orElse(null));
         e.defaultRealm = system.defaultRealm().orElse(null);
         e.allowedRealms = system.allowedRealms().isEmpty() ? null
                 : new JsonArray(system.allowedRealms().stream().sorted().toList()).encode();
@@ -272,8 +275,6 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
             .authRealm(e.authRealm)
             .clientId(e.clientId)
             .clientSecret(crypto.reveal(e.clientSecret))
-            .username(e.username)
-            .password(crypto.reveal(e.password))
             .defaultRealm(e.defaultRealm)
             .allowedRealms(realms(e.allowedRealms))
             .version(e.version)

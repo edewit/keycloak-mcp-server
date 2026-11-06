@@ -149,6 +149,17 @@ class DatabaseStorageIT {
         assertTrue(repo.delete(renamed));
         assertFalse(repo.delete(renamed));
         assertFalse(repo.setEnabled("nope", true));
+
+        // the password grant is for the static configuration only
+        KeycloakSystem viaPassword = KeycloakSystem.builder("dev-" + alias, "https://sso.example.com")
+            .grantType(GrantType.PASSWORD)
+            .clientAuth(ClientAuth.NONE)
+            .clientId("admin-cli")
+            .username("admin")
+            .password("admin")
+            .build();
+        assertThrows(IllegalArgumentException.class, () -> repo.save(viaPassword));
+        assertTrue(repo.find("dev-" + alias).isEmpty());
     }
 
     @Test

@@ -200,8 +200,9 @@ Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. F
   optional `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role` (`realm:admin` default; `<client>.<role>` for client
   roles). One of token and issuer required.
 - `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `description`, `url`, `issuer`, `authRealm`,
-  `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `version`, credentials) into the first
-  `MutableKeycloakSystemRepository`.
+  `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `version`, `clientSecret`) into the first
+  `MutableKeycloakSystemRepository`. Registered systems are service clients: `client_credentials` with
+  `private_key_jwt` or `client_secret`; `grantType: password` answers 400 `grant_not_supported`.
   `url` must pass `kc-mcp.allowed-hosts`. `kc-mcp.admin.allow-new-systems=false` freezes the set: unknown aliases answer
   403 `registration_closed`, known systems stay changeable (reading stored systems only needs `kc-mcp.dynamic-systems`,
   not the admin API).
@@ -251,7 +252,8 @@ KC_MCP_STORAGE_SECRET_KEY=$(openssl rand -base64 32) java -jar modules/backend/t
 - Pseudonyms are HMACs under `secret-key`, so a rotation changes them; `kc-mcp.spi.pii-audit-scrubber.pseudonym-key`
   gives the scrubber a key of its own.
 - `kc_mcp_system`: `alias` = system name (`system` argument, `/mcp/systems/<alias>`), `name` = display label,
-  `description` free text, UUID primary key; all changeable. `enabled=false`: kept, not served.
+  `description` free text, UUID primary key; all changeable. `enabled=false`: kept, not served. Service clients only:
+  no username/password columns, the repository refuses the password grant.
 - Snapshot cache: rows reloaded when older than `kc-mcp.spi.db-systems.cache-seconds` (10; local writes reload at once).
   Tool calls cost no query; event-loop threads get the snapshot as is.
 - Programmatic access: `DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault`
@@ -318,7 +320,7 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | property                        | default                     | meaning |
 |---------------------------------|-----------------------------|---------|
 | `kc-mcp.url`                    | `http://localhost:8080`     | Keycloak base URL, context path included (`https://sso.example.com/auth`) |
-| `kc-mcp.grant-type`             | `client_credentials`        | `client_credentials` or `password` |
+| `kc-mcp.grant-type`             | `client_credentials`        | `client_credentials`, or `password` (deprecated by OAuth 2.1; local dev, static configuration only) |
 | `kc-mcp.client-auth`            | inferred                    | `client_secret`, `private_key_jwt`, `none` |
 | `kc-mcp.auth-realm`             | `master`                    | realm of the client / admin user |
 | `kc-mcp.client-id`              | `admin-cli` for password+none | client id |
@@ -346,7 +348,7 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.spi.db-audit.retention-days` |                        | delete audit rows older than this (startup, then hourly); unset keeps all |
 | `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the JWKS |
 | `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | `keep`, `pseudonymize`, `drop`; `pii-args` argument names, `targets` listeners (default `db-audit`) |
-| `kc-mcp.username` / `password`  |                             | password grant |
+| `kc-mcp.username` / `password`  |                             | password grant (static configuration only) |
 | `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; needs `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
 | `kc-mcp.require-caller`         | `false`                     | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
