@@ -360,4 +360,45 @@ class DatabaseStorageIT {
         assertEquals(0, store.deleteExpired(now));
         store.delete("unknown");
     }
+
+    @Inject
+    @Any
+    Instance<com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore> approvalStores;
+
+    @Test
+    void pendingApprovalsAreReservedOnceStoredEncryptedAndConsumedOnce() {
+        var store = approvalStores
+            .select(com.github.thomasdarimont.keycloak.mcp.storage.approvals.DatabasePendingApprovalStore.class)
+            .get();
+        assertEquals("db-approvals", store.id());
+        String key = "session|sub|https://sso.example.com/realms/demo|" + UUID.randomUUID();
+        long now = System.currentTimeMillis();
+        assertTrue(store.reserve(key, now + 30_000), "first reservation wins");
+        assertTrue(!store.reserve(key, now + 30_000), "the second is refused while the first lives");
+        var reserved = store.find(key).orElseThrow();
+        assertTrue(!reserved.filed(), "reserved, not filed yet");
+
+        store.put(new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval(key, "auth-req-id-secret", "…id",
+                "42", "kc-mcp-abc", "https://sso.example.com/realms/demo", "alice", "sub",
+                "https://sso.example.com/realms/demo", "Delete user (realm demo)", "prod", "demo", now + 60_000, 2,
+                now));
+        var filed = store.find(key).orElseThrow();
+        assertEquals("auth-req-id-secret", filed.authReqId());
+        assertEquals("42", filed.code());
+        assertEquals("prod", filed.system());
+        assertEquals("demo", filed.realm());
+        assertTrue(filed.filed());
+        var row = com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity.<com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity>findById(
+                key);
+        assertTrue(StorageCrypto.isEncrypted(row.authReqId), "auth_req_id encrypted at rest: " + row.authReqId);
+
+        assertTrue(store.remove(key), "consumed once");
+        assertTrue(!store.remove(key), "not twice");
+        assertTrue(store.find(key).isEmpty());
+
+        // an expired reservation can be taken over
+        assertTrue(store.reserve(key, now - 1));
+        assertTrue(store.reserve(key, now + 30_000), "expired: free again");
+        assertTrue(store.deleteExpired(now + 60_000) >= 1);
+    }
 }

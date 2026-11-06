@@ -590,14 +590,31 @@ and runs the tool (`confirmed`), answers `cancelled` (declined), `confirmation_r
 (still waiting, after `poll-wait-seconds`) or `status: expired` (nothing changed, call again for a new request).
 Number matching as in Entra ID: the number is shown where the request originates and asked for where it is approved,
 so a request the user did not trigger carries a number they cannot know. `flow=blocking` waits in the call instead,
-without a number. Anonymous callers are left to the next confirmer. Standard CIBA only, so any CIBA-capable
-provider works; the device side is the provider's (Keycloak: its HTTP authentication channel, which forwards up to
-five additional parameters; see the example).
+without a number. Standard CIBA only, so any CIBA-capable provider works; the device side is the provider's
+(Keycloak: its HTTP authentication channel, which forwards up to five additional parameters; see the example).
+
+What makes the approval trustworthy:
+
+- One approval per MCP session, caller, issuer and operation, reserved atomically in the `PendingApprovalStore`
+  before the request is filed, so parallel calls file one request, another session of the same user gets its own,
+  and a decision is consumed once (a parallel collect finds it gone).
+- Who approved is verified: the ID token the token endpoint returns on approval must verify against the provider's
+  JWKS (signature, issuer, the CIBA client as audience, expiry), and its identity must be the person asked: the same
+  `sub` as the MCP caller when their token comes from the same issuer, else the username or email of the login hint.
+  Anything else answers `cancelled` with the reason and confirms nothing.
+- Nothing falls back to the model: the confirmer refuses to start unless callers are required
+  (`kc-mcp.require-caller`, a delegation mode or the shared profile), and an anonymous or unaddressable caller gets
+  `confirmation_required`, never the default confirmer's `confirm: true`. The one deliberate hand-over is
+  `when=without-elicitation`, to the client's elicitation.
+- Pending approvals live in the database storage when it is on (`kc_mcp_pending_approval`, `db-approvals`, the
+  `auth_req_id` encrypted under `secret-key`, purged hourly), so the collecting call may reach any instance; without
+  the storage an in-memory store serves a single instance.
 
 | `kc-mcp.spi.ciba-confirmer.*` | default | meaning |
 |---|---|---|
 | `enabled` | `false` | |
 | `issuer` | `caller` | issuer URL of the CIBA client; `caller` follows the `iss` of the caller's token (the auth realm without one) |
+| `token-issuer` | = `issuer` | the `iss` the provider's tokens carry when the server reaches it at an internal URL (Docker) |
 | `client-id` / `client-secret` | | the confidential client registered for CIBA (required when on) |
 | `client-auth` | `client_secret_basic` | or `client_secret_post` |
 | `scope` | `openid` | |

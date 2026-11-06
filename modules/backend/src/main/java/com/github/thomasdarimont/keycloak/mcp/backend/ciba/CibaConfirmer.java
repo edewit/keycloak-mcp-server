@@ -6,9 +6,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -20,6 +23,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
+import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.CibaException;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Poll;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Started;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaSettings.Flow;
@@ -27,6 +31,9 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.core.json.JsonObject;
@@ -40,13 +47,16 @@ import io.vertx.core.json.JsonObject;
  * model writes, and elicitation, which the MCP client answers, the approval comes from a
  * second channel the model never touches.
  * <p>
- * Two-step flow (default): the first call files the request and answers
- * {@code confirmation_required} at once, with the binding message and, for number
- * matching, a two-digit {@code code} the device asks the user for; the next call with the
- * same arguments collects the decision. Blocking flow: the call waits for the device.
- * Works with any CIBA-capable provider (tested against Keycloak). Configuration
- * {@code kc-mcp.spi.ciba-confirmer.*} ({@link CibaSettings}); off by default, abstains
- * for anonymous callers.
+ * Two-step flow (default): the first call reserves the approval (one per MCP session,
+ * caller and operation, atomically in the {@link PendingApprovalStore}), files the
+ * request and answers {@code confirmation_required} at once, with the binding message
+ * and, for number matching, a two-digit {@code code} the device asks the user for; the
+ * next call with the same arguments collects the decision, verifies the ID token of the
+ * approval against the provider's keys and the identity it names against the caller, and
+ * consumes the approval once. Blocking flow: the call waits for the device. Works with
+ * any CIBA-capable provider (tested against Keycloak). Configuration
+ * {@code kc-mcp.spi.ciba-confirmer.*} ({@link CibaSettings}); off by default, needs
+ * authenticated callers, never leaves a decision to the model.
  */
 @ApplicationScoped
 public class CibaConfirmer implements Confirmer {
@@ -61,53 +71,65 @@ public class CibaConfirmer implements Confirmer {
     static final String PARAM_REQUESTER = "requester";
     static final String PARAM_OPERATION = "operation";
 
-    /** A filed request waiting for the device (two-step flow). */
-    record Pending(String authReqId, String requestId, String code, String binding, String hint, String operation,
-            long deadlineNanos, Duration interval) {
-        boolean expired() {
-            return System.nanoTime() >= deadlineNanos;
-        }
-
-        long secondsLeft() {
-            return Math.max(0, Duration.ofNanos(deadlineNanos - System.nanoTime()).toSeconds());
-        }
-    }
+    /** How long a bare reservation lasts: the time to file the request. */
+    static final Duration RESERVATION = Duration.ofSeconds(30);
 
     private final CibaSettings settings;
     private final String defaultIssuer;
     private final Function<String, CibaClient> clients;
+    private final Function<CibaClient, CibaIdentityVerifier> verifiers;
+    private final PendingApprovalStore store;
+    private final boolean callersRequired;
     private final Map<String, CibaClient> byIssuer = new ConcurrentHashMap<>();
-    private final Map<String, Pending> pending = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private Duration pollFloor = Duration.ofSeconds(1);
 
     @Inject
-    public CibaConfirmer(McpServerConfig config) {
-        this(CibaSettings.from(config), config.url() + "/realms/" + config.authRealm(), null);
+    public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry) {
+        this(CibaSettings.from(config), config.url() + "/realms/" + config.authRealm(), null, null,
+                registry.extensions(PendingApprovalStore.class)
+                    .stream()
+                    .min(Comparator.comparingInt(s -> s.order()))
+                    .orElseGet(InMemoryPendingApprovalStore::new),
+                config.callerRequired() || config.delegation().delegating());
     }
 
     /**
      * @param clients makes the client of an issuer; {@code null} for the real HTTP one
+     * @param verifiers makes the verifier of a client; {@code null} for the real one (the
+     * client's issuer, its JWKS, the CIBA client as audience)
      */
-    public CibaConfirmer(CibaSettings settings, String defaultIssuer, Function<String, CibaClient> clients) {
+    public CibaConfirmer(CibaSettings settings, String defaultIssuer, Function<String, CibaClient> clients,
+            Function<CibaClient, CibaIdentityVerifier> verifiers, PendingApprovalStore store, boolean callersRequired) {
         this.settings = settings;
         this.defaultIssuer = defaultIssuer;
         HttpClient http = clients == null ? CibaClient.newHttpClient() : null;
         this.clients = clients != null ? clients : issuer -> new CibaClient(http, issuer, settings.clientId(),
                 settings.clientSecret(), settings.clientAuth(), settings.scope(), settings.acrValues());
+        this.verifiers = verifiers != null ? verifiers : client -> new CibaIdentityVerifier(client.jwksUri(),
+                settings.tokenIssuer() != null ? settings.tokenIssuer() : client.issuer(), settings.clientId());
+        this.store = store == null ? new InMemoryPendingApprovalStore() : store;
+        this.callersRequired = callersRequired;
     }
 
     void onStart(@Observes StartupEvent event) {
-        if (settings.enabled()) {
-            LOG.infof(
-                    "CIBA confirmer on: destructive tools need the caller's approval on their device (client '%s'"
-                            + " at %s, %s, %s flow%s, login hint %s, %d s)",
-                    settings.clientId(), settings.issuerFromCaller() ? "the caller's issuer" : settings.issuer(),
-                    settings.when() == CibaSettings.When.ALWAYS ? "always" : "when the client has no elicitation",
-                    settings.flow() == Flow.TWO_STEP ? "two-step" : "blocking",
-                    settings.flow() == Flow.TWO_STEP && settings.numberMatching() ? " with number matching" : "",
-                    settings.loginHint(), settings.timeoutSeconds());
+        if (!settings.enabled()) {
+            return;
         }
+        if (!callersRequired) {
+            throw new IllegalStateException("kc-mcp.spi.ciba-confirmer.enabled=true needs authenticated callers, or"
+                    + " there is nobody whose device could be asked: set kc-mcp.require-caller=true (with"
+                    + " quarkus.oidc.tenant-enabled=true), kc-mcp.delegation=forward|exchange, or"
+                    + " kc-mcp.profile=shared");
+        }
+        LOG.infof(
+                "CIBA confirmer on: destructive tools need the caller's approval on their device (client '%s'"
+                        + " at %s, %s, %s flow%s, login hint %s, %d s, approvals in %s)",
+                settings.clientId(), settings.issuerFromCaller() ? "the caller's issuer" : settings.issuer(),
+                settings.when() == CibaSettings.When.ALWAYS ? "always" : "when the client has no elicitation",
+                settings.flow() == Flow.TWO_STEP ? "two-step" : "blocking",
+                settings.flow() == Flow.TWO_STEP && settings.numberMatching() ? " with number matching" : "",
+                settings.loginHint(), settings.timeoutSeconds(), store.id());
     }
 
     @Override
@@ -130,25 +152,23 @@ public class CibaConfirmer implements Confirmer {
         return 1000;
     }
 
+    @Override
+    public boolean asksTheHuman() {
+        return settings.enabled();
+    }
+
     public CibaSettings settings() {
         return settings;
     }
 
-    @Override
-    public boolean asksTheHuman() {
-        return settings.enabled();
+    public PendingApprovalStore store() {
+        return store;
     }
 
     /** Shortest pause between polls (tests lower it). */
     CibaConfirmer pollFloor(Duration floor) {
         this.pollFloor = floor;
         return this;
-    }
-
-    /** Requests filed and not yet decided (two-step flow). */
-    public int pendingCount() {
-        pending.values().removeIf(Pending::expired);
-        return pending.size();
     }
 
     @Override
@@ -161,47 +181,77 @@ public class CibaConfirmer implements Confirmer {
         }
         Caller caller = r.caller();
         if (caller.isAnonymous()) {
-            LOG.debugf("CIBA confirmer: anonymous caller, nobody to ask for %s", r.tool().name());
-            return Decision.abstain();
+            return Decision.confirmationRequired(
+                    "This server confirms destructive operations on the caller's own"
+                            + " device, and this session has no signed-in caller whose device could be asked. Connect"
+                            + " through an authenticated (OAuth) MCP session; nothing was changed.",
+                    Map.of("howTo", "Sign in to the MCP server first; confirm: true is not accepted."));
         }
         String hint = loginHint(caller);
         if (hint == null) {
-            LOG.warnf("CIBA confirmer: caller %s has no %s to address the request to, abstaining", caller,
-                    settings.loginHint());
-            return Decision.abstain();
+            return Decision.confirmationRequired(
+                    "This server confirms destructive operations on the caller's own"
+                            + " device, but the caller's token carries no " + settings.loginHint()
+                            + " to address the request to; nothing was changed.",
+                    Map.of("howTo", "An administrator must fix the login hint of the CIBA confirmer; confirm: true"
+                            + " is not accepted."));
         }
         String issuer = settings.issuerFromCaller() ? issuerOf(caller) : settings.issuer();
         CibaClient client = byIssuer.computeIfAbsent(issuer, clients);
         String operation = r.tool().title() + (r.realm() != null ? " (realm " + r.realm() + ")" : "");
+        String session = r.connectionId() == null ? "-" : r.connectionId();
+        String key = session + "|" + (caller.subject() != null ? caller.subject() : hint) + "|" + issuer + "|"
+                + operationHash(r);
         if (settings.flow() == Flow.BLOCKING) {
-            Pending p = file(client, r, hint, operation, null);
-            return await(client, p, p.deadlineNanos);
+            PendingApproval p = file(client, r, caller, issuer, hint, operation, null, key);
+            return await(client, p, p.expiresAt());
         }
-        String key = (caller.subject() != null ? caller.subject() : hint) + "|" + issuer + "|" + operationHash(r);
-        Pending p = pending.get(key);
-        if (p != null && p.expired()) {
-            pending.remove(key, p);
-            p = null;
-        }
-        if (p == null) {
+        if (store.reserve(key, System.currentTimeMillis() + RESERVATION.toMillis())) {
             String code = settings.numberMatching() ? String.valueOf(10 + random.nextInt(90)) : null;
-            p = file(client, r, hint, operation, code);
-            pending.put(key, p);
+            PendingApproval p;
+            try {
+                p = file(client, r, caller, issuer, hint, operation, code, key);
+            }
+            catch (RuntimeException e) {
+                store.remove(key);
+                throw e;
+            }
+            store.put(p);
             return awaiting(p, true);
         }
-        long waitUntil = Math.min(p.deadlineNanos,
-                System.nanoTime() + Duration.ofSeconds(settings.pollWaitSeconds()).toNanos());
+        Optional<PendingApproval> found = store.find(key);
+        if (found.isEmpty()) {
+            // the reservation lapsed between the check and the lookup: start over
+            return confirm(r);
+        }
+        PendingApproval p = found.get();
+        if (!p.filed()) {
+            return Decision.confirmationRequired(
+                    "The approval request for '" + operation + "' is being filed with " + hint
+                            + "'s device by a parallel call; call again in a moment.",
+                    Map.of("approval", Map.of("status", "filing"), "howTo",
+                            "Call again with the same arguments in a few seconds."));
+        }
+        long waitUntil = Math.min(p.expiresAt(),
+                System.currentTimeMillis() + Duration.ofSeconds(settings.pollWaitSeconds()).toMillis());
         Decision d = await(client, p, waitUntil);
         if (d.outcome() == Decision.Outcome.CONFIRMATION_REQUIRED && !p.expired()
                 && Boolean.TRUE.equals(d.details().get("waiting"))) {
             return awaiting(p, false);
         }
-        pending.remove(key, p);
+        if (!store.remove(key) && d.outcome() == Decision.Outcome.CONFIRMED) {
+            LOG.warnf("CIBA request %s was consumed by a parallel call; not confirming twice", p.requestId());
+            return Decision.confirmationRequired(
+                    "The approval of '" + operation + "' was already used by a parallel"
+                            + " call; nothing was changed by this one.",
+                    Map.of("approval", Map.of("status", "consumed")));
+        }
         return d;
     }
 
     /** Files the request with the provider. */
-    private Pending file(CibaClient client, ConfirmationRequest r, String hint, String operation, String code) {
+    private PendingApproval file(CibaClient client, ConfirmationRequest r, Caller caller, String issuer, String hint,
+            String operation, String code, String key) {
         String binding = settings.bindingMessage() ? bindingMessage(settings.bindingMessagePrefix(), r) : null;
         Map<String, String> extra = new LinkedHashMap<>();
         if (code != null) {
@@ -217,32 +267,36 @@ public class CibaConfirmer implements Confirmer {
                 extra);
         int budget = Math.min(settings.timeoutSeconds(), started.expiresIn());
         String requestId = fingerprint(started.authReqId());
-        LOG.infof("CIBA request %s for %s: %s %s (binding message %s%s, up to %d s)", requestId, hint, r.tool().name(),
-                r.realm() == null ? "" : "realm " + r.realm(), binding == null ? "none" : binding,
-                code == null ? "" : ", code " + code, budget);
-        Duration interval = Duration.ofSeconds(Math.max(1, started.interval()));
-        if (interval.compareTo(pollFloor) < 0) {
-            interval = pollFloor;
-        }
-        return new Pending(started.authReqId(), requestId, code, binding, hint, operation,
-                System.nanoTime() + Duration.ofSeconds(budget).toNanos(), interval);
+        LOG.infof("CIBA request %s for %s: %s %s (binding message %s%s, up to %d s, session %s)", requestId, hint,
+                r.tool().name(), r.realm() == null ? "" : "realm " + r.realm(), binding == null ? "none" : binding,
+                code == null ? "" : ", code " + code, budget, r.connectionId() == null ? "-" : r.connectionId());
+        int interval = Math.max(1, started.interval());
+        Object iss = caller.claim("iss");
+        return new PendingApproval(key, started.authReqId(), requestId, code, binding, issuer, hint, caller.subject(),
+                iss instanceof String s ? s : null, operation, r.system(), r.realm(),
+                System.currentTimeMillis() + budget * 1000L, interval, System.currentTimeMillis());
     }
 
     /**
-     * Polls until the device answered or {@code untilNanos} passed; "still waiting" comes
-     * back as CONFIRMATION_REQUIRED with {@code waiting=true} in the details.
+     * Polls until the device answered or {@code untilMillis} passed; "still waiting"
+     * comes back as CONFIRMATION_REQUIRED with {@code waiting=true} in the details. An
+     * approval is confirmed only when the ID token verifies and names the person who was
+     * asked.
      */
-    private Decision await(CibaClient client, Pending p, long untilNanos) {
-        Duration interval = p.interval();
+    private Decision await(CibaClient client, PendingApproval p, long untilMillis) {
+        Duration interval = Duration.ofSeconds(p.intervalSeconds());
+        if (interval.compareTo(pollFloor) < 0) {
+            interval = pollFloor;
+        }
         while (true) {
             if (p.expired()) {
                 return Decision.confirmationRequired("No approval for '" + p.operation() + "' arrived in time: "
-                        + p.hint() + " was asked on their device" + bindingNote(p.binding())
+                        + p.loginHint() + " was asked on their device" + bindingNote(p.bindingMessage())
                         + ". Nothing was changed; call again to send a new request when they are ready to approve.",
                         Map.of("approval", Map.of("status", "expired"), "howTo",
                                 "Call again with the same arguments to send a new request to the user's device."));
             }
-            if (System.nanoTime() >= untilNanos) {
+            if (System.currentTimeMillis() >= untilMillis) {
                 return Decision.confirmationRequired("still waiting", Map.of("waiting", true));
             }
             try {
@@ -255,17 +309,27 @@ public class CibaConfirmer implements Confirmer {
             Poll poll = client.poll(p.authReqId());
             switch (poll.status()) {
                 case APPROVED -> {
-                    LOG.infof("CIBA request %s approved by %s", p.requestId(), p.hint());
+                    CibaIdentityVerifier.Identity who;
+                    try {
+                        who = verifiers.apply(client).verify(poll.idToken(), p);
+                    }
+                    catch (CibaException e) {
+                        LOG.warnf("CIBA request %s: approval rejected: %s", p.requestId(), e.getMessage());
+                        return Decision.declined(e.getMessage(), Map.of("approval", Map.of("status", "rejected")));
+                    }
+                    LOG.infof("CIBA request %s approved by %s (sub %s)", p.requestId(), p.loginHint(), who.subject());
                     return Decision.confirmed();
                 }
                 case DENIED -> {
-                    LOG.infof("CIBA request %s declined by %s", p.requestId(), p.hint());
-                    return Decision.declined(p.hint() + " declined '" + p.operation() + "' on their device"
-                            + bindingNote(p.binding()) + ".", Map.of("approval", Map.of("status", "declined")));
+                    LOG.infof("CIBA request %s declined by %s", p.requestId(), p.loginHint());
+                    return Decision.declined(
+                            p.loginHint() + " declined '" + p.operation() + "' on their device"
+                                    + bindingNote(p.bindingMessage()) + ".",
+                            Map.of("approval", Map.of("status", "declined")));
                 }
                 case EXPIRED -> {
                     return Decision.confirmationRequired("The approval request for '" + p.operation()
-                            + "' expired before " + p.hint() + " answered" + bindingNote(p.binding())
+                            + "' expired before " + p.loginHint() + " answered" + bindingNote(p.bindingMessage())
                             + ". Nothing was changed; call again to send a new request when they are ready to approve.",
                             Map.of("approval", Map.of("status", "expired"), "howTo",
                                     "Call again with the same arguments to send a new request to the user's device."));
@@ -279,23 +343,24 @@ public class CibaConfirmer implements Confirmer {
     }
 
     /** The two-step answer while the device has not decided. */
-    private Decision awaiting(Pending p, boolean fresh) {
+    private Decision awaiting(PendingApproval p, boolean fresh) {
+        long left = Math.max(0, (p.expiresAt() - System.currentTimeMillis()) / 1000);
         Map<String, Object> approval = new LinkedHashMap<>();
         approval.put("status", fresh ? "requested" : "pending");
-        approval.put("user", p.hint());
-        if (p.binding() != null) {
-            approval.put("bindingMessage", p.binding());
+        approval.put("user", p.loginHint());
+        if (p.bindingMessage() != null) {
+            approval.put("bindingMessage", p.bindingMessage());
         }
         if (p.code() != null) {
             approval.put("code", p.code());
         }
-        approval.put("expiresInSeconds", p.secondsLeft());
+        approval.put("expiresInSeconds", left);
         String code = p.code() == null ? "" : " The device asks for the number " + p.code() + ".";
         String message = fresh
-                ? "'" + p.operation() + "' needs " + p.hint() + "'s approval on their device: a request"
-                        + bindingNote(p.binding()) + " was sent." + code
-                : "Still waiting for " + p.hint() + "'s approval of '" + p.operation() + "' on their device"
-                        + bindingNote(p.binding()) + "." + code + " " + p.secondsLeft() + " s left.";
+                ? "'" + p.operation() + "' needs " + p.loginHint() + "'s approval on their device: a request"
+                        + bindingNote(p.bindingMessage()) + " was sent." + code
+                : "Still waiting for " + p.loginHint() + "'s approval of '" + p.operation() + "' on their device"
+                        + bindingNote(p.bindingMessage()) + "." + code + " " + left + " s left.";
         String howTo = "Tell the user to approve the request on their device"
                 + (p.code() == null ? "" : " and to enter the number " + p.code() + " when asked")
                 + ", then call again with the same arguments to continue. Nothing has been changed yet.";
@@ -358,5 +423,10 @@ public class CibaConfirmer implements Confirmer {
         catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    /** The stores found, lowest order first (for the log and tests). */
+    static List<PendingApprovalStore> stores(ExtensionRegistry registry) {
+        return registry.extensions(PendingApprovalStore.class);
     }
 }

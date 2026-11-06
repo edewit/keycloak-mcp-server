@@ -38,7 +38,14 @@ public class CibaClient {
     public record Started(String authReqId, int expiresIn, int interval) {
     }
 
-    public record Poll(Status status, String detail) {
+    /**
+     * @param idToken the ID token of the approval ({@link Status#APPROVED}), to verify
+     * who approved
+     */
+    public record Poll(Status status, String detail, String idToken) {
+        public Poll(Status status, String detail) {
+            this(status, detail, null);
+        }
     }
 
     /** A CIBA request that could not be made or that the provider refused. */
@@ -52,7 +59,7 @@ public class CibaClient {
         }
     }
 
-    private record Endpoints(String backchannel, String token) {
+    private record Endpoints(String backchannel, String token, String jwks) {
     }
 
     private final HttpClient http;
@@ -81,6 +88,11 @@ public class CibaClient {
 
     public String issuer() {
         return issuer;
+    }
+
+    /** The provider's {@code jwks_uri}, for verifying the ID token of an approval. */
+    public String jwksUri() {
+        return endpoints().jwks();
     }
 
     /**
@@ -140,7 +152,7 @@ public class CibaClient {
         HttpResponse<String> r = send(endpoints().token(),
                 "grant_type=" + enc(GRANT_TYPE) + "&auth_req_id=" + enc(authReqId));
         if (r.statusCode() == 200) {
-            return new Poll(Status.APPROVED, null);
+            return new Poll(Status.APPROVED, null, json(r).getString("id_token"));
         }
         JsonObject body = json(r);
         String error = body.getString("error", "");
@@ -177,10 +189,14 @@ public class CibaClient {
             JsonObject meta = new JsonObject(r.body());
             String bc = meta.getString("backchannel_authentication_endpoint");
             String token = meta.getString("token_endpoint");
+            String jwks = meta.getString("jwks_uri");
             if (bc == null || token == null) {
                 throw new CibaException(i + " does not advertise CIBA (backchannel_authentication_endpoint)");
             }
-            return new Endpoints(bc, token);
+            if (jwks == null) {
+                throw new CibaException(i + " does not advertise jwks_uri, so approvals cannot be verified");
+            }
+            return new Endpoints(bc, token, jwks);
         });
     }
 

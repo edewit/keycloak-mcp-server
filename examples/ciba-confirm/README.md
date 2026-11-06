@@ -111,12 +111,16 @@ message and the number the page asks for, so you can tell which request belongs 
 ## Beyond the demo
 
 - Other providers: point `KC_MCP_SPI_CIBA_CONFIRMER_ISSUER` at the provider (or leave `caller` to follow the issuer
-  of the caller's token), register a confidential CIBA client there, pick `client-auth=client_secret_post` if it does
+  of the caller's token; in a container that reaches the provider at an internal URL set the URL as the issuer and
+  the public one as `TOKEN_ISSUER`, as `docker-compose.yml` does), register a confidential CIBA client there, pick `client-auth=client_secret_post` if it does
   not take HTTP Basic, and set `login-hint` to the claim the provider resolves users by (`email`, `sub`, ...).
   `requested-expiry=true` asks the provider to keep the request as long as the server waits; `binding-message=false`
   drops the message for providers that reject it.
 - `KC_MCP_SPI_CIBA_CONFIRMER_WHEN=without-elicitation` keeps CIBA for clients that cannot ask the human and lets
   clients with elicitation (Claude Desktop, ...) ask in the chat instead.
+- Several MCP server instances: turn the database storage on (`QUARKUS_DATASOURCE_JDBC_URL`, PostgreSQL build), the
+  pending approvals then live in `kc_mcp_pending_approval` and the second call may reach any instance. This example
+  runs one instance with the in-memory store.
 - `KC_MCP_SPI_CIBA_CONFIRMER_FLOW=blocking` makes the tool call wait for the device instead of answering twice;
   simpler for scripts, but the chat shows nothing while waiting, so there is no number to match
   (`number-matching` only applies to the two-step flow). Devices that cannot show additional parameters still get

@@ -2,15 +2,25 @@ package com.github.thomasdarimont.keycloak.mcp.backend.ciba;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Signature;
+import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.Base64;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +37,7 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,7 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The confirmer against a fake realm: discovery, backchannel endpoint, token endpoint.
+ * The confirmer against a fake provider: discovery, backchannel endpoint, token endpoint
+ * that signs real ID tokens, JWKS. The identity of an approval is verified for real.
  */
 class CibaConfirmerTest {
 
@@ -44,12 +56,28 @@ class CibaConfirmerTest {
         .findFirst()
         .orElseThrow();
 
+    private static final KeyPair KEYS;
+    static {
+        try {
+            KeyPairGenerator g = KeyPairGenerator.getInstance("RSA");
+            g.initialize(2048);
+            KEYS = g.generateKeyPair();
+        }
+        catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private HttpServer server;
     private String issuer;
-    /** Scripted token endpoint answers: {@code 200} or an OAuth error code. */
+    /**
+     * Scripted token endpoint answers: {@code 200}, {@code 200:<subject>:<username>},
+     * {@code 200:none} or an error.
+     */
     private final Deque<String> tokenAnswers = new ArrayDeque<>();
     private final List<Map<String, String>> backchannelRequests = new CopyOnWriteArrayList<>();
     private final List<String> authHeaders = new CopyOnWriteArrayList<>();
+    private int requestCounter;
 
     @BeforeEach
     void start() throws IOException {
@@ -58,19 +86,45 @@ class CibaConfirmerTest {
         server.createContext("/realms/demo/.well-known/openid-configuration",
                 x -> json(x, 200, new JsonObject().put("issuer", issuer)
                     .put("token_endpoint", issuer + "/protocol/openid-connect/token")
+                    .put("jwks_uri", issuer + "/protocol/openid-connect/certs")
                     .put("backchannel_authentication_endpoint", issuer + "/protocol/openid-connect/ext/ciba/auth")));
+        server.createContext("/realms/demo/protocol/openid-connect/certs", x -> {
+            RSAPublicKey pub = (RSAPublicKey) KEYS.getPublic();
+            json(x, 200,
+                    new JsonObject().put("keys",
+                            new JsonArray().add(new JsonObject().put("kty", "RSA")
+                                .put("kid", "k1")
+                                .put("use", "sig")
+                                .put("alg", "RS256")
+                                .put("n", b64(unsigned(pub.getModulus())))
+                                .put("e", b64(unsigned(pub.getPublicExponent()))))));
+        });
         server.createContext("/realms/demo/protocol/openid-connect/ext/ciba/auth", x -> {
             authHeaders.add(x.getRequestHeaders().getFirst("Authorization"));
             backchannelRequests.add(form(x));
-            json(x, 200, new JsonObject().put("auth_req_id", "req-1").put("expires_in", 10).put("interval", 1));
+            synchronized (this) {
+                requestCounter++;
+            }
+            json(x, 200,
+                    new JsonObject().put("auth_req_id", "req-" + requestCounter)
+                        .put("expires_in", 10)
+                        .put("interval", 1));
         });
         server.createContext("/realms/demo/protocol/openid-connect/token", x -> {
             Map<String, String> f = form(x);
             assertEquals(CibaClient.GRANT_TYPE, f.get("grant_type"));
-            assertEquals("req-1", f.get("auth_req_id"));
+            assertTrue(f.get("auth_req_id").startsWith("req-"), f.toString());
             String answer = tokenAnswers.isEmpty() ? "authorization_pending" : tokenAnswers.poll();
-            if (answer.equals("200")) {
-                json(x, 200, new JsonObject().put("access_token", "x").put("token_type", "Bearer"));
+            if (answer.startsWith("200")) {
+                String[] parts = answer.split(":");
+                JsonObject tokens = new JsonObject().put("access_token", "x").put("token_type", "Bearer");
+                if (parts.length == 1) {
+                    tokens.put("id_token", idToken("sub-1", "alice", "alice@example.com"));
+                }
+                else if (!parts[1].equals("none")) {
+                    tokens.put("id_token", idToken(parts[1], parts[2], parts[2] + "@example.com"));
+                }
+                json(x, 200, tokens);
             }
             else {
                 json(x, 400, new JsonObject().put("error", answer).put("error_description", "scripted"));
@@ -82,6 +136,43 @@ class CibaConfirmerTest {
     @AfterEach
     void stop() {
         server.stop(0);
+    }
+
+    /** An ID token the fake provider would issue on approval, signed with its key. */
+    private String idToken(String subject, String username, String email) {
+        long now = Instant.now().getEpochSecond();
+        String header = b64(new JsonObject().put("alg", "RS256")
+            .put("kid", "k1")
+            .put("typ", "JWT")
+            .encode()
+            .getBytes(StandardCharsets.UTF_8));
+        String payload = b64(new JsonObject().put("iss", issuer)
+            .put("aud", "mcp-ciba")
+            .put("sub", subject)
+            .put("preferred_username", username)
+            .put("email", email)
+            .put("iat", now)
+            .put("exp", now + 300)
+            .encode()
+            .getBytes(StandardCharsets.UTF_8));
+        try {
+            Signature s = Signature.getInstance("SHA256withRSA");
+            s.initSign(KEYS.getPrivate());
+            s.update((header + "." + payload).getBytes(StandardCharsets.US_ASCII));
+            return header + "." + payload + "." + b64(s.sign());
+        }
+        catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static byte[] unsigned(BigInteger i) {
+        byte[] b = i.toByteArray();
+        return b[0] == 0 ? java.util.Arrays.copyOfRange(b, 1, b.length) : b;
+    }
+
+    private static String b64(byte[] b) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(b);
     }
 
     private static Map<String, String> form(HttpExchange x) throws IOException {
@@ -106,21 +197,30 @@ class CibaConfirmerTest {
                 "client-secret", "s3cr3t", "issuer", issuer, "timeout-seconds", "5", "flow", "blocking"));
         values.putAll(extra);
         CibaSettings settings = CibaSettings.from(new ProviderConfig(CibaSettings.ID, values), 120);
-        return new CibaConfirmer(settings, "http://unused/realms/x", null).pollFloor(Duration.ofMillis(50));
+        return new CibaConfirmer(settings, "http://unused/realms/x", null, null, new InMemoryPendingApprovalStore(),
+                true)
+            .pollFloor(Duration.ofMillis(50));
     }
 
     private static ConfirmationRequest request(Caller caller, Prompter prompter) {
-        return new ConfirmationRequest(DELETE, "prod", "demo", Map.of("id", "u1", "username", "dave"), false, caller,
-                prompter);
+        return request(caller, prompter, "session-1");
     }
 
-    private static final Caller ALICE = Caller.of("sub-1", "alice", "demo", Set.of("realm:admin"))
-        .withToken("raw", Map.of("iss", "http://unused/realms/demo", "email", "alice@example.com"));
+    private static ConfirmationRequest request(Caller caller, Prompter prompter, String session) {
+        return new ConfirmationRequest(DELETE, "prod", "demo", Map.of("id", "u1", "username", "dave"), false, caller,
+                prompter, "LM Studio", session);
+    }
+
+    /** alice's token comes from the fake issuer itself, so the subjects must match. */
+    private Caller alice() {
+        return Caller.of("sub-1", "alice", "demo", Set.of("realm:admin"))
+            .withToken("raw", Map.of("iss", issuer, "email", "alice@example.com"));
+    }
 
     @Test
     void approvalConfirmsTheOperation() {
         tokenAnswers.addAll(List.of("authorization_pending", "slow_down", "200"));
-        Decision d = confirmer(Map.of()).confirm(request(ALICE, Prompter.NONE));
+        Decision d = confirmer(Map.of()).confirm(request(alice(), Prompter.NONE));
         assertEquals(Decision.Outcome.CONFIRMED, d.outcome(), String.valueOf(d.message()));
         Map<String, String> bc = backchannelRequests.get(0);
         assertEquals("alice", bc.get("login_hint"));
@@ -128,32 +228,61 @@ class CibaConfirmerTest {
         String binding = bc.get("binding_message");
         assertTrue(CibaConfirmer.BINDING_MESSAGE.matcher(binding).matches(), binding);
         assertTrue(binding.startsWith("kc-mcp-"), binding);
-        assertEquals("Basic " + java.util.Base64.getEncoder().encodeToString("mcp-ciba:s3cr3t".getBytes()),
-                authHeaders.get(0));
+        assertEquals("Basic " + Base64.getEncoder().encodeToString("mcp-ciba:s3cr3t".getBytes()), authHeaders.get(0));
     }
 
     @Test
-    void declineCancelsExpiryAndTimeoutLeaveItUnconfirmed() {
+    void approvalBySomebodyElseOrWithoutAnIdTokenIsRejected() {
+        tokenAnswers.add("200:sub-9:mallory");
+        Decision other = confirmer(Map.of()).confirm(request(alice(), Prompter.NONE));
+        assertEquals(Decision.Outcome.DECLINED, other.outcome(), String.valueOf(other.message()));
+        assertTrue(other.message().contains("mallory"), other.message());
+        assertEquals("rejected", ((Map<?, ?>) other.details().get("approval")).get("status"));
+
+        tokenAnswers.add("200:none");
+        Decision bare = confirmer(Map.of()).confirm(request(alice(), Prompter.NONE));
+        assertEquals(Decision.Outcome.DECLINED, bare.outcome());
+        assertTrue(bare.message().contains("no ID token"), bare.message());
+
+        // a caller from another issuer is matched by the login hint instead of the
+        // subject
+        tokenAnswers.add("200:sub-elsewhere:alice");
+        Caller elsewhere = Caller.of("other-sub", "alice", "demo", Set.of())
+            .withToken("raw", Map.of("iss", "http://other/realms/x"));
+        assertEquals(Decision.Outcome.CONFIRMED,
+                confirmer(Map.of()).confirm(request(elsewhere, Prompter.NONE)).outcome());
+    }
+
+    @Test
+    void declineExpiryAndTimeoutLeaveItUnconfirmed() {
         tokenAnswers.add("access_denied");
-        Decision declined = confirmer(Map.of()).confirm(request(ALICE, Prompter.NONE));
+        Decision declined = confirmer(Map.of()).confirm(request(alice(), Prompter.NONE));
         assertEquals(Decision.Outcome.DECLINED, declined.outcome());
         assertTrue(declined.message().contains("alice declined"), declined.message());
 
         tokenAnswers.add("expired_token");
-        Decision expired = confirmer(Map.of()).confirm(request(ALICE, Prompter.NONE));
+        Decision expired = confirmer(Map.of()).confirm(request(alice(), Prompter.NONE));
         assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, expired.outcome());
         assertTrue(expired.message().contains("expired"), expired.message());
 
-        // never answered: the confirmer's own timeout ends the wait
-        Decision timeout = confirmer(Map.of("timeout-seconds", "1")).confirm(request(ALICE, Prompter.NONE));
+        Decision timeout = confirmer(Map.of("timeout-seconds", "1")).confirm(request(alice(), Prompter.NONE));
         assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, timeout.outcome());
         assertTrue(timeout.message().contains("in time"), timeout.message());
     }
 
     @Test
-    void abstainsWhenThereIsNobodyToAskOrWhenTheClientCanAsk() {
+    void anonymousCallersAreRefusedNotHandedToTheNextConfirmer() {
         CibaConfirmer c = confirmer(Map.of());
-        assertEquals(Decision.Outcome.ABSTAIN, c.confirm(request(Caller.NONE, Prompter.NONE)).outcome());
+        Decision anon = c.confirm(request(Caller.NONE, Prompter.NONE));
+        assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, anon.outcome(), "never ABSTAIN: the flag must not count");
+        assertTrue(anon.message().contains("no signed-in caller"), anon.message());
+        assertTrue(backchannelRequests.isEmpty());
+
+        Caller nameless = new Caller("sub-2", null, "demo", false, Set.of());
+        Decision noHint = c.confirm(request(nameless, Prompter.NONE));
+        assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, noHint.outcome());
+        assertTrue(noHint.message().contains("no username"), noHint.message());
+
         Prompter elicitation = new Prompter() {
             @Override
             public boolean available() {
@@ -166,31 +295,26 @@ class CibaConfirmerTest {
             }
         };
         assertEquals(Decision.Outcome.ABSTAIN,
-                confirmer(Map.of("when", "without-elicitation")).confirm(request(ALICE, elicitation)).outcome());
-        tokenAnswers.add("200");
-        assertEquals(Decision.Outcome.CONFIRMED, c.confirm(request(ALICE, elicitation)).outcome(),
-                "when=always asks the device even though the client could ask");
-        assertTrue(backchannelRequests.size() == 1, "only the always case reached the realm");
-
+                confirmer(Map.of("when", "without-elicitation")).confirm(request(alice(), elicitation)).outcome(),
+                "the one deliberate hand-over: to the client's elicitation, never to the flag");
         CibaSettings off = CibaSettings.from(new ProviderConfig(CibaSettings.ID, Map.of()), 120);
         assertEquals(Decision.Outcome.ABSTAIN,
-                new CibaConfirmer(off, issuer, null).confirm(request(ALICE, Prompter.NONE)).outcome());
+                new CibaConfirmer(off, issuer, null, null, null, false).confirm(request(alice(), Prompter.NONE))
+                    .outcome(),
+                "off: not in the game");
     }
 
     @Test
     void loginHintAndIssuerCanComeFromTheToken() {
-        tokenAnswers.add("200");
+        tokenAnswers.add("200:sub-1:alice");
         CibaSettings settings = CibaSettings.from(
                 new ProviderConfig(CibaSettings.ID, Map.of("enabled", "true", "client-id", "mcp-ciba", "client-secret",
                         "s", "login-hint", "email", "binding-message-prefix", "ACME Corp!", "flow", "blocking")),
                 120);
-        // issuer=caller: the token says http://unused/realms/demo, which the test maps to
-        // the
-        // fake realm
-        CibaConfirmer c = new CibaConfirmer(settings, "http://fallback/realms/x",
-                iss -> new CibaClient(null, issuer, "mcp-ciba", "s", "openid"))
+        // issuer=caller: alice's token names the fake issuer, so it is asked
+        CibaConfirmer c = new CibaConfirmer(settings, "http://fallback/realms/x", null, null, null, true)
             .pollFloor(Duration.ofMillis(50));
-        assertEquals(Decision.Outcome.CONFIRMED, c.confirm(request(ALICE, Prompter.NONE)).outcome());
+        assertEquals(Decision.Outcome.CONFIRMED, c.confirm(request(alice(), Prompter.NONE)).outcome());
         Map<String, String> bc = backchannelRequests.get(0);
         assertEquals("alice@example.com", bc.get("login_hint"));
         assertTrue(bc.get("binding_message").startsWith("ACMECorp!-"), bc.get("binding_message"));
@@ -212,10 +336,10 @@ class CibaConfirmerTest {
 
     @Test
     void bindingMessageIsStableAndBoundToTheOperation() {
-        ConfirmationRequest a = request(ALICE, Prompter.NONE);
+        ConfirmationRequest a = request(alice(), Prompter.NONE);
         ConfirmationRequest b = new ConfirmationRequest(DELETE, "prod", "demo", Map.of("id", "u2", "username", "dave"),
-                false, ALICE, Prompter.NONE);
-        assertEquals(CibaConfirmer.operationHash(a), CibaConfirmer.operationHash(request(ALICE, Prompter.NONE)));
+                false, alice(), Prompter.NONE);
+        assertEquals(CibaConfirmer.operationHash(a), CibaConfirmer.operationHash(request(alice(), Prompter.NONE)));
         assertTrue(!CibaConfirmer.operationHash(a).equals(CibaConfirmer.operationHash(b)));
         assertEquals(10, CibaConfirmer.operationHash(a).length());
         String longPrefix = "x".repeat(60);
@@ -228,7 +352,7 @@ class CibaConfirmerTest {
         tokenAnswers.add("200");
         Decision d = confirmer(Map.of("client-auth", "client_secret_post", "requested-expiry", "true", "acr-values",
                 "mfa", "binding-message", "false"))
-            .confirm(request(ALICE, Prompter.NONE));
+            .confirm(request(alice(), Prompter.NONE));
         assertEquals(Decision.Outcome.CONFIRMED, d.outcome());
         Map<String, String> bc = backchannelRequests.get(0);
         assertEquals("mcp-ciba", bc.get("client_id"), "client_secret_post puts the credentials into the form");
@@ -239,7 +363,7 @@ class CibaConfirmerTest {
         assertTrue(!bc.containsKey("binding_message"), bc.toString());
 
         tokenAnswers.add("invalid_grant");
-        Decision expired = confirmer(Map.of()).confirm(request(ALICE, Prompter.NONE));
+        Decision expired = confirmer(Map.of()).confirm(request(alice(), Prompter.NONE));
         assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, expired.outcome(),
                 "invalid_grant, as some providers answer after expiry, ends the wait too");
     }
@@ -247,8 +371,7 @@ class CibaConfirmerTest {
     @Test
     void twoStepFilesThenCollectsWithNumberMatching() {
         CibaConfirmer c = confirmer(Map.of("flow", "two-step", "poll-wait-seconds", "1"));
-        ConfirmationRequest req = new ConfirmationRequest(DELETE, "prod", "demo",
-                Map.of("id", "u1", "username", "dave"), false, ALICE, Prompter.NONE, "LM Studio");
+        ConfirmationRequest req = request(alice(), Prompter.NONE);
 
         Decision first = c.confirm(req);
         assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, first.outcome());
@@ -259,7 +382,7 @@ class CibaConfirmerTest {
         assertTrue(code.matches("[1-9][0-9]"), code);
         assertTrue(first.message().contains("number " + code), first.message());
         assertTrue(String.valueOf(first.details().get("howTo")).contains("call again"), first.details().toString());
-        assertEquals(1, c.pendingCount());
+        assertEquals(1, ((InMemoryPendingApprovalStore) c.store()).size());
         Map<String, String> bc = backchannelRequests.get(0);
         assertEquals(code, bc.get("code"), "the device gets the number as an additional parameter");
         assertEquals("LM Studio", bc.get("requester"));
@@ -277,34 +400,84 @@ class CibaConfirmerTest {
 
         tokenAnswers.add("200");
         assertEquals(Decision.Outcome.CONFIRMED, c.confirm(req).outcome());
-        assertEquals(0, c.pendingCount());
+        assertEquals(0, ((InMemoryPendingApprovalStore) c.store()).size(), "consumed");
 
         // a decline ends the pending request too
         c.confirm(req);
         tokenAnswers.add("access_denied");
         Decision declined = c.confirm(req);
         assertEquals(Decision.Outcome.DECLINED, declined.outcome());
-        assertEquals(0, c.pendingCount());
+        assertEquals(0, ((InMemoryPendingApprovalStore) c.store()).size());
 
         // and so does an expiry: the next call starts over with a new request
         c.confirm(req);
         tokenAnswers.add("expired_token");
         Decision expired = c.confirm(req);
         assertEquals("expired", ((Map<?, ?>) expired.details().get("approval")).get("status"));
-        assertEquals(0, c.pendingCount());
+        assertEquals(0, ((InMemoryPendingApprovalStore) c.store()).size());
         assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, c.confirm(req).outcome());
         assertEquals(4, backchannelRequests.size());
+    }
+
+    @Test
+    void approvalsBelongToTheSessionThatAskedForThem() throws Exception {
+        CibaConfirmer c = confirmer(Map.of("flow", "two-step", "poll-wait-seconds", "1"));
+        c.confirm(request(alice(), Prompter.NONE, "session-1"));
+        c.confirm(request(alice(), Prompter.NONE, "session-2"));
+        assertEquals(2, backchannelRequests.size(), "same user, same operation, two sessions: two requests");
+        assertEquals(2, ((InMemoryPendingApprovalStore) c.store()).size());
+
+        // the second session's approval does not confirm the first session's call
+        tokenAnswers.add("200");
+        assertEquals(Decision.Outcome.CONFIRMED, c.confirm(request(alice(), Prompter.NONE, "session-2")).outcome());
+        Decision stillWaiting = c.confirm(request(alice(), Prompter.NONE, "session-1"));
+        assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, stillWaiting.outcome());
+        assertEquals("pending", ((Map<?, ?>) stillWaiting.details().get("approval")).get("status"));
+
+        // parallel first calls of one session file exactly one request
+        backchannelRequests.clear();
+        CibaConfirmer fresh = confirmer(Map.of("flow", "two-step", "poll-wait-seconds", "1"));
+        CountDownLatch go = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(4)) {
+            List<Future<Decision>> calls = new java.util.ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                calls.add(pool.submit(() -> {
+                    go.await();
+                    return fresh.confirm(request(alice(), Prompter.NONE, "session-3"));
+                }));
+            }
+            go.countDown();
+            for (Future<Decision> f : calls) {
+                assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, f.get().outcome());
+            }
+        }
+        assertEquals(1, backchannelRequests.size(), "one reservation won, the others waited on it");
+        assertEquals(1, ((InMemoryPendingApprovalStore) fresh.store()).size());
     }
 
     @Test
     void twoStepWithoutNumberMatchingOrExtras() {
         CibaConfirmer c = confirmer(
                 Map.of("flow", "two-step", "number-matching", "false", "extra-parameters", "false"));
-        Decision first = c.confirm(request(ALICE, Prompter.NONE));
+        Decision first = c.confirm(request(alice(), Prompter.NONE));
         Map<?, ?> approval = (Map<?, ?>) first.details().get("approval");
         assertTrue(!approval.containsKey("code"), approval.toString());
         Map<String, String> bc = backchannelRequests.get(0);
         assertTrue(!bc.containsKey("code") && !bc.containsKey("requester") && !bc.containsKey("operation"),
                 bc.toString());
+    }
+
+    @Test
+    void tokenIssuerMayDifferFromTheUrlTheProviderIsReachedAt() {
+        tokenAnswers.add("200");
+        Decision wrong = confirmer(Map.of("token-issuer", "http://public/realms/demo"))
+            .confirm(request(alice(), Prompter.NONE));
+        assertEquals(Decision.Outcome.DECLINED, wrong.outcome());
+        assertTrue(wrong.message().contains("Issuer (iss)"), wrong.message());
+
+        tokenAnswers.add("200");
+        assertEquals(Decision.Outcome.CONFIRMED,
+                confirmer(Map.of("token-issuer", issuer)).confirm(request(alice(), Prompter.NONE)).outcome(),
+                "the value the tokens carry");
     }
 }

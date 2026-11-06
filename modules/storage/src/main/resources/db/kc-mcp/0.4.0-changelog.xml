@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema version 0.4.0: the pending approvals of the CIBA confirmer. -->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="7-pending-approvals" author="keycloak-mcp-server">
+        <comment>Destructive operations waiting for the caller's decision on their device (CIBA, two-step flow), keyed
+            by MCP session, caller, issuer and operation; the key's uniqueness is the reservation that lets exactly one
+            instance file a request; rows past expires_at are purged hourly</comment>
+        <createTable tableName="kc_mcp_pending_approval">
+            <column name="id" type="varchar(512)">
+                <constraints primaryKey="true" primaryKeyName="pk_kc_mcp_pending_approval" nullable="false"/>
+            </column>
+            <!-- the provider's auth_req_id, encrypted when kc-mcp.storage.secret-key is set; null while only reserved -->
+            <column name="auth_req_id" type="clob"/>
+            <column name="request_id" type="varchar(64)"/>
+            <column name="code" type="varchar(8)"/>
+            <column name="binding_message" type="varchar(64)"/>
+            <column name="issuer" type="varchar(1024)"/>
+            <column name="login_hint" type="varchar(255)"/>
+            <column name="caller_subject" type="varchar(255)"/>
+            <column name="caller_issuer" type="varchar(1024)"/>
+            <column name="operation" type="varchar(255)"/>
+            <!-- the Keycloak system (alias) and realm the operation targets; implied by the issuer, kept for people -->
+            <column name="system_name" type="varchar(255)"/>
+            <column name="realm" type="varchar(255)"/>
+            <column name="expires_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="interval_seconds" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="kc_mcp_pending_approval" indexName="ix_kc_mcp_pending_approval_expires">
+            <column name="expires_at"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

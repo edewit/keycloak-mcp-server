@@ -49,6 +49,13 @@ public class ProfileChecks {
         for (String w : warnings(s)) {
             LOG.warn(w);
         }
+        String host = ConfigProvider.getConfig().getOptionalValue("quarkus.http.host", String.class).orElse("");
+        if (!callers.required() && !isLoopback(host)) {
+            LOG.warnf("The MCP endpoint is anonymous and listens on %s: everyone who reaches this address administers"
+                    + " Keycloak with the server's credentials. Bind to 127.0.0.1 (quarkus.http.host), or require"
+                    + " callers (kc-mcp.require-caller / kc-mcp.profile=shared).",
+                    host.isEmpty() ? "all interfaces" : host);
+        }
         LOG.infof(
                 "Profile %s: callers %s, confirm-fallback %s, explicit-target %s, outbound hosts %s,"
                         + " dynamic-private-hosts %s",
@@ -57,6 +64,14 @@ public class ProfileChecks {
                 config.effectiveExplicitTarget().name().toLowerCase(),
                 s.hostsRestricted() ? systems.allowedHosts().patterns() : "unrestricted",
                 config.effectiveDynamicPrivateHosts().name().toLowerCase());
+    }
+
+    /** Whether a listen address only reaches this machine. */
+    static boolean isLoopback(String host) {
+        return switch (host.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "localhost", "127.0.0.1", "::1", "[::1]", "0:0:0:0:0:0:0:1" -> true;
+            default -> host.trim().startsWith("127.");
+        };
     }
 
     /** The settings the checks look at, so they can be run without a container. */

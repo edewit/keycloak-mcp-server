@@ -7,7 +7,9 @@
     MCP_URL=http://localhost:8099/mcp KEYCLOAK_URL=http://localhost:8098 ./mcp-call.py ...   (the defaults)
 
 --login uses the password grant of the public client mcp-consumer (on for this demo only); MCP clients such as
-LM Studio log the user in through the browser instead (mcp-oauth.json).
+LM Studio log the user in through the browser instead (mcp-oauth.json). The MCP session is kept between runs
+(per user, in $TMPDIR/mcp-call-session-<user>), as a real client keeps its session: a pending approval belongs to
+the session that asked for it, so the call that collects it must come from the same one. --new-session starts over.
 """
 import json
 import os
@@ -22,6 +24,7 @@ REALM = os.environ.get("REALM", "demo")
 CLIENT = "mcp-consumer"
 BEARER = None
 SESSION = None
+SESSION_FILE = None
 
 
 def login(user, password):
@@ -55,7 +58,15 @@ def rpc(method, params=None, msg_id=1):
             SESSION = r.headers.get("mcp-session-id", SESSION)
             body = r.read().decode()
     except urllib.error.HTTPError as e:
+        if e.code == 404 and SESSION and method != "initialize":
+            # the server forgot the session (restart, timeout): start a new one and retry once
+            SESSION = None
+            start_session()
+            return rpc(method, params, msg_id)
         sys.exit(f"{method}: HTTP {e.code} {e.headers.get('www-authenticate', '')} {e.read().decode()}")
+    if SESSION and SESSION_FILE:
+        with open(SESSION_FILE, "w") as f:
+            f.write(SESSION)
     if msg_id is None or not body.strip():
         return None
     if body.lstrip().startswith("{"):
@@ -66,9 +77,17 @@ def rpc(method, params=None, msg_id=1):
     sys.exit(f"unexpected answer to {method}: {body[:200]}")
 
 
+def start_session():
+    rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                       "clientInfo": {"name": "mcp-call", "version": "1"}})
+    rpc("notifications/initialized", msg_id=None)
+
+
 def main(argv):
-    global BEARER
+    global BEARER, SESSION, SESSION_FILE
     args = list(argv)
+    user = "token"
+    fresh = False
     while args and args[0].startswith("--"):
         flag = args.pop(0)
         if flag == "--login":
@@ -76,14 +95,19 @@ def main(argv):
             BEARER = login(user, password)
         elif flag == "--token":
             BEARER = args.pop(0)
+        elif flag == "--new-session":
+            fresh = True
         else:
             sys.exit(__doc__)
     if not args:
         sys.exit(__doc__)
     tool, raw = args[0], (args[1] if len(args) > 1 else "{}")
-    rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                       "clientInfo": {"name": "mcp-call", "version": "1"}})
-    rpc("notifications/initialized", msg_id=None)
+    SESSION_FILE = os.path.join(os.environ.get("TMPDIR", "/tmp"), f"mcp-call-session-{user}")
+    if not fresh and os.path.exists(SESSION_FILE):
+        with open(SESSION_FILE) as f:
+            SESSION = f.read().strip() or None
+    if SESSION is None:
+        start_session()
     answer = rpc("tools/call", {"name": tool, "arguments": json.loads(raw)}, 2)
     if "error" in answer:
         print(json.dumps(answer["error"], indent=2))

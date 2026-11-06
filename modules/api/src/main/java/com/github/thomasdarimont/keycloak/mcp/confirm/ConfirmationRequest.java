@@ -20,17 +20,23 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
  * ...), or {@code null}: the requester a confirmer may show on the user's device
  */
 public record ConfirmationRequest(ToolSpec tool, String system, String realm, Map<String, Object> args,
-        boolean confirmFlag, Caller caller, Prompter prompter, String clientName) {
+        boolean confirmFlag, Caller caller, Prompter prompter, String clientName, String connectionId) {
 
     public ConfirmationRequest {
         args = Map.copyOf(args == null ? Map.of() : args);
         caller = caller == null ? Caller.NONE : caller;
         prompter = prompter == null ? Prompter.NONE : prompter;
         clientName = clientName == null || clientName.isBlank() || clientName.equals("-") ? null : clientName;
+        connectionId = connectionId == null || connectionId.isBlank() || connectionId.equals("-") ? null : connectionId;
     }
 
     public ConfirmationRequest(ToolSpec tool, String system, String realm, Map<String, Object> args,
             boolean confirmFlag, Caller caller, Prompter prompter) {
-        this(tool, system, realm, args, confirmFlag, caller, prompter, null);
+        this(tool, system, realm, args, confirmFlag, caller, prompter, null, null);
+    }
+
+    public ConfirmationRequest(ToolSpec tool, String system, String realm, Map<String, Object> args,
+            boolean confirmFlag, Caller caller, Prompter prompter, String clientName) {
+        this(tool, system, realm, args, confirmFlag, caller, prompter, clientName, null);
     }
 }

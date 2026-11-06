@@ -16,6 +16,10 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
  * @param enabled off by default
  * @param issuer issuer URL of the CIBA client, or {@code caller} for the issuer of the
  * caller's token (the default; the auth realm when the token has no issuer)
+ * @param tokenIssuer the {@code iss} the provider's tokens carry when it differs from the
+ * URL the server reaches the provider at (a container reaching Keycloak as
+ * {@code http://keycloak:8080} while the tokens say {@code http://localhost:8098}); the
+ * approval's ID token is verified against it. Unset: the same as the issuer
  * @param clientId the confidential client registered for CIBA
  * @param clientSecret its secret
  * @param clientAuth {@code client_secret_basic} (default) or {@code client_secret_post}
@@ -48,10 +52,10 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
  * @param pollWaitSeconds two-step only: how long the collecting call waits for the device
  * before answering "still waiting"
  */
-public record CibaSettings(boolean enabled, String issuer, String clientId, String clientSecret, ClientAuth clientAuth,
-        String scope, String acrValues, String loginHint, boolean bindingMessage, String bindingMessagePrefix,
-        boolean requestedExpiry, int timeoutSeconds, When when, Flow flow, boolean numberMatching,
-        boolean extraParameters, int pollWaitSeconds) {
+public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, String clientId, String clientSecret,
+        ClientAuth clientAuth, String scope, String acrValues, String loginHint, boolean bindingMessage,
+        String bindingMessagePrefix, boolean requestedExpiry, int timeoutSeconds, When when, Flow flow,
+        boolean numberMatching, boolean extraParameters, int pollWaitSeconds) {
 
     public enum Flow {
         TWO_STEP, BLOCKING;
@@ -107,14 +111,15 @@ public record CibaSettings(boolean enabled, String issuer, String clientId, Stri
                     + " kc-mcp.spi.ciba-confirmer.client-id and client-secret (a confidential Keycloak client with"
                     + " the CIBA grant enabled)");
         }
-        return new CibaSettings(enabled, config.get("issuer", "caller"), clientId.orElse(null), secret.orElse(null),
-                ClientAuth.parse(config.get("client-auth", "client_secret_basic")), config.get("scope", "openid"),
-                config.get("acr-values").filter(v -> !v.isBlank()).orElse(null), config.get("login-hint", "username"),
-                config.getBoolean("binding-message", true), config.get("binding-message-prefix", "kc-mcp"),
-                config.getBoolean("requested-expiry", false), config.getInt("timeout-seconds", defaultTimeout),
-                When.parse(config.get("when", "always")), Flow.parse(config.get("flow", "two-step")),
-                config.getBoolean("number-matching", true), config.getBoolean("extra-parameters", true),
-                config.getInt("poll-wait-seconds", 5));
+        return new CibaSettings(enabled, config.get("issuer", "caller"),
+                config.get("token-issuer").filter(v -> !v.isBlank()).orElse(null), clientId.orElse(null),
+                secret.orElse(null), ClientAuth.parse(config.get("client-auth", "client_secret_basic")),
+                config.get("scope", "openid"), config.get("acr-values").filter(v -> !v.isBlank()).orElse(null),
+                config.get("login-hint", "username"), config.getBoolean("binding-message", true),
+                config.get("binding-message-prefix", "kc-mcp"), config.getBoolean("requested-expiry", false),
+                config.getInt("timeout-seconds", defaultTimeout), When.parse(config.get("when", "always")),
+                Flow.parse(config.get("flow", "two-step")), config.getBoolean("number-matching", true),
+                config.getBoolean("extra-parameters", true), config.getInt("poll-wait-seconds", 5));
     }
 
     /** Whether the issuer comes from the caller's token. */
