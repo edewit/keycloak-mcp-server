@@ -11,7 +11,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 /**
  * Per-connection set of tool names surfaced by the last {@code search_tools} calls
- * (progressive mode only). Bounded so abandoned connections cannot grow it forever.
+ * (progressive mode only). The MCP server library has no connection-closed hook, so
+ * abandoned connections are not removed; the map is bounded instead (LRU over
+ * connections, a cap per connection).
  */
 @ApplicationScoped
 public class ProgressiveState {
@@ -54,16 +56,6 @@ public class ProgressiveState {
         try {
             Set<String> set = surfaced.get(connectionId);
             return set != null && set.contains(toolName);
-        }
-        finally {
-            lock.unlock();
-        }
-    }
-
-    public void forget(String connectionId) {
-        lock.lock();
-        try {
-            surfaced.remove(connectionId);
         }
         finally {
             lock.unlock();
