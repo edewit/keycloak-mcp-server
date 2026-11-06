@@ -12,7 +12,7 @@ this repository's build for convenience; as a project of your own, replace the p
 | `ProtectedUsersCheck` | `AccessCheck` (global) | `svc-*` users cannot be changed, whatever the caller's roles |
 | `JsonLinesAuditListener` | `AuditListener` | one JSON line per call in a file |
 | `NoEmailScrubber` | `AuditScrubber` | e-mail arguments masked for every sink, message dropped for the console only |
-| `AcmeTenantRepository` | `KeycloakSystemRepository` | tenants from a setting, `KeycloakSystem.builder` |
+| `AcmeTenantRepository` | `KeycloakSystemRepository` | tenants from a setting, `KeycloakSystem.builder`; `isSupported` leaves it out without tenants |
 | `AuditFileProfileCheck` | `ProfileCheck` | a shared server does not start while the audit file is unset or in `/tmp`; a local one warns |
 | `AcmeExtensionsTest` | | all of it tested without a server |
 

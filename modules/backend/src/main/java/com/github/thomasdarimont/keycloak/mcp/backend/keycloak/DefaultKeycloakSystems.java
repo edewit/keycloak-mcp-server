@@ -31,7 +31,6 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
-import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
  * The Keycloak systems: a {@link CompositeKeycloakSystemRepository} of the static
@@ -217,11 +216,8 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                         + " let repositories add systems at runtime", r.id());
                 continue;
             }
-            if (ProviderConfig.forExtension(r.id(), config.spi()).getBoolean("enabled", true)) {
+            if (Extensions.usable(r, "KeycloakSystemRepository", config)) {
                 found.add(r);
-            }
-            else {
-                LOG.infof("Keycloak system repository '%s' disabled by configuration", r.id());
             }
         }
         return found;

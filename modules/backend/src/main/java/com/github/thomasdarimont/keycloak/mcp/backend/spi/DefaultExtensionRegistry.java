@@ -101,11 +101,9 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
         }
         List<T> enabled = new ArrayList<>();
         for (T e : byId.values()) {
-            if (!ProviderConfig.forExtension(e.id(), serverConfig.spi()).getBoolean("enabled", true)) {
-                LOG.infof("%s '%s' disabled by configuration", type.getSimpleName(), e.id());
-                continue;
+            if (Extensions.usable(e, type.getSimpleName(), serverConfig)) {
+                enabled.add(e);
             }
-            enabled.add(e);
         }
         enabled.sort(Comparator.comparingInt(Extension::order).thenComparing(Extension::id));
         return List.copyOf(enabled);

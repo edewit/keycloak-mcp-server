@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.spi;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.prompts.PromptProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
@@ -37,5 +38,21 @@ public interface Extension {
     /** Lower first; ties are broken by id. */
     default int order() {
         return 0;
+    }
+
+    /**
+     * Whether this extension can work with the current configuration, asked once at
+     * startup after the {@code enabled} switch: an extension that needs a setting,
+     * another extension's feature or a Quarkus capability answers {@code false} when it
+     * is missing and is then left out as if it were not on the class path (logged, not
+     * fatal), instead of failing on first use. To refuse the start instead, contribute a
+     * {@link com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck}. An exception
+     * counts as {@code false}.
+     *
+     * @param serverConfig the server's configuration
+     * @param config this extension's own settings, {@code kc-mcp.spi.<id>.*}
+     */
+    default boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {
+        return true;
     }
 }

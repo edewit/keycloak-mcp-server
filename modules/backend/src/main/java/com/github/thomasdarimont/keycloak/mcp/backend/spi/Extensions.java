@@ -22,6 +22,8 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
  * Finds the implementations of an extension point ({@code ToolProvider},
@@ -175,5 +177,34 @@ public class Extensions {
     private static ClassLoader contextLoader() {
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         return cl != null ? cl : Extensions.class.getClassLoader();
+    }
+
+    /**
+     * Whether a found extension takes part: not switched off with
+     * {@code kc-mcp.spi.<id>.enabled=false}, and {@link Extension#isSupported} with the
+     * current configuration. Every place that picks extensions asks here, so the rules
+     * and the log lines are the same for all extension points.
+     *
+     * @param kind the extension point, for the log ({@code Confirmer}, {@code KeyVault},
+     * ...)
+     */
+    public static boolean usable(Extension e, String kind, McpServerConfig config) {
+        ProviderConfig settings = ProviderConfig.forExtension(e.id(), config.spi());
+        if (!settings.getBoolean("enabled", true)) {
+            LOG.infof("%s '%s' disabled by configuration", kind, e.id());
+            return false;
+        }
+        boolean supported;
+        try {
+            supported = e.isSupported(config, settings);
+        }
+        catch (RuntimeException ex) {
+            LOG.warnf(ex, "%s '%s' left out: isSupported failed: %s", kind, e.id(), ex.getMessage());
+            return false;
+        }
+        if (!supported) {
+            LOG.infof("%s '%s' left out: not supported with the current configuration", kind, e.id());
+        }
+        return supported;
     }
 }

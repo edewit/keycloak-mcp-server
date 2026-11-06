@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
@@ -35,6 +36,15 @@ public class AcmeTenantRepository implements KeycloakSystemRepository {
     @Override
     public String id() {
         return "acme-tenants";
+    }
+
+    /**
+     * Without tenants in {@code kc-mcp.spi.acme-tenants.systems} there is nothing to
+     * serve: left out.
+     */
+    @Override
+    public boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {
+        return !config.get("systems", "").isBlank();
     }
 
     @Override

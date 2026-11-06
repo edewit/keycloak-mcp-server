@@ -584,6 +584,13 @@ public class AcmeToolProvider implements ToolProvider {
   use the same SPI; `kc-mcp.spi.<id>.enabled=false` switches one off.
 - `Extension` base: `id()` (config key, kebab-case; default from class name, `com.acme.TicketChecker` →
   `com-acme-ticket-checker`), `displayName()`, `description()`, `order()` (lower first).
+- `isSupported(serverConfig, config)` (default `true`): asked once at startup after `kc-mcp.spi.<id>.enabled`; an
+  extension that needs a setting, a feature or a capability answers `false` when it is missing and is left out as if
+  it were not installed (logged, not fatal; an exception counts as `false`). Applies to every extension point: tools,
+  prompts, access checks, confirmers, audit listeners and scrubbers, profile checks, system repositories, key vaults,
+  key generators, session and approval stores. To refuse the start instead, contribute a `ProfileCheck`. Built in:
+  the CIBA confirmer is supported only with `kc-mcp.spi.ciba-confirmer.enabled=true`, the metrics audit listener only
+  with the OpenTelemetry SDK on.
 - `ExtensionRegistry` (`extensions(Confirmer.class)`, `extension(ToolProvider.class, "users")`, `context(id)`):
   discovery, dedup by id, enabled switch, order. CDI bean, injectable.
 - Global `AccessCheck`: `@AutoService(AccessCheck.class)`, CDI bean, or `ToolProvider.accessChecks(...)`.

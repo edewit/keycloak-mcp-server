@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -39,6 +38,7 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.quarkus.runtime.StartupEvent;
 import io.quarkus.tls.TlsConfigurationRegistry;
@@ -188,6 +188,15 @@ public class CibaConfirmer implements Confirmer {
     @Override
     public int order() {
         return 1000;
+    }
+
+    /**
+     * Off unless {@code kc-mcp.spi.ciba-confirmer.enabled=true}: then not in the
+     * confirmer chain at all.
+     */
+    @Override
+    public boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {
+        return config.getBoolean("enabled", false);
     }
 
     @Override
@@ -479,8 +488,4 @@ public class CibaConfirmer implements Confirmer {
         }
     }
 
-    /** The stores found, lowest order first (for the log and tests). */
-    static List<PendingApprovalStore> stores(ExtensionRegistry registry) {
-        return registry.extensions(PendingApprovalStore.class);
-    }
 }

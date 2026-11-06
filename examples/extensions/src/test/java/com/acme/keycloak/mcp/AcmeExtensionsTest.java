@@ -157,4 +157,13 @@ class AcmeExtensionsTest {
         assertTrue(check.problems(local).isEmpty(), "local: never stops");
         assertEquals(1, check.warnings(local).size());
     }
+
+    @Test
+    void tenantRepositoryIsOnlySupportedWithTenants() {
+        AcmeTenantRepository repo = new AcmeTenantRepository("");
+        assertTrue(!repo.isSupported(null,
+                new com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig("acme-tenants", java.util.Map.of())));
+        assertTrue(repo.isSupported(null, new com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig("acme-tenants",
+                java.util.Map.of("systems", "globex=https://sso.globex.example|globex-prod"))));
+    }
 }

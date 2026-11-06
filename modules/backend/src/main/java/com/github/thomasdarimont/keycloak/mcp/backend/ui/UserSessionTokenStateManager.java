@@ -20,7 +20,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
-import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSession;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
 
@@ -143,7 +142,8 @@ public class UserSessionTokenStateManager implements TokenStateManager {
     public Optional<UserSessionStore> resolve() {
         List<UserSessionStore> found = new ArrayList<>();
         for (UserSessionStore candidate : extensions.discover(UserSessionStore.class)) {
-            if (ProviderConfig.forExtension(candidate.id(), config.spi()).getBoolean("enabled", true)) {
+            if (com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions.usable(candidate, "UserSessionStore",
+                    config)) {
                 found.add(candidate);
             }
         }

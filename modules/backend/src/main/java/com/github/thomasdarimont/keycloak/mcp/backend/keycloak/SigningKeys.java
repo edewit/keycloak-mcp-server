@@ -21,7 +21,6 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKeyGenerator;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
-import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -83,7 +82,7 @@ public class SigningKeys {
     static KeyVault vault(McpServerConfig config, Extensions extensions) {
         List<KeyVault> found = new ArrayList<>();
         for (KeyVault v : extensions.discover(KeyVault.class)) {
-            if (ProviderConfig.forExtension(v.id(), config.spi()).getBoolean("enabled", true)) {
+            if (Extensions.usable(v, "KeyVault", config)) {
                 found.add(v);
             }
         }
@@ -102,7 +101,7 @@ public class SigningKeys {
     static SigningKeyGenerator generator(McpServerConfig config, Extensions extensions) {
         List<SigningKeyGenerator> found = new ArrayList<>();
         for (SigningKeyGenerator g : extensions.discover(SigningKeyGenerator.class)) {
-            if (ProviderConfig.forExtension(g.id(), config.spi()).getBoolean("enabled", true)) {
+            if (Extensions.usable(g, "SigningKeyGenerator", config)) {
                 found.add(g);
             }
         }

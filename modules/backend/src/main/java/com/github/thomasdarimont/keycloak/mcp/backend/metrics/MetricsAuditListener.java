@@ -36,6 +36,18 @@ public class MetricsAuditListener implements AuditListener {
         return "Records tool call durations and policy refusals as OpenTelemetry metrics.";
     }
 
+    /**
+     * Only with the OpenTelemetry SDK on ({@code quarkus.otel.sdk.disabled=false});
+     * otherwise every call would be a no-op.
+     */
+    @Override
+    public boolean isSupported(com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig serverConfig,
+            com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig config) {
+        return !org.eclipse.microprofile.config.ConfigProvider.getConfig()
+            .getOptionalValue("quarkus.otel.sdk.disabled", Boolean.class)
+            .orElse(false);
+    }
+
     @Override
     public void onToolCall(AuditEvent event) {
         metrics.toolCall(event);
