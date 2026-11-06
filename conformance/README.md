@@ -21,7 +21,7 @@ conformance/run.sh --url http://localhost:8081/mcp   # any running server
 
 Scenarios that pass: `server-initialize`, `ping`, `logging-set-level`, `tools-list`, `tools-call-simple-text`,
 `tools-call-error`, `server-sse-polling`, `server-sse-multiple-streams`, `resources-list`, `prompts-list`,
-`prompts-get-simple`, `prompts-get-with-args`, and the localhost half of `dns-rebinding-protection`.
+`prompts-get-simple`, `prompts-get-with-args`, `dns-rebinding-protection`.
 
 Baselined, by reason:
 
@@ -32,13 +32,10 @@ Baselined, by reason:
 - `completion/complete`: not declared.
 - `json-schema-2020-12`: tool schemas are flat by design for small local models; `InputSchema` has no `$defs`/`$ref`.
 
-## Open finding
+## DNS rebinding
 
-`dns-rebinding-protection`: an unauthenticated server bound to localhost accepts requests whose `Host`/`Origin` is not a
-localhost value. Relevant for the local LM Studio setup (anonymous endpoint on `localhost:8081`); with
-`quarkus.oidc.tenant-enabled=true` every request needs a bearer token and the attack has no effect. A fix is a
-Vert.x filter that rejects non-localhost `Host`/`Origin` when the bound address is loopback and the endpoint is
-anonymous, off behind a proxy or in containers.
+`dns-rebinding-protection` found the anonymous localhost server accepting foreign `Host`/`Origin` values. Fixed by
+`kc-mcp.dns-rebinding-protection` (default `auto`: on while the endpoint is anonymous); see the main README, Guardrails.
 
 ## CI
 

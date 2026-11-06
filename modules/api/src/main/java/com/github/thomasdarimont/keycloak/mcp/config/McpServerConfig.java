@@ -167,6 +167,25 @@ public interface McpServerConfig {
     String adminApiScope();
 
     /**
+     * Rejects MCP requests whose {@code Host} or {@code Origin} is not a localhost value
+     * ({@code localhost}, {@code 127.0.0.1}, {@code ::1}, any port) or one of
+     * {@link #dnsRebindingAllowedHosts()}: a web page on the same machine would otherwise
+     * reach the anonymous endpoint through a DNS name that resolves to 127.0.0.1 (DNS
+     * rebinding). {@code auto} (default) protects while the endpoint is anonymous
+     * ({@code quarkus.oidc.tenant-enabled=false} and no required caller) and stands down
+     * once callers authenticate; {@code on} and {@code off} decide outright. Only the MCP
+     * endpoint is covered, JWKS and admin routes are not.
+     */
+    @WithDefault("auto")
+    String dnsRebindingProtection();
+
+    /**
+     * {@code host} or {@code host:port} values accepted besides localhost, for an
+     * anonymous server reached by name or through a proxy ({@code mcp.internal:8081}).
+     */
+    Optional<List<String>> dnsRebindingAllowedHosts();
+
+    /**
      * Refuse unauthenticated MCP requests with a 401 challenge even when the server acts
      * with its own credentials (the caller then only matters for policies and the audit
      * log). Implied by {@code delegation=forward}.

@@ -27,7 +27,3 @@ server:
   # --- the fixture tool needs $schema/$defs/$ref in its input schema; tool schemas here are flat by design
   #     (small local models), InputSchema cannot express nesting
   - json-schema-2020-12
-  # --- open finding: no Host/Origin validation for an unauthenticated server bound to localhost (DNS rebinding);
-  #     tracked in README.md of this folder. Whole scenario: the per-check form (scenario:check-id) is not honoured
-  #     by 0.1.16 in server mode; the localhost-accepted half passes
-  - dns-rebinding-protection

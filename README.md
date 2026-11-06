@@ -47,6 +47,10 @@ Open items: §Roadmap.
 - `KC_MCP_ALLOWED_HOSTS=*.example.com,localhost:8080`: every configured Keycloak URL (top level, per system) must match
   a `[scheme://]host[:port]` pattern, else no start.
 - `KC_MCP_ALLOWED_TOOLS`, `KC_MCP_DENIED_TOOLS`, `KC_MCP_ALLOWED_CATEGORIES`: explicit narrowing.
+- DNS rebinding protection (`kc-mcp.dns-rebinding-protection`, default `auto`): while the MCP endpoint is anonymous,
+  requests whose `Host` or `Origin` is not localhost answer 403 `forbidden_host`, so a web page cannot reach the local
+  server through a name rebound to 127.0.0.1. Off once callers authenticate; `kc-mcp.dns-rebinding-allowed-hosts` adds
+  `host[:port]` values for an anonymous server reached by name or through a proxy. JWKS and admin routes are not covered.
 - Role filtering (`kc-mcp.role-filter`, default on). Tools declare roles (`ToolSpec.roles(...)`): `view-users` =
   `realm-management` client role, `my-app.auditor` = other client's role (split at last dot), `realm:support` = realm
   role. Implications as in Keycloak (`manage-x` ⊃ `view-x` ⊃ `query-x`, `realm-admin` ⊃ all). The server reads its own
@@ -351,6 +355,7 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.username` / `password`  |                             | password grant (static configuration only) |
 | `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; needs `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
+| `kc-mcp.dns-rebinding-protection` | `auto`                    | `auto` (on while anonymous), `on`, `off`: `Host`/`Origin` of MCP requests must be localhost or in `kc-mcp.dns-rebinding-allowed-hosts` |
 | `kc-mcp.require-caller`         | `false`                     | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
 | `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens; issuer `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
 | `quarkus.oidc.token.audience`   |                             | required `aud` (recommended with `forward`) |
