@@ -142,7 +142,7 @@ public class McpToolRegistrar {
             .setDescription(spec.description())
             .setAnnotations(new ToolAnnotations(spec.title(), spec.isReadOnly(), spec.isDestructive(),
                     spec.idempotent(), false))
-            .setInputSchema(withConfirm(spec))
+            .setInputSchema(config.effectiveConfirmFallback().acceptsFlag() ? withConfirm(spec) : spec.inputSchema())
             .setHandler(args -> {
                 Map<String, Object> a = args.args();
                 boolean confirm = Boolean.TRUE.equals(boolOf(a.get(InputSchema.CONFIRM)));

@@ -14,7 +14,9 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolCall;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
+import com.github.thomasdarimont.keycloak.mcp.config.ExplicitTarget;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
@@ -43,12 +45,38 @@ public class ToolInvoker {
     private final AuditLog audit;
 
     private Duration confirmTimeout = Duration.ofSeconds(120);
+    private ExplicitTarget explicitTarget = ExplicitTarget.OFF;
+    private ConfirmFallback confirmFallback = ConfirmFallback.FLAG;
 
     @Inject
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, ConfirmerChain confirmer, McpServerConfig config,
             KeycloakSystems systems, AuditLog audit) {
         this(catalog, policy, confirmer, config.resultMaxItems(), systems, config.delegation(), audit);
         this.confirmTimeout = Duration.ofSeconds(config.confirmTimeoutSeconds());
+        this.explicitTarget = config.effectiveExplicitTarget();
+        this.confirmFallback = config.effectiveConfirmFallback();
+    }
+
+    /**
+     * Which tools must name system and realm instead of taking the defaults
+     * ({@code kc-mcp.explicit-target}).
+     */
+    public ToolInvoker explicitTarget(ExplicitTarget explicitTarget) {
+        this.explicitTarget = explicitTarget == null ? ExplicitTarget.OFF : explicitTarget;
+        return this;
+    }
+
+    public ExplicitTarget explicitTarget() {
+        return explicitTarget;
+    }
+
+    /**
+     * Whether {@code confirm: true} counts, decides the hint of
+     * {@code confirmation_required}.
+     */
+    public ToolInvoker confirmFallback(ConfirmFallback confirmFallback) {
+        this.confirmFallback = confirmFallback == null ? ConfirmFallback.FLAG : confirmFallback;
+        return this;
     }
 
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems) {
@@ -110,11 +138,19 @@ public class ToolInvoker {
                     KeycloakAdmin admin = null;
                     ToolResult systemError = null;
                     String requested = binding != null ? binding.system() : (String) args.get(InputSchema.SYSTEM);
+                    boolean explicit = explicitTarget.appliesTo(spec.level());
                     if (systems != null) {
                         system = requested != null ? requested : systems.defaultName().orElse(null);
                         if (system == null) {
                             systemError = ToolResult.error("system_required", "Pass the system argument.", "systems",
                                     systems.names());
+                        }
+                        else if (requested == null && explicit && systems.names().size() > 1) {
+                            systemError = ToolResult.error("system_required",
+                                    "This server does not apply the default" + " system to "
+                                            + spec.level().name().toLowerCase() + " tools (kc-mcp.explicit-target="
+                                            + explicitTarget.name().toLowerCase() + "): pass the system argument.",
+                                    "systems", systems.names(), "defaultSystem", system);
                         }
                         else if (systems.find(system).isEmpty()) {
                             systemError = ToolResult.error("unknown_system",
@@ -127,11 +163,13 @@ public class ToolInvoker {
                             }
                         }
                     }
+                    boolean realmDefaulted = false;
                     if (spec.realmScoped()) {
                         realm = binding != null && binding.realm() != null ? binding.realm()
                                 : (String) args.get(InputSchema.REALM);
                         if (realm == null) {
                             realm = admin != null ? admin.system().defaultRealm().orElse(null) : catalog.defaultRealm();
+                            realmDefaulted = realm != null;
                         }
                     }
                     if (systemError != null) {
@@ -139,6 +177,13 @@ public class ToolInvoker {
                     }
                     else if (spec.realmScoped() && realm == null) {
                         result = ToolResult.error("realm_required", "Pass the realm argument.");
+                    }
+                    else if (realmDefaulted && explicit) {
+                        result = ToolResult.error("realm_required",
+                                "This server does not apply the default realm to " + spec.level().name().toLowerCase()
+                                        + " tools (kc-mcp.explicit-target=" + explicitTarget.name().toLowerCase()
+                                        + "): pass the realm argument.",
+                                "defaultRealm", realm);
                     }
                     else {
                         java.util.Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin);
@@ -217,9 +262,13 @@ public class ToolInvoker {
                 }
                 case CONFIRMATION_REQUIRED, ABSTAIN -> {
                     return ToolResult.error("confirmation_required",
-                            decision.message() != null ? decision.message()
-                                    : spec.title() + " is destructive and needs confirmation.",
-                            "howTo", "Ask the user, then call again with the same arguments plus confirm: true.");
+                            decision.message() != null
+                                    ? decision.message() : spec.title() + " is destructive and needs confirmation.",
+                            "howTo",
+                            confirmFallback.acceptsFlag()
+                                    ? "Ask the user, then call again with the same arguments plus confirm: true."
+                                    : "Only the user can confirm, through an MCP client that supports elicitation;"
+                                            + " confirm: true is not accepted on this server.");
                 }
                 default -> {
                     // confirmed

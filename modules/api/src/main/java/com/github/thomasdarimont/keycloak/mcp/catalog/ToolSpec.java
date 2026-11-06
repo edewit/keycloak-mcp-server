@@ -92,7 +92,7 @@ public record ToolSpec(String name, String title, String description, Category c
         private String title;
         private String description;
         private Category category;
-        private ToolLevel level = ToolLevel.READ;
+        private ToolLevel level;
         private Boolean idempotent;
         private JsonObject inputSchema;
         private final List<String> synonyms = new ArrayList<>();
@@ -233,7 +233,18 @@ public record ToolSpec(String name, String title, String description, Category c
             return this;
         }
 
+        /**
+         * @throws IllegalStateException when no level was declared: every tool says
+         * {@link #read()}, {@link #write()} or {@link #destructive()}, the level drives
+         * the read-only filter, the confirmation and the explicit-target rule, so it is
+         * never assumed
+         */
         public ToolSpec build() {
+            if (level == null) {
+                throw new IllegalStateException("Tool '" + name + "' declares no level: call read(), write() or"
+                        + " destructive() on the builder (READ is not assumed, the level drives read-only mode,"
+                        + " confirmation and the explicit-target rule)");
+            }
             boolean idem = idempotent != null ? idempotent : level == ToolLevel.READ;
             return new ToolSpec(name, title, description, category, level, idem, inputSchema, synonyms, hot,
                     realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler);

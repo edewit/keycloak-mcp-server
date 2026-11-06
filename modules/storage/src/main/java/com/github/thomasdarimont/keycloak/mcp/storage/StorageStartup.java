@@ -7,11 +7,15 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
 import io.quarkus.runtime.StartupEvent;
 
-/** Says at startup whether the database storage is on and whether it encrypts. */
+/**
+ * Says at startup whether the database storage is on and whether it encrypts; profile
+ * {@code shared} does not start with secrets stored in plain text.
+ */
 @ApplicationScoped
 public class StorageStartup {
 
@@ -23,6 +27,9 @@ public class StorageStartup {
     @Inject
     StorageCrypto crypto;
 
+    @Inject
+    McpServerConfig server;
+
     void onStart(@Observes StartupEvent event) {
         if (!config.enabled()) {
             LOG.debug("Database storage off: no quarkus.datasource.jdbc.url (static configuration only)");
@@ -33,6 +40,11 @@ public class StorageStartup {
             .orElse("(no quarkus.datasource.jdbc.url)");
         LOG.infof("Database storage on: systems, signing keys, secrets and audit events in %s", redact(url));
         if (!crypto.enabled()) {
+            if (server.profile().shared()) {
+                throw new IllegalStateException("kc-mcp.profile=shared needs an encrypted storage: set"
+                        + " kc-mcp.storage.secret-key (env KC_MCP_STORAGE_SECRET_KEY, openssl rand -base64 32), else"
+                        + " private keys and secrets are stored in plain text");
+            }
             LOG.warn("kc-mcp.storage.secret-key is not set: private keys and secrets are stored in plain text");
         }
     }

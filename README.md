@@ -45,6 +45,14 @@ Open items: §Roadmap.
 
 ## Guardrails
 
+- `KC_MCP_PROFILE=local|shared` (default `local`): the security defaults in one switch. `local` is one person's machine:
+  anonymous endpoint behind DNS rebinding protection, `confirm: true` accepted, defaults fill in system and realm,
+  outbound hosts unrestricted, storage encryption warned about. `shared` is a server other people reach: callers must
+  authenticate (`quarkus.oidc.tenant-enabled=true` **and** `quarkus.oidc.token.audience`), destructive tools are
+  confirmed through elicitation only (`kc-mcp.confirm-fallback=deny`), destructive tools name system and realm
+  (`kc-mcp.explicit-target=destructive`), `kc-mcp.allowed-hosts` is required, an admin API issuer needs
+  `kc-mcp.admin.audience`, the database storage needs `kc-mcp.storage.secret-key`. A missing setting stops the start
+  with the full list. Each of the three defaults can still be set on its own in either profile.
 - `KC_MCP_READ_ONLY=true`: hides and refuses WRITE/DESTRUCTIVE tools.
 - `KC_MCP_ALLOWED_REALMS=a,b`: every call restricted; startup check verifies reachability (`kc-mcp.startup-check=warn|fail|off`).
 - `KC_MCP_ALLOWED_HOSTS=*.example.com,localhost:8080`: every configured Keycloak URL (top level, per system) must match
@@ -60,7 +68,13 @@ Open items: §Roadmap.
   token, hides tools it lacks roles for, answers `forbidden` with the missing role on direct calls. Tokens without any
   admin role switch the filter off.
 - DESTRUCTIVE tools (delete user/group, reset password, logout, unassign roles): MCP elicitation when the client supports
-  it, else `confirm: true` required and explained. Own `Confirmer`s run first (§Extending).
+  it; without it `kc-mcp.confirm-fallback` decides: `flag` (local default) requires and explains `confirm: true`, `deny`
+  (shared default) refuses with `confirmation_required` and does not offer the flag, since the model writes it. Own
+  `Confirmer`s run first (§Extending), so a ticket or CIBA confirmer can still confirm under `deny`.
+- `kc-mcp.explicit-target=off|destructive|write` (local `off`, shared `destructive`): tools of that level get
+  `system_required` / `realm_required` instead of the default system (when several exist) or default realm, so an
+  ambiguous request cannot land on the default production system. A per-system entry (`/mcp/systems/<system>[/<realm>]`)
+  counts as explicit.
 - `keycloak_user_delete` also needs the matching `username`. `keycloak_realm_update` and `keycloak_auth_flow_bind` count
   as destructive (lock-out risk).
 - One audit line per executed tool (`com.github.thomasdarimont.keycloak.mcp.audit`); `AuditListener` SPI gets the same
@@ -132,7 +146,7 @@ default (anonymous endpoint). `QUARKUS_OIDC_TENANT_ENABLED=true` verifies tokens
 |---|---|---|---|
 | admin calls run as | service account | the caller's own token | a delegated token Keycloak exchanges the caller's for: `sub` the caller, `act` the server's client |
 | roles that count | service account's (role filter) | caller's `realm-management` roles from their token, per call; Keycloak enforces again | the delegated token's: the caller's roles within the client's role scope; Keycloak enforces again |
-| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` | `401` + `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` | as forward |
+| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` or `KC_MCP_PROFILE=shared` | `401` + `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` | as forward |
 | server credentials | required | optional (policies provider falls back to them for lookups) | the client's `client_credentials` (secret or `private_key_jwt`); no admin role on it |
 | Keycloak side | | public client with an *Audience* mapper for the server | plus consent on that client, *Standard Token Exchange* on the server's client, an Admin Permissions `delegate` grant for it; Keycloak ≥ 26.8 with `--features=token-exchange-delegation,parameterized-scopes` (preview) |
 
@@ -403,7 +417,10 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; `exchange`: with a delegated token Keycloak issues for caller + server client (26.8 token exchange delegation); both need `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
 | `kc-mcp.dns-rebinding-protection` | `auto`                    | `auto` (on while anonymous), `on`, `off`: `Host`/`Origin` of MCP requests must be localhost or in `kc-mcp.dns-rebinding-allowed-hosts` |
-| `kc-mcp.require-caller`         | `false`                     | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
+| `kc-mcp.profile`                | `local`                     | `local` or `shared`: defaults of the three rows below, and `shared` refuses to start without caller authentication + audience, `allowed-hosts`, admin audience, storage `secret-key` (§Guardrails) |
+| `kc-mcp.require-caller`         | `false`, `shared`: always   | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
+| `kc-mcp.confirm-fallback`       | `flag`, `shared`: `deny`    | without elicitation: `flag` accepts `confirm: true`, `deny` refuses destructive tools |
+| `kc-mcp.explicit-target`        | `off`, `shared`: `destructive` | `destructive` or `write` tools must pass `system` (several systems) and `realm` instead of the defaults |
 | `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens; issuer `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
 | `quarkus.oidc.token.audience`   |                             | required `aud` (recommended with `forward`) |
 | `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is internal (Docker) |
@@ -489,6 +506,9 @@ public class AcmeToolProvider implements ToolProvider {
 
 - Register: `@AutoService(ToolProvider.class)` (generates `META-INF/services/...tools.ToolProvider`), a hand-written
   services file, or a CDI bean.
+- Every tool declares its level, `.read()`, `.write()` or `.destructive()`; `build()` refuses a tool without one, so a
+  forgotten call cannot slip past the read-only filter or the confirmation. The level is in every `search_tools` hit
+  (`level`) and in the MCP tool annotations (`readOnlyHint`, `destructiveHint`).
 - Provider tools get search, exposure modes, validation, realm checks, confirmation, audit.
 - Built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`, `realm`)
   use the same SPI; `kc-mcp.spi.<id>.enabled=false` switches one off.
@@ -633,7 +653,7 @@ curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org
 ## Examples
 
 - `examples/run-modes/`: one Keycloak, demo realm, one env file per run mode (full admin, realm admin, read-only,
-  `private_key_jwt`, several systems, forward delegation); IntelliJ run configurations.
+  `private_key_jwt`, several systems, forward delegation, the `shared` profile); IntelliJ run configurations.
 - `examples/multi-tenant/`: two tenants, several realms, systems from a file, generated per-tenant keys, one entry per
   tenant or realm, second server with user login per realm.
 - `examples/dynamic-systems/`: no system at startup; registration via admin API into PostgreSQL with a generated key,

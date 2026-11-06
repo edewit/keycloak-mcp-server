@@ -25,7 +25,7 @@ public class CallerAuth {
 
     @Inject
     public CallerAuth(McpServerConfig config) {
-        this(config.delegation(), config.requireCaller(),
+        this(config.delegation(), config.callerRequired(),
                 ConfigProvider.getConfig().getOptionalValue("quarkus.oidc.tenant-enabled", Boolean.class).orElse(true));
     }
 
@@ -38,8 +38,8 @@ public class CallerAuth {
     void validate(@Observes StartupEvent event) {
         if (required && !oidcEnabled) {
             throw new IllegalStateException("kc-mcp.delegation=" + delegation.name().toLowerCase()
-                    + " / kc-mcp.require-caller=true need the MCP endpoint to authenticate callers: set "
-                    + "quarkus.oidc.tenant-enabled=true (env QUARKUS_OIDC_TENANT_ENABLED) and point "
+                    + " / kc-mcp.require-caller=true / kc-mcp.profile=shared need the MCP endpoint to authenticate"
+                    + " callers: set " + "quarkus.oidc.tenant-enabled=true (env QUARKUS_OIDC_TENANT_ENABLED) and point "
                     + "quarkus.oidc.auth-server-url at the realm that issues the caller tokens");
         }
     }

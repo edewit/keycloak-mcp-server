@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
@@ -29,12 +30,12 @@ public class ConfirmerChain implements Confirmer {
     private final List<Confirmer> chain;
 
     @Inject
-    public ConfirmerChain(ExtensionRegistry registry) {
+    public ConfirmerChain(ExtensionRegistry registry, McpServerConfig config) {
         List<Confirmer> all = new ArrayList<>(registry.extensions(Confirmer.class));
         for (Confirmer c : all) {
             LOG.infof("Confirmer '%s' registered (%s, order %d)", c.id(), c.getClass().getName(), c.order());
         }
-        all.add(new DefaultConfirmer());
+        all.add(new DefaultConfirmer(config.effectiveConfirmFallback()));
         all.sort(Comparator.comparingInt(Confirmer::order));
         this.chain = List.copyOf(all);
     }

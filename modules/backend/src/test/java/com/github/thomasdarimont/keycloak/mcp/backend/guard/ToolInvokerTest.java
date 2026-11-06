@@ -124,6 +124,7 @@ class ToolInvokerTest {
             .title("Boom")
             .description("fails")
             .category(com.github.thomasdarimont.keycloak.mcp.catalog.Category.REALM)
+            .read()
             .global()
             .handler(call -> {
                 throw new ToolException("not_found", "nope");
@@ -156,6 +157,7 @@ class ToolInvokerTest {
             .title("e")
             .description("d")
             .category(com.github.thomasdarimont.keycloak.mcp.catalog.Category.REALM)
+            .read()
             .handler(call -> ToolResult
                 .ok(Map.of("system", call.system(), "admin", call.kc().name(), "realm", call.realm())))
             .build();
@@ -228,5 +230,108 @@ class ToolInvokerTest {
         assertEquals("entry_mismatch", realmMismatch.get("error"), realmMismatch.toString());
         assertTrue(inv.hasSystem("b"));
         assertFalse(inv.hasSystem("nope"));
+    }
+
+    @Test
+    void explicitTargetRefusesDefaultsForDestructiveTools() {
+        com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem a = new com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem(
+                "a", "http://a", com.github.thomasdarimont.keycloak.mcp.config.GrantType.PASSWORD,
+                com.github.thomasdarimont.keycloak.mcp.config.ClientAuth.NONE, "master", java.util.Optional.empty(),
+                java.util.Optional.empty(), java.util.Optional.of("admin"), java.util.Optional.of("admin"),
+                java.util.Optional.of("demo"), java.util.Set.of(), java.util.Optional.empty());
+        com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem b = new com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem(
+                "b", "http://b", com.github.thomasdarimont.keycloak.mcp.config.GrantType.PASSWORD,
+                com.github.thomasdarimont.keycloak.mcp.config.ClientAuth.NONE, "master", java.util.Optional.empty(),
+                java.util.Optional.empty(), java.util.Optional.of("admin"), java.util.Optional.of("admin"),
+                java.util.Optional.of("b-default"), java.util.Set.of(), java.util.Optional.empty());
+        com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems systems = new com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems(
+                List.of(a, b), "a", null);
+        ToolSpec read = ToolSpec.builder("keycloak_echo")
+            .title("e")
+            .description("d")
+            .category(Category.USERS)
+            .read()
+            .handler(call -> ToolResult.ok(Map.of("system", call.system(), "realm", call.realm())))
+            .build();
+        ToolSpec destroy = ToolSpec.builder("keycloak_boom")
+            .title("b")
+            .description("d")
+            .category(Category.USERS)
+            .destructive()
+            .handler(call -> ToolResult.ok(Map.of("system", call.system(), "realm", call.realm())))
+            .build();
+        ToolCatalog c = new ToolCatalog(List.of(read, destroy), "(per system)", 50, List.of(), "", List.of("a", "b"),
+                "a");
+        ToolInvoker inv = new ToolInvoker(c, new AccessPolicy(false, List.of()), fixed(Decision.CONFIRMED), 10, systems)
+            .explicitTarget(com.github.thomasdarimont.keycloak.mcp.config.ExplicitTarget.DESTRUCTIVE);
+        ToolSpec readSpec = c.get("keycloak_echo").orElseThrow();
+        ToolSpec destroySpec = c.get("keycloak_boom").orElseThrow();
+
+        assertEquals("a", payload(inv.invoke(readSpec, Map.of(), false, ctx)).get("system"),
+                "read tools still take the defaults");
+
+        Map<String, Object> noSystem = payload(inv.invoke(destroySpec, Map.of("realm", "demo"), false, ctx));
+        assertEquals("system_required", noSystem.get("error"), noSystem.toString());
+        assertEquals("a", noSystem.get("defaultSystem"));
+        assertEquals(List.of("a", "b"), noSystem.get("systems"));
+
+        Map<String, Object> noRealm = payload(inv.invoke(destroySpec, Map.of("system", "b"), false, ctx));
+        assertEquals("realm_required", noRealm.get("error"), noRealm.toString());
+        assertEquals("b-default", noRealm.get("defaultRealm"));
+
+        Map<String, Object> ok = payload(inv.invoke(destroySpec, Map.of("system", "b", "realm", "demo"), false, ctx));
+        assertEquals("b", ok.get("system"), ok.toString());
+        assertEquals("demo", ok.get("realm"));
+
+        // a system-specific endpoint is an explicit choice
+        InvocationContext onA = InvocationContext.none().withBinding(new EntryBinding("a", "demo"));
+        Map<String, Object> bound = payload(inv.invoke(destroySpec, Map.of(), false, onA));
+        assertEquals("a", bound.get("system"), bound.toString());
+
+        // write tools only under explicit-target=write
+        inv.explicitTarget(com.github.thomasdarimont.keycloak.mcp.config.ExplicitTarget.WRITE);
+        ToolSpec write = ToolSpec.builder("keycloak_w")
+            .title("w")
+            .description("d")
+            .category(Category.USERS)
+            .write()
+            .handler(call -> ToolResult.ok(Map.of("system", call.system())))
+            .build();
+        ToolCatalog c2 = new ToolCatalog(List.of(write), "(per system)", 50, List.of(), "", List.of("a", "b"), "a");
+        ToolInvoker inv2 = new ToolInvoker(c2, new AccessPolicy(false, List.of()), fixed(Decision.CONFIRMED), 10,
+                systems)
+            .explicitTarget(com.github.thomasdarimont.keycloak.mcp.config.ExplicitTarget.WRITE);
+        assertEquals("system_required",
+                payload(inv2.invoke(c2.get("keycloak_w").orElseThrow(), Map.of("realm", "demo"), false, ctx))
+                    .get("error"));
+    }
+
+    @Test
+    void explicitTargetWithOneSystemOnlyAsksForTheRealm() {
+        ToolCatalog withDefault = Fixtures.catalog("demo");
+        ToolSpec delete = withDefault.get("keycloak_user_delete").orElseThrow();
+        ToolInvoker inv = new ToolInvoker(withDefault, new AccessPolicy(false, List.of()), fixed(Decision.CONFIRMED),
+                50)
+            .explicitTarget(com.github.thomasdarimont.keycloak.mcp.config.ExplicitTarget.DESTRUCTIVE);
+        Map<String, Object> r = payload(inv.invoke(delete, Map.of("id", "1", "username", "bob"), true, ctx));
+        assertEquals("realm_required", r.get("error"), r.toString());
+        assertEquals("demo", r.get("defaultRealm"));
+    }
+
+    @Test
+    void confirmationHintFollowsTheFallback() {
+        ToolSpec delete = catalog.get("keycloak_user_delete").orElseThrow();
+        Map<String, Object> flag = payload(invoker(false, List.of(), new DefaultConfirmer()).invoke(delete,
+                Map.of("realm", "demo", "id", "1", "username", "bob"), false, ctx));
+        assertEquals("confirmation_required", flag.get("error"));
+        assertTrue(String.valueOf(flag.get("howTo")).contains("confirm: true"), flag.toString());
+
+        com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback deny = com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback.DENY;
+        ToolInvoker denying = invoker(false, List.of(), new DefaultConfirmer(deny)).confirmFallback(deny);
+        Map<String, Object> denied = payload(
+                denying.invoke(delete, Map.of("realm", "demo", "id", "1", "username", "bob"), true, ctx));
+        assertEquals("confirmation_required", denied.get("error"), "confirm: true does not count");
+        assertEquals(DefaultConfirmer.ELICITATION_REQUIRED, denied.get("message"));
+        assertTrue(String.valueOf(denied.get("howTo")).contains("not accepted"), denied.toString());
     }
 }

@@ -65,4 +65,19 @@ class ConfirmerChainTest {
         assertEquals("Confirmation failed: ticket system down", d.message());
     }
 
+    @Test
+    void denyFallbackIgnoresTheFlag() {
+        ConfirmerChain chain = new ConfirmerChain(
+                List.of(new DefaultConfirmer(com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback.DENY)));
+        Decision d = chain.confirm(request(true));
+        assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, d.outcome());
+        assertEquals(DefaultConfirmer.ELICITATION_REQUIRED, d.message());
+        assertEquals(Decision.Outcome.CONFIRMED,
+                new ConfirmerChain(List.of(ordered(1, Decision.CONFIRMED),
+                        new DefaultConfirmer(com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback.DENY)))
+                    .confirm(request(false))
+                    .outcome(),
+                "another confirmer (ticket, CIBA) may still confirm");
+    }
+
 }

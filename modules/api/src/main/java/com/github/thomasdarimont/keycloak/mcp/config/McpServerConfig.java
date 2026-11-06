@@ -16,6 +16,17 @@ import io.smallrye.config.WithDefault;
 @ConfigMapping(prefix = "kc-mcp")
 public interface McpServerConfig {
 
+    /**
+     * Deployment profile: {@code local} (default, one person's machine) or {@code shared}
+     * (a server others reach over the network). The profile sets the defaults of
+     * {@link #requireCaller()}, {@link #confirmFallback()} and {@link #explicitTarget()}
+     * and, as {@code shared}, refuses to start without caller authentication with an
+     * audience, {@link #allowedHosts()}, an admin API audience and an encrypted storage.
+     */
+    @WithDefault("local")
+    @WithConverter(Profile.Converter.class)
+    Profile profile();
+
     /** Keycloak base URL, e.g. {@code http://localhost:8080}. */
     @WithDefault("http://localhost:8080")
     String url();
@@ -197,6 +208,39 @@ public interface McpServerConfig {
      */
     @WithDefault("false")
     boolean requireCaller();
+
+    /** Effective value: {@link #requireCaller()}, or always in profile {@code shared}. */
+    default boolean callerRequired() {
+        return requireCaller() || profile().shared();
+    }
+
+    /**
+     * What confirms a DESTRUCTIVE tool when the client has no elicitation: {@code flag}
+     * ({@code confirm: true} in the arguments) or {@code deny} (refused until a client
+     * with elicitation or another {@code Confirmer} confirms). Default: {@code flag} in
+     * profile {@code local}, {@code deny} in {@code shared}.
+     */
+    @WithConverter(ConfirmFallback.Converter.class)
+    Optional<ConfirmFallback> confirmFallback();
+
+    /** Effective value of {@link #confirmFallback()}, by profile when unset. */
+    default ConfirmFallback effectiveConfirmFallback() {
+        return confirmFallback().orElse(profile().shared() ? ConfirmFallback.DENY : ConfirmFallback.FLAG);
+    }
+
+    /**
+     * Which tools must name {@code system} (when several exist) and {@code realm} instead
+     * of taking the defaults: {@code off}, {@code destructive} or {@code write}. A
+     * system-specific endpoint counts as explicit. Default: {@code off} in profile
+     * {@code local}, {@code destructive} in {@code shared}.
+     */
+    @WithConverter(ExplicitTarget.Converter.class)
+    Optional<ExplicitTarget> explicitTarget();
+
+    /** Effective value of {@link #explicitTarget()}, by profile when unset. */
+    default ExplicitTarget effectiveExplicitTarget() {
+        return explicitTarget().orElse(profile().shared() ? ExplicitTarget.DESTRUCTIVE : ExplicitTarget.OFF);
+    }
 
     /**
      * If set, the {@code realm} tool argument becomes optional and defaults to this

@@ -62,7 +62,7 @@ public class DnsRebindingProtection {
         return switch (mode) {
             case "on", "true" -> true;
             case "off", "false" -> false;
-            default -> !oidcEnabled && !config.requireCaller();
+            default -> !oidcEnabled && !config.callerRequired();
         };
     }
 
