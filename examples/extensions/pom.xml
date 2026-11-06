@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A keycloak-mcp-server extension jar: compiles against the api module only, lands in the server's providers/ directory.
+     Build the server first (./mvnw install -DskipTests from the repository root) so the api is in the local repository. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.acme</groupId>
+    <artifactId>acme-keycloak-mcp-extensions</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <name>ACME extensions for keycloak-mcp-server</name>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <keycloak-mcp-server.version>1.0-SNAPSHOT</keycloak-mcp-server.version>
+        <auto-service.version>1.1.1</auto-service.version>
+        <junit.version>6.1.3</junit.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <!-- provided: the server has the api (and the Keycloak admin client, Vert.x JSON) on its class path -->
+            <groupId>com.github.thomasdarimont.keycloak</groupId>
+            <artifactId>keycloak-mcp-server-api</artifactId>
+            <version>${keycloak-mcp-server.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <!-- @AutoService writes META-INF/services at compile time; the server discovers the extensions through it -->
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+            <version>${auto-service.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.15.0</version>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>com.google.auto.service</groupId>
+                            <artifactId>auto-service</artifactId>
+                            <version>${auto-service.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.6</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

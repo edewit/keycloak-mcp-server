@@ -586,6 +586,8 @@ curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org
   tenant or realm, second server with user login per realm.
 - `examples/dynamic-systems/`: no system at startup; registration via admin API into PostgreSQL with a generated key,
   Keycloak client with its JWKS URL, realm with public `mcp-consumer`, admin/support/developer users.
+- `examples/extensions/`: an extension jar for `providers/`: tools, prompt, confirmer, global access check, audit
+  listener, scrubber, system repository, with unit tests against the api alone.
 
 ## Running
 

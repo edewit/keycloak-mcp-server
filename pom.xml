@@ -16,6 +16,8 @@
         <module>modules/backend</module>
         <!-- test_* tools and prompts for the MCP conformance suite, an extension jar; see conformance/README.md -->
         <module>conformance/fixtures</module>
+        <!-- examples/extensions -->
+        <module>examples/extensions</module>
     </modules>
 
     <properties>
