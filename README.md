@@ -4,8 +4,8 @@
 HTTP. 72 `keycloak_*` tools after [mcp-keycloak-admin](https://github.com/edewit/mcp-keycloak-admin), exposed lazily
 so small local models cope.
 
-Status: phases 1 to 4 of `sketch/notes/implementation-plan.md` done (all reference tools, search, exposure modes,
-guardrails, extension SPI). Open items: §Roadmap.
+Status: all reference tools, search, exposure modes, guardrails, extension SPI, database storage and admin API done.
+Open items: §Roadmap.
 
 ## How the model sees it
 
@@ -133,7 +133,7 @@ default (anonymous endpoint). `QUARKUS_OIDC_TENANT_ENABLED=true` verifies tokens
 - Audit line: `caller=alice(<sub>) delegated`.
 - `Caller`: `claims()`, `claim("department")`, `rawToken()`; `toString()` never prints the token; audit events get
   `withoutToken()`. Per-caller admin clients cached until token expiry.
-- Token exchange: sketched in `sketch/notes/delegated-auth.md`, not implemented.
+- Token exchange (acting with narrowed, consented permissions): not implemented.
 
 ## Several Keycloak systems
 
@@ -396,7 +396,7 @@ kc-mcp.username=admin
 kc-mcp.password=admin
 ```
 
-Port 8081 (`quarkus.http.port`), endpoint `http://localhost:8081/mcp`. Service account roles: `sketch/notes/keycloak-setup.md`.
+Port 8081 (`quarkus.http.port`), endpoint `http://localhost:8081/mcp`. Service account roles: §Access levels.
 
 ## Extending
 
@@ -633,9 +633,11 @@ LM Studio `mcp.json`; with OIDC on add `"auth": { "CLIENT_ID": "mcp-consumer" }`
 
 ## Roadmap
 
-`sketch/notes/implementation-plan.md`. Next: model-in-the-loop benchmarks with LM Studio (turns to success, tool-choice
-errors, tokens per mode), reference skill recipes as prompts, federation sync test against real LDAP, `private_key_jwt`
-against a JWT-authenticated Keycloak client.
+- Model-in-the-loop benchmarks with LM Studio: turns to success, tool-choice errors, tokens per mode
+- Reference skill recipes as prompts
+- Federation sync test against a real LDAP
+- `private_key_jwt` against a JWT-authenticated Keycloak client
+- Admin API read access to audit rows and signing-key history
 
 ## Quarkus notes
 
