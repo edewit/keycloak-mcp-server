@@ -552,7 +552,7 @@ JSON, no Quarkus; automatic module `com.github.thomasdarimont.keycloak.mcp.api`)
 - `catalog`: `ToolSpec`, `ToolCall`, `ToolResult`, `InputSchema`, `Category`, `ToolLevel`, prompt descriptions
 - `keycloak`: `KeycloakAdmin`, `KeycloakSystems`, `KeycloakSystemRepository`, `KeyVault`, `SigningKeyGenerator`,
   capabilities, host allow list, `Views`
-- `config`: server configuration interface
+- `config`: server configuration interface, `Profile`, `ProfileCheck`
 
 ```java
 public class AcmeToolProvider implements ToolProvider {
@@ -591,7 +591,7 @@ public class AcmeToolProvider implements ToolProvider {
 ### Extension jars: `providers/`
 
 - `kc-mcp.providers-dir` (`KC_MCP_PROVIDERS_DIR`), default `providers`. Every `ToolProvider`, `PromptProvider`,
-  `AccessCheck`, `Confirmer`, `AuditListener` in the jars' `META-INF/services` joins the class path ones.
+  `AccessCheck`, `Confirmer`, `AuditListener`, `ProfileCheck` in the jars' `META-INF/services` joins the class path ones.
 - Relative path: next to `quarkus-run.jar` when packaged (`target/quarkus-app/providers/`, created by the build), else
   the working directory (dev: `./providers`).
 - Loaded by a class loader over the application: sees api and server classes, no CDI, no native image. CDI needed:
@@ -677,6 +677,27 @@ What makes the approval trustworthy:
 | `number-matching` | `true` | two-step: send a two-digit `code` the device asks the user for; shown to the model |
 | `extra-parameters` | `true` | send `requester` and `operation` as additional request parameters |
 | `poll-wait-seconds` | `5` | two-step: how long the collecting call waits for the device before answering `pending` |
+
+### Profile checks
+
+`ProfileCheck` (`@AutoService` or CDI bean) adds to the startup checks of `kc-mcp.profile`: an extension states what
+its own feature needs to be safe (an audit file outside `/tmp`, a ticket system over HTTPS, a setting that must not keep
+its default on a shared server). `problems(ctx)` stop the start, reported together with the built-in ones and tagged
+`[id]`; `warnings(ctx)` are logged. The check decides per profile (`ctx.shared()`), and gets its own settings
+(`ctx.config()`, `kc-mcp.spi.<id>.*`), any property (`ctx.property("quarkus.http.host")`) and whether callers are
+required. A check that throws stops a shared server and is logged on a local one. Example:
+`examples/extensions/.../AuditFileProfileCheck.java`.
+
+```java
+@AutoService(ProfileCheck.class)
+public class TicketUrlCheck implements ProfileCheck {
+    public List<String> problems(ProfileCheckContext ctx) {
+        String url = ctx.config().get("url", "");
+        return ctx.shared() && !url.startsWith("https://")
+                ? List.of("kc-mcp.spi." + id() + ".url must be https on a shared server") : List.of();
+    }
+}
+```
 
 ### Audit listeners and scrubbers
 

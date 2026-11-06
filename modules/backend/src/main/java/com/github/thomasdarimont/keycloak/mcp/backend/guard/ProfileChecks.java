@@ -3,6 +3,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -13,6 +14,10 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.Profile;
+import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
+import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext;
+import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.quarkus.runtime.StartupEvent;
 
@@ -21,7 +26,8 @@ import io.quarkus.runtime.StartupEvent;
  * audience, outbound hosts are listed, the admin API's tokens carry an audience. Every
  * violation is collected and startup fails with the whole list (the storage encryption is
  * checked by the storage module). Profile {@code local} only warns where a setting leaves
- * a door open that the admin API could walk through.
+ * a door open that the admin API could walk through. Extensions add their own checks
+ * ({@link ProfileCheck}); their problems join the list, tagged with the check's id.
  */
 @ApplicationScoped
 public class ProfileChecks {
@@ -34,6 +40,8 @@ public class ProfileChecks {
     CallerAuth callers;
     @Inject
     DefaultKeycloakSystems systems;
+    @Inject
+    ExtensionRegistry extensions;
 
     void onStart(@Observes StartupEvent event) {
         Optional<String> audience = ConfigProvider.getConfig()
@@ -42,11 +50,19 @@ public class ProfileChecks {
         Settings s = new Settings(config.profile(), callers.oidcEnabled(), audience.isPresent(),
                 !systems.allowedHosts().unrestricted(), config.admin().enabled(), config.admin().issuer().isPresent(),
                 config.admin().audience().filter(v -> !v.isBlank()).isPresent(), config.admin().allowNewSystems());
-        List<String> problems = problems(s);
-        if (!problems.isEmpty()) {
-            throw new IllegalStateException("kc-mcp.profile=shared needs: " + String.join("; ", problems));
+        List<ProfileCheck> checks = extensions.extensions(ProfileCheck.class);
+        for (ProfileCheck c : checks) {
+            LOG.infof("Profile check '%s' registered (%s)", c.id(), c.getClass().getName());
         }
-        for (String w : warnings(s)) {
+        Findings findings = run(s, checks,
+                id -> new ProfileCheckContext(config.profile(), callers.required(), config,
+                        ProviderConfig.forExtension(id, config.spi()),
+                        name -> ConfigProvider.getConfig().getOptionalValue(name, String.class)));
+        if (!findings.problems().isEmpty()) {
+            throw new IllegalStateException("Startup checks of profile " + config.profile().name().toLowerCase()
+                    + " failed: " + String.join("; ", findings.problems()));
+        }
+        for (String w : findings.warnings()) {
             LOG.warn(w);
         }
         String host = ConfigProvider.getConfig().getOptionalValue("quarkus.http.host", String.class).orElse("");
@@ -72,6 +88,46 @@ public class ProfileChecks {
             case "localhost", "127.0.0.1", "::1", "[::1]", "0:0:0:0:0:0:0:1" -> true;
             default -> host.trim().startsWith("127.");
         };
+    }
+
+    /** Problems (stop the start) and warnings (logged) of all checks. */
+    public record Findings(List<String> problems, List<String> warnings) {
+    }
+
+    /**
+     * The built-in checks, then the extensions' in order: problems and warnings of each
+     * extension are tagged {@code [id]}. A check that throws is a problem in profile
+     * {@code shared} and a warning in {@code local}.
+     */
+    public static Findings run(Settings s, List<ProfileCheck> checks, Function<String, ProfileCheckContext> contexts) {
+        List<String> problems = new ArrayList<>(
+                problems(s).stream().map(p -> "kc-mcp.profile=shared needs " + p).toList());
+        List<String> warnings = new ArrayList<>(warnings(s));
+        for (ProfileCheck c : checks) {
+            ProfileCheckContext ctx = contexts.apply(c.id());
+            try {
+                for (String p : nonNull(c.problems(ctx))) {
+                    problems.add("[" + c.id() + "] " + p);
+                }
+                for (String w : nonNull(c.warnings(ctx))) {
+                    warnings.add("[" + c.id() + "] " + w);
+                }
+            }
+            catch (RuntimeException e) {
+                String msg = "[" + c.id() + "] the check failed: " + e;
+                if (s.profile().shared()) {
+                    problems.add(msg);
+                }
+                else {
+                    warnings.add(msg);
+                }
+            }
+        }
+        return new Findings(List.copyOf(problems), List.copyOf(warnings));
+    }
+
+    private static List<String> nonNull(List<String> l) {
+        return l == null ? List.of() : l.stream().filter(v -> v != null && !v.isBlank()).toList();
     }
 
     /** The settings the checks look at, so they can be run without a container. */

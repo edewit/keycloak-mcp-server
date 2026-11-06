@@ -138,4 +138,23 @@ class AcmeExtensionsTest {
         assertTrue(repo.find("globex").orElseThrow().defaultRealm().isEmpty());
         assertTrue(repo.find("nope").isEmpty());
     }
+
+    @Test
+    void auditFileCheckStopsASharedServerAndWarnsALocalOne() {
+        AuditFileProfileCheck check = new AuditFileProfileCheck();
+        java.util.function.Function<java.util.Map<String, String>, com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext> shared = props -> new com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext(
+                com.github.thomasdarimont.keycloak.mcp.config.Profile.SHARED, true, null, null,
+                name -> java.util.Optional.ofNullable(props.get(name)));
+        assertEquals(1, check.problems(shared.apply(java.util.Map.of())).size(), "unset");
+        assertEquals(1,
+                check.problems(shared.apply(java.util.Map.of(AuditFileProfileCheck.FILE, "/tmp/a.jsonl"))).size(),
+                "temporary");
+        assertTrue(check.problems(shared.apply(java.util.Map.of(AuditFileProfileCheck.FILE, "/var/log/acme/a.jsonl")))
+            .isEmpty());
+        var local = new com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext(
+                com.github.thomasdarimont.keycloak.mcp.config.Profile.LOCAL, false, null, null,
+                name -> java.util.Optional.empty());
+        assertTrue(check.problems(local).isEmpty(), "local: never stops");
+        assertEquals(1, check.warnings(local).size());
+    }
 }

@@ -13,6 +13,7 @@ this repository's build for convenience; as a project of your own, replace the p
 | `JsonLinesAuditListener` | `AuditListener` | one JSON line per call in a file |
 | `NoEmailScrubber` | `AuditScrubber` | e-mail arguments masked for every sink, message dropped for the console only |
 | `AcmeTenantRepository` | `KeycloakSystemRepository` | tenants from a setting, `KeycloakSystem.builder` |
+| `AuditFileProfileCheck` | `ProfileCheck` | a shared server does not start while the audit file is unset or in `/tmp`; a local one warns |
 | `AcmeExtensionsTest` | | all of it tested without a server |
 
 Settings follow the id: `kc-mcp.spi.<id>.<key>` or `KC_MCP_SPI_<ID>_<KEY>` (`acme-audit` → `KC_MCP_SPI_ACME_AUDIT_FILE`);
