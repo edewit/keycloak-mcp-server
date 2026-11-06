@@ -223,6 +223,27 @@ public interface McpServerConfig {
     @WithConverter(ConfirmFallback.Converter.class)
     Optional<ConfirmFallback> confirmFallback();
 
+    /**
+     * What the model is told about confirming destructive tools: {@code ask} (ask the
+     * user once after {@code confirmation_required}, then {@code confirm: true}),
+     * {@code server} (the server asks, through the client or the user's device: call
+     * right away) or {@code auto} (default: {@code server} when a confirmer asks the
+     * human itself, the client supports elicitation or {@code confirm: true} is not
+     * accepted; else {@code ask}). Guidance only; the server enforces its confirmation
+     * either way.
+     */
+    @WithDefault("auto")
+    @WithConverter(ModelConfirmation.Converter.class)
+    ModelConfirmation modelConfirmation();
+
+    /**
+     * Callers holding one of these roles ({@code realm:<role>} or
+     * {@code <client>.<role>}, as in the policies) are assumed to know what they do: in
+     * {@code ask} mode the model is told to pass {@code confirm: true} right away instead
+     * of asking them first. Does not apply where the server asks itself.
+     */
+    Optional<List<String>> modelConfirmationTrustedRoles();
+
     /** Effective value of {@link #confirmFallback()}, by profile when unset. */
     default ConfirmFallback effectiveConfirmFallback() {
         return confirmFallback().orElse(profile().shared() ? ConfirmFallback.DENY : ConfirmFallback.FLAG);

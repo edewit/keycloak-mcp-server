@@ -76,7 +76,20 @@ Open items: §Roadmap.
 - DESTRUCTIVE tools (delete user/group, reset password, logout, unassign roles): MCP elicitation when the client supports
   it; without it `kc-mcp.confirm-fallback` decides: `flag` (local default) requires and explains `confirm: true`, `deny`
   (shared default) refuses with `confirmation_required` and does not offer the flag, since the model writes it. Own
-  `Confirmer`s run first (§Extending), so a ticket or CIBA confirmer can still confirm under `deny`.
+  `Confirmer`s run first (§Extending), so a ticket check can still confirm under `deny`.
+- CIBA confirmation (`kc-mcp.spi.ciba-confirmer.enabled=true`, off by default): the caller approves each destructive
+  tool on their own device through OpenID Connect CIBA. The first call files the request and shows a two-digit
+  number, the device shows who asks for what and asks for that number (number matching, as Entra ID), the next call
+  runs the tool on approval, answers `cancelled` on a decline and `confirmation_required` while pending or after
+  expiry. Neither the model nor the MCP client is in that channel. §Confirmers, `examples/ciba-confirm`.
+- What the model is told about confirming (`kc-mcp.model-confirmation`, default `auto`): the server instructions say
+  "never ask before calling", and `search_tools` hits of destructive tools, `whoami` and the `confirmation_required`
+  answers carry the mode: `ask` (ask the user once after `confirmation_required`, then `confirm: true`), `server`
+  (the server asks through the client's elicitation or on the user's device, or refuses: call right away and relay
+  the answer). `auto` picks `server` whenever a confirmer asks the human itself (`Confirmer.asksTheHuman()`, the CIBA
+  confirmer), the client supports elicitation, or `confirm: true` is not accepted; `ask` otherwise. Callers holding one
+  of `kc-mcp.model-confirmation-trusted-roles` are told in `ask` mode to pass `confirm: true` right away. Guidance
+  only, the confirmers enforce either way; it stops the "shall I really delete?" question where the device asks anyway.
 - `kc-mcp.explicit-target=off|destructive|write` (local `off`, shared `destructive`): tools of that level get
   `system_required` / `realm_required` instead of the default system (when several exist) or default realm, so an
   ambiguous request cannot land on the default production system. A per-system entry (`/mcp/systems/<system>[/<realm>]`)
@@ -429,6 +442,8 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.confirm-fallback`       | `flag`, `shared`: `deny`    | without elicitation: `flag` accepts `confirm: true`, `deny` refuses destructive tools |
 | `kc-mcp.explicit-target`        | `off`, `shared`: `destructive` | `destructive` or `write` tools must pass `system` (several systems) and `realm` instead of the defaults |
 | `kc-mcp.dynamic-private-hosts`  | `allow`, `shared`: `listed` | `listed`: a runtime-registered system on a private, loopback or link-local address needs its host named literally in `allowed-hosts` |
+| `kc-mcp.model-confirmation`     | `auto`                      | guidance to the model about destructive tools: `ask`, `server`, `auto` (§Guardrails) |
+| `kc-mcp.model-confirmation-trusted-roles` |                   | role refs whose holders are told to pass `confirm: true` right away in `ask` mode |
 | `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens; issuer `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
 | `quarkus.oidc.token.audience`   |                             | required `aud` (recommended with `forward`) |
 | `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is internal (Docker) |
@@ -561,6 +576,42 @@ public class TicketConfirmer implements Confirmer {
 }
 ```
 
+#### Built-in: CIBA confirmation
+
+`kc-mcp.spi.ciba-confirmer.*` (env `KC_MCP_SPI_CIBA_CONFIRMER_*`), off by default. With `enabled=true` the server
+files a CIBA authentication request (OpenID Connect Client Initiated Backchannel Authentication) for the caller of
+the MCP session before a DESTRUCTIVE tool runs: `login_hint` = the caller's username (or the claim named by
+`login-hint`), `binding_message` = `<binding-message-prefix>-<hash of tool, system, realm, arguments>`, plus the
+additional parameters `code` (a two-digit number), `requester` (the MCP client's name) and `operation` for the device
+to show. Two-step flow (default): the first call answers `confirmation_required` at once with `approval: {status:
+requested, code, bindingMessage, expiresInSeconds}` and a `howTo` telling the model to have the user approve on
+their device and enter the number, then call again; the next call with the same arguments polls the token endpoint
+and runs the tool (`confirmed`), answers `cancelled` (declined), `confirmation_required` with `status: pending`
+(still waiting, after `poll-wait-seconds`) or `status: expired` (nothing changed, call again for a new request).
+Number matching as in Entra ID: the number is shown where the request originates and asked for where it is approved,
+so a request the user did not trigger carries a number they cannot know. `flow=blocking` waits in the call instead,
+without a number. Anonymous callers are left to the next confirmer. Standard CIBA only, so any CIBA-capable
+provider works; the device side is the provider's (Keycloak: its HTTP authentication channel, which forwards up to
+five additional parameters; see the example).
+
+| `kc-mcp.spi.ciba-confirmer.*` | default | meaning |
+|---|---|---|
+| `enabled` | `false` | |
+| `issuer` | `caller` | issuer URL of the CIBA client; `caller` follows the `iss` of the caller's token (the auth realm without one) |
+| `client-id` / `client-secret` | | the confidential client registered for CIBA (required when on) |
+| `client-auth` | `client_secret_basic` | or `client_secret_post` |
+| `scope` | `openid` | |
+| `acr-values` | | optional, e.g. to demand a second factor on the device |
+| `login-hint` | `username` | or a token claim (`email`, `sub`) the provider resolves the user by |
+| `binding-message` / `binding-message-prefix` | `true` / `kc-mcp` | the message on the device; Keycloak allows 50 characters without spaces |
+| `requested-expiry` | `false` | send `requested_expiry` = the timeout |
+| `timeout-seconds` | `confirm-timeout-seconds` | how long to wait; capped by the provider's `expires_in` |
+| `when` | `always` | `without-elicitation`: only for clients that cannot ask the human themselves |
+| `flow` | `two-step` | or `blocking` (the call waits for the device; no number matching) |
+| `number-matching` | `true` | two-step: send a two-digit `code` the device asks the user for; shown to the model |
+| `extra-parameters` | `true` | send `requester` and `operation` as additional request parameters |
+| `poll-wait-seconds` | `5` | two-step: how long the collecting call waits for the device before answering `pending` |
+
 ### Audit listeners and scrubbers
 
 - `AuditListener.onToolCall` once per finished call, any outcome. Built-in: console line (`console`). Synchronous on the
@@ -673,6 +724,10 @@ curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org
 - `examples/delegated-auth/`: the server as a delegated agent (`KC_MCP_DELEGATION=exchange`): Keycloak 26.8 with
   token exchange delegation, consent, Admin Permissions grant, an actor client whose role scope caps every delegated
   token, a scripted browser login and the audit trail on both sides.
+- `examples/ciba-confirm/`: destructive tools approved on the user's device through CIBA: Keycloak with the CIBA grant
+  and its HTTP authentication channel, an "approver" app standing in for the device (an OpenID Connect relying party
+  where the user signs in, sees the requests meant for them and enters the number from the chat),
+  `confirm-fallback=deny`, a scripted approve / decline / wrong-user / ignored-flag run.
 
 ## Running
 

@@ -7,6 +7,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 
 /**
@@ -40,12 +43,15 @@ public class AuditEventEntity extends PanacheEntityBase {
     public String realm;
 
     /** The arguments as a JSON object, secrets already replaced by {@code ***}. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "args")
     public String args;
 
     /** {@code ok} or the error code. */
     @Column(name = "outcome", nullable = false, length = 64)
     public String outcome;
+
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
 
     @Column(name = "message")
     public String message;

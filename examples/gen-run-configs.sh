@@ -5,6 +5,7 @@
 #   extensions:       "quarkus:dev (extensions)" loading examples/extensions/target as providers directory, build/demo/down
 #   dynamic-systems:  PostgreSQL build + stack, mounted-jar dev stack, demo, down
 #   delegated-auth:   one quarkus:dev per env file, stack up, demo, down
+#   ciba-confirm:     one quarkus:dev per env file, stack up, demo, down
 #   management-ui:    mkcert, one quarkus:dev per env file with the UI on, the Vite dev server
 #   multi-tenant:     keys + stack, down
 #   conformance:      conformance/run.sh
@@ -126,6 +127,16 @@ shell "delegated-auth: stack up (Keycloak :8096 + delegation grant)" "delegated-
   "docker compose up -d && docker compose logs keycloak-init && docker compose logs -f keycloak"
 shell "delegated-auth: demo.sh" "delegated-auth-demo" "examples/delegated-auth" "./demo.sh"
 shell "delegated-auth: down -v" "delegated-auth-down" "examples/delegated-auth" "docker compose down -v"
+
+# --- ciba-confirm: dev mode against its own stack (Keycloak :8098 with the CIBA channel, approver :8095), the demo
+for f in examples/ciba-confirm/env/*.env; do
+  name=$(basename "$f" .env)
+  maven_dev "quarkus:dev ($name: ciba-confirm stack on :8098, approver :8095, MCP :8099)" "dev-$name" < "$f"
+done
+shell "ciba-confirm: stack up (Keycloak :8098 + approver :8095)" "ciba-confirm-up" "examples/ciba-confirm" \
+  "docker compose up -d && docker compose logs -f approver"
+shell "ciba-confirm: demo.sh" "ciba-confirm-demo" "examples/ciba-confirm" "./demo.sh"
+shell "ciba-confirm: down -v" "ciba-confirm-down" "examples/ciba-confirm" "docker compose down -v"
 
 # --- management-ui: dev mode with the UI on https://localhost:8443/ui/ against the run-modes stack, the certificate
 shell "management-ui: mkcert (writes .certs/localhost*.pem)" "management-ui-mkcert" "" "etc/mkcert.sh"

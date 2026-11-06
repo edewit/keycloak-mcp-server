@@ -7,6 +7,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 
 /**
@@ -37,10 +40,12 @@ public class SigningKeyEntity extends PanacheEntityBase {
     public String keyType;
 
     /** Base64 PKCS#8, encrypted when {@code kc-mcp.storage.secret-key} is set. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "private_key", nullable = false)
     public String privateKey;
 
     /** Base64 X.509 SubjectPublicKeyInfo. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "public_key", nullable = false)
     public String publicKey;
 

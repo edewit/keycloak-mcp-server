@@ -5,6 +5,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 
 /**
@@ -30,6 +33,7 @@ public class SystemEntity extends PanacheEntityBase {
     public String name;
 
     /** Free text for people: what this Keycloak is, who owns it; optional, unbounded. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "description")
     public String description;
 
@@ -51,6 +55,7 @@ public class SystemEntity extends PanacheEntityBase {
     public String clientId;
 
     /** Encrypted when {@code kc-mcp.storage.secret-key} is set. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "client_secret")
     public String clientSecret;
 
@@ -58,6 +63,7 @@ public class SystemEntity extends PanacheEntityBase {
     public String defaultRealm;
 
     /** JSON array of realm names; empty or null for all realms. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "allowed_realms")
     public String allowedRealms;
 

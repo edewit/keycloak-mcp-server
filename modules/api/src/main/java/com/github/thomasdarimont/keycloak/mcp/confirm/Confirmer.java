@@ -15,4 +15,14 @@ public interface Confirmer extends Extension {
 
     Decision confirm(ConfirmationRequest request);
 
+    /**
+     * Whether this confirmer obtains the human's decision itself (an approval on their
+     * device, a push notification, a four-eyes workflow), so that the model need not ask
+     * the user beforehand; {@code false} for checks that decide from data (a ticket, an
+     * allow-list). Shapes the guidance the model gets, not the decision.
+     */
+    default boolean asksTheHuman() {
+        return false;
+    }
+
 }

@@ -47,6 +47,7 @@ public class ToolInvoker {
     private Duration confirmTimeout = Duration.ofSeconds(120);
     private ExplicitTarget explicitTarget = ExplicitTarget.OFF;
     private ConfirmFallback confirmFallback = ConfirmFallback.FLAG;
+    private ConfirmationGuidance guidance = ConfirmationGuidance.standalone();
 
     @Inject
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, ConfirmerChain confirmer, McpServerConfig config,
@@ -55,6 +56,17 @@ public class ToolInvoker {
         this.confirmTimeout = Duration.ofSeconds(config.confirmTimeoutSeconds());
         this.explicitTarget = config.effectiveExplicitTarget();
         this.confirmFallback = config.effectiveConfirmFallback();
+        this.guidance = new ConfirmationGuidance(config, confirmer);
+    }
+
+    /** What the model is told after {@code confirmation_required}. */
+    public ToolInvoker guidance(ConfirmationGuidance guidance) {
+        this.guidance = guidance == null ? ConfirmationGuidance.standalone() : guidance;
+        return this;
+    }
+
+    public ConfirmationGuidance guidance() {
+        return guidance;
     }
 
     /**
@@ -249,26 +261,43 @@ public class ToolInvoker {
         return prepared;
     }
 
+    private static Object[] flatten(Map<String, Object> fields) {
+        Object[] kv = new Object[fields.size() * 2];
+        int i = 0;
+        for (Map.Entry<String, Object> e : fields.entrySet()) {
+            kv[i++] = e.getKey();
+            kv[i++] = e.getValue();
+        }
+        return kv;
+    }
+
     private ToolResult runWithConfirmation(ToolSpec spec, String system, KeycloakAdmin admin, String realm,
             Map<String, Object> args, boolean confirmFlag, InvocationContext ctx) throws Exception {
         if (spec.isDestructive()) {
             ConfirmationRequest request = new ConfirmationRequest(spec, system, realm, args, confirmFlag, ctx.caller(),
-                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout));
+                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout), ctx.clientName());
             Decision decision = confirmer.confirm(request);
             switch (decision.outcome()) {
                 case DECLINED -> {
                     return ToolResult.error("cancelled", decision.message() != null ? decision.message()
-                            : "The user declined to confirm " + spec.name() + ".");
+                            : "The user declined to confirm " + spec.name() + ".", flatten(decision.details()));
                 }
                 case CONFIRMATION_REQUIRED, ABSTAIN -> {
-                    return ToolResult.error("confirmation_required",
-                            decision.message() != null
-                                    ? decision.message() : spec.title() + " is destructive and needs confirmation.",
-                            "howTo",
-                            confirmFallback.acceptsFlag()
-                                    ? "Ask the user, then call again with the same arguments plus confirm: true."
-                                    : "Only the user can confirm, through an MCP client that supports elicitation;"
-                                            + " confirm: true is not accepted on this server.");
+                    Map<String, Object> fields = new java.util.LinkedHashMap<>();
+                    ConfirmationGuidance.Mode mode = guidance.mode(ctx);
+                    if (mode == ConfirmationGuidance.Mode.ASK && !confirmFallback.acceptsFlag()) {
+                        mode = ConfirmationGuidance.Mode.SERVER;
+                    }
+                    fields.put("howTo", switch (mode) {
+                        case ASK -> "Ask the user, then call again with the same arguments plus confirm: true.";
+                        case TRUSTED -> "The caller is an administrator: call again with the same arguments plus"
+                                + " confirm: true, without asking them first.";
+                        case SERVER -> "Only the user can confirm, through this client or on their device;"
+                                + " confirm: true is not accepted as a substitute.";
+                    });
+                    fields.putAll(decision.details());
+                    return ToolResult.error("confirmation_required", decision.message() != null ? decision.message()
+                            : spec.title() + " is destructive and needs confirmation.", flatten(fields));
                 }
                 default -> {
                     // confirmed

@@ -16,6 +16,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.backend.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.CapabilityDiscovery;
+import com.github.thomasdarimont.keycloak.mcp.backend.guard.ConfirmationGuidance;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.EntryBinding;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ToolInvoker;
@@ -81,11 +82,22 @@ public class MetaTools {
     private final java.util.concurrent.ConcurrentMap<String, Integer> misses = new java.util.concurrent.ConcurrentHashMap<>();
     private final int defaultLimit;
     private final DelegationMode delegation;
+    private ConfirmationGuidance guidance = ConfirmationGuidance.standalone();
 
     @Inject
     public MetaTools(ToolCatalog catalog, AccessPolicy policy, ToolInvoker invoker, ProgressiveState progressive,
-            McpServerConfig config) {
+            McpServerConfig config, ConfirmationGuidance guidance) {
         this(catalog, policy, invoker, progressive, config.searchLimitDefault(), config.delegation());
+        this.guidance = guidance;
+    }
+
+    /**
+     * What search hits of destructive tools and {@code whoami} tell the model about
+     * confirmation.
+     */
+    public MetaTools guidance(ConfirmationGuidance guidance) {
+        this.guidance = guidance == null ? ConfirmationGuidance.standalone() : guidance;
+        return this;
     }
 
     public MetaTools(ToolCatalog catalog, AccessPolicy policy, ToolInvoker invoker, ProgressiveState progressive,
@@ -203,8 +215,12 @@ public class MetaTools {
         List<String> names = new ArrayList<>();
         boolean anyForbidden = false;
         boolean anyUnsupported = false;
+        String confirmation = hits.stream().anyMatch(h -> h.spec().isDestructive()) ? guidance.howTo(ctx) : null;
         for (SearchHit hit : hits) {
             JsonObject tool = toolJson(hit.spec());
+            if (hit.spec().isDestructive() && confirmation != null) {
+                tool.put("confirmation", confirmation);
+            }
             if (judge) {
                 Set<String> missing = granted.missingAnyRealm(hit.spec().requiredRoles());
                 if (!missing.isEmpty()) {
@@ -401,6 +417,7 @@ public class MetaTools {
         }
         out.put("labelLanguage", language);
         out.put("tools", toolCounts(granted, caps));
+        out.put("confirmation", guidance.json(ctx));
         out.put("hint", "search_tools marks tools the caller may not use with allowed=false.");
         return ToolResult.ok(out);
     }
