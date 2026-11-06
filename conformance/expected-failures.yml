@@ -1,0 +1,33 @@
+# Baseline for `npx @modelcontextprotocol/conformance server --expected-failures conformance/expected-failures.yml`.
+# Every entry is a scenario the keycloak-mcp-server fails on purpose; the reason is next to it. A scenario that starts
+# passing makes the run fail ("stale baseline"), so this list stays honest. See README.md in this folder.
+server:
+  # --- content types the Keycloak tools never produce: results are JSON text (+ structuredContent) or an error
+  - tools-call-image
+  - tools-call-audio
+  - tools-call-embedded-resource
+  - tools-call-mixed-content
+  # --- notifications and client round trips from inside a tool handler: not in the ToolHandler SPI
+  - tools-call-with-logging
+  - tools-call-with-progress
+  - tools-call-sampling
+  - tools-call-elicitation            # elicitation is used by the server itself (destructive confirmations), not by tools
+  - elicitation-sep1034-defaults
+  - elicitation-sep1330-enums
+  # --- resources: the server has no resources (realm data is reached through tools)
+  - resources-read-text
+  - resources-read-binary
+  - resources-templates-read
+  - resources-subscribe
+  - resources-unsubscribe
+  - prompts-get-embedded-resource
+  - prompts-get-with-image
+  # --- completion/complete: no argument completion; the capability is not declared
+  - completion-complete
+  # --- the fixture tool needs $schema/$defs/$ref in its input schema; tool schemas here are flat by design
+  #     (small local models), InputSchema cannot express nesting
+  - json-schema-2020-12
+  # --- open finding: no Host/Origin validation for an unauthenticated server bound to localhost (DNS rebinding);
+  #     tracked in README.md of this folder. Whole scenario: the per-check form (scenario:check-id) is not honoured
+  #     by 0.1.16 in server mode; the localhost-accepted half passes
+  - dns-rebinding-protection

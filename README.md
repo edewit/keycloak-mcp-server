@@ -596,6 +596,7 @@ curl -o src/test/resources/openapi/keycloak-26.9.0.json https://www.keycloak.org
 ./mvnw package && java -jar modules/backend/target/quarkus-app/quarkus-run.jar
 ./mvnw package -Ppostgresql                     # PostgreSQL build
 ./mvnw spotless:apply                           # format; `verify` fails on unformatted code
+conformance/run.sh                              # MCP conformance suite against the packaged server (conformance/README.md)
 ```
 
 Modules under `modules/`:

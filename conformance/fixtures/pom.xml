@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.github.thomasdarimont.keycloak</groupId>
+        <artifactId>keycloak-mcp-server</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+    <artifactId>keycloak-mcp-server-conformance-fixtures</artifactId>
+    <name>Keycloak MCP Server Conformance Fixtures</name>
+    <description>The test_* tools and prompts the MCP conformance suite (github.com/modelcontextprotocol/conformance) calls,
+        as an extension jar for the providers/ directory. Not part of the server.</description>
+
+    <dependencies>
+        <dependency>
+            <!-- provided: the server already has the api on its class path when it loads this jar -->
+            <groupId>com.github.thomasdarimont.keycloak</groupId>
+            <artifactId>keycloak-mcp-server-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+</project>

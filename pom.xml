@@ -14,6 +14,8 @@
         <module>modules/storage</module>
         <!-- the Quarkus application -->
         <module>modules/backend</module>
+        <!-- test_* tools and prompts for the MCP conformance suite, an extension jar; see conformance/README.md -->
+        <module>conformance/fixtures</module>
     </modules>
 
     <properties>
