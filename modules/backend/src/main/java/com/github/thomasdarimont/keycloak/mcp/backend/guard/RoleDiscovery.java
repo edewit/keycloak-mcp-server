@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -42,7 +43,11 @@ public class RoleDiscovery {
     }
 
     private final Function<String, AccessTokenSource> sources;
-    private final List<String> systems;
+    /**
+     * The systems as they are now: repositories add and remove them while the server
+     * runs.
+     */
+    private final Supplier<List<String>> systems;
     private final boolean enabled;
     private final Map<String, Snapshot> snapshots = new ConcurrentHashMap<>();
     private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
@@ -55,7 +60,7 @@ public class RoleDiscovery {
     public RoleDiscovery(KeycloakSystems systems, McpServerConfig config, CapabilityDiscovery capabilities) {
         // in forward mode the caller's token decides per call; the server may not even
         // have credentials
-        this(systems.names(), systems::get, config.roleFilter() && config.delegation() == DelegationMode.OFF);
+        this(systems::names, systems::get, config.roleFilter() && config.delegation() == DelegationMode.OFF);
         this.capabilities = capabilities::get;
     }
 
@@ -64,18 +69,33 @@ public class RoleDiscovery {
         this(List.of("default"), name -> tokens, enabled);
     }
 
+    /** A fixed set of systems. */
     public RoleDiscovery(List<String> systems, Function<String, AccessTokenSource> sources, boolean enabled) {
-        this.systems = List.copyOf(systems);
+        this(constant(systems), sources, enabled);
+    }
+
+    /**
+     * @param systems the current system names, asked on every check so systems that
+     * repositories add at runtime are covered
+     */
+    public RoleDiscovery(Supplier<List<String>> systems, Function<String, AccessTokenSource> sources, boolean enabled) {
+        this.systems = systems;
         this.sources = sources;
         this.enabled = enabled;
+    }
+
+    private static Supplier<List<String>> constant(List<String> systems) {
+        List<String> copy = List.copyOf(systems);
+        return () -> copy;
     }
 
     public boolean enabled() {
         return enabled;
     }
 
+    /** The systems as of now. */
     public List<String> systems() {
-        return systems;
+        return systems.get();
     }
 
     /** Last known roles of one system without touching the network. */
@@ -89,11 +109,13 @@ public class RoleDiscovery {
 
     /** Roles of the single/default system (tests and single-system setups). */
     public GrantedRoles peek() {
-        return systems.isEmpty() ? GrantedRoles.UNKNOWN : peek(systems.get(0));
+        List<String> current = systems();
+        return current.isEmpty() ? GrantedRoles.UNKNOWN : peek(current.get(0));
     }
 
     public GrantedRoles get() {
-        return systems.isEmpty() ? GrantedRoles.UNKNOWN : get(systems.get(0));
+        List<String> current = systems();
+        return current.isEmpty() ? GrantedRoles.UNKNOWN : get(current.get(0));
     }
 
     /**
@@ -180,7 +202,13 @@ public class RoleDiscovery {
 
     /** Whether the roles are held in any system (non-blocking). */
     public boolean anySystemPeek(java.util.function.Predicate<GrantedRoles> test) {
-        for (String s : systems) {
+        List<String> current = systems();
+        if (current.isEmpty()) {
+            // no system yet (dynamic systems before the first registration): nothing to
+            // filter on
+            return test.test(GrantedRoles.UNKNOWN);
+        }
+        for (String s : current) {
             if (test.test(peek(s))) {
                 return true;
             }
@@ -190,7 +218,11 @@ public class RoleDiscovery {
 
     /** Whether the roles are held in any system (may discover). */
     public boolean anySystem(java.util.function.Predicate<GrantedRoles> test) {
-        for (String s : systems) {
+        List<String> current = systems();
+        if (current.isEmpty()) {
+            return test.test(GrantedRoles.UNKNOWN);
+        }
+        for (String s : current) {
             if (test.test(get(s))) {
                 return true;
             }

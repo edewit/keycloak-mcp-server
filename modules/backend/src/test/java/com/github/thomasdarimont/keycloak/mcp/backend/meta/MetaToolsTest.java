@@ -61,6 +61,24 @@ class MetaToolsTest {
     }
 
     @Test
+    void aMissBringsTheCategoriesAndRepeatedMissesSayStop() {
+        MetaTools m = meta(false);
+        Map<String, Object> p = payload(m.search("weather forecast tomorrow", null, 5, "c1", ExposureMode.HYBRID));
+        assertTrue(((List<?>) p.get("tools")).isEmpty());
+        assertEquals(3, ((List<?>) p.get("categories")).size(), "the categories come with the first miss");
+        assertEquals(MetaTools.NO_MATCH_HINT, p.get("hint"));
+        p = payload(m.search("tomorrow's weather", null, 5, "c1", ExposureMode.HYBRID));
+        assertEquals(String.format(MetaTools.NO_MATCH_STOP_HINT, 2), p.get("hint"), "second miss on the connection");
+        assertEquals(MetaTools.NO_MATCH_HINT,
+                payload(m.search("weather", null, 5, "other-connection", ExposureMode.HYBRID)).get("hint"),
+                "counted per connection");
+        // a hit resets the count
+        assertEquals(MetaTools.HINT, payload(m.search("disable user", null, 2, "c1", ExposureMode.HYBRID)).get("hint"));
+        assertEquals(MetaTools.NO_MATCH_HINT,
+                payload(m.search("weather again", null, 5, "c1", ExposureMode.HYBRID)).get("hint"));
+    }
+
+    @Test
     void searchReturnsSchemasAndHint() {
         Map<String, Object> p = payload(meta(false).search("disable user", null, 2, "c1", ExposureMode.HYBRID));
         List<?> tools = (List<?>) p.get("tools");

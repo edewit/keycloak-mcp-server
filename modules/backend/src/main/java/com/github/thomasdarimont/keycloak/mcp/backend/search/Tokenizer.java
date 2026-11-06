@@ -29,6 +29,14 @@ public final class Tokenizer {
                                                     // d'identité
             List.of("organization"), "org", List.of("authentication"), "auth");
 
+    /**
+     * Verbs that mean the same thing for this catalog: a request to "list users" wants
+     * {@code user_search}, "find clients" wants {@code client_list}. Mapped to one token
+     * after stemming so that name tokens match either way.
+     */
+    private static final Map<String, String> CANONICAL = Map.of("list", "find", "search", "find", "lookup", "find",
+            "look", "find", "query", "find");
+
     private Tokenizer() {
     }
 
@@ -40,17 +48,19 @@ public final class Tokenizer {
         String[] parts = fold(spaced).split("[^a-z0-9]+");
         Set<String> out = new LinkedHashSet<>();
         for (String p : parts) {
-            if (p.isEmpty() || STOP.contains(p) || QueryTranslations.STOP.contains(p)) {
+            // single letters carry no meaning and come from possessives ("user's" ->
+            // "user", "s")
+            if (p.length() < 2 || STOP.contains(p) || QueryTranslations.STOP.contains(p)) {
                 continue;
             }
             List<String> translated = QueryTranslations.translate(p);
             if (translated != null) {
                 for (String t : translated) {
-                    out.add(stem(t));
+                    out.add(canonical(stem(t)));
                 }
             }
             else {
-                out.add(stem(p));
+                out.add(canonical(stem(p)));
             }
         }
         List<String> tokens = new ArrayList<>(out);
@@ -76,6 +86,11 @@ public final class Tokenizer {
             .replace("ß", "ss");
         String decomposed = Normalizer.normalize(lower, Normalizer.Form.NFD);
         return decomposed.replaceAll("\\p{M}+", "");
+    }
+
+    /** The catalog's one verb for listing, searching and looking things up. */
+    public static String canonical(String stemmed) {
+        return CANONICAL.getOrDefault(stemmed, stemmed);
     }
 
     /**

@@ -46,6 +46,17 @@ public class MetaTools {
     public static final String WHOAMI = "whoami";
     public static final int SEARCH_LIMIT_MAX = 10;
     static final String HINT = "Call execute_tool with name and arguments.";
+    /**
+     * The first search without a hit: the categories come along so no second call is
+     * needed.
+     */
+    static final String NO_MATCH_HINT = "No tool matches. The categories list everything this server does: pick one"
+            + " (search_tools with category=...) when the task fits, otherwise tell the user that this server has no tool"
+            + " for it. Do not repeat the search with similar words.";
+    /** Further misses on the same connection: stop. */
+    static final String NO_MATCH_STOP_HINT = "Still no tool after %d searches. Stop searching: tell the user what this"
+            + " server covers (the categories) and ask what exactly they need.";
+    static final int MAX_MISSES_TRACKED = 1000;
     static final String FORBIDDEN_HINT = "Tools marked allowed=false need realm-management roles the current caller "
             + "does not hold: do not call them, tell the user which roles are missing (whoami shows the details).";
 
@@ -61,6 +72,12 @@ public class MetaTools {
     private final AccessPolicy policy;
     private final ToolInvoker invoker;
     private final ProgressiveState progressive;
+    /**
+     * Consecutive searches without a hit, per connection: a brake for models that keep
+     * rephrasing. Lock-free; past {@link #MAX_MISSES_TRACKED} entries the map is cleared,
+     * which only resets the brake for abandoned connections.
+     */
+    private final java.util.concurrent.ConcurrentMap<String, Integer> misses = new java.util.concurrent.ConcurrentHashMap<>();
     private final int defaultLimit;
     private final DelegationMode delegation;
 
@@ -176,9 +193,12 @@ public class MetaTools {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("tools", tools.getList());
         if (hits.isEmpty()) {
-            out.put("hint", "No match. Try other words, or call search_tools without a query to see the categories.");
+            int consecutive = misses(connectionId, true);
+            out.put("categories", categoriesJson().getList());
+            out.put("hint", consecutive <= 1 ? NO_MATCH_HINT : String.format(NO_MATCH_STOP_HINT, consecutive));
         }
         else {
+            misses(connectionId, false);
             String hint = HINT;
             if (anyForbidden) {
                 hint += " " + FORBIDDEN_HINT;
@@ -194,6 +214,22 @@ public class MetaTools {
             }
         }
         return ToolResult.ok(out);
+    }
+
+    /**
+     * Counts a miss (or resets on a hit) for the connection; the consecutive misses so
+     * far.
+     */
+    private int misses(String connectionId, boolean miss) {
+        String key = connectionId == null ? "-" : connectionId;
+        if (!miss) {
+            misses.remove(key);
+            return 0;
+        }
+        if (misses.size() > MAX_MISSES_TRACKED) {
+            misses.clear();
+        }
+        return misses.merge(key, 1, Integer::sum);
     }
 
     public JsonArray categoriesJson() {

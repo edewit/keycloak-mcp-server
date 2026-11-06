@@ -22,13 +22,23 @@ class ToolIndexTest {
             "find user by email, keycloak_user_search", "disable user bob, keycloak_user_set_enabled",
             "block user, keycloak_user_set_enabled", "remove a user permanently, keycloak_user_delete",
             "ldap, keycloak_federation_sync", "active directory sync, keycloak_federation_sync",
-            "which keycloak version, keycloak_server_info", "Benutzer deaktivieren, keycloak_user_set_enabled",
+            "which keycloak version, keycloak_server_info", "list users, keycloak_user_search",
+            "search for a user, keycloak_user_search", "Benutzer deaktivieren, keycloak_user_set_enabled",
             "Benutzer löschen, keycloak_user_delete", "Nutzer suchen, keycloak_user_search",
             "LDAP Verzeichnis abgleichen, keycloak_federation_sync", })
     void topHit(String query, String expected) {
         List<SearchHit> hits = index.search(query, null, 5, s -> true);
         assertTrue(!hits.isEmpty(), "no hits for " + query);
         assertEquals(expected, hits.get(0).spec().name(), query + " -> " + hits);
+    }
+
+    @Test
+    void possessivesAndSingleLettersDoNotMatchAnything() {
+        assertEquals(List.of("tomorrow", "weather"), Tokenizer.tokens("tomorrow's weather please"));
+        assertTrue(index.search("tomorrow's weather please", null, 5, s -> true).isEmpty(), "no stray 's' hits");
+        assertEquals("keycloak_user_search",
+                index.search("the user's account", null, 5, s -> true).get(0).spec().name(),
+                "the possessive is dropped, the rest still matches");
     }
 
     @Test
@@ -77,7 +87,7 @@ class ToolIndexTest {
         assertEquals(List.of("user", "disabl", "group"), Tokenizer.tokens("the users: disabled, Groups"));
         assertEquals(List.of("redirect", "uri"), Tokenizer.tokens("redirectUris"));
         // name abbreviations are added next to the spelled out phrase
-        assertEquals(List.of("list", "identity", "provider", "idp"), Tokenizer.tokens("list identity providers"));
+        assertEquals(List.of("find", "identity", "provider", "idp"), Tokenizer.tokens("list identity providers"));
     }
 
     @Test

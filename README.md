@@ -23,7 +23,9 @@ Open items: §Roadmap.
 - `search_tools(query, category?, limit?)`: lexical search over names, titles, descriptions, parameters and a synonym
   table ("kick" → logout, "ldap" → federation). Accents folded; German and French translated before matching
   (`search/QueryTranslations.java`, one table set per language); other languages: the instructions say search in English.
-  Returns name, description, input schema. No arguments: lists categories.
+  Returns name, description, input schema. No arguments: lists categories. No match: the categories come along with a
+  hint to pick one or tell the user the task is out of scope; a second miss on the same connection says stop, so a small
+  model does not loop on rephrasing.
 - `execute_tool(name, arguments, confirm?)`: same pipeline as direct calls: policy → validation/coercion → realm check →
   confirmation → handler → audit. Structured errors, always `isError: true`: `unknown_tool` (+ `didYouMean`),
   `invalid_arguments` (+ `problems`, schema), `realm_not_allowed`, `confirmation_required`, `read_only_mode`, `not_found`,

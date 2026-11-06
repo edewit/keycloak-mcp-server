@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -43,7 +44,11 @@ public class CapabilityDiscovery {
     private record Snapshot(ServerCapabilities caps, Instant at) {
     }
 
-    private final List<String> systems;
+    /**
+     * The systems as they are now: repositories add and remove them while the server
+     * runs.
+     */
+    private final Supplier<List<String>> systems;
     private final Function<String, ServerCapabilities> loader;
     private final Map<String, Snapshot> snapshots = new ConcurrentHashMap<>();
     private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
@@ -53,11 +58,19 @@ public class CapabilityDiscovery {
     public CapabilityDiscovery(KeycloakSystems systems, McpServerConfig config) {
         // in forward mode the server's own credentials are not meant to be used: only a
         // configured version counts
-        this(systems.names(), name -> load(systems.get(name), config.delegation() == DelegationMode.OFF));
+        this(systems::names, name -> load(systems.get(name), config.delegation() == DelegationMode.OFF));
     }
 
+    /** A fixed set of systems. */
     public CapabilityDiscovery(List<String> systems, Function<String, ServerCapabilities> loader) {
-        this.systems = List.copyOf(systems);
+        List<String> copy = List.copyOf(systems);
+        this.systems = () -> copy;
+        this.loader = loader;
+    }
+
+    /** @param systems the current system names, asked on every call */
+    public CapabilityDiscovery(Supplier<List<String>> systems, Function<String, ServerCapabilities> loader) {
+        this.systems = systems;
         this.loader = loader;
     }
 
@@ -66,8 +79,9 @@ public class CapabilityDiscovery {
         return new CapabilityDiscovery(List.of("default"), name -> caps);
     }
 
+    /** The systems as of now. */
     public List<String> systems() {
-        return systems;
+        return systems.get();
     }
 
     /** Last known capabilities of one system without touching the network. */
@@ -78,7 +92,8 @@ public class CapabilityDiscovery {
 
     /** Capabilities of the single/default system. */
     public ServerCapabilities get() {
-        return systems.isEmpty() ? ServerCapabilities.UNKNOWN : get(systems.get(0));
+        List<String> current = systems();
+        return current.isEmpty() ? ServerCapabilities.UNKNOWN : get(current.get(0));
     }
 
     /**
