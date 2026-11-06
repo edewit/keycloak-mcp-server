@@ -1,7 +1,8 @@
 # Writing extensions
 
-A separate Maven project against the `api` module, built into a jar that the server loads from its `providers/`
-directory. No Quarkus, no server code: the classes are discovered through `META-INF/services` (`@AutoService`).
+A Maven project against the `api` module only, built into a jar that the server loads from its `providers/` directory.
+No Quarkus, no server code: the classes are discovered through `META-INF/services` (`@AutoService`). It is a module of
+this repository's build for convenience; as a project of your own, replace the parent in `pom.xml` with explicit versions.
 
 | file | extension point | shows |
 |---|---|---|
@@ -20,8 +21,7 @@ Settings follow the id: `kc-mcp.spi.<id>.<key>` or `KC_MCP_SPI_<ID>_<KEY>` (`acm
 ## Docker
 
 ```
-../../mvnw -f ../../pom.xml package -DskipTests     # the server
-../../mvnw -f pom.xml package                       # the extension jar
+../../mvnw -f ../../pom.xml package -DskipTests     # the server and the extension jar (target/)
 docker compose up -d --build                        # Keycloak :8093 with the demo realm of examples/run-modes, MCP :8094
 ./demo.sh                                           # every extension once; idempotent
 docker compose down -v
@@ -34,8 +34,7 @@ and sets the extensions' `KC_MCP_SPI_*` variables; the server acts as the realm-
 ## Build and run on the host
 
 ```
-./mvnw install -DskipTests                                   # repository root: the api in the local repository, the server packaged
-./mvnw -f examples/extensions/pom.xml package                # the extension jar + its tests
+./mvnw package                                               # repository root: server and extension jar, with the tests
 cp examples/extensions/target/acme-keycloak-mcp-extensions-1.0-SNAPSHOT.jar modules/backend/target/quarkus-app/providers/
 set -a; source examples/run-modes/env/full-admin.env; set +a  # any run mode; Keycloak from examples/run-modes
 KC_MCP_SPI_ACME_AUDIT_FILE=/tmp/acme-audit.jsonl java -jar modules/backend/target/quarkus-app/quarkus-run.jar

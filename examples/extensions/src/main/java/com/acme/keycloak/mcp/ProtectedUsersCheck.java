@@ -10,8 +10,8 @@ import com.google.auto.service.AutoService;
 
 /**
  * Extension point {@link AccessCheck}, registered globally: runs on every tool call after
- * the realm and role checks. Service accounts ({@code svc-*} by default) may not be changed
- * through the MCP server at all, whatever roles the caller has. Prefix:
+ * the realm and role checks. Service accounts ({@code svc-*} by default) may not be
+ * changed through the MCP server at all, whatever roles the caller has. Prefix:
  * {@code KC_MCP_SPI_ACME_PROTECTED_USERS_PREFIX}.
  */
 @AutoService(AccessCheck.class)

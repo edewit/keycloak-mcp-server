@@ -11,7 +11,8 @@ import com.google.auto.service.AutoService;
  * Extension point {@link Confirmer}: runs before the built-in confirmation of destructive
  * tools. A valid change ticket confirms the offboarding without a prompt, a missing or
  * malformed one declines it; other tools are left to the next confirmer
- * ({@link Decision#abstain()}). Ticket pattern: {@code kc-mcp.spi.acme-ticket-confirmer.pattern}.
+ * ({@link Decision#abstain()}). Ticket pattern:
+ * {@code kc-mcp.spi.acme-ticket-confirmer.pattern}.
  */
 @AutoService(Confirmer.class)
 public class TicketConfirmer implements Confirmer {

@@ -13,6 +13,9 @@ services:
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      # 26.8 warns about its deprecated defaults: use the v2 brokering API, drop the Twitter (OAuth 1.0a) broker
+      KC_FEATURES: identity-brokering-api:v2
+      KC_FEATURES_DISABLED: twitter-broker
     ports:
       - "8090:8080"
       - "9090:9000"

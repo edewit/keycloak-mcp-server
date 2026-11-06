@@ -25,6 +25,8 @@ public class KeycloakTestResource implements QuarkusTestResourceLifecycleManager
         keycloak = new GenericContainer<>(DockerImageName.parse(IMAGE)).withExposedPorts(8080)
             .withEnv("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
             .withEnv("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
+            .withEnv("KC_FEATURES", "identity-brokering-api:v2")
+            .withEnv("KC_FEATURES_DISABLED", "twitter-broker")
             .withCommand("start-dev")
             .waitingFor(
                     Wait.forLogMessage(".*Keycloak .* started in .*\\n", 1).withStartupTimeout(Duration.ofMinutes(3)));

@@ -36,7 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AcmeExtensionsTest {
 
     static ToolSpec tool(String name, ToolLevel level) {
-        ToolSpec.Builder b = ToolSpec.builder(name).title(name)
+        ToolSpec.Builder b = ToolSpec.builder(name)
+            .title(name)
             .description("test")
             .category(Category.USERS)
             .schema(InputSchema.builder())
@@ -53,29 +54,39 @@ class AcmeExtensionsTest {
         TicketConfirmer confirmer = new TicketConfirmer(Pattern.compile("ACME-\\d+"));
         ToolSpec offboard = tool(TicketConfirmer.TOOL, ToolLevel.DESTRUCTIVE);
         assertEquals(Decision.Outcome.CONFIRMED,
-                confirmer.confirm(new ConfirmationRequest(offboard, "default", "acme-dev",
-                        Map.of("username", "bob", "ticket", "ACME-42"), false, Caller.NONE, null)).outcome());
+                confirmer
+                    .confirm(new ConfirmationRequest(offboard, "default", "acme-dev",
+                            Map.of("username", "bob", "ticket", "ACME-42"), false, Caller.NONE, null))
+                    .outcome());
         Decision declined = confirmer.confirm(new ConfirmationRequest(offboard, "default", "acme-dev",
                 Map.of("username", "bob", "ticket", "later"), true, Caller.NONE, null));
         assertEquals(Decision.Outcome.DECLINED, declined.outcome(), "confirm=true does not replace the ticket");
         assertTrue(declined.message().contains("ACME-<number>"));
-        assertEquals(Decision.Outcome.ABSTAIN, confirmer.confirm(new ConfirmationRequest(
-                tool("keycloak_user_delete", ToolLevel.DESTRUCTIVE), "default", "acme-dev", Map.of(), false, Caller.NONE,
-                null)).outcome(), "other tools: the built-in confirmation decides");
+        assertEquals(Decision.Outcome.ABSTAIN,
+                confirmer
+                    .confirm(new ConfirmationRequest(tool("keycloak_user_delete", ToolLevel.DESTRUCTIVE), "default",
+                            "acme-dev", Map.of(), false, Caller.NONE, null))
+                    .outcome(),
+                "other tools: the built-in confirmation decides");
     }
 
     @Test
     void protectedUsersAreDeniedForWritesOnly() {
         ProtectedUsersCheck check = new ProtectedUsersCheck("svc-");
         Caller alice = Caller.of("sub", "alice", "acme-dev", Set.of("realm-management.realm-admin"));
-        AccessCheck.Decision denied = check.check(new AccessCheck.Context(tool("keycloak_user_delete",
-                ToolLevel.DESTRUCTIVE), "acme-dev", Map.of("username", "svc-backup"), GrantedRoles.UNKNOWN, alice));
+        AccessCheck.Decision denied = check
+            .check(new AccessCheck.Context(tool("keycloak_user_delete", ToolLevel.DESTRUCTIVE), "acme-dev",
+                    Map.of("username", "svc-backup"), GrantedRoles.UNKNOWN, alice));
         assertFalse(denied.allowed());
         assertEquals("protected_user", denied.code());
-        assertTrue(check.check(new AccessCheck.Context(tool("keycloak_user_get", ToolLevel.READ), "acme-dev",
-                Map.of("username", "svc-backup"), GrantedRoles.UNKNOWN, alice)).allowed(), "reads are fine");
-        assertTrue(check.check(new AccessCheck.Context(tool("keycloak_user_delete", ToolLevel.DESTRUCTIVE), "acme-dev",
-                Map.of("username", "bob"), GrantedRoles.UNKNOWN, alice)).allowed());
+        assertTrue(check
+            .check(new AccessCheck.Context(tool("keycloak_user_get", ToolLevel.READ), "acme-dev",
+                    Map.of("username", "svc-backup"), GrantedRoles.UNKNOWN, alice))
+            .allowed(), "reads are fine");
+        assertTrue(check
+            .check(new AccessCheck.Context(tool("keycloak_user_delete", ToolLevel.DESTRUCTIVE), "acme-dev",
+                    Map.of("username", "bob"), GrantedRoles.UNKNOWN, alice))
+            .allowed());
     }
 
     @Test

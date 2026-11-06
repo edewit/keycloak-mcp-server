@@ -65,8 +65,10 @@ public class AcmeToolProvider extends AbstractToolProvider {
                                         + ", " + groups.size() + " group(s)"));
                     })
                     .build(),
-                // DESTRUCTIVE: confirmation (TicketConfirmer accepts a change ticket instead of a prompt),
-                // a per-tool access check, manage-users required, refused when the server acts for a user
+                // DESTRUCTIVE: confirmation (TicketConfirmer accepts a change ticket
+                // instead of a prompt),
+                // a per-tool access check, manage-users required, refused when the server
+                // acts for a user
                 tool("keycloak_acme_user_offboard").title(company + ": offboard user")
                     .description("Disables a user, ends their sessions and removes them from all groups.")
                     .category(Category.USERS)

@@ -16,7 +16,8 @@ import com.google.auto.service.AutoService;
  * {@code alias=https://sso.tenant.example[|realm];...}. Each tenant registers the
  * confidential client {@code keycloak-mcp-server} with Signed JWT and the JWKS URL
  * {@code <server>/auth/keys/<alias>/jwks.json}; the server signs with its own key per
- * tenant, so no secret appears here. Active only with {@code kc-mcp.dynamic-systems=true}.
+ * tenant, so no secret appears here. Active only with
+ * {@code kc-mcp.dynamic-systems=true}.
  */
 @AutoService(KeycloakSystemRepository.class)
 public class AcmeTenantRepository implements KeycloakSystemRepository {
