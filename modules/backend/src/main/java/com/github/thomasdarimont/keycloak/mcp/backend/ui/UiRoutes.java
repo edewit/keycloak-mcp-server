@@ -11,6 +11,7 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
 
@@ -48,6 +49,9 @@ public class UiRoutes {
 
     private volatile byte[] indexPage;
 
+    @Inject
+    KcMcpMetrics metrics;
+
     void onStart(@Observes StartupEvent event) {
         if (!config.ui().enabled()) {
             LOG.debug("Management UI off (kc-mcp.ui.enabled)");
@@ -67,6 +71,8 @@ public class UiRoutes {
             throw new IllegalStateException("kc-mcp.ui.enabled=true needs an identity provider: kc-mcp.ui.issuer or"
                     + " kc-mcp.ui.idps.<alias>.issuer.");
         }
+        UserSessionStore kept = store.get();
+        metrics.uiSessions(() -> kept.countLive(System.currentTimeMillis()));
         LOG.infof("Management UI at https://<host>:%d%s/, sessions kept by %s; identity providers: %s", sslPort,
                 UiTenant.UI_PATH, store.get().id(), idps.stream().map(UiTenant.Idp::describe).toList());
     }

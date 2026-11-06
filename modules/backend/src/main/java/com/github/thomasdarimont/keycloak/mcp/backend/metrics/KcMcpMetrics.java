@@ -2,9 +2,12 @@ package com.github.thomasdarimont.keycloak.mcp.backend.metrics;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -37,6 +40,23 @@ import io.opentelemetry.api.metrics.Meter;
  * expired, timeout or rejected (the ID token was invalid or named someone else: alert on
  * it), {@code system}</li>
  * <li>{@code kc_mcp.ciba.pending} (gauge): approvals waiting for a device</li>
+ * <li>{@code kc_mcp.discovery.searches} (counter): {@code search_tools} calls by
+ * {@code result} (hit, miss, stopped: the repeated-miss brake answered), {@code mode},
+ * {@code category}; {@code kc_mcp.discovery.hits} (histogram): hits per search;
+ * {@code kc_mcp.discovery.marked} (counter): hits marked {@code allowed=false} by
+ * {@code reason} (forbidden, unsupported); {@code kc_mcp.discovery.unknown_tools}
+ * (counter): {@code execute_tool} with a name that does not exist, by {@code suggested}
+ * (whether did-you-mean had candidates)</li>
+ * <li>{@code kc_mcp.keycloak.request.duration} (histogram, s): Admin REST API calls by
+ * {@code system}, {@code method}, {@code resource} (users, groups, clients, ... never an
+ * id), {@code status_class} (2xx, 4xx, ...); {@code kc_mcp.keycloak.token.duration}
+ * (histogram, s): token endpoint requests by {@code system}, {@code grant},
+ * {@code status_class}; {@code kc_mcp.keycloak.token.scope_fallbacks} (counter): a server
+ * that refused {@code kc-admin-api}, by {@code system}</li>
+ * <li>{@code kc_mcp.mcp.connections} (gauge): open MCP sessions by {@code client} (the
+ * name from {@code initialize}, at most 20 distinct values, then {@code other});
+ * {@code kc_mcp.ui.sessions} (gauge): management UI browser sessions;
+ * {@code kc_mcp.ui.backchannel_logouts} (counter) by {@code result} (ended, invalid)</li>
  * </ul>
  * No user, subject, argument or client-supplied value becomes an attribute: the values
  * are bounded by the catalog, the configuration and the server's own codes, and anything
@@ -56,6 +76,18 @@ public class KcMcpMetrics {
     static final AttributeKey<String> REALM = AttributeKey.stringKey("realm");
     static final AttributeKey<String> REASON = AttributeKey.stringKey("reason");
     static final AttributeKey<String> CONFIRMER = AttributeKey.stringKey("confirmer");
+    static final AttributeKey<String> RESULT = AttributeKey.stringKey("result");
+    static final AttributeKey<String> MODE = AttributeKey.stringKey("mode");
+    static final AttributeKey<String> CATEGORY = AttributeKey.stringKey("category");
+    static final AttributeKey<String> SUGGESTED = AttributeKey.stringKey("suggested");
+    static final AttributeKey<String> METHOD = AttributeKey.stringKey("method");
+    static final AttributeKey<String> RESOURCE = AttributeKey.stringKey("resource");
+    static final AttributeKey<String> STATUS_CLASS = AttributeKey.stringKey("status_class");
+    static final AttributeKey<String> GRANT = AttributeKey.stringKey("grant");
+    static final AttributeKey<String> CLIENT = AttributeKey.stringKey("client");
+
+    /** Distinct MCP client names reported before the rest become {@code other}. */
+    static final int MAX_CLIENT_NAMES = 20;
 
     /**
      * Outcomes that mean the server refused on purpose (policy, access, configuration),
@@ -74,6 +106,7 @@ public class KcMcpMetrics {
     static final List<Double> CALL_BUCKETS = List.of(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
             30.0, 60.0, 120.0);
     static final List<Double> DECISION_BUCKETS = List.of(1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0, 300.0);
+    static final List<Double> HIT_BUCKETS = List.of(0.0, 1.0, 2.0, 3.0, 5.0, 10.0);
 
     private final Meter meter;
     private final boolean includeRealm;
@@ -84,6 +117,17 @@ public class KcMcpMetrics {
     private final LongCounter cibaDecisions;
     private final DoubleHistogram cibaDecisionDuration;
     private final AtomicBoolean pendingGauge = new AtomicBoolean();
+    private final AtomicBoolean connectionsGauge = new AtomicBoolean();
+    private final AtomicBoolean uiSessionsGauge = new AtomicBoolean();
+    private final LongCounter searches;
+    private final DoubleHistogram searchHits;
+    private final LongCounter marked;
+    private final LongCounter unknownTools;
+    private final DoubleHistogram keycloakRequests;
+    private final DoubleHistogram keycloakTokens;
+    private final LongCounter scopeFallbacks;
+    private final LongCounter backchannelLogouts;
+    private final Set<String> clientNames = ConcurrentHashMap.newKeySet();
 
     @Inject
     public KcMcpMetrics(OpenTelemetry otel, McpServerConfig config) {
@@ -114,6 +158,36 @@ public class KcMcpMetrics {
             .setDescription("Time from filing a CIBA request to the device's answer")
             .setUnit("s")
             .setExplicitBucketBoundariesAdvice(DECISION_BUCKETS)
+            .build();
+        this.searches = meter.counterBuilder("kc_mcp.discovery.searches")
+            .setDescription("search_tools calls by result: hit, miss, or stopped by the repeated-miss brake")
+            .build();
+        this.searchHits = meter.histogramBuilder("kc_mcp.discovery.hits")
+            .setDescription("Tools returned per search_tools call")
+            .setUnit("{tool}")
+            .setExplicitBucketBoundariesAdvice(HIT_BUCKETS)
+            .build();
+        this.marked = meter.counterBuilder("kc_mcp.discovery.marked")
+            .setDescription("Search hits marked allowed=false, by reason")
+            .build();
+        this.unknownTools = meter.counterBuilder("kc_mcp.discovery.unknown_tools")
+            .setDescription("execute_tool calls naming a tool that does not exist")
+            .build();
+        this.keycloakRequests = meter.histogramBuilder("kc_mcp.keycloak.request.duration")
+            .setDescription("Admin REST API calls to a Keycloak system")
+            .setUnit("s")
+            .setExplicitBucketBoundariesAdvice(CALL_BUCKETS)
+            .build();
+        this.keycloakTokens = meter.histogramBuilder("kc_mcp.keycloak.token.duration")
+            .setDescription("Token endpoint requests to a Keycloak system, by grant")
+            .setUnit("s")
+            .setExplicitBucketBoundariesAdvice(CALL_BUCKETS)
+            .build();
+        this.scopeFallbacks = meter.counterBuilder("kc_mcp.keycloak.token.scope_fallbacks")
+            .setDescription("Systems that refused the kc-admin-api scope; tokens are requested without it")
+            .build();
+        this.backchannelLogouts = meter.counterBuilder("kc_mcp.ui.backchannel_logouts")
+            .setDescription("Back-channel logout requests of the identity providers, by result")
             .build();
     }
 
@@ -165,6 +239,118 @@ public class KcMcpMetrics {
         if (sinceFiled != null && !sinceFiled.isNegative()) {
             cibaDecisionDuration.record(sinceFiled.toMillis() / 1000.0, a);
         }
+    }
+
+    /** One search_tools call. */
+    public void search(String result, String mode, String category, int hits, int forbidden, int unsupported) {
+        Attributes a = Attributes.of(RESULT, token(result), MODE, token(mode), CATEGORY, token(category));
+        searches.add(1, a);
+        searchHits.record(hits, Attributes.of(MODE, token(mode)));
+        if (forbidden > 0) {
+            marked.add(forbidden, Attributes.of(REASON, "forbidden"));
+        }
+        if (unsupported > 0) {
+            marked.add(unsupported, Attributes.of(REASON, "unsupported"));
+        }
+    }
+
+    public void unknownTool(boolean suggested) {
+        unknownTools.add(1, Attributes.of(SUGGESTED, suggested ? "yes" : "no"));
+    }
+
+    /** An Admin REST API call that got a response. */
+    public void keycloakRequest(String system, String method, String resource, int status, Duration took) {
+        keycloakRequests.record(took.toNanos() / 1e9,
+                Attributes.builder()
+                    .put(SYSTEM, token(system))
+                    .put(METHOD, token(method))
+                    .put(RESOURCE, token(resource))
+                    .put(STATUS_CLASS, statusClass(status))
+                    .build());
+    }
+
+    /** A token endpoint request that got a response. */
+    public void keycloakToken(String system, String grant, int status, Duration took) {
+        keycloakTokens.record(took.toNanos() / 1e9,
+                Attributes.of(SYSTEM, token(system), GRANT, token(grant), STATUS_CLASS, statusClass(status)));
+    }
+
+    public void scopeFallback(String system) {
+        scopeFallbacks.add(1, Attributes.of(SYSTEM, token(system)));
+    }
+
+    /**
+     * @param result ended (sessions were deleted or none matched) or invalid (the token
+     * was refused)
+     */
+    public void backchannelLogout(String result) {
+        backchannelLogouts.add(1, Attributes.of(RESULT, token(result)));
+    }
+
+    /**
+     * Registers the gauge of open MCP sessions once; the supplier gives the client names
+     * of the open ones.
+     */
+    public void mcpConnections(Supplier<Iterable<String>> clients) {
+        if (!connectionsGauge.compareAndSet(false, true)) {
+            return;
+        }
+        meter.gaugeBuilder("kc_mcp.mcp.connections")
+            .ofLongs()
+            .setDescription("Open MCP sessions, by client")
+            .buildWithCallback(m -> {
+                Map<String, Long> byClient = new java.util.HashMap<>();
+                try {
+                    for (String c : clients.get()) {
+                        byClient.merge(clientName(c), 1L, Long::sum);
+                    }
+                }
+                catch (RuntimeException e) {
+                    return;
+                }
+                byClient.forEach((c, n) -> m.record(n, Attributes.of(CLIENT, c)));
+            });
+    }
+
+    /** Registers the gauge of UI sessions once; a negative reading is skipped. */
+    public void uiSessions(LongSupplier count) {
+        if (!uiSessionsGauge.compareAndSet(false, true)) {
+            return;
+        }
+        meter.gaugeBuilder("kc_mcp.ui.sessions")
+            .ofLongs()
+            .setDescription("Browser sessions of the management UI")
+            .buildWithCallback(m -> {
+                try {
+                    long n = count.getAsLong();
+                    if (n >= 0) {
+                        m.record(n);
+                    }
+                }
+                catch (RuntimeException e) {
+                    // the store is unavailable: no reading
+                }
+            });
+    }
+
+    /**
+     * A client name from {@code initialize}: a short token, at most
+     * {@link #MAX_CLIENT_NAMES} distinct ones.
+     */
+    String clientName(String name) {
+        String t = token(name);
+        if (clientNames.contains(t)) {
+            return t;
+        }
+        if (clientNames.size() < MAX_CLIENT_NAMES) {
+            clientNames.add(t);
+            return t;
+        }
+        return "other";
+    }
+
+    static String statusClass(int status) {
+        return status >= 100 && status < 600 ? (status / 100) + "xx" : "-";
     }
 
     /** Registers the gauge of waiting approvals once; a negative reading is skipped. */

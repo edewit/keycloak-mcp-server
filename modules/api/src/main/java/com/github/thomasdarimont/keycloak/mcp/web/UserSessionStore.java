@@ -41,4 +41,12 @@ public interface UserSessionStore extends Extension {
      * {@code sid}, an administrator revoking access); how many.
      */
     long deleteBySubject(String issuer, String subject);
+
+    /**
+     * How many unexpired sessions there are (for the session gauge); negative when the
+     * store cannot tell.
+     */
+    default long countLive(long now) {
+        return -1;
+    }
 }

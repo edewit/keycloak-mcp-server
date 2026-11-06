@@ -95,6 +95,12 @@ public class DatabaseUserSessionStore implements UserSessionStore {
 
     @Override
     @Transactional
+    public long countLive(long now) {
+        return UserSessionEntity.count("expiresAt > ?1", now);
+    }
+
+    @Override
+    @Transactional
     public long deleteExpired(long now) {
         return UserSessionEntity.delete("expiresAt < ?1", now);
     }

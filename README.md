@@ -513,6 +513,20 @@ The server adds its own:
 | `kc_mcp.ciba.requests` | counter | `system` | approvals asked for |
 | `kc_mcp.ciba.decisions`, `kc_mcp.ciba.decision.duration` | counter, histogram s | `outcome` (`approved`, `declined`, `expired`, `timeout`, `rejected`), `system` | how fast people answer; `rejected` = the approval's ID token was invalid or named someone else: alert on it |
 | `kc_mcp.ciba.pending` | gauge | | approvals waiting for a device |
+| `kc_mcp.discovery.searches` | counter | `result` (`hit`, `miss`, `stopped` by the repeated-miss brake), `mode`, `category` | how well models find tools |
+| `kc_mcp.discovery.hits` | histogram | `mode` | tools per search |
+| `kc_mcp.discovery.marked` | counter | `reason` (`forbidden`, `unsupported`) | hits shown with `allowed=false` |
+| `kc_mcp.discovery.unknown_tools` | counter | `suggested` (`yes`/`no`: did-you-mean had candidates) | models guessing tool names |
+| `kc_mcp.keycloak.request.duration` | histogram, s | `system`, `method`, `resource` (`users`, `groups`, `clients`, `realm`, ... never an id), `status_class` | Admin REST API latency and errors per system |
+| `kc_mcp.keycloak.token.duration` | histogram, s | `system`, `grant` (`client_credentials`, `password`, `token-exchange`, `ciba`), `status_class` | token acquisition and delegation exchanges |
+| `kc_mcp.keycloak.token.scope_fallbacks` | counter | `system` | servers that refused `kc-admin-api` |
+| `kc_mcp.mcp.connections` | gauge | `client` (name from `initialize`, 20 distinct values, then `other`) | open MCP sessions |
+| `kc_mcp.ui.sessions`, `kc_mcp.ui.backchannel_logouts` | gauge, counter (`result`: `ended`, `invalid`) | | management UI |
+
+The Keycloak metrics come from a JAX-RS client filter on every RESTEasy client the server builds for a system (admin
+client, `private_key_jwt` token manager, token exchange), since Quarkus does not instrument clients made outside CDI;
+a request that gets no response at all is not measured there and shows up as `keycloak_unreachable` in the tool
+calls. The CIBA client's own requests go through the JDK HTTP client and are covered by `kc_mcp.ciba.*`.
 
 No user, subject, argument or client-supplied value becomes an attribute; who did what is the audit log's. Values
 are cut to short tokens, so an extension's odd error code cannot create unbounded series.

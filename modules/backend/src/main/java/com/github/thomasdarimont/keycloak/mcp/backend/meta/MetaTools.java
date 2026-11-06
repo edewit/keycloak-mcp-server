@@ -20,6 +20,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.guard.ConfirmationGuidance
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.EntryBinding;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ToolInvoker;
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.backend.search.SearchHit;
 import com.github.thomasdarimont.keycloak.mcp.backend.search.ToolIndex;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
@@ -83,12 +84,20 @@ public class MetaTools {
     private final int defaultLimit;
     private final DelegationMode delegation;
     private ConfirmationGuidance guidance = ConfirmationGuidance.standalone();
+    private KcMcpMetrics metrics = KcMcpMetrics.noop();
 
     @Inject
     public MetaTools(ToolCatalog catalog, AccessPolicy policy, ToolInvoker invoker, ProgressiveState progressive,
-            McpServerConfig config, ConfirmationGuidance guidance) {
+            McpServerConfig config, ConfirmationGuidance guidance, KcMcpMetrics metrics) {
         this(catalog, policy, invoker, progressive, config.searchLimitDefault(), config.delegation());
         this.guidance = guidance;
+        this.metrics = metrics;
+    }
+
+    /** Where the discovery metrics go (tests). */
+    public MetaTools metrics(KcMcpMetrics metrics) {
+        this.metrics = metrics == null ? KcMcpMetrics.noop() : metrics;
+        return this;
     }
 
     /**
@@ -215,6 +224,8 @@ public class MetaTools {
         List<String> names = new ArrayList<>();
         boolean anyForbidden = false;
         boolean anyUnsupported = false;
+        int forbiddenHits = 0;
+        int unsupportedHits = 0;
         String confirmation = hits.stream().anyMatch(h -> h.spec().isDestructive()) ? guidance.howTo(ctx) : null;
         for (SearchHit hit : hits) {
             JsonObject tool = toolJson(hit.spec());
@@ -226,12 +237,14 @@ public class MetaTools {
                 if (!missing.isEmpty()) {
                     tool.put("allowed", false).put("missingRoles", new JsonArray(List.copyOf(missing)));
                     anyForbidden = true;
+                    forbiddenHits++;
                 }
             }
             Optional<String> unsupported = AccessPolicy.unsupported(hit.spec(), caps, explanations);
             if (unsupported.isPresent()) {
                 tool.put("allowed", false).put("unsupported", unsupported.get());
                 anyUnsupported = true;
+                unsupportedHits++;
             }
             tools.add(tool);
             names.add(hit.spec().name());
@@ -242,9 +255,11 @@ public class MetaTools {
             int consecutive = misses(connectionId, true);
             out.put("categories", categoriesJson().getList());
             out.put("hint", consecutive <= 1 ? NO_MATCH_HINT : String.format(NO_MATCH_STOP_HINT, consecutive));
+            metrics.search(consecutive <= 1 ? "miss" : "stopped", modeName(mode), categoryName(category), 0, 0, 0);
         }
         else {
             misses(connectionId, false);
+            metrics.search("hit", modeName(mode), categoryName(category), hits.size(), forbiddenHits, unsupportedHits);
             String hint = HINT;
             if (anyForbidden) {
                 hint += " " + FORBIDDEN_HINT;
@@ -294,6 +309,14 @@ public class MetaTools {
             arr.add(new JsonObject().put("category", c.id()).put("tools", n).put("about", c.blurb()));
         }
         return arr;
+    }
+
+    private static String modeName(ExposureMode mode) {
+        return mode == null ? "-" : mode.name().toLowerCase();
+    }
+
+    private static String categoryName(Category category) {
+        return category == null ? "-" : category.id();
     }
 
     public static JsonObject toolJson(ToolSpec spec) {
@@ -516,6 +539,7 @@ public class MetaTools {
             for (SearchHit hit : similar) {
                 didYouMean.add(toolJson(hit.spec()));
             }
+            metrics.unknownTool(!similar.isEmpty());
             return ToolResult.error("unknown_tool", "No tool named '" + name + "'.", "didYouMean", didYouMean.getList(),
                     "hint", "Use search_tools to find the right tool name.");
         }

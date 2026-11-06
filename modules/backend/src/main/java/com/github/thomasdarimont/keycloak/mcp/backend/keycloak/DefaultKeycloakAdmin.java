@@ -12,6 +12,7 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.RealmResource;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
@@ -55,6 +56,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     private final DelegationMode delegation;
     private volatile TokenExchange exchange;
     private final Map<String, Delegate> delegates = new ConcurrentHashMap<>();
+    private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
 
     public DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys) {
         this(system, jwtKeys, DelegationMode.OFF);
@@ -121,8 +123,10 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
                 .realm(system.authRealm())
                 .clientId(system.clientId().filter(v -> !v.isBlank()).orElse("keycloak-mcp-server"))
                 .authorization(token)
+                .resteasyClient(newClient())
                 .build();
-            return new Delegate(new DefaultKeycloakAdmin(system, jwtKeys, k2, token, delegation), expiresAt);
+            return new Delegate(new DefaultKeycloakAdmin(system, jwtKeys, k2, token, delegation).metrics(metrics),
+                    expiresAt);
         }).admin();
     }
 
@@ -138,8 +142,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         initLock.lock();
         try {
             if (exchange == null) {
-                exchange = new TokenExchange(Keycloak.getClientProvider().newRestEasyClient(null, null, false), system,
-                        jwtKeys, this::accessToken);
+                exchange = new TokenExchange(newClient(), system, jwtKeys, this::accessToken);
             }
             return exchange;
         }
@@ -187,6 +190,22 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
             LOG.debugf("Cannot read token expiry: %s", e.toString());
         }
         return now + 5 * 60_000L;
+    }
+
+    /**
+     * Where the requests to this system are measured; set before the first call (the
+     * clients are built lazily and carry the filter from then on).
+     */
+    public DefaultKeycloakAdmin metrics(KcMcpMetrics metrics) {
+        this.metrics = metrics == null ? KcMcpMetrics.noop() : metrics;
+        return this;
+    }
+
+    /** A RESTEasy client for this system whose requests are measured. */
+    private Client newClient() {
+        Client c = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
+        c.register(new KeycloakClientMetricsFilter(system.name(), metrics));
+        return c;
     }
 
     @Override
@@ -252,18 +271,21 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
             builder.scope(scope);
         }
         switch (auth) {
-            case NONE -> builder.grantType(grant.oauthValue()).username(username).password(password);
+            case NONE ->
+                builder.grantType(grant.oauthValue()).username(username).password(password).resteasyClient(newClient());
             case CLIENT_SECRET -> builder.grantType(grant.oauthValue())
+                .resteasyClient(newClient())
                 .username(username)
                 .password(password)
                 .clientSecret(require(system.clientSecret(), "kc-mcp.client-secret"));
             case PRIVATE_KEY_JWT -> {
-                Client restClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
-                Client tokenClient = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
+                Client restClient = newClient();
+                Client tokenClient = newClient();
                 jwtTokens = new ClientAssertionTokenManager(tokenClient, system.url(), system.authRealm(),
                         system.assertionAudience(), clientId, () -> jwtKeys.signerFor(system),
                         jwtKeys.assertionLifespan(), grant, username, password)
-                    .scope(scope);
+                    .scope(scope)
+                    .onScopeRefused(() -> metrics.scopeFallback(system.name()));
                 restClient.register(new PrivateKeyJwtAuthFilter(jwtTokens));
                 // A fixed placeholder token makes the admin client skip its own
                 // TokenManager; the filter above
@@ -308,6 +330,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
             LOG.infof("[%s] token request with the scope '%s' failed (HTTP 400); requesting tokens without it",
                     system.name(), jwtKeys.adminApiScope());
             scopeRefused = true;
+            metrics.scopeFallback(system.name());
             initLock.lock();
             try {
                 Keycloak stale = keycloak;

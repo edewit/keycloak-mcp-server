@@ -12,6 +12,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ErrorMapper;
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
@@ -61,12 +62,15 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     private final SigningKeys keys;
     private final DelegationMode delegation;
     private volatile PrivateHosts dynamicPrivateHosts = PrivateHosts.ALLOW;
+    private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
 
     @Inject
-    public DefaultKeycloakSystems(McpServerConfig config, SigningKeys keys, Extensions extensions) {
+    public DefaultKeycloakSystems(McpServerConfig config, SigningKeys keys, Extensions extensions,
+            KcMcpMetrics metrics) {
         this(resolve(config), config.defaultSystem().orElse(null), keys,
                 HostAllowList.of(config.allowedHosts().orElse(List.of())), repositories(config, extensions),
                 config.staticSystemsOrder(), config.delegation());
+        this.metrics = metrics;
         this.dynamicPrivateHosts = config.effectiveDynamicPrivateHosts();
     }
 
@@ -336,7 +340,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                 return Optional.empty();
             }
         }
-        KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation);
+        KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation).metrics(metrics);
         KeycloakAdmin previous = admins.put(name, created);
         if (previous != null) {
             LOG.infof("Keycloak system '%s' changed at its repository, reconnecting to %s", name, system.url());
