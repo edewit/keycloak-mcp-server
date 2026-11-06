@@ -77,6 +77,7 @@ class CibaConfirmerTest {
     private final Deque<String> tokenAnswers = new ArrayDeque<>();
     private final List<Map<String, String>> backchannelRequests = new CopyOnWriteArrayList<>();
     private final List<String> authHeaders = new CopyOnWriteArrayList<>();
+    private final java.util.concurrent.atomic.AtomicInteger tokenRequests = new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger requestCounter = new java.util.concurrent.atomic.AtomicInteger();
 
     @BeforeEach
@@ -108,6 +109,7 @@ class CibaConfirmerTest {
                         .put("interval", 1));
         });
         server.createContext("/realms/demo/protocol/openid-connect/token", x -> {
+            tokenRequests.incrementAndGet();
             Map<String, String> f = form(x);
             assertEquals(CibaClient.GRANT_TYPE, f.get("grant_type"));
             assertTrue(f.get("auth_req_id").startsWith("req-"), f.toString());
@@ -338,10 +340,12 @@ class CibaConfirmerTest {
                 false, alice(), Prompter.NONE);
         assertEquals(CibaConfirmer.operationHash(a), CibaConfirmer.operationHash(request(alice(), Prompter.NONE)));
         assertTrue(!CibaConfirmer.operationHash(a).equals(CibaConfirmer.operationHash(b)));
-        assertEquals(10, CibaConfirmer.operationHash(a).length());
+        assertEquals(64, CibaConfirmer.operationHash(a).length(), "the full SHA-256 binds the approval");
+        assertEquals(10, CibaConfirmer.shortHash(a).length(), "only the device's message is short");
+        assertTrue(CibaConfirmer.operationHash(a).startsWith(CibaConfirmer.shortHash(a)));
         String longPrefix = "x".repeat(60);
         assertTrue(CibaConfirmer.BINDING_MESSAGE.matcher(CibaConfirmer.bindingMessage(longPrefix, a)).matches());
-        assertEquals(CibaConfirmer.operationHash(a), CibaConfirmer.bindingMessage("", a));
+        assertEquals(CibaConfirmer.shortHash(a), CibaConfirmer.bindingMessage("", a));
     }
 
     @Test
@@ -383,7 +387,7 @@ class CibaConfirmerTest {
         Map<String, String> bc = backchannelRequests.get(0);
         assertEquals(code, bc.get("code"), "the device gets the number as an additional parameter");
         assertEquals("LM Studio", bc.get("requester"));
-        assertEquals(DELETE.title() + " (realm demo)", bc.get("operation"));
+        assertEquals(DELETE.title() + ": dave (realm demo)", bc.get("operation"), "the device names the target");
         assertEquals(approval.get("bindingMessage"), bc.get("binding_message"));
 
         // nobody answered yet: the collecting call waits a moment and reports pending
@@ -512,5 +516,87 @@ class CibaConfirmerTest {
                         .next()
                         .getValue());
         }
+    }
+
+    @Test
+    void statelessCallsDecideWithinTheCall() {
+        CibaConfirmer c = confirmer(Map.of("flow", "two-step"));
+        tokenAnswers.addAll(List.of("authorization_pending", "200"));
+        ConfirmationRequest stateless = new ConfirmationRequest(DELETE, "prod", "demo",
+                Map.of("id", "u1", "username", "dave"), false, alice(), Prompter.NONE, "client", "transient-7", true);
+        assertEquals(Decision.Outcome.CONFIRMED, c.confirm(stateless).outcome(),
+                "no session: the call waits for the device instead of answering twice");
+        assertEquals(0, ((InMemoryPendingApprovalStore) c.store()).size(), "nothing pending to collect later");
+
+        tokenAnswers.add("200");
+        ConfirmationRequest noSessionId = new ConfirmationRequest(DELETE, "prod", "demo",
+                Map.of("id", "u1", "username", "dave"), false, alice(), Prompter.NONE, "client", null, false);
+        assertEquals(Decision.Outcome.CONFIRMED, c.confirm(noSessionId).outcome(), "no session id either: same");
+    }
+
+    @Test
+    void approvalKeysUseTheFullHash() {
+        ConfirmationRequest a = request(alice(), Prompter.NONE);
+        ConfirmationRequest b = new ConfirmationRequest(DELETE, "prod", "demo", Map.of("id", "u2", "username", "dave"),
+                false, alice(), Prompter.NONE, "LM Studio", "session-1");
+        String ka = CibaConfirmer.approvalKey("session-1", "sub-1", issuer, CibaConfirmer.operationHash(a));
+        String kb = CibaConfirmer.approvalKey("session-1", "sub-1", issuer, CibaConfirmer.operationHash(b));
+        assertEquals(64, ka.length());
+        assertTrue(!ka.equals(kb));
+        assertTrue(
+                !CibaConfirmer.approvalKey("ab", "c", issuer, "h")
+                    .equals(CibaConfirmer.approvalKey("a", "bc", issuer, "h")),
+                "the parts cannot shift into each other");
+    }
+
+    @Test
+    void onlyOneCollectorPollsAtATime() throws Exception {
+        CibaConfirmer c = confirmer(Map.of("flow", "two-step", "poll-wait-seconds", "2"));
+        c.confirm(request(alice(), Prompter.NONE));
+        int before = tokenRequests.get();
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(4)) {
+            List<java.util.concurrent.Future<Decision>> calls = new java.util.ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                calls.add(pool.submit(() -> {
+                    go.await();
+                    return c.confirm(request(alice(), Prompter.NONE));
+                }));
+            }
+            go.countDown();
+            for (var f : calls) {
+                assertEquals(Decision.Outcome.CONFIRMATION_REQUIRED, f.get().outcome());
+            }
+        }
+        int polls = tokenRequests.get() - before;
+        assertTrue(polls >= 1 && polls <= 3, "one collector held the claim and polled (about once a second for"
+                + " two seconds), the others answered pending without polling: " + polls);
+    }
+
+    @Test
+    void theMemoryStoreFencesByGeneration() {
+        InMemoryPendingApprovalStore store = new InMemoryPendingApprovalStore();
+        long now = System.currentTimeMillis();
+        String gen = store.reserve("k", now + 30_000).orElseThrow();
+        assertTrue(store.reserve("k", now + 30_000).isEmpty());
+        var filed = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval("k", gen, "req", "r", "42", "b",
+                issuer, "alice", "sub", issuer, "op", "h", null, "demo", now + 60_000, 1, now, null, 0);
+        var stale = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval("k", "old", "req2", "r", "1",
+                "b", issuer, "alice", "sub", issuer, "op", "h", null, "demo", now + 60_000, 1, now, null, 0);
+        assertTrue(!store.put(stale), "another generation cannot overwrite");
+        assertTrue(store.put(filed));
+        assertTrue(store.claim("k", gen, "a", now + 10_000));
+        assertTrue(!store.claim("k", gen, "b", now + 10_000), "one collector at a time");
+        store.release("k", gen, "a");
+        assertTrue(store.claim("k", gen, "b", now + 10_000));
+        assertTrue(!store.remove("k", "old"), "another generation cannot consume");
+        assertTrue(store.remove("k", gen));
+        assertTrue(!store.remove("k", gen), "once");
+        String expired = store.reserve("k", now - 1).orElseThrow();
+        String next = store.reserve("k", now + 30_000).orElseThrow();
+        assertTrue(!expired.equals(next));
+        var late = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval("k", expired, "req3", "r", "1",
+                "b", issuer, "alice", "sub", issuer, "op", "h", null, "demo", now + 60_000, 1, now, null, 0);
+        assertTrue(!store.put(late), "a late filer of the expired reservation cannot overwrite the new one");
     }
 }

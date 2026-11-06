@@ -8,20 +8,29 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.prompts.PromptProvider;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
+
+import io.quarkus.runtime.StartupEvent;
 
 /**
  * The extensions found by {@link Extensions}, per type: deduplicated by id, minus the
@@ -129,6 +138,21 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
     /** Global access checks contributed by the providers. */
     public List<AccessCheck> accessChecks() {
         return accessChecks;
+    }
+
+    /** The extension points the registry hands out, resolved at startup. */
+    static final List<Class<? extends Extension>> STARTUP_TYPES = List.of(PromptProvider.class, AccessCheck.class,
+            Confirmer.class, AuditListener.class, AuditScrubber.class, ProfileCheck.class, PendingApprovalStore.class);
+
+    /**
+     * Resolves every extension point at startup instead of on first use, so that a
+     * required extension that cannot take part stops the start rather than the first
+     * call.
+     */
+    void onStart(@Observes StartupEvent event) {
+        for (Class<? extends Extension> type : STARTUP_TYPES) {
+            extensions(type);
+        }
     }
 
     @PreDestroy

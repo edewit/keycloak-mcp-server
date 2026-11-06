@@ -8,9 +8,11 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -79,6 +81,15 @@ public class CibaConfirmer implements Confirmer {
 
     /** How long a bare reservation lasts: the time to file the request. */
     static final Duration RESERVATION = Duration.ofSeconds(30);
+
+    /**
+     * A collector's claim lasts its poll wait plus this, so that a crashed collector does
+     * not block for long.
+     */
+    static final Duration CLAIM_MARGIN = Duration.ofSeconds(15);
+
+    /** Arguments that name what a destructive tool acts on, in order of preference. */
+    static final List<String> TARGET_ARGS = List.of("username", "clientId", "alias", "path", "name", "id");
 
     private final CibaSettings settings;
     private final String defaultIssuer;
@@ -251,33 +262,56 @@ public class CibaConfirmer implements Confirmer {
         }
         String issuer = settings.issuerFromCaller() ? issuerOf(caller) : settings.issuer();
         CibaClient client = byIssuer.computeIfAbsent(issuer, clients);
-        String operation = r.tool().title() + (r.realm() != null ? " (realm " + r.realm() + ")" : "");
-        String session = r.connectionId() == null ? "-" : r.connectionId();
-        String key = session + "|" + (caller.subject() != null ? caller.subject() : hint) + "|" + issuer + "|"
-                + operationHash(r);
-        if (settings.flow() == Flow.BLOCKING) {
-            PendingApproval p = file(client, r, caller, issuer, hint, operation, null, key);
+        String operation = operation(r);
+        String operationHash = operationHash(r);
+        if (settings.flow() == Flow.BLOCKING || r.sessionless() || r.connectionId() == null) {
+            // no MCP session, nothing ties a second call to this one: decide within the
+            // call
+            PendingApproval p = file(client, r, caller, issuer, hint, operation, operationHash, null, null, null);
             return await(client, p, p.expiresAt());
         }
-        if (store.reserve(key, System.currentTimeMillis() + RESERVATION.toMillis())) {
-            String code = settings.numberMatching() ? String.valueOf(10 + random.nextInt(90)) : null;
-            PendingApproval p;
-            try {
-                p = file(client, r, caller, issuer, hint, operation, code, key);
+        String key = approvalKey(r.connectionId(), caller.subject() != null ? caller.subject() : hint, issuer,
+                operationHash);
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Optional<String> generation = store.reserve(key, System.currentTimeMillis() + RESERVATION.toMillis());
+            if (generation.isPresent()) {
+                String code = settings.numberMatching() ? String.valueOf(10 + random.nextInt(90)) : null;
+                PendingApproval p;
+                try {
+                    p = file(client, r, caller, issuer, hint, operation, operationHash, code, key, generation.get());
+                }
+                catch (RuntimeException e) {
+                    store.remove(key, generation.get());
+                    throw e;
+                }
+                if (!store.put(p)) {
+                    LOG.warnf("CIBA request %s: the reservation expired while filing and was taken over; the request"
+                            + " on the device is orphaned", p.requestId());
+                    return Decision.confirmationRequired(
+                            "Filing the approval request for '" + operation + "' took"
+                                    + " too long; nothing was changed. Call again to send a new request.",
+                            Map.of("approval", Map.of("status", "superseded")));
+                }
+                return awaiting(p, true);
             }
-            catch (RuntimeException e) {
-                store.remove(key);
-                throw e;
+            Optional<PendingApproval> found = store.find(key);
+            if (found.isEmpty()) {
+                continue; // the entry lapsed between reserve and find: reserve again
             }
-            store.put(p);
-            return awaiting(p, true);
+            return collect(client, found.get(), key, operation, operationHash, hint);
         }
-        Optional<PendingApproval> found = store.find(key);
-        if (found.isEmpty()) {
-            // the reservation lapsed between the check and the lookup: start over
-            return confirm(r);
-        }
-        PendingApproval p = found.get();
+        return Decision.confirmationRequired(
+                "The approval request for '" + operation + "' is changing hands; call" + " again in a moment.",
+                Map.of("approval", Map.of("status", "busy")));
+    }
+
+    /**
+     * The collecting call: polls the provider while holding the claim, so that parallel
+     * collectors of the same approval do not poll at once, and consumes the decision of
+     * exactly this generation.
+     */
+    private Decision collect(CibaClient client, PendingApproval p, String key, String operation, String operationHash,
+            String hint) {
         if (!p.filed()) {
             return Decision.confirmationRequired(
                     "The approval request for '" + operation + "' is being filed with " + hint
@@ -285,14 +319,35 @@ public class CibaConfirmer implements Confirmer {
                     Map.of("approval", Map.of("status", "filing"), "howTo",
                             "Call again with the same arguments in a few seconds."));
         }
-        long waitUntil = Math.min(p.expiresAt(),
-                System.currentTimeMillis() + Duration.ofSeconds(settings.pollWaitSeconds()).toMillis());
-        Decision d = await(client, p, waitUntil);
-        if (d.outcome() == Decision.Outcome.CONFIRMATION_REQUIRED && !p.expired()
-                && Boolean.TRUE.equals(d.details().get("waiting"))) {
+        if (!operationHash.equals(p.operationHash())) {
+            // the key is derived from the full hash, so this means a store that returns
+            // the wrong entry
+            LOG.errorf("CIBA request %s: the pending approval is for another operation; refusing", p.requestId());
+            return Decision.declined("The pending approval belongs to another operation; nothing was changed.",
+                    Map.of("approval", Map.of("status", "mismatch")));
+        }
+        long now = System.currentTimeMillis();
+        long waitUntil = Math.min(p.expiresAt(), now + Duration.ofSeconds(settings.pollWaitSeconds()).toMillis());
+        String collector = UUID.randomUUID().toString();
+        if (!store.claim(key, p.generation(), collector, waitUntil + CLAIM_MARGIN.toMillis())) {
+            // another call is polling the provider right now: report pending without
+            // polling twice
             return awaiting(p, false);
         }
-        if (!store.remove(key) && d.outcome() == Decision.Outcome.CONFIRMED) {
+        Decision d;
+        try {
+            d = await(client, p, waitUntil);
+        }
+        catch (RuntimeException e) {
+            store.release(key, p.generation(), collector);
+            throw e;
+        }
+        if (d.outcome() == Decision.Outcome.CONFIRMATION_REQUIRED && !p.expired()
+                && Boolean.TRUE.equals(d.details().get("waiting"))) {
+            store.release(key, p.generation(), collector);
+            return awaiting(p, false);
+        }
+        if (!store.remove(key, p.generation()) && d.outcome() == Decision.Outcome.CONFIRMED) {
             LOG.warnf("CIBA request %s was consumed by a parallel call; not confirming twice", p.requestId());
             return Decision.confirmationRequired(
                     "The approval of '" + operation + "' was already used by a parallel"
@@ -304,7 +359,7 @@ public class CibaConfirmer implements Confirmer {
 
     /** Files the request with the provider. */
     private PendingApproval file(CibaClient client, ConfirmationRequest r, Caller caller, String issuer, String hint,
-            String operation, String code, String key) {
+            String operation, String operationHash, String code, String key, String generation) {
         String binding = settings.bindingMessage() ? bindingMessage(settings.bindingMessagePrefix(), r) : null;
         Map<String, String> extra = new LinkedHashMap<>();
         if (code != null) {
@@ -326,9 +381,10 @@ public class CibaConfirmer implements Confirmer {
                 code == null ? "" : ", code " + code, budget, r.connectionId() == null ? "-" : r.connectionId());
         int interval = Math.max(1, started.interval());
         Object iss = caller.claim("iss");
-        return new PendingApproval(key, started.authReqId(), requestId, code, binding, issuer, hint, caller.subject(),
-                iss instanceof String s ? s : null, operation, r.system(), r.realm(),
-                System.currentTimeMillis() + budget * 1000L, interval, System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        return new PendingApproval(key, generation, started.authReqId(), requestId, code, binding, issuer, hint,
+                caller.subject(), iss instanceof String str ? str : null, operation, operationHash, r.system(),
+                r.realm(), now + budget * 1000L, interval, now, null, 0);
     }
 
     /**
@@ -466,26 +522,69 @@ public class CibaConfirmer implements Confirmer {
         if (clean.length() > 38) {
             clean = clean.substring(0, 38);
         }
-        String message = (clean.isEmpty() ? "" : clean + "-") + operationHash(r);
+        String message = (clean.isEmpty() ? "" : clean + "-") + shortHash(r);
         if (!BINDING_MESSAGE.matcher(message).matches()) {
-            message = operationHash(r);
+            message = shortHash(r);
         }
         return message;
     }
 
+    /**
+     * Full SHA-256 (hex) of tool, system, realm and arguments: what an approval is bound
+     * to.
+     */
     static String operationHash(ConfirmationRequest r) {
         JsonObject canonical = new JsonObject().put("tool", r.tool().name())
             .put("system", r.system())
             .put("realm", r.realm())
             .put("args", new JsonObject(new TreeMap<>(r.args())));
+        return sha256(canonical.encode());
+    }
+
+    /**
+     * The store key: SHA-256 over MCP session, caller, issuer and the full operation
+     * hash, separated so that no two different tuples give the same input.
+     */
+    static String approvalKey(String session, String caller, String issuer, String operationHash) {
+        return sha256(session.length() + ":" + session + "|" + caller.length() + ":" + caller + "|" + issuer.length()
+                + ":" + issuer + "|" + operationHash);
+    }
+
+    /**
+     * What the device's binding message carries: the first 40 bits of the operation hash,
+     * for people to compare.
+     */
+    static String shortHash(ConfirmationRequest r) {
+        return operationHash(r).substring(0, 10);
+    }
+
+    private static String sha256(String text) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                .digest(canonical.encode().getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest, 0, 5);
+            return HexFormat.of()
+                .formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
         }
         catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    /**
+     * What the device shows: the tool, its target (the identifying argument: username,
+     * client id, alias, group path, name or id) and the realm, e.g.
+     * {@code Delete user: dave (realm demo)}.
+     */
+    static String operation(ConfirmationRequest r) {
+        String target = null;
+        for (String arg : TARGET_ARGS) {
+            Object v = r.args().get(arg);
+            if (v != null && !String.valueOf(v).isBlank()) {
+                target = String.valueOf(v);
+                break;
+            }
+        }
+        String text = r.tool().title() + (target != null ? ": " + target : "")
+                + (r.realm() != null ? " (realm " + r.realm() + ")" : "");
+        return text.length() <= 200 ? text : text.substring(0, 199) + "…";
     }
 
 }

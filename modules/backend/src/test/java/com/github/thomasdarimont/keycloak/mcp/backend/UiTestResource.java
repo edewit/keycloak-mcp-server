@@ -74,9 +74,6 @@ public class UiTestResource extends ForwardTestResource {
         }
     }
 
-    /**
-     * Ends every Keycloak session of a user, which makes Keycloak post the logout tokens.
-     */
     /** The id of a demo user. */
     public static String userId(String user) {
         try {
@@ -90,6 +87,9 @@ public class UiTestResource extends ForwardTestResource {
         }
     }
 
+    /**
+     * Ends every Keycloak session of a user, which makes Keycloak post the logout tokens.
+     */
     public static void logoutUser(String userId) {
         try {
             HttpResponse<String> r = HttpClient.newHttpClient()

@@ -22,6 +22,21 @@ public class PendingApprovalEntity extends PanacheEntityBase {
     @Column(name = "id", nullable = false, length = 512)
     public String id;
 
+    /** Opaque id of the reservation; every later change names it. */
+    @Column(name = "generation", length = 64)
+    public String generation;
+
+    /** Full SHA-256 (hex) of tool, system, realm and arguments. */
+    @Column(name = "operation_hash", length = 64)
+    public String operationHash;
+
+    /** The collector currently polling the provider, and until when. */
+    @Column(name = "claimed_by", length = 64)
+    public String claimedBy;
+
+    @Column(name = "claimed_until")
+    public Long claimedUntil;
+
     /**
      * The provider's {@code auth_req_id}, encrypted when
      * {@code kc-mcp.storage.secret-key} is set; null while reserved.

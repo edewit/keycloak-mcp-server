@@ -27,7 +27,8 @@ Admin REST API with alice's token (forward delegation)  → the user is deleted;
 The number works like Entra ID's number matching: it is shown where the request originates (the chat) and asked
 for where it is approved (the device). A push the user did not trigger carries a number they cannot know, so
 approval fatigue does not help an attacker who holds a session. The device also sees the requester (the MCP
-client's name) and the operation, both sent as additional CIBA request parameters that Keycloak forwards.
+client's name) and the operation with its target ("Delete user: dave (realm demo)"), both sent as additional CIBA
+request parameters that Keycloak forwards.
 
 The confirmer only uses the standard CIBA flow (discovery, `backchannel_authentication_endpoint`, `login_hint`,
 `binding_message`, poll mode), so it works with any CIBA-capable provider. What differs per provider is the

@@ -10,21 +10,29 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  * database storage provides one ({@code db-approvals}); the server falls back to an
  * in-memory store ({@code memory-approvals}, single instance). The store with the lowest
  * {@link #order()} is used. Implementations are called concurrently from worker threads.
+ * <p>
+ * Every change after the reservation names the reservation's generation, so a caller
+ * whose reservation expired and was taken over can neither overwrite nor consume the
+ * newer one, and {@link #claim} lets exactly one collector poll the provider at a time.
  */
 public interface PendingApprovalStore extends Extension {
 
     /**
-     * Claims the key for a request about to be filed, atomically across instances:
-     * {@code true} when nobody holds it, or the holder has expired, so that exactly one
-     * caller files the request; {@code false} when a live reservation or approval exists.
+     * Claims the key for a request about to be filed, atomically across instances: the
+     * new generation when nobody holds the key or the holder has expired, so that exactly
+     * one caller files the request; empty when a live reservation or approval exists.
      *
      * @param until epoch milliseconds the bare reservation lasts; {@link #put} replaces
      * it with the approval's own expiry
      */
-    boolean reserve(String key, long until);
+    Optional<String> reserve(String key, long until);
 
-    /** Stores the filed approval under its key (which {@link #reserve} claimed). */
-    void put(PendingApproval approval);
+    /**
+     * Stores the filed approval, but only while its {@link PendingApproval#generation()}
+     * is still the key's: {@code false} when the reservation expired and someone else
+     * took the key meanwhile.
+     */
+    boolean put(PendingApproval approval);
 
     /**
      * The live approval under this key, reserved or filed; empty when none or expired.
@@ -32,10 +40,23 @@ public interface PendingApprovalStore extends Extension {
     Optional<PendingApproval> find(String key);
 
     /**
-     * Consumes the approval: {@code true} when this call removed a live entry, so that a
-     * decision is acted on once even when two calls collect it at the same time.
+     * Makes {@code collector} the one that polls the provider for this generation until
+     * {@code until}: {@code true} when nobody else holds a live claim (or it already
+     * holds it), {@code false} when another collector does or the generation is gone.
      */
-    boolean remove(String key);
+    boolean claim(String key, String generation, String collector, long until);
+
+    /**
+     * Gives a claim back without consuming the approval (the device has not answered
+     * yet).
+     */
+    void release(String key, String generation, String collector);
+
+    /**
+     * Consumes the approval of this generation: {@code true} when this call removed the
+     * live entry, so that a decision is acted on once even when two calls collect it.
+     */
+    boolean remove(String key, String generation);
 
     /** Removes entries past their expiry; how many. */
     long deleteExpired(long now);

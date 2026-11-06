@@ -89,7 +89,7 @@ class CibaIT {
         assertEquals(approval.getString("bindingMessage"), d.bindingMessage());
         assertEquals(approval.getString("code"), d.code(), "the device received the number the chat shows");
         assertTrue(d.bindingMessage().startsWith("kc-mcp-"), d.bindingMessage());
-        assertEquals("Delete user (realm demo)", d.operation());
+        assertEquals("Delete user: ciba-approve (realm demo)", d.operation(), "the device names the target");
         assertNotNull(d.requester(), "the MCP client's name");
 
         // the device approved (the entity answers at once): the second call runs the tool

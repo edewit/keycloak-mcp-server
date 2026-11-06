@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema version 0.5.0: generations and collector claims of the CIBA confirmer's pending approvals. -->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="8-pending-approval-generations" author="keycloak-mcp-server">
+        <comment>Every reservation gets an opaque generation that later changes must name, the full SHA-256 of the
+            operation, and a short-lived claim of the collector polling the provider. Keys are now SHA-256 of session,
+            caller, issuer and operation, so rows of 0.4.0 cannot be collected anymore: they are dropped (pending
+            approvals live for minutes)</comment>
+        <delete tableName="kc_mcp_pending_approval"/>
+        <addColumn tableName="kc_mcp_pending_approval">
+            <column name="generation" type="varchar(64)"/>
+            <column name="operation_hash" type="varchar(64)"/>
+            <column name="claimed_by" type="varchar(64)"/>
+            <column name="claimed_until" type="bigint"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

@@ -2,7 +2,9 @@ package com.github.thomasdarimont.keycloak.mcp.backend.ciba;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
@@ -11,7 +13,7 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 /**
  * The fallback {@link PendingApprovalStore}: this instance's memory. Fine for one server;
  * with several, the database storage's {@code db-approvals} is used instead (lower
- * order).
+ * order). Every operation is one atomic {@code compute} on the key.
  */
 @ApplicationScoped
 public class InMemoryPendingApprovalStore implements PendingApprovalStore {
@@ -41,17 +43,25 @@ public class InMemoryPendingApprovalStore implements PendingApprovalStore {
     }
 
     @Override
-    public boolean reserve(String key, long until) {
-        PendingApproval placeholder = new PendingApproval(key, null, null, null, null, null, null, null, null, null,
-                null, null, until, 0, System.currentTimeMillis());
+    public Optional<String> reserve(String key, long until) {
+        String generation = UUID.randomUUID().toString();
+        PendingApproval mine = PendingApproval.reservation(key, generation, until);
         PendingApproval current = entries.compute(key,
-                (k, existing) -> existing == null || existing.expired() ? placeholder : existing);
-        return current == placeholder;
+                (k, existing) -> existing == null || existing.expired() ? mine : existing);
+        return current == mine ? Optional.of(generation) : Optional.empty();
     }
 
     @Override
-    public void put(PendingApproval approval) {
-        entries.put(approval.key(), approval);
+    public boolean put(PendingApproval approval) {
+        AtomicBoolean stored = new AtomicBoolean();
+        entries.computeIfPresent(approval.key(), (k, existing) -> {
+            if (existing.generation().equals(approval.generation()) && !existing.expired()) {
+                stored.set(true);
+                return approval;
+            }
+            return existing;
+        });
+        return stored.get();
     }
 
     @Override
@@ -65,9 +75,38 @@ public class InMemoryPendingApprovalStore implements PendingApprovalStore {
     }
 
     @Override
-    public boolean remove(String key) {
-        PendingApproval p = entries.remove(key);
-        return p != null && !p.expired();
+    public boolean claim(String key, String generation, String collector, long until) {
+        AtomicBoolean claimed = new AtomicBoolean();
+        long now = System.currentTimeMillis();
+        entries.computeIfPresent(key, (k, existing) -> {
+            if (!existing.generation().equals(generation) || existing.expired()
+                    || existing.claimedByOther(collector, now)) {
+                return existing;
+            }
+            claimed.set(true);
+            return existing.withClaim(collector, until);
+        });
+        return claimed.get();
+    }
+
+    @Override
+    public void release(String key, String generation, String collector) {
+        entries.computeIfPresent(key,
+                (k, existing) -> existing.generation().equals(generation) && collector.equals(existing.claimedBy())
+                        ? existing.withClaim(null, 0) : existing);
+    }
+
+    @Override
+    public boolean remove(String key, String generation) {
+        AtomicBoolean removed = new AtomicBoolean();
+        entries.computeIfPresent(key, (k, existing) -> {
+            if (!existing.generation().equals(generation)) {
+                return existing;
+            }
+            removed.set(!existing.expired());
+            return null;
+        });
+        return removed.get();
     }
 
     @Override

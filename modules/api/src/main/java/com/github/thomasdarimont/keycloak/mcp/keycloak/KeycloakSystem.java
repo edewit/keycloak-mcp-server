@@ -64,12 +64,6 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
     }
 
     /**
-     * The issuer of the auth realm as Keycloak states it, the {@code aud} of
-     * {@code private_key_jwt} client assertions: the configured {@code issuer} when the
-     * server is reached through an internal URL that differs from its public hostname,
-     * else {@code <url>/realms/<auth realm>}.
-     */
-    /**
      * The base URL users and browsers reach this Keycloak at: derived from the configured
      * issuer when it names the auth realm ({@code https://sso.example.com/realms/master}
      * -> {@code https://sso.example.com}), else the {@link #url()} the server itself
@@ -83,6 +77,12 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             .orElseGet(() -> url.endsWith("/") ? url.substring(0, url.length() - 1) : url);
     }
 
+    /**
+     * The issuer of the auth realm as Keycloak states it, the {@code aud} of
+     * {@code private_key_jwt} client assertions: the configured {@code issuer} when the
+     * server is reached through an internal URL that differs from its public hostname,
+     * else {@code <url>/realms/<auth realm>}.
+     */
     public String assertionAudience() {
         return issuer.filter(v -> !v.isBlank()).orElseGet(() -> {
             String base = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;

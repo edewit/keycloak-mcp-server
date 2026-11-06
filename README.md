@@ -588,7 +588,10 @@ public class AcmeToolProvider implements ToolProvider {
   extension that needs a setting, a feature or a capability answers `false` when it is missing and is left out as if
   it were not installed (logged, not fatal; an exception counts as `false`). Applies to every extension point: tools,
   prompts, access checks, confirmers, audit listeners and scrubbers, profile checks, system repositories, key vaults,
-  key generators, session and approval stores. To refuse the start instead, contribute a `ProfileCheck`. Built in:
+  key generators, session and approval stores. Fail closed: `kc-mcp.spi.<id>.required=true` makes a switched-off or
+  unsupported extension stop the start (mark security controls such as an `AccessCheck` or a `Confirmer` this way),
+  and an `isSupported` that throws stops a server in profile `shared`. Extension points are resolved at startup, so
+  these rules apply before the first call. To refuse the start for other reasons, contribute a `ProfileCheck`. Built in:
   the CIBA confirmer is supported only with `kc-mcp.spi.ciba-confirmer.enabled=true`, the metrics audit listener only
   with the OpenTelemetry SDK on.
 - `ExtensionRegistry` (`extensions(Confirmer.class)`, `extension(ToolProvider.class, "users")`, `context(id)`):
@@ -649,9 +652,15 @@ without a number. Standard CIBA only, so any CIBA-capable provider works; the de
 
 What makes the approval trustworthy:
 
-- One approval per MCP session, caller, issuer and operation, reserved atomically in the `PendingApprovalStore`
-  before the request is filed, so parallel calls file one request, another session of the same user gets its own,
-  and a decision is consumed once (a parallel collect finds it gone).
+- Bound to the full operation: the key is a SHA-256 over MCP session, caller, issuer and the SHA-256 of tool, system,
+  realm and arguments, and the stored approval carries that hash, which the collecting call must match. Only the
+  device's binding message shows a 40-bit prefix of it, for people to compare.
+- One approval per session and operation, reserved atomically in the `PendingApprovalStore` with an opaque generation
+  that every later change names: a late filer whose reservation expired cannot overwrite the next one, and an old
+  generation cannot be consumed. One collector at a time holds a short claim and polls the provider; parallel calls
+  answer pending without polling, and a decision is consumed once.
+- No session, no two-step: a stateless MCP request (no `Mcp-Session-Id`) waits for the device within the call
+  instead, since nothing would tie a second call to the first.
 - Who approved is verified: the ID token the token endpoint returns on approval must verify against the provider's
   JWKS (signature, issuer, the CIBA client as audience, expiry), and its identity must be the person asked: the same
   `sub` as the MCP caller when their token comes from the same issuer, else the username or email of the login hint.

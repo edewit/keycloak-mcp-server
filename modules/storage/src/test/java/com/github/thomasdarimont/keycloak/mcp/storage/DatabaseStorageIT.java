@@ -366,39 +366,53 @@ class DatabaseStorageIT {
     Instance<com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore> approvalStores;
 
     @Test
-    void pendingApprovalsAreReservedOnceStoredEncryptedAndConsumedOnce() {
+    void pendingApprovalsAreFencedByGenerationAndClaimedByOneCollector() {
         var store = approvalStores
             .select(com.github.thomasdarimont.keycloak.mcp.storage.approvals.DatabasePendingApprovalStore.class)
             .get();
         assertEquals("db-approvals", store.id());
-        String key = "session|sub|https://sso.example.com/realms/demo|" + UUID.randomUUID();
+        String key = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
         long now = System.currentTimeMillis();
-        assertTrue(store.reserve(key, now + 30_000), "first reservation wins");
-        assertTrue(!store.reserve(key, now + 30_000), "the second is refused while the first lives");
-        var reserved = store.find(key).orElseThrow();
-        assertTrue(!reserved.filed(), "reserved, not filed yet");
+        String gen = store.reserve(key, now + 30_000).orElseThrow(() -> new AssertionError("first reservation wins"));
+        assertTrue(store.reserve(key, now + 30_000).isEmpty(), "the second is refused while the first lives");
+        assertTrue(!store.find(key).orElseThrow().filed(), "reserved, not filed yet");
 
-        store.put(new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval(key, "auth-req-id-secret", "…id",
-                "42", "kc-mcp-abc", "https://sso.example.com/realms/demo", "alice", "sub",
-                "https://sso.example.com/realms/demo", "Delete user (realm demo)", "prod", "demo", now + 60_000, 2,
-                now));
+        var approval = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval(key, gen,
+                "auth-req-id-secret", "…id", "42", "kc-mcp-abc", "https://sso.example.com/realms/demo", "alice", "sub",
+                "https://sso.example.com/realms/demo", "Delete user: dave (realm demo)", "f".repeat(64), "prod", "demo",
+                now + 60_000, 2, now, null, 0);
+        var stale = new com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval(key, "other-generation", "x",
+                "x", "x", "x", "x", "x", "x", "x", "x", "0".repeat(64), "x", "x", now + 60_000, 2, now, null, 0);
+        assertTrue(!store.put(stale), "another generation cannot overwrite");
+        assertTrue(store.put(approval));
         var filed = store.find(key).orElseThrow();
         assertEquals("auth-req-id-secret", filed.authReqId());
-        assertEquals("42", filed.code());
+        assertEquals("f".repeat(64), filed.operationHash());
         assertEquals("prod", filed.system());
         assertEquals("demo", filed.realm());
-        assertTrue(filed.filed());
         var row = com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity.<com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity>findById(
                 key);
         assertTrue(StorageCrypto.isEncrypted(row.authReqId), "auth_req_id encrypted at rest: " + row.authReqId);
 
-        assertTrue(store.remove(key), "consumed once");
-        assertTrue(!store.remove(key), "not twice");
+        assertTrue(store.claim(key, gen, "collector-a", now + 20_000));
+        assertTrue(!store.claim(key, gen, "collector-b", now + 20_000), "one collector at a time");
+        assertTrue(store.claim(key, gen, "collector-a", now + 25_000), "the holder may renew");
+        assertTrue(!store.claim(key, "other-generation", "collector-c", now + 20_000));
+        store.release(key, gen, "collector-b"); // not the holder: no effect
+        assertTrue(!store.claim(key, gen, "collector-b", now + 20_000));
+        store.release(key, gen, "collector-a");
+        assertTrue(store.claim(key, gen, "collector-b", now + 20_000), "released: free for the next collector");
+
+        assertTrue(!store.remove(key, "other-generation"), "another generation cannot consume");
+        assertTrue(store.remove(key, gen), "consumed once");
+        assertTrue(!store.remove(key, gen), "not twice");
         assertTrue(store.find(key).isEmpty());
 
-        // an expired reservation can be taken over
-        assertTrue(store.reserve(key, now - 1));
-        assertTrue(store.reserve(key, now + 30_000), "expired: free again");
+        // an expired reservation can be taken over, with a new generation
+        String old = store.reserve(key, now - 1).orElseThrow();
+        String taken = store.reserve(key, now + 30_000).orElseThrow(() -> new AssertionError("expired: free again"));
+        assertTrue(!old.equals(taken));
+        assertTrue(!store.remove(key, old), "the old generation is gone");
         assertTrue(store.deleteExpired(now + 60_000) >= 1);
     }
 }

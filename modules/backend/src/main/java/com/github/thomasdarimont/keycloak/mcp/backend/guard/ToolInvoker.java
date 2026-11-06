@@ -275,7 +275,8 @@ public class ToolInvoker {
             Map<String, Object> args, boolean confirmFlag, InvocationContext ctx) throws Exception {
         if (spec.isDestructive()) {
             ConfirmationRequest request = new ConfirmationRequest(spec, system, realm, args, confirmFlag, ctx.caller(),
-                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout), ctx.clientName(), ctx.connectionId());
+                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout), ctx.clientName(), ctx.connectionId(),
+                    ctx.connection() != null && ctx.connection().isTransient());
             Decision decision = confirmer.confirm(request);
             switch (decision.outcome()) {
                 case DECLINED -> {

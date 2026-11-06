@@ -1,9 +1,9 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.approvals;
 
 import java.util.Optional;
+import java.util.UUID;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceException;
 import jakarta.transaction.Transactional;
 
@@ -22,10 +22,12 @@ import io.quarkus.scheduler.Scheduled;
  * The {@link PendingApprovalStore} of the database: one row of
  * {@code kc_mcp_pending_approval} per approval, shared by every instance on the database,
  * so the call that collects a decision may reach another instance than the one that filed
- * the request. The reservation is a row insert under the primary key, so exactly one
- * instance files a request for a key. {@code auth_req_id} is encrypted when
- * {@code kc-mcp.storage.secret-key} is set. Expired rows are removed every hour; switch
- * the store off alone with {@code kc-mcp.spi.db-approvals.enabled=false}.
+ * the request. Every change is one conditional statement on the row: the reservation is
+ * an insert under the primary key (or an update of an expired row), and put, claim,
+ * release and remove only touch the row while it carries the caller's generation.
+ * {@code auth_req_id} is encrypted when {@code kc-mcp.storage.secret-key} is set. Expired
+ * rows are removed every hour; switch the store off alone with
+ * {@code kc-mcp.spi.db-approvals.enabled=false}.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
@@ -61,70 +63,54 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
     }
 
     @Override
-    public boolean reserve(String key, long until) {
+    public Optional<String> reserve(String key, long until) {
+        String generation = UUID.randomUUID().toString();
         try {
-            return doReserve(key, until);
+            return doReserve(key, generation, until) ? Optional.of(generation) : Optional.empty();
         }
         catch (PersistenceException | IllegalStateException e) {
-            // another instance inserted the same key first: the unique constraint said so
+            // another instance inserted the same key first: the primary key said so
             LOG.debugf("Reservation of %s lost to a concurrent insert: %s", key, e.toString());
-            return false;
+            return Optional.empty();
         }
     }
 
     @Transactional
-    boolean doReserve(String key, long until) {
+    boolean doReserve(String key, String generation, long until) {
         long now = System.currentTimeMillis();
-        PendingApprovalEntity e = PendingApprovalEntity.findById(key, LockModeType.PESSIMISTIC_WRITE);
-        if (e != null && e.expiresAt > now) {
+        // take over an expired row in one statement; only one instance's update matches
+        int taken = PendingApprovalEntity.update("generation = ?1, authReqId = null, requestId = null, code = null,"
+                + " bindingMessage = null, issuer = null, loginHint = null, callerSubject = null, callerIssuer = null,"
+                + " operation = null, operationHash = null, system = null, realm = null, intervalSeconds = 0,"
+                + " claimedBy = null, claimedUntil = null, expiresAt = ?2, createdAt = ?3"
+                + " where id = ?4 and expiresAt <= ?3", generation, until, now, key);
+        if (taken == 1) {
+            return true;
+        }
+        if (PendingApprovalEntity.count("id = ?1", key) > 0) {
             return false;
         }
-        if (e == null) {
-            e = new PendingApprovalEntity();
-            e.id = key;
-            e.createdAt = now;
-        }
-        e.authReqId = null;
-        e.requestId = null;
-        e.code = null;
-        e.bindingMessage = null;
-        e.issuer = null;
-        e.loginHint = null;
-        e.callerSubject = null;
-        e.callerIssuer = null;
-        e.operation = null;
-        e.system = null;
-        e.realm = null;
-        e.intervalSeconds = 0;
+        PendingApprovalEntity e = new PendingApprovalEntity();
+        e.id = key;
+        e.generation = generation;
         e.expiresAt = until;
         e.createdAt = now;
-        e.persist();
+        e.persistAndFlush();
         return true;
     }
 
     @Override
     @Transactional
-    public void put(PendingApproval a) {
-        PendingApprovalEntity e = PendingApprovalEntity.findById(a.key());
-        if (e == null) {
-            e = new PendingApprovalEntity();
-            e.id = a.key();
-        }
-        e.authReqId = crypto.protect(a.authReqId());
-        e.requestId = a.requestId();
-        e.code = a.code();
-        e.bindingMessage = a.bindingMessage();
-        e.issuer = a.issuer();
-        e.loginHint = a.loginHint();
-        e.callerSubject = a.callerSubject();
-        e.callerIssuer = a.callerIssuer();
-        e.operation = a.operation();
-        e.system = a.system();
-        e.realm = a.realm();
-        e.expiresAt = a.expiresAt();
-        e.intervalSeconds = a.intervalSeconds();
-        e.createdAt = a.createdAt();
-        e.persist();
+    public boolean put(PendingApproval a) {
+        return PendingApprovalEntity.update(
+                "authReqId = ?1, requestId = ?2, code = ?3, bindingMessage = ?4,"
+                        + " issuer = ?5, loginHint = ?6, callerSubject = ?7, callerIssuer = ?8, operation = ?9,"
+                        + " operationHash = ?10, system = ?11, realm = ?12, expiresAt = ?13, intervalSeconds = ?14,"
+                        + " createdAt = ?15 where id = ?16 and generation = ?17 and expiresAt > ?18",
+                crypto.protect(a.authReqId()), a.requestId(), a.code(), a.bindingMessage(), a.issuer(), a.loginHint(),
+                a.callerSubject(), a.callerIssuer(), a.operation(), a.operationHash(), a.system(), a.realm(),
+                a.expiresAt(), a.intervalSeconds(), a.createdAt(), a.key(), a.generation(),
+                System.currentTimeMillis()) == 1;
     }
 
     @Override
@@ -137,8 +123,32 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
 
     @Override
     @Transactional
-    public boolean remove(String key) {
-        return PendingApprovalEntity.delete("id = ?1 and expiresAt > ?2", key, System.currentTimeMillis()) > 0;
+    public boolean claim(String key, String generation, String collector, long until) {
+        long now = System.currentTimeMillis();
+        return PendingApprovalEntity.update(
+                "claimedBy = ?1, claimedUntil = ?2 where id = ?3 and generation = ?4"
+                        + " and expiresAt > ?5 and (claimedBy is null or claimedBy = ?1 or claimedUntil <= ?5)",
+                collector, until, key, generation, now) == 1;
+    }
+
+    @Override
+    @Transactional
+    public void release(String key, String generation, String collector) {
+        PendingApprovalEntity.update(
+                "claimedBy = null, claimedUntil = null where id = ?1 and generation = ?2" + " and claimedBy = ?3", key,
+                generation, collector);
+    }
+
+    @Override
+    @Transactional
+    public boolean remove(String key, String generation) {
+        long now = System.currentTimeMillis();
+        long live = PendingApprovalEntity.delete("id = ?1 and generation = ?2 and expiresAt > ?3", key, generation,
+                now);
+        if (live == 0) {
+            PendingApprovalEntity.delete("id = ?1 and generation = ?2", key, generation);
+        }
+        return live > 0;
     }
 
     @Override
@@ -172,8 +182,9 @@ public class DatabasePendingApprovalStore implements PendingApprovalStore {
     }
 
     private PendingApproval toApproval(PendingApprovalEntity e) {
-        return new PendingApproval(e.id, e.authReqId == null ? null : crypto.reveal(e.authReqId), e.requestId, e.code,
-                e.bindingMessage, e.issuer, e.loginHint, e.callerSubject, e.callerIssuer, e.operation, e.system,
-                e.realm, e.expiresAt, e.intervalSeconds, e.createdAt);
+        return new PendingApproval(e.id, e.generation, e.authReqId == null ? null : crypto.reveal(e.authReqId),
+                e.requestId, e.code, e.bindingMessage, e.issuer, e.loginHint, e.callerSubject, e.callerIssuer,
+                e.operation, e.operationHash, e.system, e.realm, e.expiresAt, e.intervalSeconds, e.createdAt,
+                e.claimedBy, e.claimedUntil == null ? 0 : e.claimedUntil);
     }
 }

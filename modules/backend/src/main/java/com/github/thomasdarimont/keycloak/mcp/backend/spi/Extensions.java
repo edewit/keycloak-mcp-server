@@ -184,13 +184,24 @@ public class Extensions {
      * {@code kc-mcp.spi.<id>.enabled=false}, and {@link Extension#isSupported} with the
      * current configuration. Every place that picks extensions asks here, so the rules
      * and the log lines are the same for all extension points.
+     * <p>
+     * Fail closed where it matters: an extension marked
+     * {@code kc-mcp.spi.<id>.required=true} that is switched off or unsupported stops the
+     * start, and so does an {@code isSupported} that throws in profile {@code shared};
+     * elsewhere both are logged and the extension is left out.
      *
      * @param kind the extension point, for the log ({@code Confirmer}, {@code KeyVault},
      * ...)
+     * @throws IllegalStateException when a required extension cannot take part
      */
     public static boolean usable(Extension e, String kind, McpServerConfig config) {
         ProviderConfig settings = ProviderConfig.forExtension(e.id(), config.spi());
+        boolean required = settings.getBoolean("required", false);
         if (!settings.getBoolean("enabled", true)) {
+            if (required) {
+                throw new IllegalStateException(kind + " '" + e.id() + "' is required (kc-mcp.spi." + e.id()
+                        + ".required=true) but switched off (kc-mcp.spi." + e.id() + ".enabled=false)");
+            }
             LOG.infof("%s '%s' disabled by configuration", kind, e.id());
             return false;
         }
@@ -199,10 +210,19 @@ public class Extensions {
             supported = e.isSupported(config, settings);
         }
         catch (RuntimeException ex) {
+            if (required || config.profile().shared()) {
+                throw new IllegalStateException(kind + " '" + e.id() + "' cannot tell whether it works with this"
+                        + " configuration (" + ex + "); " + (required ? "it is required" : "profile shared")
+                        + " does not start without it", ex);
+            }
             LOG.warnf(ex, "%s '%s' left out: isSupported failed: %s", kind, e.id(), ex.getMessage());
             return false;
         }
         if (!supported) {
+            if (required) {
+                throw new IllegalStateException(kind + " '" + e.id() + "' is required (kc-mcp.spi." + e.id()
+                        + ".required=true) but not supported with the current configuration");
+            }
             LOG.infof("%s '%s' left out: not supported with the current configuration", kind, e.id());
         }
         return supported;

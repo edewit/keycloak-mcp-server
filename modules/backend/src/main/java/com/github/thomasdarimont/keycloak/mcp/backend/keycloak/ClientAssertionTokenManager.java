@@ -79,12 +79,6 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         this.password = password;
     }
 
-    /**
-     * Asks for a scope with every token request (Keycloak 26.8.2+: {@code kc-admin-api},
-     * whose audience the Admin API demands). A server that answers {@code invalid_scope}
-     * is asked again without it and the scope is dropped from then on, so older Keycloak
-     * versions and clients without the scope keep working.
-     */
     /** Called once when the server refuses the scope (metrics). */
     public ClientAssertionTokenManager onScopeRefused(Runnable listener) {
         this.onScopeRefused = listener == null ? () -> {
@@ -92,6 +86,12 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         return this;
     }
 
+    /**
+     * Asks for a scope with every token request (Keycloak 26.8.2+: {@code kc-admin-api},
+     * whose audience the Admin API demands). A server that answers {@code invalid_scope}
+     * is asked again without it and the scope is dropped from then on, so older Keycloak
+     * versions and clients without the scope keep working.
+     */
     public ClientAssertionTokenManager scope(String scope) {
         this.scope = scope == null || scope.isBlank() ? null : scope.trim();
         return this;

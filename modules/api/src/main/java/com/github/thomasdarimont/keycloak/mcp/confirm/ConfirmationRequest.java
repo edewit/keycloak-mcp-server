@@ -18,9 +18,14 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
  * elicitation
  * @param clientName the MCP client's name from {@code initialize} (LM Studio, Claude,
  * ...), or {@code null}: the requester a confirmer may show on the user's device
+ * @param connectionId the MCP session the call comes from, or {@code null}: an approval
+ * belongs to the session that asked for it
+ * @param sessionless the call comes without an MCP session (a stateless request): nothing
+ * correlates a later call with this one, so a confirmer must decide within the call
  */
 public record ConfirmationRequest(ToolSpec tool, String system, String realm, Map<String, Object> args,
-        boolean confirmFlag, Caller caller, Prompter prompter, String clientName, String connectionId) {
+        boolean confirmFlag, Caller caller, Prompter prompter, String clientName, String connectionId,
+        boolean sessionless) {
 
     public ConfirmationRequest {
         args = Map.copyOf(args == null ? Map.of() : args);
@@ -32,11 +37,16 @@ public record ConfirmationRequest(ToolSpec tool, String system, String realm, Ma
 
     public ConfirmationRequest(ToolSpec tool, String system, String realm, Map<String, Object> args,
             boolean confirmFlag, Caller caller, Prompter prompter) {
-        this(tool, system, realm, args, confirmFlag, caller, prompter, null, null);
+        this(tool, system, realm, args, confirmFlag, caller, prompter, null, null, false);
     }
 
     public ConfirmationRequest(ToolSpec tool, String system, String realm, Map<String, Object> args,
             boolean confirmFlag, Caller caller, Prompter prompter, String clientName) {
-        this(tool, system, realm, args, confirmFlag, caller, prompter, clientName, null);
+        this(tool, system, realm, args, confirmFlag, caller, prompter, clientName, null, false);
+    }
+
+    public ConfirmationRequest(ToolSpec tool, String system, String realm, Map<String, Object> args,
+            boolean confirmFlag, Caller caller, Prompter prompter, String clientName, String connectionId) {
+        this(tool, system, realm, args, confirmFlag, caller, prompter, clientName, connectionId, false);
     }
 }
