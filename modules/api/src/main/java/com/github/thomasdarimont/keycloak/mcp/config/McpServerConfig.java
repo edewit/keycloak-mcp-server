@@ -243,6 +243,21 @@ public interface McpServerConfig {
     }
 
     /**
+     * Whether systems registered at runtime (admin API, repositories) may point at
+     * private, loopback or link-local addresses: {@code allow}, or {@code listed} (only
+     * hosts that {@link #allowedHosts()} names literally, without a wildcard). Static
+     * systems are not checked. Default: {@code allow} in profile {@code local},
+     * {@code listed} in {@code shared}.
+     */
+    @WithConverter(PrivateHosts.Converter.class)
+    Optional<PrivateHosts> dynamicPrivateHosts();
+
+    /** Effective value of {@link #dynamicPrivateHosts()}, by profile when unset. */
+    default PrivateHosts effectiveDynamicPrivateHosts() {
+        return dynamicPrivateHosts().orElse(profile().shared() ? PrivateHosts.LISTED : PrivateHosts.ALLOW);
+    }
+
+    /**
      * If set, the {@code realm} tool argument becomes optional and defaults to this
      * realm.
      */

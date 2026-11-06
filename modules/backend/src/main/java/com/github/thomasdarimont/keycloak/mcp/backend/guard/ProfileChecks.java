@@ -49,11 +49,14 @@ public class ProfileChecks {
         for (String w : warnings(s)) {
             LOG.warn(w);
         }
-        LOG.infof("Profile %s: callers %s, confirm-fallback %s, explicit-target %s, outbound hosts %s",
+        LOG.infof(
+                "Profile %s: callers %s, confirm-fallback %s, explicit-target %s, outbound hosts %s,"
+                        + " dynamic-private-hosts %s",
                 config.profile().name().toLowerCase(), callers.required() ? "required" : "optional",
                 config.effectiveConfirmFallback().name().toLowerCase(),
                 config.effectiveExplicitTarget().name().toLowerCase(),
-                s.hostsRestricted() ? systems.allowedHosts().patterns() : "unrestricted");
+                s.hostsRestricted() ? systems.allowedHosts().patterns() : "unrestricted",
+                config.effectiveDynamicPrivateHosts().name().toLowerCase());
     }
 
     /** The settings the checks look at, so they can be run without a container. */

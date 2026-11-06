@@ -16,7 +16,9 @@ import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.PrivateHosts;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.CompositeKeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAddressCheck;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAllowList;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.InMemoryKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
@@ -58,12 +60,40 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     private final HostAllowList allowedHosts;
     private final SigningKeys keys;
     private final DelegationMode delegation;
+    private volatile PrivateHosts dynamicPrivateHosts = PrivateHosts.ALLOW;
 
     @Inject
     public DefaultKeycloakSystems(McpServerConfig config, SigningKeys keys, Extensions extensions) {
         this(resolve(config), config.defaultSystem().orElse(null), keys,
                 HostAllowList.of(config.allowedHosts().orElse(List.of())), repositories(config, extensions),
                 config.staticSystemsOrder(), config.delegation());
+        this.dynamicPrivateHosts = config.effectiveDynamicPrivateHosts();
+    }
+
+    /**
+     * Whether systems from repositories may resolve to private addresses
+     * ({@code kc-mcp.dynamic-private-hosts}).
+     */
+    public DefaultKeycloakSystems dynamicPrivateHosts(PrivateHosts setting) {
+        this.dynamicPrivateHosts = setting == null ? PrivateHosts.ALLOW : setting;
+        return this;
+    }
+
+    public PrivateHosts dynamicPrivateHosts() {
+        return dynamicPrivateHosts;
+    }
+
+    /**
+     * Why a URL may not serve as a system registered at runtime, empty when it may: not
+     * covered by {@code kc-mcp.allowed-hosts}, or resolving to a private address the list
+     * does not name literally ({@link HostAddressCheck}).
+     */
+    public Optional<String> dynamicHostProblem(String url) {
+        if (!allowedHosts.permits(url)) {
+            return Optional
+                .of("The url " + url + " is not covered by kc-mcp.allowed-hosts " + allowedHosts.patterns() + ".");
+        }
+        return HostAddressCheck.refuse(url, allowedHosts, dynamicPrivateHosts);
     }
 
     public DefaultKeycloakSystems(List<KeycloakSystem> systems, String defaultSystem, SigningKeys keys) {
@@ -298,6 +328,13 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
             LOG.warnf("Keycloak system '%s' at %s is not covered by kc-mcp.allowed-hosts %s, refused", name,
                     system.url(), allowedHosts.patterns());
             return Optional.empty();
+        }
+        if (staticSystems.find(name).isEmpty()) {
+            Optional<String> privateHost = HostAddressCheck.refuse(system.url(), allowedHosts, dynamicPrivateHosts);
+            if (privateHost.isPresent()) {
+                LOG.warnf("Keycloak system '%s' refused: %s", name, privateHost.get());
+                return Optional.empty();
+            }
         }
         KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation);
         KeycloakAdmin previous = admins.put(name, created);

@@ -131,6 +131,9 @@ public class AdminSystems {
             throw new AdminException(400, "host_not_allowed", "The url " + system.url()
                     + " is not covered by kc-mcp.allowed-hosts " + systems.allowedHosts().patterns() + ".");
         }
+        systems.dynamicHostProblem(system.url()).ifPresent(why -> {
+            throw new AdminException(400, "private_host", why);
+        });
         Optional<KeycloakSystemRepository> owner = systems.repositoryOf(system.name());
         if (owner.isEmpty() && !config.admin().allowNewSystems()) {
             throw new AdminException(403, "registration_closed", "The admin API registers no new systems"

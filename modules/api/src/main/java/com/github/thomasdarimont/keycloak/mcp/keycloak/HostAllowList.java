@@ -18,7 +18,7 @@ public final class HostAllowList {
 
     public static final HostAllowList ANY = new HostAllowList(List.of());
 
-    private record Rule(String text, String scheme, Pattern host, Integer port) {
+    private record Rule(String text, String scheme, Pattern host, Integer port, boolean literal) {
         boolean matches(URI uri) {
             if (scheme != null && !scheme.equalsIgnoreCase(uri.getScheme())) {
                 return false;
@@ -62,6 +62,18 @@ public final class HostAllowList {
         if (rules.isEmpty()) {
             return true;
         }
+        return matching(url, false);
+    }
+
+    /**
+     * Whether a pattern without a wildcard in the host names the URL's host (and matches
+     * its scheme and port when it has them); {@code false} for an unrestricted list.
+     */
+    public boolean namesLiterally(String url) {
+        return matching(url, true);
+    }
+
+    private boolean matching(String url, boolean literalOnly) {
         URI uri;
         try {
             uri = URI.create(url.trim());
@@ -70,7 +82,7 @@ public final class HostAllowList {
             return false;
         }
         for (Rule r : rules) {
-            if (r.matches(uri)) {
+            if ((!literalOnly || r.literal()) && r.matches(uri)) {
                 return true;
             }
         }
@@ -108,7 +120,7 @@ public final class HostAllowList {
             }
             regex.append(Pattern.quote(part));
         }
-        return new Rule(pattern, scheme, Pattern.compile(regex.toString()), port);
+        return new Rule(pattern, scheme, Pattern.compile(regex.toString()), port, rest.indexOf('*') < 0);
     }
 
     private static int effectivePort(URI uri) {

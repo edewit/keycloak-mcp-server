@@ -57,6 +57,12 @@ Open items: §Roadmap.
 - `KC_MCP_ALLOWED_REALMS=a,b`: every call restricted; startup check verifies reachability (`kc-mcp.startup-check=warn|fail|off`).
 - `KC_MCP_ALLOWED_HOSTS=*.example.com,localhost:8080`: every configured Keycloak URL (top level, per system) must match
   a `[scheme://]host[:port]` pattern, else no start.
+- `kc-mcp.dynamic-private-hosts=allow|listed` (local `allow`, shared `listed`): a system registered at runtime (admin
+  API, repositories) whose host resolves to a loopback, link-local, private or otherwise non-public address is refused
+  (`private_host`) unless `kc-mcp.allowed-hosts` names the host literally, without a wildcard, so a registered URL
+  cannot point the server at its own network. Static systems are the operator's choice and not checked. The admin
+  client and the UI's discovery never follow redirects. The address is checked when the system is registered or
+  changes, not again on every connection.
 - `KC_MCP_ALLOWED_TOOLS`, `KC_MCP_DENIED_TOOLS`, `KC_MCP_ALLOWED_CATEGORIES`: explicit narrowing.
 - DNS rebinding protection (`kc-mcp.dns-rebinding-protection`, default `auto`): while the MCP endpoint is anonymous,
   requests whose `Host` or `Origin` is not localhost answer 403 `forbidden_host`, so a web page cannot reach the local
@@ -196,7 +202,8 @@ kc-mcp.default-system=prod
   forgotten systems drop.
 - Schema of the `system` argument: a closed enum of the configured names without repositories; with one, a plain string
   (systems may appear at runtime), known names listed in the description as examples, unknown names answer `unknown_system`.
-- `kc-mcp.allowed-hosts` still applies: outside systems are refused and logged, not fatal.
+- `kc-mcp.allowed-hosts` still applies: outside systems are refused and logged, not fatal; so does
+  `kc-mcp.dynamic-private-hosts` (§Guardrails).
 
 Credentials by convention, no secret per tenant:
 
@@ -417,10 +424,11 @@ Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
 | `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; `exchange`: with a delegated token Keycloak issues for caller + server client (26.8 token exchange delegation); both need `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
 | `kc-mcp.dns-rebinding-protection` | `auto`                    | `auto` (on while anonymous), `on`, `off`: `Host`/`Origin` of MCP requests must be localhost or in `kc-mcp.dns-rebinding-allowed-hosts` |
-| `kc-mcp.profile`                | `local`                     | `local` or `shared`: defaults of the three rows below, and `shared` refuses to start without caller authentication + audience, `allowed-hosts`, admin audience, storage `secret-key` (§Guardrails) |
+| `kc-mcp.profile`                | `local`                     | `local` or `shared`: defaults of the four rows below, and `shared` refuses to start without caller authentication + audience, `allowed-hosts`, admin audience, storage `secret-key` (§Guardrails) |
 | `kc-mcp.require-caller`         | `false`, `shared`: always   | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
 | `kc-mcp.confirm-fallback`       | `flag`, `shared`: `deny`    | without elicitation: `flag` accepts `confirm: true`, `deny` refuses destructive tools |
 | `kc-mcp.explicit-target`        | `off`, `shared`: `destructive` | `destructive` or `write` tools must pass `system` (several systems) and `realm` instead of the defaults |
+| `kc-mcp.dynamic-private-hosts`  | `allow`, `shared`: `listed` | `listed`: a runtime-registered system on a private, loopback or link-local address needs its host named literally in `allowed-hosts` |
 | `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens; issuer `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
 | `quarkus.oidc.token.audience`   |                             | required `aud` (recommended with `forward`) |
 | `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is internal (Docker) |
