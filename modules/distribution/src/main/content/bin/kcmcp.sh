@@ -6,9 +6,11 @@
 #   bin/kcmcp.sh start --config conf/systems/              every *.conf file in it, e.g. one per Keycloak system
 #   bin/kcmcp.sh start --kc-mcp.url=https://sso.example.com --quarkus.http.port=8082
 #   bin/kcmcp.sh start --debug 5005
+#   bin/kcmcp.sh start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
 #   bin/kcmcp.sh --version | --help
 #
-# Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_URL=...) work as well.
+# Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_URL=...) work as well and
+# override the configuration files, so the script lists the ones it inherits from the shell.
 # JAVA_HOME or JAVA pick the JVM (Java 21 or newer); JAVA_OPTS replaces the default JVM options, JAVA_OPTS_APPEND
 # adds to them. KCMCP_DEBUG=true, KCMCP_DEBUG_PORT and KCMCP_DEBUG_SUSPEND enable remote debugging.
 
@@ -40,7 +42,7 @@ conf_file() {
 }
 
 usage() {
-    sed -n '2,13p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
+    sed -n '2,15p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
 }
 
 version() {
@@ -57,6 +59,7 @@ DEBUG_SUSPEND="${KCMCP_DEBUG_SUSPEND:-n}"
 CONFIG_FILES="$KCMCP_HOME/conf/kcmcp.conf"
 SERVER_OPTS=""
 COMMAND=""
+CLEAN_ENV=false
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -67,6 +70,7 @@ while [ "$#" -gt 0 ]; do
             DEBUG_MODE=true
             if echo "$2" | grep -Eq '^[0-9]+$'; then DEBUG_ADDRESS="$2"; shift; fi
             ;;
+        --clean-env) CLEAN_ENV=true ;;
         --config=*) CONFIG_FILES="$CONFIG_FILES
 $(conf_file "${1#--config=}")" ;;
         --config)
@@ -86,6 +90,17 @@ done
 
 if [ -z "$COMMAND" ]; then
     usage; exit 2
+fi
+
+# configuration inherited from the shell: it overrides the files, which surprises after `source examples/.../x.env`
+INHERITED="$(env | grep -oE '^(KC_MCP|QUARKUS)_[A-Z0-9_]+=' | tr -d '=' | sort | tr '\n' ' ')"
+if [ -n "$INHERITED" ]; then
+    if [ "$CLEAN_ENV" = "true" ]; then
+        for v in $INHERITED; do unset "$v"; done
+        echo "ignoring the environment's $INHERITED" >&2
+    else
+        echo "note: the environment sets $INHERITED(these override the configuration files; --clean-env ignores them)" >&2
+    fi
 fi
 
 # one file per line, so paths with spaces survive; the server reads the list from kc-mcp.config-files

@@ -6,9 +6,11 @@ rem   bin\kcmcp.bat start --config conf\scenarios\read-only.conf
 rem   bin\kcmcp.bat start --config conf\systems\              every *.conf file in it, e.g. one per Keycloak system
 rem   bin\kcmcp.bat start --kc-mcp.url=https://sso.example.com --quarkus.http.port=8082
 rem   bin\kcmcp.bat start --debug 5005
+rem   bin\kcmcp.bat start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
 rem   bin\kcmcp.bat --version | --help
 rem
-rem Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_URL=...) work as well.
+rem Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_URL=...) work as well and
+rem override the configuration files, so the script lists the ones it inherits from the shell.
 rem JAVA_HOME or JAVA pick the JVM (Java 21 or newer); JAVA_OPTS replaces the default JVM options, JAVA_OPTS_APPEND
 rem adds to them. KCMCP_DEBUG=true, KCMCP_DEBUG_PORT and KCMCP_DEBUG_SUSPEND enable remote debugging.
 
@@ -30,6 +32,7 @@ rem the configuration files, read by the server from kc-mcp.config-files (plain 
 set "CONFIG_FILES=%KCMCP_HOME%\conf\kcmcp.conf"
 set SERVER_OPTS=
 set COMMAND=
+set CLEAN_ENV=false
 
 rem cmd splits "--name=value" and "-Dname=value" at the "=": KEY is the part before it, VALUE the part after
 :READ_ARGS
@@ -37,6 +40,11 @@ set "KEY=%~1"
 if "%KEY%" == "" goto MAIN
 if "%KEY%" == "start" (
     set COMMAND=start
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "--clean-env" (
+    set CLEAN_ENV=true
     shift
     goto READ_ARGS
 )
@@ -113,6 +121,19 @@ goto :EOF
 
 :MAIN
 if "%COMMAND%" == "" goto USAGE
+
+rem configuration inherited from the shell overrides the files; list it, or drop it with --clean-env
+set INHERITED=
+for /f "delims==" %%v in ('set KC_MCP_ 2^>nul') do set "INHERITED=!INHERITED!%%v "
+for /f "delims==" %%v in ('set QUARKUS_ 2^>nul') do set "INHERITED=!INHERITED!%%v "
+if not "!INHERITED!" == "" (
+    if "%CLEAN_ENV%" == "true" (
+        for %%v in (!INHERITED!) do set "%%v="
+        echo ignoring the environment's !INHERITED! 1>&2
+    ) else (
+        echo note: the environment sets !INHERITED!^(these override the configuration files; --clean-env ignores them^) 1>&2
+    )
+)
 
 if "%JAVA%" == "" (
     if not "%JAVA_HOME%" == "" (

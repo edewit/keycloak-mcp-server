@@ -12,4 +12,5 @@ the server runs as only.
 
 Without the scripts, the same files are read with `-Dkc-mcp.config-files=<file>,<file>` on the `java -jar` command line.
 A later file overrides an earlier one, settings from the environment and the command line override every file, and
-the files override the server's defaults. A file's path cannot contain a comma.
+the files override the server's defaults. A file's path cannot contain a comma. The scripts list the `KC_MCP_*` and
+`QUARKUS_*` variables they inherit from the shell, since those silently override the files; `--clean-env` drops them.

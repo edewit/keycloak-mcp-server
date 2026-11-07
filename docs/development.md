@@ -31,7 +31,9 @@ A tag `v<version>` pushed to GitHub runs `.github/workflows/release.yml`: it set
 build, runs the full verification, and publishes a GitHub release with the two archives attached. The CI workflow
 unpacks the archive and starts it with `kcmcp.sh` on Linux and `kcmcp.bat` on Windows on every push.
 
-Dev mode needs `-pl modules/backend -am`; other goals run from the root. `StorageTest` (backend, in-memory H2) always runs.
+Dev mode needs `-pl modules/backend -am`; other goals run from the root. The tests ignore `KC_MCP_*` and `QUARKUS_*`
+variables of the shell (the root pom clears every variable the examples define), so a shell that sourced an example's
+env file still runs the suite; `quarkus:dev` and the packaged server do honour them. `StorageTest` (backend, in-memory H2) always runs.
 IntelliJ: `.run/` holds run configurations for every example and the conformance suite (`examples/gen-run-configs.sh`).
 
 Formatting: [Spotless](https://github.com/diffplug/spotless), [Spring Java Format](https://github.com/spring-io/spring-javaformat)
