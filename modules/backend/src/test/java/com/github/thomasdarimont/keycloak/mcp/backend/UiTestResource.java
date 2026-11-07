@@ -21,6 +21,11 @@ public class UiTestResource extends ForwardTestResource {
     @Override
     public Map<String, String> start() {
         Map<String, String> config = new HashMap<>(super.start());
+        // Keycloak posts the back-channel logout from its container to the test server as
+        // host.docker.internal: on Linux that is the Docker bridge address of the host, which a
+        // server listening on localhost only (the test default) never sees; Docker Desktop hides
+        // the difference by routing the name to the loopback
+        config.put("quarkus.http.host", "0.0.0.0");
         try {
             publicClient("keycloak-mcp-ui", "*");
             publicClient("keycloak-mcp-ui-2", "*");
