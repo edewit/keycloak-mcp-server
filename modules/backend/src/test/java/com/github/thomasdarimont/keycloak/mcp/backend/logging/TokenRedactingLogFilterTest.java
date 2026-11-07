@@ -98,6 +98,21 @@ class TokenRedactingLogFilterTest {
     }
 
     @Test
+    void anAbsurdlyDeepChainIsCutInsteadOfOverflowingTheStack() {
+        Throwable chain = new IllegalStateException("bottom: " + JWS);
+        for (int i = 0; i < 20_000; i++) {
+            chain = new RuntimeException("level " + i, chain);
+        }
+        ExtLogRecord r = printf("very deep failure");
+        r.setThrown(chain);
+        filter.isLoggable(r);
+        String rendered = new PatternFormatter("%m%n%e").format(r);
+        assertFalse(rendered.contains("eyJ"), "nothing beyond the budget is printed");
+        assertTrue(rendered.contains("level 19999"), rendered.substring(0, Math.min(300, rendered.length())));
+        assertFalse(rendered.contains("bottom"), "the chain is cut at the budget");
+    }
+
+    @Test
     void aCyclicCauseChainEnds() {
         RuntimeException a = new RuntimeException("a " + JWS);
         RuntimeException b = new RuntimeException("b", a);

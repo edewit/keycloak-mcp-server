@@ -1,7 +1,10 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.logging;
 
+import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Filter;
 import java.util.logging.LogRecord;
@@ -49,43 +52,80 @@ public final class TokenRedactingLogFilter implements Filter {
     }
 
     /**
-     * Whether any message in the chain of causes and suppressed exceptions carries a
-     * token. {@code seen} holds the exceptions already visited, so a cyclic chain ends.
+     * Exceptions looked at per logged throwable, causes and suppressed ones together; a
+     * chain beyond that is treated as carrying a token and cut at the budget when copied,
+     * so neither a cycle nor an absurd depth can exhaust the stack or leak.
      */
-    static boolean carriesToken(Throwable t, Set<Throwable> seen) {
-        if (t == null || !seen.add(t)) {
-            return false;
-        }
-        String message = t.getMessage();
-        if (message != null && !Sensitive.tokens(message).equals(message)) {
-            return true;
-        }
-        for (Throwable s : t.getSuppressed()) {
-            if (carriesToken(s, seen)) {
+    static final int MAX_NODES = 1000;
+
+    /**
+     * Whether any message in the chain of causes and suppressed exceptions carries a
+     * token.
+     */
+    static boolean carriesToken(Throwable root, Set<Throwable> seen) {
+        Deque<Throwable> todo = new ArrayDeque<>();
+        todo.push(root);
+        while (!todo.isEmpty()) {
+            Throwable t = todo.pop();
+            if (t == null || !seen.add(t)) {
+                continue;
+            }
+            if (seen.size() > MAX_NODES) {
                 return true;
             }
+            String message = t.getMessage();
+            if (message != null && !Sensitive.tokens(message).equals(message)) {
+                return true;
+            }
+            for (Throwable suppressed : t.getSuppressed()) {
+                todo.push(suppressed);
+            }
+            if (t.getCause() != null) {
+                todo.push(t.getCause()); // an ArrayDeque takes no null
+            }
         }
-        return carriesToken(t.getCause(), seen);
+        return false;
     }
 
     /**
-     * The same exception as far as a log can tell, with every message redacted; an
-     * exception met twice (a cycle) ends the copy there.
+     * The same exception as far as a log can tell, with every message redacted. Copies
+     * are made breadth first within {@link #MAX_NODES}; an exception met twice (a cycle)
+     * or beyond the budget is left out, which ends the chain there.
      */
-    static Throwable redact(Throwable t, Set<Throwable> seen) {
-        if (t == null || !seen.add(t)) {
-            return null;
-        }
-        RedactedThrowable copy = new RedactedThrowable(t.getClass().getName(), Sensitive.tokens(t.getMessage()),
-                redact(t.getCause(), seen));
-        copy.setStackTrace(t.getStackTrace());
-        for (Throwable s : t.getSuppressed()) {
-            Throwable r = redact(s, seen);
-            if (r != null) {
-                copy.addSuppressed(r);
+    static Throwable redact(Throwable root, Set<Throwable> seen) {
+        Map<Throwable, RedactedThrowable> copies = new IdentityHashMap<>();
+        Deque<Throwable> todo = new ArrayDeque<>();
+        todo.add(root);
+        while (!todo.isEmpty() && copies.size() < MAX_NODES) {
+            Throwable t = todo.poll();
+            if (t == null || !seen.add(t)) {
+                continue;
+            }
+            RedactedThrowable copy = new RedactedThrowable(t.getClass().getName(), Sensitive.tokens(t.getMessage()));
+            copy.setStackTrace(t.getStackTrace());
+            copies.put(t, copy);
+            if (t.getCause() != null) {
+                todo.add(t.getCause());
+            }
+            for (Throwable suppressed : t.getSuppressed()) {
+                todo.add(suppressed);
             }
         }
-        return copy;
+        for (Map.Entry<Throwable, RedactedThrowable> e : copies.entrySet()) {
+            Throwable original = e.getKey();
+            RedactedThrowable copy = e.getValue();
+            RedactedThrowable cause = copies.get(original.getCause());
+            if (cause != null && cause != copy) {
+                copy.initCause(cause);
+            }
+            for (Throwable suppressed : original.getSuppressed()) {
+                RedactedThrowable s = copies.get(suppressed);
+                if (s != null && s != copy) {
+                    copy.addSuppressed(s);
+                }
+            }
+        }
+        return copies.get(root);
     }
 
     /** Prints as the original exception would, with the redacted message. */
@@ -95,8 +135,8 @@ public final class TokenRedactingLogFilter implements Filter {
 
         private final String className;
 
-        RedactedThrowable(String className, String message, Throwable cause) {
-            super(message, cause, true, true);
+        RedactedThrowable(String className, String message) {
+            super(message);
             this.className = className;
         }
 

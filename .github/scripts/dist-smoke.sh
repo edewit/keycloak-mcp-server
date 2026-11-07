@@ -4,7 +4,7 @@
 #   .github/scripts/dist-smoke.sh <unpacked distribution> [<realm import file>]
 #
 # Starts the server with bin/kcmcp.sh from a directory other than the distribution's, with a --config file given as a
-# relative path, and initializes an MCP session. With a realm file, also starts Keycloak 26.8.2 in Docker with that
+# relative path, and initializes an MCP session; then with two system files in conf/systems/. With a realm file, also starts Keycloak 26.8.2 in Docker with that
 # realm imported, starts the server again with the service-account scenario against it, and runs keycloak_user_search
 # through the MCP protocol: the packaged server administering a real Keycloak.
 set -euo pipefail
@@ -51,6 +51,18 @@ start_server --config conf/smoke.conf --kc-mcp.startup-check=off --kc-mcp.url=ht
 grep -q 'exposure=LAZY' server.log || { echo "conf/smoke.conf was not read"; cat server.log; exit 1; }
 echo "session $(cat .session), exposure lazy: ok"
 stop_server
+
+echo "== 1b. a directory with one file per system"
+printf 'kc-mcp.systems.prod.url=http://127.0.0.1:1\nkc-mcp.default-system=prod\n' > "$DIST/conf/systems/prod.conf"
+printf 'kc-mcp.systems.staging.url=http://127.0.0.1:2\n' > "$DIST/conf/systems/staging.conf"
+start_server --config conf/smoke.conf --config conf/systems/ --kc-mcp.startup-check=warn \
+  --kc-mcp.client-id=smoke --kc-mcp.client-secret=smoke
+for system in prod staging; do
+  grep -q "Keycloak system '$system'" server.log || { echo "system $system not configured"; cat server.log; exit 1; }
+done
+echo "prod and staging configured from conf/systems/: ok"
+stop_server
+rm -f "$DIST/conf/systems/prod.conf" "$DIST/conf/systems/staging.conf"
 
 if [ -z "$REALM" ]; then exit 0; fi
 

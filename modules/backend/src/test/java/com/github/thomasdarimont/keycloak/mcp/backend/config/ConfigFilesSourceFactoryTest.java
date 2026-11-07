@@ -3,11 +3,8 @@ package com.github.thomasdarimont.keycloak.mcp.backend.config;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
-import org.eclipse.microprofile.config.spi.ConfigSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -73,13 +70,25 @@ class ConfigFilesSourceFactoryTest {
         assertEquals("https://sso", c.getRawValue("kc-mcp.systems.prod.url"));
         assertEquals("https://sso-staging", c.getRawValue("kc-mcp.systems.staging.url"));
         assertEquals("staging", c.getRawValue("kc-mcp.default-system"), "staging.conf comes after prod.properties");
-        List<String> names = new ArrayList<>();
-        for (ConfigSource src : c.getConfigSources()) {
-            if (src.getName() != null && src.getName().contains("systems")) {
-                names.add(src.getName().replaceAll(".*/|\\.(conf|properties).*", ""));
-            }
+        String source = c.getConfigValue("kc-mcp.systems.prod.url").getConfigSourceName();
+        assertTrue(source.contains("prod.properties") && source.contains("staging.conf"),
+                "the source names its files: " + source);
+    }
+
+    @Test
+    void theOrderHoldsForManyFiles() throws IOException {
+        // more files than there are ordinals between the jar's defaults (250) and .env
+        // (295)
+        Path systems = Files.createDirectories(dir.resolve("many"));
+        for (int i = 0; i < 25; i++) {
+            Files.writeString(systems.resolve(String.format("%02d.conf", i)),
+                    "kc-mcp.read-only=" + (i % 2 == 0) + "\nkc-mcp.systems.s" + i + ".url=https://sso-" + i + "\n");
         }
-        assertEquals(List.of("prod", "staging"), names.stream().sorted().toList(), "two sources, one per file");
+        SmallRyeConfig c = config(systems.toString(), Map.of(), Map.of());
+        assertEquals("true", c.getRawValue("kc-mcp.read-only"), "the 25th file (24.conf, even) has the last word");
+        assertEquals("https://sso-0", c.getRawValue("kc-mcp.systems.s0.url"));
+        assertEquals("https://sso-24", c.getRawValue("kc-mcp.systems.s24.url"));
+        assertEquals(ConfigFilesSourceFactory.ORDINAL, c.getConfigValue("kc-mcp.read-only").getConfigSourceOrdinal());
     }
 
     @Test
