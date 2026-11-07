@@ -50,7 +50,7 @@ curl -s -X PUT localhost:8091/admin/systems/acme \
 - `url` must match `KC_MCP_ALLOWED_HOSTS`
 - `GET /admin/systems` lists, `POST /admin/systems/acme/signing-key` rotates, `DELETE /admin/systems/acme` removes
 - `client_secret` systems reference a vault secret (`"clientSecret": "vault:acme/client-secret"`, stored with
-  `PUT /admin/secrets/acme/client-secret`); see the main README
+  `PUT /admin/secrets/acme/client-secret`); see [Several Keycloak systems](../../docs/systems.md)
 
 Bearer: the static `KC_MCP_ADMIN_TOKEN`, or an access token of a master realm admin:
 

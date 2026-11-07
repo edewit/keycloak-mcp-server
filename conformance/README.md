@@ -35,7 +35,7 @@ Baselined, by reason:
 ## DNS rebinding
 
 `dns-rebinding-protection` found the anonymous localhost server accepting foreign `Host`/`Origin` values. Fixed by
-`kc-mcp.dns-rebinding-protection` (default `auto`: on while the endpoint is anonymous); see the main README, Guardrails.
+`kc-mcp.dns-rebinding-protection` (default `auto`: on while the endpoint is anonymous); see [Security](../docs/security.md#guardrails).
 
 ## CI
 
