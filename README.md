@@ -1,5 +1,7 @@
 # keycloak-mcp-server
 
+[![CI](https://github.com/thomasdarimont/keycloak-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/thomasdarimont/keycloak-mcp-server/actions/workflows/ci.yml)
+
 [MCP](https://modelcontextprotocol.io) server for Keycloak administration. Quarkus, `quarkus-mcp-server`, streamable
 HTTP. 72 `keycloak_*` tools after [mcp-keycloak-admin](https://github.com/edewit/mcp-keycloak-admin), exposed lazily
 so small local models cope.

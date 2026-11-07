@@ -1,0 +1,120 @@
+# Build, test and package on every push to main and every pull request.
+#
+#   build        ./mvnw verify with the integration tests: formatter check (spotless), unit tests, the storage
+#                tests on H2 and the backend tests against Keycloak 26.8.2 in Docker (Testcontainers); the
+#                frontend is built by the frontend-maven-plugin (Node and npm packages cached). Uploads the
+#                packaged server for the two jobs below.
+#   conformance  the MCP conformance suite against the packaged server (conformance/run.sh); fails only on
+#                scenarios not baselined in conformance/expected-failures.yml. Reports as a workflow artifact.
+#   image        builds the JVM container image from modules/backend/src/main/docker/Dockerfile.jvm; nothing is pushed.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MAVEN_ARGS: -B -ntp
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Cache the frontend's Node and npm packages
+        uses: actions/cache@v6
+        with:
+          path: |
+            modules/frontend/node
+            modules/frontend/node_modules
+          key: frontend-${{ runner.os }}-${{ hashFiles('modules/frontend/package-lock.json', 'modules/frontend/pom.xml', 'pom.xml') }}
+
+      - name: Build, check the formatting, run unit and integration tests
+        run: ./mvnw verify -DskipITs=false
+
+      - name: Keep the test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            **/target/surefire-reports/
+            **/target/failsafe-reports/
+          if-no-files-found: ignore
+
+      - name: Keep the packaged server
+        uses: actions/upload-artifact@v7
+        with:
+          name: server
+          path: |
+            modules/backend/target/quarkus-app/
+            conformance/fixtures/target/keycloak-mcp-server-conformance-fixtures-*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  conformance:
+    name: MCP conformance
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: server
+
+      - name: Run the conformance suite against the packaged server
+        run: conformance/run.sh
+
+      - name: Keep the conformance reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: conformance-results
+          path: |
+            conformance/results/
+            conformance/results-server.log
+          if-no-files-found: ignore
+
+  image:
+    name: Container image
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: server
+
+      - name: Build the JVM image
+        run: docker build -f modules/backend/src/main/docker/Dockerfile.jvm -t keycloak-mcp-server:ci .
