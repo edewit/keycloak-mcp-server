@@ -24,6 +24,24 @@ abs_path() {
     if [ -z "$IS_CYGWIN" ]; then echo "$1"; else cygpath -w "$1"; fi
 }
 
+# a configuration file as a URI for quarkus.config.locations (a Windows drive letter would be read as a URI scheme)
+conf_uri() {
+    if [ -z "$IS_CYGWIN" ]; then echo "$1"; else echo "file:///$(cygpath -m "$1")"; fi
+}
+
+# a --config argument: absolute, relative to the current directory, or relative to the distribution
+conf_file() {
+    case "$1" in
+        /*) echo "$1" ;;
+        *)
+            if [ -f "$1" ]; then echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+            elif [ -f "$KCMCP_HOME/$1" ]; then echo "$KCMCP_HOME/$1"
+            else echo "$1"
+            fi
+            ;;
+    esac
+}
+
 usage() {
     sed -n '2,12p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
 }
@@ -39,7 +57,7 @@ esceval() {
 DEBUG_MODE="${KCMCP_DEBUG:-false}"
 DEBUG_ADDRESS="${KCMCP_DEBUG_PORT:-5005}"
 DEBUG_SUSPEND="${KCMCP_DEBUG_SUSPEND:-n}"
-CONFIG_FILES="$(abs_path "$KCMCP_HOME/conf/kcmcp.properties")"
+CONFIG_FILES="$KCMCP_HOME/conf/kcmcp.properties"
 SERVER_OPTS=""
 COMMAND=""
 
@@ -52,10 +70,10 @@ while [ "$#" -gt 0 ]; do
             DEBUG_MODE=true
             if echo "$2" | grep -Eq '^[0-9]+$'; then DEBUG_ADDRESS="$2"; shift; fi
             ;;
-        --config=*) CONFIG_FILES="$CONFIG_FILES,$(abs_path "${1#--config=}")" ;;
+        --config=*) CONFIG_FILES="$CONFIG_FILES,$(conf_file "${1#--config=}")" ;;
         --config)
             [ -n "$2" ] || { echo "--config needs a file" >&2; exit 2; }
-            CONFIG_FILES="$CONFIG_FILES,$(abs_path "$2")"; shift
+            CONFIG_FILES="$CONFIG_FILES,$(conf_file "$2")"; shift
             ;;
         -D*) SERVER_OPTS="$SERVER_OPTS $(esceval "$1")" ;;
         --*=*)
@@ -71,10 +89,12 @@ if [ -z "$COMMAND" ]; then
     usage; exit 2
 fi
 
+CONFIG_URIS=""
 for f in $(echo "$CONFIG_FILES" | tr ',' ' '); do
-    if [ -z "$IS_CYGWIN" ] && [ ! -f "$f" ]; then
+    if [ ! -f "$f" ]; then
         echo "configuration file not found: $f" >&2; exit 2
     fi
+    CONFIG_URIS="$CONFIG_URIS${CONFIG_URIS:+,}$(conf_uri "$f")"
 done
 
 if [ -z "$JAVA" ]; then
@@ -97,7 +117,7 @@ fi
 
 # where this distribution keeps things; the configuration may refer to ${kcmcp.home.dir}
 HOME_OPTS="-Dkcmcp.home.dir=$(esceval "$(abs_path "$KCMCP_HOME")")"
-HOME_OPTS="$HOME_OPTS -Dquarkus.config.locations=$(esceval "$CONFIG_FILES")"
+HOME_OPTS="$HOME_OPTS -Dquarkus.config.locations=$(esceval "$CONFIG_URIS")"
 HOME_OPTS="$HOME_OPTS -Dkc-mcp.providers-dir=$(esceval "$(abs_path "$KCMCP_HOME/providers")")"
 HOME_OPTS="$HOME_OPTS -Dkc-mcp.keys-dir=$(esceval "$(abs_path "$KCMCP_HOME/data/keys")")"
 HOME_OPTS="$HOME_OPTS -Djava.util.logging.manager=org.jboss.logmanager.LogManager"

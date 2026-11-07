@@ -184,7 +184,8 @@ jobs:
             curl -sf -X POST http://localhost:8085/mcp -H 'Content-Type: application/json' \
               -H 'Accept: application/json, text/event-stream' -d "$BODY" > init.json && break; sleep 1
           done
-          kill "$PID"; wait "$PID" || true
+          kill "$PID" 2>/dev/null || { echo "the server is not running any more:"; cat server.log; exit 1; }
+          wait "$PID" || true
           grep -q '"serverInfo"' init.json || { cat server.log; exit 1; }
           grep -q 'exposure=LAZY' server.log || { echo "conf/smoke.properties was not read"; cat server.log; exit 1; }
 
