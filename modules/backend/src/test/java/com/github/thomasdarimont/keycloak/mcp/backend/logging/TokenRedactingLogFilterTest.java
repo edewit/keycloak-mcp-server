@@ -82,6 +82,36 @@ class TokenRedactingLogFilterTest {
     }
 
     @Test
+    void aTokenDeepInALongCauseChainIsStillRedacted() {
+        Throwable chain = new IllegalStateException("bottom: " + JWS);
+        for (int i = 0; i < 40; i++) {
+            chain = new RuntimeException("level " + i, chain);
+        }
+        ExtLogRecord r = printf("deep failure");
+        r.setThrown(chain);
+        filter.isLoggable(r);
+        String rendered = new PatternFormatter("%m%n%e").format(r);
+        assertFalse(rendered.contains("eyJ"), rendered);
+        assertTrue(rendered.contains("bottom: ***"), rendered);
+        assertTrue(rendered.contains("level 39") && rendered.contains("level 0"),
+                "the whole chain is kept: " + rendered);
+    }
+
+    @Test
+    void aCyclicCauseChainEnds() {
+        RuntimeException a = new RuntimeException("a " + JWS);
+        RuntimeException b = new RuntimeException("b", a);
+        a.initCause(b); // a -> b -> a
+        ExtLogRecord r = printf("loop");
+        r.setThrown(a);
+        filter.isLoggable(r);
+        String rendered = new PatternFormatter("%m%n%e").format(r);
+        assertFalse(rendered.contains("eyJ"), rendered);
+        assertTrue(rendered.contains("a ***") && rendered.contains("Caused by: java.lang.RuntimeException: b"),
+                rendered);
+    }
+
+    @Test
     void anExceptionWithoutTokensIsLeftAsItIs() {
         Exception thrown = new IllegalStateException("plain failure");
         ExtLogRecord r = printf("failed");

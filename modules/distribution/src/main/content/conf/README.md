@@ -10,4 +10,5 @@ Private keys for `private_key_jwt` and TLS certificates can live here too; keep 
 the server runs as only.
 
 Without the scripts, the same files are read with `-Dkc-mcp.config-files=<file>,<file>` on the `java -jar` command line.
-Settings from the environment and the command line override the files, the files override the server's defaults.
+A later file overrides an earlier one, settings from the environment and the command line override every file, and
+the files override the server's defaults. A file's path cannot contain a comma.

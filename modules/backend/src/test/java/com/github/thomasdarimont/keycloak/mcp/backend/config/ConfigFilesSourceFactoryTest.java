@@ -34,7 +34,7 @@ class ConfigFilesSourceFactoryTest {
         // a directory with a space, as C:\Program Files or a user's folder
         Path conf = Files.createDirectories(dir.resolve("dist dir").resolve("conf"));
         Path main = Files.writeString(conf.resolve("kcmcp.properties"),
-                "kc-mcp.url=http://from-file\nkc-mcp.default-realm=file\n");
+                "kc-mcp.url=http://from-file\nkc-mcp.default-realm=file\nkc-mcp.only-in-first=file\n");
         Path extra = Files.writeString(conf.resolve("extra.properties"),
                 "kc-mcp.default-realm=extra\nkc-mcp.read-only=true\n");
 
@@ -44,8 +44,16 @@ class ConfigFilesSourceFactoryTest {
         assertEquals("http://from-command-line", c.getRawValue("kc-mcp.url"), "a system property beats the file");
         assertEquals("hybrid", c.getRawValue("kc-mcp.tool-exposure"), "defaults stay where no file speaks");
         assertEquals("true", c.getRawValue("kc-mcp.read-only"), "the file beats the defaults");
-        assertTrue(c.getRawValue("kc-mcp.default-realm").equals("extra")
-                || c.getRawValue("kc-mcp.default-realm").equals("file"), "both files are read");
+        assertEquals("extra", c.getRawValue("kc-mcp.default-realm"), "a later file overrides an earlier one");
+        assertEquals("file", c.getRawValue("kc-mcp.only-in-first"), "the first file is read too");
+    }
+
+    @Test
+    void theOrderOfTheListDecidesWhateverTheNamesAre() throws IOException {
+        Path a = Files.writeString(dir.resolve("a.properties"), "kc-mcp.read-only=true\n");
+        Path z = Files.writeString(dir.resolve("z.properties"), "kc-mcp.read-only=false\n");
+        assertEquals("false", config(a + "," + z, Map.of(), Map.of()).getRawValue("kc-mcp.read-only"));
+        assertEquals("true", config(z + "," + a, Map.of(), Map.of()).getRawValue("kc-mcp.read-only"));
     }
 
     @Test

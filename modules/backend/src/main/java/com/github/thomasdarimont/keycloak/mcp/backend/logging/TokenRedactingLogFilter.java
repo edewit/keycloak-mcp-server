@@ -1,5 +1,8 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.logging;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.logging.Filter;
 import java.util.logging.LogRecord;
 
@@ -24,14 +27,11 @@ import io.quarkus.logging.LoggingFilter;
 @LoggingFilter(name = "redact-tokens")
 public final class TokenRedactingLogFilter implements Filter {
 
-    /** Deeper cause chains are cut, as a loop would otherwise never end. */
-    static final int MAX_CAUSES = 16;
-
     @Override
     public boolean isLoggable(LogRecord record) {
         Throwable thrown = record.getThrown();
-        if (thrown != null && carriesToken(thrown, 0)) {
-            record.setThrown(redact(thrown, 0));
+        if (thrown != null && carriesToken(thrown, Collections.newSetFromMap(new IdentityHashMap<>()))) {
+            record.setThrown(redact(thrown, Collections.newSetFromMap(new IdentityHashMap<>())));
         }
         if (record instanceof ExtLogRecord ext) {
             String message = ext.getFormattedMessage();
@@ -48,8 +48,12 @@ public final class TokenRedactingLogFilter implements Filter {
         return true;
     }
 
-    static boolean carriesToken(Throwable t, int depth) {
-        if (t == null || depth > MAX_CAUSES) {
+    /**
+     * Whether any message in the chain of causes and suppressed exceptions carries a
+     * token. {@code seen} holds the exceptions already visited, so a cyclic chain ends.
+     */
+    static boolean carriesToken(Throwable t, Set<Throwable> seen) {
+        if (t == null || !seen.add(t)) {
             return false;
         }
         String message = t.getMessage();
@@ -57,23 +61,26 @@ public final class TokenRedactingLogFilter implements Filter {
             return true;
         }
         for (Throwable s : t.getSuppressed()) {
-            if (carriesToken(s, depth + 1)) {
+            if (carriesToken(s, seen)) {
                 return true;
             }
         }
-        return carriesToken(t.getCause(), depth + 1);
+        return carriesToken(t.getCause(), seen);
     }
 
-    /** The same exception as far as a log can tell, with every message redacted. */
-    static Throwable redact(Throwable t, int depth) {
-        if (t == null || depth > MAX_CAUSES) {
+    /**
+     * The same exception as far as a log can tell, with every message redacted; an
+     * exception met twice (a cycle) ends the copy there.
+     */
+    static Throwable redact(Throwable t, Set<Throwable> seen) {
+        if (t == null || !seen.add(t)) {
             return null;
         }
         RedactedThrowable copy = new RedactedThrowable(t.getClass().getName(), Sensitive.tokens(t.getMessage()),
-                redact(t.getCause(), depth + 1));
+                redact(t.getCause(), seen));
         copy.setStackTrace(t.getStackTrace());
         for (Throwable s : t.getSuppressed()) {
-            Throwable r = redact(s, depth + 1);
+            Throwable r = redact(s, seen);
             if (r != null) {
                 copy.addSuppressed(r);
             }
