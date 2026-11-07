@@ -224,6 +224,8 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
         e.defaultRealm = system.defaultRealm().orElse(null);
         e.allowedRealms = system.allowedRealms().isEmpty() ? null
                 : new JsonArray(system.allowedRealms().stream().sorted().toList()).encode();
+        e.trustedIssuers = system.trustedIssuers().isEmpty() ? null
+                : new JsonArray(system.trustedIssuers().stream().sorted().toList()).encode();
         e.version = system.version().orElse(null);
         e.issuer = system.issuer().orElse(null);
         e.updatedAt = now;
@@ -279,6 +281,7 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
             .clientSecret(crypto.reveal(e.clientSecret))
             .defaultRealm(e.defaultRealm)
             .allowedRealms(realms(e.allowedRealms))
+            .trustedIssuers(realms(e.trustedIssuers))
             .version(e.version)
             .issuer(e.issuer)
             .displayName(e.name)

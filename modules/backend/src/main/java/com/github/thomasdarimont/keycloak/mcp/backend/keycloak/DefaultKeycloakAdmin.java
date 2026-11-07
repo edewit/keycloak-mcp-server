@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.client.Client;
 
@@ -70,10 +71,10 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
     private volatile Duration readTimeout = OutboundClients.Timeouts.DEFAULT.read();
     /**
-     * Issuer bases a forwarded caller token may come from; {@code null} leaves it
-     * unchecked.
+     * Why a caller token of an issuer may not be used here, empty when it may;
+     * {@code null} leaves it unchecked.
      */
-    private volatile Set<String> callerIssuerBases;
+    private volatile Function<String, Optional<String>> callerIssuerCheck;
 
     public DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys) {
         this(system, jwtKeys, DelegationMode.OFF);
@@ -118,11 +119,11 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         // is never sent to
         // Keycloak B, not even to be refused there
         String issuer = issuerOf(bearerToken);
-        if (callerIssuerBases != null && issuer != null && !callerIssuerBases.contains(base(issuer))) {
-            throw new ToolException("caller_foreign_system",
-                    "The caller's token was issued by " + issuer + "; system '" + system.name()
-                            + "' acts only for callers of " + system.publicUrl()
-                            + ". Log in at that system's entry (/mcp/systems/" + system.name() + ") instead.");
+        if (callerIssuerCheck != null && issuer != null) {
+            Optional<String> refusal = callerIssuerCheck.apply(issuer);
+            if (refusal.isPresent()) {
+                throw new ToolException("caller_foreign_system", refusal.get());
+            }
         }
         long now = System.currentTimeMillis();
         Delegate d = delegates.get(bearerToken);
@@ -215,9 +216,12 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         return Set.copyOf(bases);
     }
 
-    /** The issuer bases of the callers whose tokens may be forwarded to this system. */
-    public DefaultKeycloakAdmin callerIssuers(Set<String> bases) {
-        this.callerIssuerBases = bases;
+    /**
+     * The check a caller token's issuer must pass before the token is used here: the
+     * refusal reason, or empty ({@link CallerIssuerPolicies#refusal}).
+     */
+    public DefaultKeycloakAdmin callerIssuerCheck(Function<String, Optional<String>> check) {
+        this.callerIssuerCheck = check;
         return this;
     }
 

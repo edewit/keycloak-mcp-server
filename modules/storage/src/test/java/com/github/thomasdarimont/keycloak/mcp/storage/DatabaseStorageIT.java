@@ -174,6 +174,20 @@ class DatabaseStorageIT {
     }
 
     @Test
+    void trustedIssuersRoundTrip() {
+        DatabaseKeycloakSystemRepository repo = repositories.select(DatabaseKeycloakSystemRepository.class).get();
+        String alias = "trusting-" + UUID.randomUUID();
+        KeycloakSystem trusting = system(alias, "https://sso.example.com", Optional.empty(), Set.of()).toBuilder()
+            .trustedIssuer("https://idp.example.com/realms/partners")
+            .trustedIssuer("https://sso-b.example.com/realms/master")
+            .build();
+        repo.save(trusting);
+        assertEquals(trusting.trustedIssuers(), repo.find(alias).orElseThrow().trustedIssuers());
+        repo.save(trusting.toBuilder().trustedIssuers(List.of()).build());
+        assertEquals(Set.of(), repo.find(alias).orElseThrow().trustedIssuers(), "cleared again");
+    }
+
+    @Test
     void theVaultCreatesRotatesAndEncryptsKeysAndKeepsSecrets() {
         DatabaseKeyVault vault = vaults.select(DatabaseKeyVault.class).get();
         assertEquals("db-key-vault", vault.id());

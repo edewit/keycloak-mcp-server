@@ -14,6 +14,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
@@ -153,7 +154,7 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
      * ids count as present.
      */
     static final List<Class<? extends Extension>> OTHER_TYPES = List.of(KeycloakSystemRepository.class, KeyVault.class,
-            SigningKeyGenerator.class, UserSessionStore.class);
+            CallerIssuerPolicy.class, SigningKeyGenerator.class, UserSessionStore.class);
 
     /**
      * Resolves every extension point at startup instead of on first use, so that a

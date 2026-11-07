@@ -92,7 +92,7 @@ Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. F
   optional `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role` (`realm:admin` default; `<client>.<role>` for client
   roles). One of token and issuer required.
 - `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `description`, `url`, `issuer`, `authRealm`,
-  `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `version`, `clientSecret`) into the first
+  `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `trustedIssuers`, `version`, `clientSecret`) into the first
   `MutableKeycloakSystemRepository`. Registered systems are service clients: `client_credentials` with
   `private_key_jwt` or `client_secret`; `grantType: password` answers 400 `grant_not_supported`.
   `url` must pass `kc-mcp.allowed-hosts`. `kc-mcp.admin.allow-new-systems=false` freezes the set: unknown aliases answer

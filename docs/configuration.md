@@ -16,6 +16,7 @@ Every property, its default and meaning. Property → environment variable: `kc-
 | `kc-mcp.systems.<name>.username` / `password` |               | password grant |
 | `kc-mcp.systems.<name>.default-realm` |                       | makes `realm` optional for this system |
 | `kc-mcp.systems.<name>.allowed-realms` | all                  | csv allow-list of this system's realms |
+| `kc-mcp.systems.<name>.trusted-issuers` |                     | issuers besides the system's own Keycloak whose caller tokens the server may hand to it (default none); whether Keycloak accepts them is configured in Keycloak |
 | `kc-mcp.systems.<name>.issuer`  | `<url>/realms/<auth-realm>` | realm issuer as Keycloak states it, audience of `private_key_jwt` assertions; set when the url is internal |
 | `kc-mcp.systems.<name>.version` | read from server            | Keycloak version override / fallback ([Supported Keycloak versions](keycloak-versions.md)) |
 | `kc-mcp.system-defaults.*`      |                             | the same keys except `url`, shared by every system that does not set its own |

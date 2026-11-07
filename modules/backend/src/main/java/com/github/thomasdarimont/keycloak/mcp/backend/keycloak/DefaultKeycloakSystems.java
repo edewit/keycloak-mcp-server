@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -14,6 +15,7 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ErrorMapper;
 import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
@@ -69,6 +71,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     private volatile PrivateHosts dynamicPrivateHosts = PrivateHosts.ALLOW;
     private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
     private volatile Duration readTimeout = OutboundClients.Timeouts.DEFAULT.read();
+    private volatile CallerIssuerPolicies issuerPolicies = CallerIssuerPolicies.builtIn();
 
     @Inject
     public DefaultKeycloakSystems(McpServerConfig config, SigningKeys keys, Extensions extensions,
@@ -77,6 +80,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                 HostAllowList.of(config.allowedHosts().orElse(List.of())), repositories(config, extensions),
                 config.staticSystemsOrder(), config.delegation());
         this.metrics = metrics;
+        this.issuerPolicies = new CallerIssuerPolicies(issuerPolicies(config, extensions), config);
         this.readTimeout = config.http().readTimeout();
         this.dynamicPrivateHosts = config.effectiveDynamicPrivateHosts();
     }
@@ -219,6 +223,18 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
             .toList();
     }
 
+    /** The registered {@link CallerIssuerPolicy}s, minus the disabled and unsupported. */
+    static List<CallerIssuerPolicy> issuerPolicies(McpServerConfig config, Extensions extensions) {
+        List<CallerIssuerPolicy> found = new ArrayList<>();
+        for (CallerIssuerPolicy p : extensions.discover(CallerIssuerPolicy.class)) {
+            if (Extensions.usable(p, "CallerIssuerPolicy", config)) {
+                found.add(p);
+                LOG.infof("Caller issuer policy '%s' registered (%s)", p.id(), p.getClass().getName());
+            }
+        }
+        return found;
+    }
+
     /**
      * The registered repositories, minus the disabled, in order; none unless
      * {@code kc-mcp.dynamic-systems=true}.
@@ -262,7 +278,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
      * ({@code quarkus.oidc.token.issuer}, {@code quarkus.oidc.auth-server-url}), which
      * may name the public address of an internally reached Keycloak.
      */
-    private Set<String> callerIssuers(KeycloakSystem system, String name) {
+    private Function<String, Optional<String>> callerIssuerCheck(KeycloakSystem system, String name) {
         List<String> extra = new ArrayList<>();
         if (name.equals(defaultName)) {
             var config = ConfigProvider.getConfig();
@@ -270,7 +286,8 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                 config.getOptionalValue(key, String.class).ifPresent(extra::add);
             }
         }
-        return DefaultKeycloakAdmin.callerIssuerBases(system, extra);
+        Set<String> own = DefaultKeycloakAdmin.callerIssuerBases(system, extra);
+        return issuer -> issuerPolicies.refusal(issuer, system, own);
     }
 
     /** The hosts the server may talk to. */
@@ -374,7 +391,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         }
         KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation).metrics(metrics)
             .readTimeout(readTimeout)
-            .callerIssuers(callerIssuers(system, name));
+            .callerIssuerCheck(callerIssuerCheck(system, name));
         KeycloakAdmin previous = admins.put(name, created);
         if (previous != null) {
             LOG.infof("Keycloak system '%s' changed at its repository, reconnecting to %s", name, system.url());

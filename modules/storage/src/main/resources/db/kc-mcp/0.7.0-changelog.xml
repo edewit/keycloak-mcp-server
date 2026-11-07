@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema version 0.7.0: a system may trust other issuers' caller tokens. -->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="10-system-trusted-issuers" author="keycloak-mcp-server">
+        <comment>Issuers besides the system's own Keycloak whose caller tokens may be used at it (JSON array of URLs);
+            null means none, the default</comment>
+        <addColumn tableName="kc_mcp_system">
+            <column name="trusted_issuers" type="clob"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

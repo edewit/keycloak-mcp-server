@@ -50,8 +50,9 @@ class CallerIssuerTest {
     @Test
     void aTokenOfAnotherKeycloakIsRefusedBeforeItIsSent() {
         KeycloakSystem other = KeycloakSystem.builder("other", "http://keycloak-b:8080").build();
+        Set<String> own = DefaultKeycloakAdmin.callerIssuerBases(other, List.of());
         DefaultKeycloakAdmin admin = new DefaultKeycloakAdmin(other, null, DelegationMode.FORWARD)
-            .callerIssuers(DefaultKeycloakAdmin.callerIssuerBases(other, List.of()));
+            .callerIssuerCheck(issuer -> CallerIssuerPolicies.builtIn().refusal(issuer, other, own));
         ToolException e = assertThrows(ToolException.class,
                 () -> admin.forToken(jwt("http://keycloak-a:8080/realms/demo")));
         assertEquals("caller_foreign_system", e.code());

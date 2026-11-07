@@ -254,6 +254,9 @@ public class AdminSystems {
         s.password().ifPresent(v -> out.put("password", KeycloakSystem.isVaultRef(v) ? v : "***"));
         s.defaultRealm().ifPresent(v -> out.put("defaultRealm", v));
         out.put("allowedRealms", s.allowedRealms().stream().sorted().toList());
+        if (!s.trustedIssuers().isEmpty()) {
+            out.put("trustedIssuers", s.trustedIssuers().stream().sorted().toList());
+        }
         s.version().ifPresent(v -> out.put("version", v));
         systems.repositoryOf(s.name()).ifPresent(r -> {
             out.put("source", r.id());

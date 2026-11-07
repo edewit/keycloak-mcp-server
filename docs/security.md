@@ -190,7 +190,11 @@ require an audience). `KC_MCP_DELEGATION` then decides whose identity reaches Ke
 - **One Keycloak per token.** A caller's token is forwarded only to the system whose Keycloak issued it, compared by
   the issuer's base: the system's URL or its configured public issuer, and for the default system what the default
   OIDC tenant verifies. A call that names another system answers `caller_foreign_system` before anything is sent;
-  the caller logs in at that system's entry instead.
+  the caller logs in at that system's entry instead. `kc-mcp.systems.<name>.trusted-issuers` names further issuers
+  whose tokens the server may hand to that system, and a `CallerIssuerPolicy` extension replaces the rule
+  ([Extending](extending.md#caller-issuer-policies)). Both decide what the server sends, not what Keycloak accepts:
+  that is Keycloak's identity provider and JWT authorization grant configuration (RFC 7523, Keycloak 26.5 preview),
+  which the server does not drive yet, so an entry Keycloak does not honour only moves the refusal there.
 - **Audit.** The line names the human: `caller=alice(<sub>) delegated`.
 - **Exchange mode.** The MCP client must request the scope `delegation:client:<client id>`, advertised as
   `scopes_supported` in the protected resource metadata, and the user consents at login, every session. Without that

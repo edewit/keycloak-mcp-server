@@ -21,7 +21,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 public record KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
         Optional<String> clientId, Optional<String> clientSecret, Optional<String> username, Optional<String> password,
         Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version, Optional<String> issuer,
-        Optional<String> displayName, Optional<String> description) {
+        Optional<String> displayName, Optional<String> description, Set<String> trustedIssuers) {
 
     public static final String DEFAULT_NAME = "default";
 
@@ -34,6 +34,20 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
     public KeycloakSystem {
         displayName = displayName == null ? Optional.empty() : displayName.map(String::trim).filter(v -> !v.isEmpty());
         description = description == null ? Optional.empty() : description.map(String::trim).filter(v -> !v.isEmpty());
+        trustedIssuers = trustedIssuers == null ? Set.of() : Set.copyOf(trustedIssuers);
+    }
+
+    /**
+     * Without trusted issuers: a caller's token may be used here only when this Keycloak
+     * issued it.
+     */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version, Optional<String> issuer, Optional<String> displayName,
+            Optional<String> description) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, issuer, displayName, description, Set.of());
     }
 
     /** Without a description. */
@@ -120,7 +134,13 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
                 pick(s.defaultRealm(), d.defaultRealm()),
                 Set.copyOf(realms.stream().map(String::trim).filter(v -> !v.isEmpty()).toList()),
                 pick(s.version(), d.version()).map(String::trim).filter(v -> !v.isEmpty()),
-                pick(s.issuer(), d.issuer()).map(String::trim).filter(v -> !v.isEmpty()));
+                pick(s.issuer(), d.issuer()).map(String::trim).filter(v -> !v.isEmpty()), Optional.empty(),
+                Optional.empty(),
+                Set.copyOf(pick(s.trustedIssuers(), d.trustedIssuers()).orElse(List.of())
+                    .stream()
+                    .map(String::trim)
+                    .filter(v -> !v.isEmpty())
+                    .toList()));
     }
 
     public KeycloakSystem withDisplayName(String label) {
@@ -156,7 +176,8 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             .version(version.orElse(null))
             .issuer(issuer.orElse(null))
             .displayName(displayName.orElse(null))
-            .description(description.orElse(null));
+            .description(description.orElse(null))
+            .trustedIssuers(trustedIssuers);
     }
 
     /**
@@ -186,6 +207,7 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
         private String password;
         private String defaultRealm;
         private final Set<String> allowedRealms = new LinkedHashSet<>();
+        private final Set<String> trustedIssuers = new LinkedHashSet<>();
         private String version;
         private String issuer;
         private String displayName;
@@ -263,6 +285,26 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             return this;
         }
 
+        /**
+         * Issuers besides this Keycloak whose caller tokens the server may hand to it;
+         * what Keycloak then does with such a token is Keycloak's configuration.
+         * {@code null} or blank entries are ignored, an empty collection means none.
+         */
+        public Builder trustedIssuers(Collection<String> issuers) {
+            trustedIssuers.clear();
+            if (issuers != null) {
+                issuers.stream().filter(v -> v != null && !v.isBlank()).map(String::trim).forEach(trustedIssuers::add);
+            }
+            return this;
+        }
+
+        public Builder trustedIssuer(String issuer) {
+            if (issuer != null && !issuer.isBlank()) {
+                trustedIssuers.add(issuer.trim());
+            }
+            return this;
+        }
+
         public Builder version(String version) {
             this.version = version;
             return this;
@@ -297,7 +339,7 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             }
             return new KeycloakSystem(name.trim(), url.trim(), grantType, clientAuth, authRealm, text(clientId),
                     text(clientSecret), text(username), text(password), text(defaultRealm), Set.copyOf(allowedRealms),
-                    text(version), text(issuer), text(displayName), text(description));
+                    text(version), text(issuer), text(displayName), text(description), Set.copyOf(trustedIssuers));
         }
 
         private static Optional<String> text(String value) {

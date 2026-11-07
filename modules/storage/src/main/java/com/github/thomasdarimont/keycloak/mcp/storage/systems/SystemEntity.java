@@ -67,6 +67,14 @@ public class SystemEntity extends PanacheEntityBase {
     @Column(name = "allowed_realms")
     public String allowedRealms;
 
+    /**
+     * JSON array of issuer URLs whose caller tokens may be used at this system besides
+     * its own; null for none.
+     */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "trusted_issuers")
+    public String trustedIssuers;
+
     @Column(name = "version", length = 64)
     public String version;
 

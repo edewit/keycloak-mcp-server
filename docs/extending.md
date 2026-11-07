@@ -106,6 +106,30 @@ public class TicketConfirmer implements Confirmer {
 The built-in confirmer that has the caller approve each destructive tool on their own device through OpenID Connect
 CIBA has a page of its own: [CIBA confirmation](ciba-confirmation.md). `examples/ciba-confirm` runs it.
 
+## Caller issuer policies
+
+In delegation mode a caller's token is used at the Keycloak system a call targets. The built-in rule lets it reach
+the Keycloak that issued it, compared by the issuer's base, plus the `kc-mcp.systems.<name>.trusted-issuers`, and
+answers `caller_foreign_system` otherwise. A `CallerIssuerPolicy` (`@AutoService` or CDI bean, by `order()`) decides
+before that rule: `ALLOW`, `DENY`, or `ABSTAIN` to leave it to the next one; the built-in rule runs last and never
+abstains. A policy that throws counts as a denial.
+
+```java
+@AutoService(CallerIssuerPolicy.class)
+public class FederationPolicy implements CallerIssuerPolicy {
+    public Decision decide(String issuer, KeycloakSystem system) {
+        return federation.trusts(system.name(), issuer) ? Decision.ALLOW : Decision.ABSTAIN;
+    }
+}
+```
+
+A policy decides what the server may send, nothing more: allowing a foreign issuer does not make the target Keycloak
+accept its tokens. That is configured in Keycloak, where 26.5 introduced the JWT authorization grant (RFC 7523,
+preview) for exactly this, an identity provider that lets a client present the external token as `assertion` and get
+a local one, as the standard replacement for the external-to-internal token exchange
+(<https://www.keycloak.org/2026/01/jwt-authorization-grant>). The server does not perform that grant yet: in mode
+`forward` an allowed foreign token is sent as it is, and Keycloak refuses it unless configured to take it.
+
 ## Profile checks
 
 `ProfileCheck` (`@AutoService` or CDI bean) adds to the startup checks of `kc-mcp.profile`: an extension states what
