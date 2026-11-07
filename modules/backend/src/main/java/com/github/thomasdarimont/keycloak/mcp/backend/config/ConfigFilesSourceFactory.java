@@ -31,12 +31,13 @@ import io.smallrye.config.PropertiesConfigSource;
  * source, in order, a later file's value replacing an earlier one's (a {@code --config}
  * scenario on top of {@code conf/kcmcp.conf}), at ordinal {@value #ORDINAL}: above the
  * defaults in the jar's {@code application.properties} (250), below {@code .env} (295),
- * environment variables (300) and system properties (400), so {@code KC_MCP_URL=...} and
- * {@code --kc-mcp.url=...} override what any file says. One source rather than one per
- * file, because the ordinals between 250 and 295 would run out after twenty files.
- * {@code quarkus.config.locations} would rank the files like the source that names them,
- * which is the system property here, and a command line option could then not override a
- * file. A listed path that does not exist stops the start; a path cannot contain a comma.
+ * environment variables (300) and system properties (400), so
+ * {@code KC_MCP_SYSTEMS_DEFAULT_URL=...} and {@code --kc-mcp.systems.default.url=...}
+ * override what any file says. One source rather than one per file, because the ordinals
+ * between 250 and 295 would run out after twenty files. {@code quarkus.config.locations}
+ * would rank the files like the source that names them, which is the system property
+ * here, and a command line option could then not override a file. A listed path that does
+ * not exist stops the start; a path cannot contain a comma.
  */
 @AutoService(ConfigSourceFactory.class)
 public class ConfigFilesSourceFactory implements ConfigSourceFactory {

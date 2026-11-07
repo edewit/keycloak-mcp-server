@@ -49,7 +49,7 @@ An existing stack keeps its old realm: after changes to `realms/demo-realm.json`
 | identity provider | `corp-oidc` (disabled stub, hidden on login) |
 | organization | `ACME Corp` (`acme`, domain acme.com) |
 | realm settings | login + admin events on, organizations on, SMTP → Mailpit, password policy `length(8)`, unmanaged user attributes enabled (`department`) |
-| second realm | `other` with user `zed`, deliberately outside `KC_MCP_ALLOWED_REALMS` |
+| second realm | `other` with user `zed`, deliberately outside `KC_MCP_SYSTEMS_DEFAULT_ALLOWED_REALMS` |
 
 ## Access levels to demonstrate
 

@@ -21,8 +21,12 @@ Needs Java 21 or newer.
 3. Point an MCP client at `http://localhost:8081/mcp` (`docs/integrations.md` has the settings for LM Studio, Claude
    Code, VS Code, Cursor and others). With a user login, the client opens the browser and the user signs in at Keycloak.
 
-Any setting can go on the command line (`--kc-mcp.url=https://sso.example.com`, `--quarkus.http.port=8082`) or into
-the environment (`KC_MCP_URL`). `bin/kcmcp.sh --help` lists the options, `--debug [port]` opens a debugger port.
+Any setting can go on the command line (`--kc-mcp.systems.default.url=https://sso.example.com`, `--quarkus.http.port=8082`)
+or into the environment (`KC_MCP_SYSTEMS_DEFAULT_URL`). `bin/kcmcp.sh --help` lists the options, `--debug [port]` opens a debugger port.
+
+`bin/kcmcp.sh start-dev` runs the same configuration in development mode: the `local` security profile applies whatever
+the files say, so a missing setting that the `shared` profile would refuse to start on is only warned about, and a
+Keycloak that is down at startup is a warning too. Not for a server other people reach.
 
 ## Scenarios
 

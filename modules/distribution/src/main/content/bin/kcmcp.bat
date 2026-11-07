@@ -2,14 +2,16 @@
 rem Starts keycloak-mcp-server from this distribution.
 rem
 rem   bin\kcmcp.bat start                                     conf\kcmcp.conf
+rem   bin\kcmcp.bat start-dev                                 the same, in development mode: profile local, insecure
+rem                                                          settings are warned about instead of refused
 rem   bin\kcmcp.bat start --config conf\scenarios\read-only.conf
 rem   bin\kcmcp.bat start --config conf\systems\              every *.conf file in it, e.g. one per Keycloak system
-rem   bin\kcmcp.bat start --kc-mcp.url=https://sso.example.com --quarkus.http.port=8082
+rem   bin\kcmcp.bat start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
 rem   bin\kcmcp.bat start --debug 5005
 rem   bin\kcmcp.bat start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
 rem   bin\kcmcp.bat --version | --help
 rem
-rem Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_URL=...) work as well and
+rem Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
 rem override the configuration files, so the script lists the ones it inherits from the shell.
 rem JAVA_HOME or JAVA pick the JVM (Java 21 or newer); JAVA_OPTS replaces the default JVM options, JAVA_OPTS_APPEND
 rem adds to them. KCMCP_DEBUG=true, KCMCP_DEBUG_PORT and KCMCP_DEBUG_SUSPEND enable remote debugging.
@@ -40,6 +42,11 @@ set "KEY=%~1"
 if "%KEY%" == "" goto MAIN
 if "%KEY%" == "start" (
     set COMMAND=start
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "start-dev" (
+    set COMMAND=start-dev
     shift
     goto READ_ARGS
 )
@@ -121,6 +128,10 @@ goto :EOF
 
 :MAIN
 if "%COMMAND%" == "" goto USAGE
+if "%COMMAND%" == "start-dev" (
+    echo development mode ^(start-dev^): profile local, startup checks warn; use 'start' for a shared server 1>&2
+    set "SERVER_OPTS=%SERVER_OPTS% -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn"
+)
 
 rem configuration inherited from the shell overrides the files; list it, or drop it with --clean-env
 set INHERITED=

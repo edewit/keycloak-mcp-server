@@ -31,7 +31,7 @@ be set on its own in either profile.
 ### Fencing the server in
 
 - **Read-only.** `KC_MCP_READ_ONLY=true` hides and refuses WRITE and DESTRUCTIVE tools.
-- **Realms.** `KC_MCP_ALLOWED_REALMS=a,b` restricts every call. The startup check verifies the realms are reachable
+- **Realms.** `kc-mcp.systems.<name>.allowed-realms=a,b` (or `kc-mcp.system-defaults.allowed-realms` for all systems) restricts every call. The startup check verifies the realms are reachable
   (`kc-mcp.startup-check=warn|fail|off`).
 - **Keycloak hosts.** `KC_MCP_ALLOWED_HOSTS=*.example.com,localhost:8080`: every configured Keycloak URL, top level
   and per system, must match a `[scheme://]host[:port]` pattern, or the server does not start.
@@ -116,7 +116,7 @@ The real boundary is the roles of the identity the server uses. Pick the level, 
 | level | Keycloak side | server side |
 |---|---|---|
 | full admin | client in `master` with `admin`, or an admin user via `admin-cli` | nothing |
-| realm admin | confidential client **in the realm** with `realm-admin` | `KC_MCP_ALLOWED_REALMS=<realm>`, `KC_MCP_DEFAULT_REALM=<realm>` |
+| realm admin | confidential client **in the realm** with `realm-admin` | `kc-mcp.systems.default.allowed-realms=<realm>`, `kc-mcp.systems.default.default-realm=<realm>` |
 | realm manager | client in the realm with only the `realm-management` roles needed | as realm admin; role filtering hides the rest. Narrow further: `KC_MCP_DENIED_TOOLS=keycloak_user_delete`, `KC_MCP_READ_ONLY=true` |
 | user (forward) | the human holds the roles; a public PKCE client whose tokens carry the server's audience | `KC_MCP_DELEGATION=forward` + `QUARKUS_OIDC_TENANT_ENABLED=true`; no server credentials ([Callers](#callers)) |
 | delegated agent (exchange) | the human holds the roles and consents to the server's client acting for them (Keycloak 26.8 token exchange delegation, preview); the client's role scope caps every delegated token | `KC_MCP_DELEGATION=exchange` + the client's `client_credentials` + `QUARKUS_OIDC_TENANT_ENABLED=true` ([Callers](#callers), `examples/delegated-auth`) |
@@ -172,7 +172,7 @@ composite.
 
 `CallerProvider` reads the Quarkus `SecurityIdentity`: subject, username, issuing realm, roles. The OIDC tenant is off
 by default, so the endpoint is anonymous. `QUARKUS_OIDC_TENANT_ENABLED=true` verifies bearer tokens of
-`KC_MCP_URL/realms/KC_MCP_AUTH_REALM` (`quarkus.oidc.auth-server-url` to change it, `QUARKUS_OIDC_TOKEN_AUDIENCE` to
+the default system's auth realm, `<url>/realms/<auth-realm>` (`quarkus.oidc.auth-server-url` to change it, `QUARKUS_OIDC_TOKEN_AUDIENCE` to
 require an audience). `KC_MCP_DELEGATION` then decides whose identity reaches Keycloak:
 
 | | `off` (default) | `forward` | `exchange` |

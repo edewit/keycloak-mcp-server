@@ -8,11 +8,11 @@
           <option name="environmentProperties">
             <map>
               <entry key="KC_MCP_PROFILE" value="shared" />
-              <entry key="KC_MCP_URL" value="http://localhost:8080" />
-              <entry key="KC_MCP_AUTH_REALM" value="demo" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_URL" value="http://localhost:8080" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM" value="demo" />
               <entry key="KC_MCP_DELEGATION" value="forward" />
-              <entry key="KC_MCP_DEFAULT_REALM" value="demo" />
-              <entry key="KC_MCP_ALLOWED_REALMS" value="demo" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_DEFAULT_REALM" value="demo" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_ALLOWED_REALMS" value="demo" />
               <entry key="KC_MCP_ALLOWED_HOSTS" value="localhost:8080" />
               <entry key="KC_MCP_TOOL_EXPOSURE" value="hybrid" />
               <entry key="QUARKUS_OIDC_TENANT_ENABLED" value="true" />

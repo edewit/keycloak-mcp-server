@@ -83,9 +83,9 @@ public class AccessPolicy {
     @Inject
     public AccessPolicy(McpServerConfig config, RoleDiscovery roles, CapabilityDiscovery capabilities,
             DefaultExtensionRegistry registry, KeycloakSystems systems) {
-        this(config.readOnly(), config.allowedRealms().orElse(List.of()), config.allowedTools().orElse(List.of()),
-                config.deniedTools().orElse(List.of()), config.allowedCategories().orElse(List.of()), roles,
-                collectChecks(registry),
+        this(config.readOnly(), config.systemDefaults().allowedRealms().orElse(List.of()),
+                config.allowedTools().orElse(List.of()), config.deniedTools().orElse(List.of()),
+                config.allowedCategories().orElse(List.of()), roles, collectChecks(registry),
                 name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()), capabilities,
                 config.explanations(), systems, config.delegation());
     }

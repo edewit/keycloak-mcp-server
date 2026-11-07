@@ -159,24 +159,15 @@
                             <excludedEnvironmentVariable>KC_MCP_ADMIN_ROLE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_ADMIN_TOKEN</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_ALLOWED_HOSTS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_ALLOWED_REALMS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_AUTH_REALM</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_CLIENT_AUTH</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_CLIENT_ID</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_CLIENT_SECRET</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_CONFIRM_FALLBACK</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_DEFAULT_REALM</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_DEFAULT_SYSTEM</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_DELEGATION</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_DENIED_TOOLS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_DYNAMIC_SYSTEMS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_GRANT_TYPE</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_ISSUER</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_JWT_ALGORITHM</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_JWT_KEY_FILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_KEYS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_MODEL_CONFIRMATION_TRUSTED_ROLES</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_PASSWORD</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_PROFILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_PROVIDERS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_READ_ONLY</excludedEnvironmentVariable>
@@ -200,6 +191,23 @@
                             <excludedEnvironmentVariable>KC_MCP_STARTUP_CHECK</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STATIC_SYSTEMS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STORAGE_SECRET_KEY</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_AUTH_REALM</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_CLIENT_ID</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_CLIENT_SECRET</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_DEFAULT_REALM</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_GRANT_TYPE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_ALLOWED_REALMS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_CLIENT_AUTH</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_CLIENT_ID</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_CLIENT_SECRET</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_DEFAULT_REALM</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_GRANT_TYPE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_ISSUER</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_PASSWORD</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_URL</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_USERNAME</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_VERSION</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SYSTEMS_FILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SYSTEMS_PROD_URL</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SYSTEMS_STAGING_ALLOWED_REALMS</excludedEnvironmentVariable>
@@ -214,9 +222,6 @@
                             <excludedEnvironmentVariable>KC_MCP_UI_IDPS_MASTER_DISPLAY_NAME</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_UI_IDPS_MASTER_ISSUER</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_UI_ISSUER</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_URL</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_USERNAME</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_VERSION</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>QUARKUS_DATASOURCE_JDBC_URL</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>QUARKUS_DATASOURCE_PASSWORD</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>QUARKUS_DATASOURCE_USERNAME</excludedEnvironmentVariable>
@@ -247,24 +252,15 @@
                             <excludedEnvironmentVariable>KC_MCP_ADMIN_ROLE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_ADMIN_TOKEN</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_ALLOWED_HOSTS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_ALLOWED_REALMS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_AUTH_REALM</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_CLIENT_AUTH</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_CLIENT_ID</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_CLIENT_SECRET</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_CONFIRM_FALLBACK</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_DEFAULT_REALM</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_DEFAULT_SYSTEM</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_DELEGATION</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_DENIED_TOOLS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_DYNAMIC_SYSTEMS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_GRANT_TYPE</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_ISSUER</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_JWT_ALGORITHM</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_JWT_KEY_FILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_KEYS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_MODEL_CONFIRMATION_TRUSTED_ROLES</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_PASSWORD</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_PROFILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_PROVIDERS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_READ_ONLY</excludedEnvironmentVariable>
@@ -288,6 +284,23 @@
                             <excludedEnvironmentVariable>KC_MCP_STARTUP_CHECK</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STATIC_SYSTEMS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STORAGE_SECRET_KEY</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_AUTH_REALM</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_CLIENT_ID</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_CLIENT_SECRET</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_DEFAULT_REALM</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEM_DEFAULTS_GRANT_TYPE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_ALLOWED_REALMS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_CLIENT_AUTH</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_CLIENT_ID</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_CLIENT_SECRET</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_DEFAULT_REALM</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_GRANT_TYPE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_ISSUER</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_PASSWORD</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_URL</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_USERNAME</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SYSTEMS_DEFAULT_VERSION</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SYSTEMS_FILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SYSTEMS_PROD_URL</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SYSTEMS_STAGING_ALLOWED_REALMS</excludedEnvironmentVariable>
@@ -302,9 +315,6 @@
                             <excludedEnvironmentVariable>KC_MCP_UI_IDPS_MASTER_DISPLAY_NAME</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_UI_IDPS_MASTER_ISSUER</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_UI_ISSUER</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_URL</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_USERNAME</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_VERSION</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>QUARKUS_DATASOURCE_JDBC_URL</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>QUARKUS_DATASOURCE_PASSWORD</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>QUARKUS_DATASOURCE_USERNAME</excludedEnvironmentVariable>

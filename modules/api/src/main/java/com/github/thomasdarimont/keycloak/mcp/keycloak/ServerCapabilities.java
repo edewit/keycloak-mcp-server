@@ -11,8 +11,8 @@ import org.keycloak.representations.info.ServerInfoRepresentation;
 
 /**
  * What a Keycloak system can do: its version and the enabled features, read from the
- * admin server info or configured ({@code kc-mcp.version}). {@link #UNKNOWN} when neither
- * is available; checks against unknown capabilities pass.
+ * admin server info or configured ({@code kc-mcp.systems.<name>.version}).
+ * {@link #UNKNOWN} when neither is available; checks against unknown capabilities pass.
  *
  * @param version the server version ({@code 26.8.2}), {@code null} when unknown
  * @param features enabled features by their CLI name ({@code organization},

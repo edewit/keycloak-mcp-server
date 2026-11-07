@@ -7,11 +7,11 @@
           <option name="delegateBuildToMaven" value="false" />
           <option name="environmentProperties">
             <map>
-              <entry key="KC_MCP_URL" value="http://localhost:8098" />
-              <entry key="KC_MCP_AUTH_REALM" value="demo" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_URL" value="http://localhost:8098" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM" value="demo" />
               <entry key="KC_MCP_DELEGATION" value="forward" />
-              <entry key="KC_MCP_DEFAULT_REALM" value="demo" />
-              <entry key="KC_MCP_ALLOWED_REALMS" value="demo" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_DEFAULT_REALM" value="demo" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_ALLOWED_REALMS" value="demo" />
               <entry key="KC_MCP_TOOL_EXPOSURE" value="hybrid" />
               <entry key="KC_MCP_CONFIRM_FALLBACK" value="deny" />
               <entry key="QUARKUS_HTTP_PORT" value="8099" />
@@ -22,6 +22,7 @@
               <entry key="KC_MCP_SPI_CIBA_CONFIRMER_CLIENT_ID" value="mcp-ciba" />
               <entry key="KC_MCP_SPI_CIBA_CONFIRMER_CLIENT_SECRET" value="mcp-ciba-secret" />
               <entry key="KC_MCP_SPI_CIBA_CONFIRMER_TIMEOUT_SECONDS" value="90" />
+              <entry key="KC_MCP_SPI_CIBA_CONFIRMER_POLL_WAIT_SECONDS" value="25" />
             </map>
           </option>
           <option name="jreName" value="#USE_PROJECT_JDK" />

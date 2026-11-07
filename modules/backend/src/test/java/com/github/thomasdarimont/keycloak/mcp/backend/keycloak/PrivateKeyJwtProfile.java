@@ -38,8 +38,8 @@ public class PrivateKeyJwtProfile implements QuarkusTestProfile {
         catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException(e);
         }
-        return Map.of("kc-mcp.grant-type", "client_credentials", "kc-mcp.client-auth", "private_key_jwt",
-                "kc-mcp.client-id", "mcp-admin", "kc-mcp.jwt.key-file", pem.toString(), "kc-mcp.jwt.key-id",
-                "kc-mcp-test-key", "kc-mcp.startup-check", "off");
+        return Map.of("kc-mcp.systems.default.grant-type", "client_credentials", "kc-mcp.systems.default.client-auth",
+                "private_key_jwt", "kc-mcp.systems.default.client-id", "mcp-admin", "kc-mcp.jwt.key-file",
+                pem.toString(), "kc-mcp.jwt.key-id", "kc-mcp-test-key", "kc-mcp.startup-check", "off");
     }
 }

@@ -74,11 +74,13 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
     }
 
     Map<String, String> baseConfig() {
-        return Map.ofEntries(Map.entry("kc-mcp.url", base), Map.entry("kc-mcp.auth-realm", "demo"),
-                Map.entry("kc-mcp.delegation", "forward"), Map.entry("kc-mcp.default-realm", "demo"),
-                Map.entry("kc-mcp.allowed-realms", "demo"), Map.entry("kc-mcp.tool-exposure", "direct"),
-                Map.entry("kc-mcp.grant-type", "client_credentials"), Map.entry("kc-mcp.username", ""),
-                Map.entry("kc-mcp.password", ""), Map.entry("quarkus.oidc.tenant-enabled", "true"),
+        return Map.ofEntries(Map.entry("kc-mcp.systems.default.url", base),
+                Map.entry("kc-mcp.systems.default.auth-realm", "demo"), Map.entry("kc-mcp.delegation", "forward"),
+                Map.entry("kc-mcp.systems.default.default-realm", "demo"),
+                Map.entry("kc-mcp.systems.default.allowed-realms", "demo"), Map.entry("kc-mcp.tool-exposure", "direct"),
+                Map.entry("kc-mcp.systems.default.grant-type", "client_credentials"),
+                Map.entry("kc-mcp.systems.default.username", ""), Map.entry("kc-mcp.systems.default.password", ""),
+                Map.entry("quarkus.oidc.tenant-enabled", "true"),
                 Map.entry("quarkus.oidc.auth-server-url", base + "/realms/demo"),
                 Map.entry("quarkus.oidc.token.audience", "mcp-admin"),
                 // the admin API trusts the demo realm's tokens: realm admins may use it,

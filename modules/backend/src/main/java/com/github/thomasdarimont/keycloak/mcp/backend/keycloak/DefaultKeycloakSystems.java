@@ -146,7 +146,8 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         this.allowedHosts = allowedHosts;
         this.dynamic = !repositories.isEmpty();
         if (systems.isEmpty() && repositories.isEmpty()) {
-            throw new IllegalStateException("No Keycloak system configured");
+            throw new IllegalStateException("No Keycloak system configured: set kc-mcp.systems.<name>.url"
+                    + " (kc-mcp.systems.default.url for a single one), or kc-mcp.dynamic-systems=true with a repository");
         }
         for (KeycloakSystem s : systems) {
             if (!allowedHosts.permits(s.url())) {
@@ -191,16 +192,26 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         ErrorMapper.register(KeycloakErrors::map);
     }
 
+    /**
+     * The configured systems, {@code kc-mcp.systems.<name>.*} each; none without a block
+     * (the registry then needs a repository). {@code kc-mcp.system-defaults.url} is a
+     * mistake worth stopping for: defaults do not make a system.
+     */
     public static List<KeycloakSystem> resolve(McpServerConfig config) {
         if (!config.staticSystems()) {
             return List.of();
         }
-        if (config.systems().isEmpty()) {
-            return List.of(KeycloakSystem.fromTopLevel(config));
+        if (config.systemDefaults().url().filter(v -> !v.isBlank()).isPresent()) {
+            throw new IllegalStateException("kc-mcp.system-defaults.url does not configure a system: name it,"
+                    + " kc-mcp.systems.<name>.url (the system 'default' is kc-mcp.systems.default.url)");
         }
+        // a block without a url is no system: a blank url switches a configured one off
+        // (a test or a
+        // deployment overriding a file)
         return config.systems()
             .entrySet()
             .stream()
+            .filter(e -> e.getValue().url().filter(v -> !v.isBlank()).isPresent())
             .sorted(Map.Entry.comparingByKey())
             .map(e -> KeycloakSystem.resolve(e.getKey(), config, e.getValue()))
             .toList();

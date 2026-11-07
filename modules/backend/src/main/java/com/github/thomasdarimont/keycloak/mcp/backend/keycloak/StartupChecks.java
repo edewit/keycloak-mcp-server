@@ -152,7 +152,7 @@ public class StartupChecks {
         KeycloakSystem s = admin.system();
         if (s.grantType() != GrantType.CLIENT_CREDENTIALS || s.clientAuth() == ClientAuth.NONE) {
             String msg = "[" + sys + "] delegation=exchange needs a confidential client with a service account as the"
-                    + " actor (grant client_credentials with kc-mcp.client-secret or a private_key_jwt key)";
+                    + " actor (grant client_credentials with kc-mcp.systems.<name>.client-secret or a private_key_jwt key)";
             problems.add(msg);
             LOG.error("Keycloak startup check: " + msg);
             return problems;

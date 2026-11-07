@@ -46,8 +46,8 @@ echo "== version"; "$DIST/bin/kcmcp.sh" --version
 
 echo "== 1. a --config file by relative path, from outside the distribution"
 printf 'quarkus.http.port=%s\nkc-mcp.tool-exposure=lazy\n' "$PORT" > "$DIST/conf/smoke.conf"
-start_server --config conf/smoke.conf --kc-mcp.startup-check=off --kc-mcp.url=http://127.0.0.1:1 \
-  --kc-mcp.client-id=smoke --kc-mcp.client-secret=smoke
+start_server --config conf/smoke.conf --kc-mcp.startup-check=off --kc-mcp.systems.default.url=http://127.0.0.1:1 \
+  --kc-mcp.systems.default.client-id=smoke --kc-mcp.systems.default.client-secret=smoke
 grep -q 'exposure=LAZY' server.log || { echo "conf/smoke.conf was not read"; cat server.log; exit 1; }
 echo "session $(cat .session), exposure lazy: ok"
 stop_server
@@ -56,7 +56,7 @@ echo "== 1b. a directory with one file per system"
 printf 'kc-mcp.systems.prod.url=http://127.0.0.1:1\nkc-mcp.default-system=prod\n' > "$DIST/conf/systems/prod.conf"
 printf 'kc-mcp.systems.staging.url=http://127.0.0.1:2\n' > "$DIST/conf/systems/staging.conf"
 start_server --config conf/smoke.conf --config conf/systems/ --kc-mcp.startup-check=warn \
-  --kc-mcp.client-id=smoke --kc-mcp.client-secret=smoke
+  --kc-mcp.system-defaults.client-id=smoke --kc-mcp.system-defaults.client-secret=smoke
 for system in prod staging; do
   grep -q "Keycloak system '$system'" server.log || { echo "system $system not configured"; cat server.log; exit 1; }
 done
@@ -76,7 +76,7 @@ curl -sf "http://localhost:$KC_PORT/realms/demo" > /dev/null || { docker logs "$
 
 echo "== 3. the service-account scenario against it, keycloak_user_search over MCP"
 start_server --config conf/scenarios/service-account.conf --quarkus.http.port="$PORT" \
-  --kc-mcp.url="http://localhost:$KC_PORT" --kc-mcp.client-secret=mcp-admin-secret
+  --kc-mcp.systems.default.url="http://localhost:$KC_PORT" --kc-mcp.systems.default.client-secret=mcp-admin-secret
 SESSION=$(cat .session)
 mcp '{"jsonrpc":"2.0","method":"notifications/initialized"}' "$SESSION" > /dev/null
 mcp '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"keycloak_user_search","arguments":{"search":"alice"}}}' "$SESSION" > search.out

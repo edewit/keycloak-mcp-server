@@ -174,7 +174,7 @@ class TokenExchangeTest {
             .contains("token-exchange-delegation"));
         assertTrue(TokenExchange.refused("c", 401, "{\"error\":\"invalid_client\"}")
             .getMessage()
-            .contains("kc-mcp.client-secret"));
+            .contains("client-secret"));
         assertTrue(TokenExchange.refused("c", 500, "<html>oops</html>").getMessage().contains("oops"));
     }
 

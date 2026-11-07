@@ -271,16 +271,18 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
                 system.url(), grant.oauthValue(), auth, system.authRealm());
         if (grant == GrantType.CLIENT_CREDENTIALS && auth == ClientAuth.NONE) {
             throw new IllegalStateException("Missing configuration: the client_credentials grant needs "
-                    + "'kc-mcp.client-secret' or a private_key_jwt key ('kc-mcp.jwt.key-file' / 'kc-mcp.jwt.keystore-file')");
+                    + "'kc-mcp.systems.<name>.client-secret' or a private_key_jwt key ('kc-mcp.jwt.key-file' / 'kc-mcp.jwt.keystore-file')");
         }
         String clientId = system.clientId()
             .filter(v -> !v.isBlank())
             .orElseGet(() -> grant == GrantType.PASSWORD && auth == ClientAuth.NONE ? "admin-cli" : null);
         if (clientId == null) {
-            throw new IllegalStateException("Missing configuration 'kc-mcp.client-id'");
+            throw new IllegalStateException("Missing configuration 'kc-mcp.systems.<name>.client-id'");
         }
-        String username = grant == GrantType.PASSWORD ? require(system.username(), "kc-mcp.username") : null;
-        String password = grant == GrantType.PASSWORD ? require(system.password(), "kc-mcp.password") : null;
+        String username = grant == GrantType.PASSWORD ? require(system.username(), "kc-mcp.systems.<name>.username")
+                : null;
+        String password = grant == GrantType.PASSWORD ? require(system.password(), "kc-mcp.systems.<name>.password")
+                : null;
 
         KeycloakBuilder builder = KeycloakBuilder.builder()
             .serverUrl(system.url())
@@ -299,7 +301,7 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
                 .resteasyClient(newClient())
                 .username(username)
                 .password(password)
-                .clientSecret(require(system.clientSecret(), "kc-mcp.client-secret"));
+                .clientSecret(require(system.clientSecret(), "kc-mcp.systems.<name>.client-secret"));
             case PRIVATE_KEY_JWT -> {
                 Client restClient = newClient();
                 Client tokenClient = newClient();

@@ -4,8 +4,8 @@
 `systems/` takes one file per Keycloak system (`--config conf/systems/` reads the whole directory, see the README there).
 `scenarios/` holds complete settings for common setups, started with `bin/kcmcp.sh start --config conf/scenarios/<name>.conf`,
 which adds that file on top of `kcmcp.conf`; a relative path is taken from the current directory, else from the
-distribution's directory. Every setting can also be an environment variable (`kc-mcp.url` →
-`KC_MCP_URL`) or a command line option (`--kc-mcp.url=...`).
+distribution's directory. Every setting can also be an environment variable (`kc-mcp.systems.default.url` →
+`KC_MCP_SYSTEMS_DEFAULT_URL`) or a command line option (`--kc-mcp.systems.default.url=...`).
 
 Private keys for `private_key_jwt` and TLS certificates can live here too; keep the directory readable by the user
 the server runs as only.

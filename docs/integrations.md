@@ -138,7 +138,9 @@ body; the `Mcp-Session-Id` header of the `initialize` answer goes on every later
 ## When the login fails
 
 1. `curl -s http://localhost:8081/.well-known/oauth-protected-resource`: `authorization_servers` must be the public
-   realm URL the browser can reach, `scopes_supported` what the client may ask for.
+   realm URL the browser can reach, `scopes_supported` what the client may ask for. A per-system entry whose login
+   realm is not the default one has its own document at the well-known path plus the entry's path, for example
+   `/.well-known/oauth-protected-resource/mcp/systems/acme`; the 401 of the entry names it.
 2. Keycloak's admin console events (`LOGIN_ERROR`): `invalid_redirect_uri` means the client's callback is missing,
    `invalid_scope` a scope from `scopes_supported` the client lacks.
 3. 401 after a successful login: wrong audience (the mapper, `QUARKUS_OIDC_TOKEN_AUDIENCE`) or issuer mismatch

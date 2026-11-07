@@ -11,7 +11,7 @@ import io.smallrye.config.WithDefault;
 
 /**
  * Server configuration. Every property maps to an env variable with the {@code KC_MCP_}
- * prefix, e.g. {@code kc-mcp.grant-type} -> {@code KC_MCP_GRANT_TYPE}.
+ * prefix, e.g. {@code kc-mcp.systems.default.url} -> {@code KC_MCP_SYSTEMS_DEFAULT_URL}.
  */
 @ConfigMapping(prefix = "kc-mcp")
 public interface McpServerConfig {
@@ -27,21 +27,27 @@ public interface McpServerConfig {
     @WithConverter(Profile.Converter.class)
     Profile profile();
 
-    /** Keycloak base URL, e.g. {@code http://localhost:8080}. */
-    @WithDefault("http://localhost:8080")
-    String url();
-
     /**
-     * Named Keycloak systems: {@code kc-mcp.systems.<name>.url} etc. Each field falls
-     * back to the top-level value. When empty, the top-level settings form a single
-     * system called {@code default}. With several systems the tools gain a {@code system}
-     * argument.
+     * The Keycloak systems, one block each: {@code kc-mcp.systems.<name>.url} and the
+     * other {@link SystemSettings}; a system exists exactly when its {@code url} is set.
+     * Every setting a system leaves out comes from {@link #systemDefaults()}, then from
+     * the built-in default. With several systems the tools gain a {@code system}
+     * argument. Environment form: {@code KC_MCP_SYSTEMS_DEFAULT_URL} (names from the
+     * environment are lower-case letters and digits).
      */
     Map<String, SystemSettings> systems();
 
     /**
-     * System used when the {@code system} argument is omitted; inferred when only one
-     * system exists.
+     * Settings shared by every system that does not set its own:
+     * {@code kc-mcp.system-defaults.client-id}, {@code .grant-type}, {@code .auth-realm},
+     * {@code .allowed-realms} and the rest of {@link SystemSettings}; {@code url} has no
+     * meaning here and is refused.
+     */
+    SystemSettings systemDefaults();
+
+    /**
+     * System used when the {@code system} argument is omitted: the one named here, else
+     * the only system, else the one called {@code default}.
      */
     Optional<String> defaultSystem();
 
@@ -56,58 +62,10 @@ public interface McpServerConfig {
     Explanations explanations();
 
     /**
-     * Keycloak version of the (default) system, e.g. {@code 26.8.2}, when the server info
-     * endpoint is not readable or should be overridden. Tools that need a newer version
-     * are refused with {@code unsupported}; unknown means unchecked.
-     */
-    Optional<String> version();
-
-    /**
-     * Issuer URL of the auth realm as Keycloak states it
-     * ({@code https://sso.example.com/realms/master}), used as the audience of
-     * {@code private_key_jwt} client assertions when {@code kc-mcp.url} is an internal
-     * address that differs from Keycloak's public hostname. Defaults to
-     * {@code <url>/realms/<auth-realm>}.
-     */
-    Optional<String> issuer();
-
-    /**
      * Optional prefix for every tool name, e.g. {@code prod_} ->
      * {@code prod_keycloak_user_search}.
      */
     Optional<String> toolPrefix();
-
-    /**
-     * OAuth grant used to obtain the admin token: {@code client_credentials} (default) or
-     * {@code password}.
-     */
-    @WithDefault("client_credentials")
-    @WithConverter(GrantType.Converter.class)
-    GrantType grantType();
-
-    /**
-     * Client authentication at the token endpoint: {@code client_secret},
-     * {@code private_key_jwt} or {@code none}. When unset it is inferred: a configured
-     * secret means {@code client_secret}, a configured JWT key means
-     * {@code private_key_jwt}, otherwise {@code none} (public client, password grant
-     * only).
-     */
-    @WithConverter(ClientAuth.Converter.class)
-    Optional<ClientAuth> clientAuth();
-
-    /** Realm the admin client / service account lives in. */
-    @WithDefault("master")
-    String authRealm();
-
-    /** Defaults to {@code admin-cli} for the password grant with a public client. */
-    Optional<String> clientId();
-
-    Optional<String> clientSecret();
-
-    /** Admin user for the password grant. */
-    Optional<String> username();
-
-    Optional<String> password();
 
     /** Key settings for {@link ClientAuth#PRIVATE_KEY_JWT}. */
     Jwt jwt();
@@ -277,15 +235,6 @@ public interface McpServerConfig {
     default PrivateHosts effectiveDynamicPrivateHosts() {
         return dynamicPrivateHosts().orElse(profile().shared() ? PrivateHosts.LISTED : PrivateHosts.ALLOW);
     }
-
-    /**
-     * If set, the {@code realm} tool argument becomes optional and defaults to this
-     * realm.
-     */
-    Optional<String> defaultRealm();
-
-    /** Realms the server may touch. Empty = all realms. */
-    Optional<List<String>> allowedRealms();
 
     /**
      * Hosts the server may talk to: every configured Keycloak URL (top level and per
@@ -570,7 +519,15 @@ public interface McpServerConfig {
         Optional<Boolean> hideOnLoginPage();
     }
 
+    /**
+     * One Keycloak system, or the shared defaults
+     * ({@link McpServerConfig#systemDefaults()}).
+     */
     interface SystemSettings {
+        /**
+         * Base URL, context path included; set only per system, it is what makes a system
+         * exist.
+         */
         Optional<String> url();
 
         @WithConverter(GrantType.Converter.class)

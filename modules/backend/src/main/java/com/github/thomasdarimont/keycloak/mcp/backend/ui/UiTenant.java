@@ -12,6 +12,7 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.config.DefaultTenant;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 
 import io.quarkus.oidc.OidcTenantConfig;
@@ -162,7 +163,7 @@ public class UiTenant {
             return own.get();
         }
         Optional<String> admin = config.admin().issuer().filter(v -> !v.isBlank());
-        return admin.orElseGet(() -> config.url() + "/realms/" + config.authRealm());
+        return admin.orElseGet(DefaultTenant::authServerUrl);
     }
 
     /** The tenant of the provider a BFF request belongs to. */

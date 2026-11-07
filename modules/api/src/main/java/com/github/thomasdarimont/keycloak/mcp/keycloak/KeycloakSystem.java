@@ -90,13 +90,21 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
         });
     }
 
-    public static KeycloakSystem fromTopLevel(McpServerConfig c) {
-        return resolve(DEFAULT_NAME, c, null);
-    }
-
+    /**
+     * The system {@code name} from its block and the shared defaults: every value the
+     * block leaves out comes from {@code kc-mcp.system-defaults.*}, then from the
+     * built-in default ({@code client_credentials}, auth realm {@code master}, client
+     * auth inferred from a secret or the configured JWT key). The block must name a
+     * {@code url}.
+     */
     public static KeycloakSystem resolve(String name, McpServerConfig c, McpServerConfig.SystemSettings s) {
-        Optional<String> clientSecret = pick(s == null ? Optional.empty() : s.clientSecret(), c.clientSecret());
-        ClientAuth auth = pick(s == null ? Optional.empty() : s.clientAuth(), c.clientAuth()).orElseGet(() -> {
+        McpServerConfig.SystemSettings d = c.systemDefaults();
+        String url = s.url()
+            .map(String::trim)
+            .filter(v -> !v.isEmpty())
+            .orElseThrow(() -> new IllegalStateException("kc-mcp.systems." + name + ".url is not set"));
+        Optional<String> clientSecret = pick(s.clientSecret(), d.clientSecret());
+        ClientAuth auth = pick(s.clientAuth(), d.clientAuth()).orElseGet(() -> {
             if (clientSecret.filter(v -> !v.isBlank()).isPresent()) {
                 return ClientAuth.CLIENT_SECRET;
             }
@@ -105,20 +113,14 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             }
             return ClientAuth.NONE;
         });
-        List<String> realms = pick(s == null ? Optional.empty() : s.allowedRealms(), c.allowedRealms())
-            .orElse(List.of());
-        return new KeycloakSystem(name, s == null ? c.url() : s.url().orElse(c.url()),
-                s == null ? c.grantType() : s.grantType().orElse(c.grantType()), auth,
-                s == null ? c.authRealm() : s.authRealm().orElse(c.authRealm()),
-                pick(s == null ? Optional.empty() : s.clientId(), c.clientId()), clientSecret,
-                pick(s == null ? Optional.empty() : s.username(), c.username()),
-                pick(s == null ? Optional.empty() : s.password(), c.password()),
-                pick(s == null ? Optional.empty() : s.defaultRealm(), c.defaultRealm()),
+        List<String> realms = pick(s.allowedRealms(), d.allowedRealms()).orElse(List.of());
+        return new KeycloakSystem(name, url, pick(s.grantType(), d.grantType()).orElse(GrantType.CLIENT_CREDENTIALS),
+                auth, pick(s.authRealm(), d.authRealm()).orElse("master"), pick(s.clientId(), d.clientId()),
+                clientSecret, pick(s.username(), d.username()), pick(s.password(), d.password()),
+                pick(s.defaultRealm(), d.defaultRealm()),
                 Set.copyOf(realms.stream().map(String::trim).filter(v -> !v.isEmpty()).toList()),
-                pick(s == null ? Optional.empty() : s.version(), c.version()).map(String::trim)
-                    .filter(v -> !v.isEmpty()),
-                pick(s == null ? Optional.empty() : s.issuer(), c.issuer()).map(String::trim)
-                    .filter(v -> !v.isEmpty()));
+                pick(s.version(), d.version()).map(String::trim).filter(v -> !v.isEmpty()),
+                pick(s.issuer(), d.issuer()).map(String::trim).filter(v -> !v.isEmpty()));
     }
 
     public KeycloakSystem withDisplayName(String label) {

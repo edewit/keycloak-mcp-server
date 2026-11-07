@@ -1,8 +1,8 @@
 # One file per Keycloak system
 
 Put a `<name>.conf` per system here and start with `bin/kcmcp.sh start --config conf/systems/`: every
-`*.conf` file in the directory is read, in name order. Settings a file leaves out fall back to the top-level
-ones in `kcmcp.conf` (client id, grant type, ...). For example `prod.conf`:
+`*.conf` file in the directory is read, in name order. Settings a file leaves out fall back to
+`kc-mcp.system-defaults.*` in `kcmcp.conf` (client id, grant type, ...). For example `prod.conf`:
 
 ```properties
 kc-mcp.systems.prod.url=https://sso.example.com

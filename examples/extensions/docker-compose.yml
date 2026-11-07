@@ -36,13 +36,13 @@ services:
       QUARKUS_HTTP_PORT: "8081"
       QUARKUS_HTTP_HOST: 0.0.0.0
       # realm admin: the service account mcp-admin of realm demo
-      KC_MCP_URL: http://keycloak:8080
-      KC_MCP_GRANT_TYPE: client_credentials
-      KC_MCP_AUTH_REALM: demo
-      KC_MCP_CLIENT_ID: mcp-admin
-      KC_MCP_CLIENT_SECRET: mcp-admin-secret
-      KC_MCP_DEFAULT_REALM: demo
-      KC_MCP_ALLOWED_REALMS: demo
+      KC_MCP_SYSTEMS_DEFAULT_URL: http://keycloak:8080
+      KC_MCP_SYSTEMS_DEFAULT_GRANT_TYPE: client_credentials
+      KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM: demo
+      KC_MCP_SYSTEMS_DEFAULT_CLIENT_ID: mcp-admin
+      KC_MCP_SYSTEMS_DEFAULT_CLIENT_SECRET: mcp-admin-secret
+      KC_MCP_SYSTEMS_DEFAULT_DEFAULT_REALM: demo
+      KC_MCP_SYSTEMS_DEFAULT_ALLOWED_REALMS: demo
       KC_MCP_TOOL_EXPOSURE: hybrid
       # the extensions (kc-mcp.spi.<id>.<key>)
       KC_MCP_SPI_ACME_COMPANY: ACME

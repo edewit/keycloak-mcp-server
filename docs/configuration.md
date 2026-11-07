@@ -2,16 +2,24 @@
 
 [keycloak-mcp-server](../README.md) › documentation
 
-Every property, its default and meaning. Property → environment variable: `kc-mcp.grant-type` → `KC_MCP_GRANT_TYPE`.
+Every property, its default and meaning. Property → environment variable: `kc-mcp.systems.default.url` →
+`KC_MCP_SYSTEMS_DEFAULT_URL` (a system name from the environment is lower-case letters and digits).
 
 | property                        | default                     | meaning |
 |---------------------------------|-----------------------------|---------|
-| `kc-mcp.url`                    | `http://localhost:8080`     | Keycloak base URL, context path included (`https://sso.example.com/auth`) |
-| `kc-mcp.grant-type`             | `client_credentials`        | `client_credentials`, or `password` (deprecated by OAuth 2.1; local dev, static configuration only) |
-| `kc-mcp.client-auth`            | inferred                    | `client_secret`, `private_key_jwt`, `none` |
-| `kc-mcp.auth-realm`             | `master`                    | realm of the client / admin user |
-| `kc-mcp.client-id`              | `admin-cli` for password+none | client id |
-| `kc-mcp.client-secret`          |                             | for `client_secret` |
+| `kc-mcp.systems.<name>.url`     |                             | a Keycloak system: base URL, context path included (`https://sso.example.com/auth`); a system exists when its url is set, one Keycloak is usually named `default` ([Several Keycloak systems](systems.md)) |
+| `kc-mcp.systems.<name>.auth-realm` | `master`                 | realm of the system's client / admin user |
+| `kc-mcp.systems.<name>.grant-type` | `client_credentials`     | or `password` (deprecated by OAuth 2.1; local dev only) |
+| `kc-mcp.systems.<name>.client-auth` | inferred                | `client_secret`, `private_key_jwt`, `none` |
+| `kc-mcp.systems.<name>.client-id` | `admin-cli` for password+none | client id |
+| `kc-mcp.systems.<name>.client-secret` |                       | for `client_secret` |
+| `kc-mcp.systems.<name>.username` / `password` |               | password grant |
+| `kc-mcp.systems.<name>.default-realm` |                       | makes `realm` optional for this system |
+| `kc-mcp.systems.<name>.allowed-realms` | all                  | csv allow-list of this system's realms |
+| `kc-mcp.systems.<name>.issuer`  | `<url>/realms/<auth-realm>` | realm issuer as Keycloak states it, audience of `private_key_jwt` assertions; set when the url is internal |
+| `kc-mcp.systems.<name>.version` | read from server            | Keycloak version override / fallback ([Supported Keycloak versions](keycloak-versions.md)) |
+| `kc-mcp.system-defaults.*`      |                             | the same keys except `url`, shared by every system that does not set its own |
+| `kc-mcp.default-system`         | the only system, else `default` | system when `system` is omitted; the OIDC default tenant verifies callers against its auth realm |
 | `kc-mcp.jwt.key-file`           |                             | PKCS#8 PEM private key for `private_key_jwt` |
 | `kc-mcp.jwt.keystore-file` / `keystore-password` / `key-alias` / `key-password` / `keystore-type` | | keystore alternative |
 | `kc-mcp.jwt.algorithm`          | `RS256`                     | RS256/384/512, PS256/384/512, ES256/384/512 |
@@ -35,7 +43,6 @@ Every property, its default and meaning. Property → environment variable: `kc-
 | `kc-mcp.spi.db-audit.retention-days` |                        | delete audit rows older than this (startup, then hourly); unset keeps all |
 | `kc-mcp.spi.db-key-vault.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the JWKS |
 | `kc-mcp.spi.pii-audit-scrubber.pii` | `keep`                  | `keep`, `pseudonymize`, `drop`; `pii-args` argument names, `targets` listeners (default `db-audit`) |
-| `kc-mcp.username` / `password`  |                             | password grant (static configuration only) |
 | `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; `exchange`: with a delegated token Keycloak issues for caller + server client (26.8 token exchange delegation); both need `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
 | `kc-mcp.dns-rebinding-protection` | `auto`                    | `auto` (on while anonymous), `on`, `off`: `Host`/`Origin` of MCP requests must be localhost or in `kc-mcp.dns-rebinding-allowed-hosts` |
@@ -46,19 +53,13 @@ Every property, its default and meaning. Property → environment variable: `kc-
 | `kc-mcp.dynamic-private-hosts`  | `allow`, `shared`: `listed` | `listed`: a runtime-registered system on a private, loopback or link-local address needs its host named literally in `allowed-hosts` |
 | `kc-mcp.model-confirmation`     | `auto`                      | guidance to the model about destructive tools: `ask`, `server`, `auto` ([Guardrails](security.md#guardrails)) |
 | `kc-mcp.model-confirmation-trusted-roles` |                   | role refs whose holders are told to pass `confirm: true` right away in `ask` mode |
-| `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens; issuer `${kc-mcp.url}/realms/${kc-mcp.auth-realm}` |
+| `quarkus.oidc.tenant-enabled`   | `false`                     | verify bearer tokens of the default system's auth realm (`quarkus.oidc.auth-server-url`, derived unless set) |
 | `quarkus.oidc.token.audience`   |                             | required `aud` (recommended with `forward`) |
-| `quarkus.oidc.token.issuer`     |                             | public issuer when `kc-mcp.url` is internal (Docker) |
-| `quarkus.oidc.resource-metadata.authorization-server` | `quarkus.oidc.auth-server-url` | login address MCP clients are sent to; the public issuer when `kc-mcp.url` is internal |
-| `kc-mcp.default-realm`          |                             | makes `realm` optional |
-| `kc-mcp.systems.<name>.*`       |                             | per system: `url`, `grant-type`, `client-auth`, `auth-realm`, `client-id`, `client-secret`, `username`, `password`, `default-realm`, `allowed-realms`, `version`, `issuer` |
+| `quarkus.oidc.token.issuer`     |                             | public issuer when the system url is internal (Docker) |
+| `quarkus.oidc.resource-metadata.authorization-server` | `quarkus.oidc.auth-server-url` | login address MCP clients are sent to; the public issuer when the system url is internal |
 | `kc-mcp.explanations`           | `auto`                      | refusal wording: `admins` (config details, `howToFix`), `users` (plain words), `auto` (by caller roles in delegation mode, else admins) |
-| `kc-mcp.issuer`                 | `<url>/realms/<auth-realm>` | realm issuer as Keycloak states it, audience of `private_key_jwt` assertions; set when `kc-mcp.url` is internal (also per system, systems file) |
-| `kc-mcp.version`                | read from server            | Keycloak version override / fallback ([Supported Keycloak versions](keycloak-versions.md)) |
-| `kc-mcp.default-system`         | the only system             | system when `system` is omitted |
 | `kc-mcp.allowed-hosts`          | any                         | `[scheme://]host[:port]` patterns with `*`, checked at startup |
 | `kc-mcp.tool-prefix`            |                             | prefix for all tool names (`prod_`) |
-| `kc-mcp.allowed-realms`         | all                         | csv allow-list |
 | `kc-mcp.read-only`              | `false`                     | |
 | `kc-mcp.allowed-tools` / `denied-tools` / `allowed-categories` | all | explicit narrowing |
 | `kc-mcp.role-filter`            | `true`                      | hide/refuse tools the token's roles do not cover |
@@ -80,21 +81,31 @@ Every property, its default and meaning. Property → environment variable: `kc-
 | `kc-mcp.ui.connect-timeout` / `read-timeout` | `kc-mcp.http.*` | the same for the UI's calls to its identity providers |
 
 ```properties
-# service account with a secret (recommended)
-kc-mcp.client-id=mcp-admin
-kc-mcp.client-secret=...
+# one Keycloak, a service account with a secret (recommended)
+kc-mcp.systems.default.url=https://sso.example.com
+kc-mcp.systems.default.auth-realm=demo
+kc-mcp.systems.default.client-id=mcp-admin
+kc-mcp.systems.default.client-secret=...
 
-# service account with private_key_jwt
-kc-mcp.client-id=mcp-admin
+# the same with private_key_jwt
+kc-mcp.systems.default.client-auth=private_key_jwt
 kc-mcp.jwt.key-file=/etc/keycloak-mcp/mcp-admin.pem
 # Keycloak: client mcp-admin -> Credentials -> "Signed JWT", "Use JWKS URL" on,
 # JWKS URL = https://<this server>/.well-known/jwks.json (or import the key it prints);
 # Client scopes -> add kc-admin-api as default (Keycloak 26.8.2+)
 
-# local dev: admin user via admin-cli
-kc-mcp.grant-type=password
-kc-mcp.username=admin
-kc-mcp.password=admin
+# local dev: the admin user via admin-cli
+kc-mcp.systems.default.url=http://localhost:8080
+kc-mcp.systems.default.grant-type=password
+kc-mcp.systems.default.username=admin
+kc-mcp.systems.default.password=admin
+
+# several systems sharing one client setup
+kc-mcp.system-defaults.client-id=keycloak-mcp-server
+kc-mcp.system-defaults.client-auth=private_key_jwt
+kc-mcp.systems.prod.url=https://sso.example.com
+kc-mcp.systems.staging.url=https://sso-staging.example.com
+kc-mcp.default-system=prod
 ```
 
 Port 8081 (`quarkus.http.port`), endpoint `http://localhost:8081/mcp`. Service account roles: [Access levels](security.md#access-levels).

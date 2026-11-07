@@ -4,11 +4,14 @@
 
 One server for several Keycloak installations: configured statically, supplied by a repository at runtime, or registered through the admin API; per-system keys; one MCP entry per system or realm.
 
-`kc-mcp.systems.<name>.*`; every field falls back to the top-level value.
+Every Keycloak the server administers is a named system, `kc-mcp.systems.<name>.*`; a system exists exactly when
+its `url` is set, and a blank `url` switches a configured one off. There is no unnamed system: one Keycloak is
+usually called `default`. Settings a system leaves out come from `kc-mcp.system-defaults.*` (the same keys except
+`url`), then from the built-in defaults.
 
 ```properties
-kc-mcp.grant-type=client_credentials
-kc-mcp.client-id=mcp-admin
+kc-mcp.system-defaults.grant-type=client_credentials
+kc-mcp.system-defaults.client-id=mcp-admin
 kc-mcp.systems.prod.url=https://sso.example.com
 kc-mcp.systems.prod.client-secret=${PROD_SECRET}
 kc-mcp.systems.prod.allowed-realms=customers,partners
@@ -17,10 +20,13 @@ kc-mcp.systems.staging.client-secret=${STAGING_SECRET}
 kc-mcp.default-system=prod
 ```
 
-- More than one system: every tool gains a `system` argument (enum; optional with `kc-mcp.default-system`).
+- More than one system: every tool gains a `system` argument (enum; optional with a default system).
+- The default system: `kc-mcp.default-system`, else the only system, else the one named `default`. The OIDC default
+  tenant verifies callers against its auth realm (`quarkus.oidc.auth-server-url` is derived from it unless set).
 - Roles, allowed realms, default realm, startup checks, audit: per system.
-- One `kc-mcp.jwt.key-file` serves all systems; without it each system gets its own key ([Dynamic systems](#dynamic-systems-and-per-system-keys)).
-- No `kc-mcp.systems.*`: one system `default`, no `system` argument.
+- One `kc-mcp.jwt.key-file` serves all systems; without it each system gets its own key (see Dynamic systems below).
+- Environment form: `KC_MCP_SYSTEMS_PROD_URL`, `KC_MCP_SYSTEM_DEFAULTS_CLIENT_ID`; a system name given through the
+  environment is lower-case letters and digits.
 - One file per system: the distribution reads every `*.conf` file of a directory given to `--config`
   (`kc-mcp.config-files`), so `conf/systems/prod.conf`, `conf/systems/staging.conf` and so on each hold
   their system's `kc-mcp.systems.<name>.*` settings, and the shared ones stay in `conf/kcmcp.conf`
@@ -159,6 +165,12 @@ Same server, bound to one system or realm.
 - With OIDC on, entry requests are verified against the system's auth realm (`<url>/realms/<auth-realm>`): tenant A's
   users log in at tenant A's Keycloak; forward delegation works across systems. Systems sharing the default tenant's
   realm keep the default tenant.
+- Each such entry has its own protected resource metadata, at the well-known path plus the entry's path:
+  `/mcp/systems/acme` answers 401 with `resource_metadata="…/.well-known/oauth-protected-resource/mcp/systems/acme"`,
+  and that document names the system's realm as the authorization server (`/mcp/systems/acme/sales` likewise, under
+  `…/mcp/systems/acme/sales`). An entry on the default tenant's realm shares the root document
+  `/.well-known/oauth-protected-resource`. MCP clients follow the link from the 401, so they log in at the right realm
+  without further configuration.
 - Unknown system: `unknown_system` on every call. `/mcp/*` permission policy covers entries.
 
 ```json

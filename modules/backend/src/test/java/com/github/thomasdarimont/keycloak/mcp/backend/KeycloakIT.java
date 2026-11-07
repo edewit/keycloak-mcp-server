@@ -51,7 +51,9 @@ class KeycloakIT {
         }
     }
 
-    @ConfigProperty(name = "kc-mcp.url")
+    // a default: the field is validated for every test of the shared profile, not only
+    // this one
+    @ConfigProperty(name = "kc-mcp.systems.primary.url", defaultValue = "http://127.0.0.1:1")
     String keycloakUrl;
 
     /**

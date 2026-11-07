@@ -34,17 +34,19 @@ class ConfigFilesSourceFactoryTest {
         // a directory with a space, as C:\Program Files or a user's folder
         Path conf = Files.createDirectories(dir.resolve("dist dir").resolve("conf"));
         Path main = Files.writeString(conf.resolve("kcmcp.conf"),
-                "kc-mcp.url=http://from-file\nkc-mcp.default-realm=file\nkc-mcp.only-in-first=file\n");
+                "kc-mcp.systems.default.url=http://from-file\nkc-mcp.system-defaults.default-realm=file\nkc-mcp.only-in-first=file\n");
         Path extra = Files.writeString(conf.resolve("extra.properties"),
-                "kc-mcp.default-realm=extra\nkc-mcp.read-only=true\n");
+                "kc-mcp.system-defaults.default-realm=extra\nkc-mcp.read-only=true\n");
 
-        SmallRyeConfig c = config(main + ", " + extra, Map.of("kc-mcp.url", "http://from-command-line"),
-                Map.of("kc-mcp.url", "http://default", "kc-mcp.tool-exposure", "hybrid"));
+        SmallRyeConfig c = config(main + ", " + extra, Map.of("kc-mcp.systems.default.url", "http://from-command-line"),
+                Map.of("kc-mcp.systems.default.url", "http://default", "kc-mcp.tool-exposure", "hybrid"));
 
-        assertEquals("http://from-command-line", c.getRawValue("kc-mcp.url"), "a system property beats the file");
+        assertEquals("http://from-command-line", c.getRawValue("kc-mcp.systems.default.url"),
+                "a system property beats the file");
         assertEquals("hybrid", c.getRawValue("kc-mcp.tool-exposure"), "defaults stay where no file speaks");
         assertEquals("true", c.getRawValue("kc-mcp.read-only"), "the file beats the defaults");
-        assertEquals("extra", c.getRawValue("kc-mcp.default-realm"), "a later file overrides an earlier one");
+        assertEquals("extra", c.getRawValue("kc-mcp.system-defaults.default-realm"),
+                "a later file overrides an earlier one");
         assertEquals("file", c.getRawValue("kc-mcp.only-in-first"), "the first file is read too");
     }
 
@@ -95,7 +97,8 @@ class ConfigFilesSourceFactoryTest {
     void anEmptyDirectoryLoadsNothing() throws IOException {
         Path empty = Files.createDirectories(dir.resolve("empty"));
         assertEquals("http://default",
-                config(empty.toString(), Map.of(), Map.of("kc-mcp.url", "http://default")).getRawValue("kc-mcp.url"));
+                config(empty.toString(), Map.of(), Map.of("kc-mcp.systems.default.url", "http://default"))
+                    .getRawValue("kc-mcp.systems.default.url"));
     }
 
     @Test
@@ -107,7 +110,7 @@ class ConfigFilesSourceFactoryTest {
 
     @Test
     void noFilesNoSources() {
-        assertEquals("http://default",
-                config("", Map.of(), Map.of("kc-mcp.url", "http://default")).getRawValue("kc-mcp.url"));
+        assertEquals("http://default", config("", Map.of(), Map.of("kc-mcp.systems.default.url", "http://default"))
+            .getRawValue("kc-mcp.systems.default.url"));
     }
 }

@@ -33,6 +33,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.CibaExcept
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Poll;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaClient.Started;
 import com.github.thomasdarimont.keycloak.mcp.backend.ciba.CibaSettings.Flow;
+import com.github.thomasdarimont.keycloak.mcp.backend.config.DefaultTenant;
 import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive;
@@ -152,7 +153,7 @@ public class CibaConfirmer implements Confirmer {
     @Inject
     public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry, KcMcpMetrics metrics,
             Instance<TlsConfigurationRegistry> tls, Instance<KeycloakSystems> systems) {
-        this(CibaSettings.from(config), config.url() + "/realms/" + config.authRealm(), null, null,
+        this(CibaSettings.from(config), DefaultTenant.authServerUrl(), null, null,
                 registry.extensions(PendingApprovalStore.class)
                     .stream()
                     .min(Comparator.comparingInt(Extension::order))

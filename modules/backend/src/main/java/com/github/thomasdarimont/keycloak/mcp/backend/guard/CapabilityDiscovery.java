@@ -123,7 +123,8 @@ public class CapabilityDiscovery {
             if (!caps.versionKnown() && !caps.featuresKnown()) {
                 if (warned.putIfAbsent(system, Boolean.TRUE) == null) {
                     LOG.warnf("[%s] Keycloak version and features unknown (server info not readable); capability"
-                            + " checks are off. Set kc-mcp.version to enable the version checks.", system);
+                            + " checks are off. Set kc-mcp.systems.<name>.version to enable the version checks.",
+                            system);
                 }
                 snapshots.put(system, new Snapshot(caps, Instant.now().minus(REFRESH).plus(RETRY)));
             }

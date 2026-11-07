@@ -2,14 +2,16 @@
 # Starts keycloak-mcp-server from this distribution.
 #
 #   bin/kcmcp.sh start                                     conf/kcmcp.conf
+#   bin/kcmcp.sh start-dev                                 the same, in development mode: profile local, insecure
+#                                                          settings are warned about instead of refused
 #   bin/kcmcp.sh start --config conf/scenarios/read-only.conf
 #   bin/kcmcp.sh start --config conf/systems/              every *.conf file in it, e.g. one per Keycloak system
-#   bin/kcmcp.sh start --kc-mcp.url=https://sso.example.com --quarkus.http.port=8082
+#   bin/kcmcp.sh start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
 #   bin/kcmcp.sh start --debug 5005
 #   bin/kcmcp.sh start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
 #   bin/kcmcp.sh --version | --help
 #
-# Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_URL=...) work as well and
+# Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
 # override the configuration files, so the script lists the ones it inherits from the shell.
 # JAVA_HOME or JAVA pick the JVM (Java 21 or newer); JAVA_OPTS replaces the default JVM options, JAVA_OPTS_APPEND
 # adds to them. KCMCP_DEBUG=true, KCMCP_DEBUG_PORT and KCMCP_DEBUG_SUSPEND enable remote debugging.
@@ -42,7 +44,7 @@ conf_file() {
 }
 
 usage() {
-    sed -n '2,15p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
+    sed -n '2,17p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
 }
 
 version() {
@@ -64,6 +66,7 @@ CLEAN_ENV=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
         start) COMMAND=start ;;
+        start-dev) COMMAND=start-dev ;;
         -h|--help) usage; exit 0 ;;
         -v|--version) version; exit 0 ;;
         --debug)
@@ -131,6 +134,13 @@ if [ -n "$JAVA_OPTS_APPEND" ]; then
 fi
 if [ "$DEBUG_MODE" = "true" ]; then
     JAVA_OPTS="$JAVA_OPTS -agentlib:jdwp=transport=dt_socket,address=$DEBUG_ADDRESS,server=y,suspend=$DEBUG_SUSPEND"
+fi
+
+if [ "$COMMAND" = "start-dev" ]; then
+    # development mode: the local profile's lenient defaults whatever the files say, startup problems with Keycloak
+    # are warnings; nothing for a server other people reach
+    echo "development mode (start-dev): profile local, startup checks warn; use 'start' for a shared server" >&2
+    SERVER_OPTS="$SERVER_OPTS -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn"
 fi
 
 # where this distribution keeps things; the configuration may refer to ${kcmcp.home.dir}

@@ -22,7 +22,10 @@ public class BuiltinPrompts implements PromptProvider {
 
     @Override
     public List<PromptSpec> prompts(ExtensionContext context) {
+        // the shared default realm, when the systems have one; a system's own default
+        // fills in at the call
         String realmHint = context.serverConfig()
+            .systemDefaults()
             .defaultRealm()
             .map(r -> "Realm (default " + r + ")")
             .orElse("Realm the user lives in");
