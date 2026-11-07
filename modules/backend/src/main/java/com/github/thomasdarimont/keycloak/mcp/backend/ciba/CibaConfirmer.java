@@ -556,9 +556,15 @@ public class CibaConfirmer implements Confirmer {
                         + bindingNote(p.bindingMessage()) + " was sent." + code
                 : "Still waiting for " + p.loginHint() + "'s approval of '" + p.operation() + "' on their device"
                         + bindingNote(p.bindingMessage()) + "." + code + " " + left + " s left.";
-        String howTo = "Tell the user to approve the request on their device"
-                + (p.code() == null ? "" : " and to enter the number " + p.code() + " when asked")
-                + ", then call again with the same arguments to continue. Nothing has been changed yet.";
+        // the model keeps the turn: it shows the number, then waits in the next call, so
+        // the
+        // user does not have to write "done" for the decision to be noticed
+        String howTo = "Tell the user now to approve the request on their device"
+                + (p.code() == null ? "" : " and to enter the number " + p.code() + " there")
+                + ". Then, without waiting for a reply, call this tool again with the same arguments: that call"
+                + " waits up to " + settings.pollWaitSeconds() + " s for the decision and then runs the"
+                + " operation or reports that it was declined. If it answers that it is still pending, call"
+                + " again the same way. Nothing has been changed yet.";
         return Decision.confirmationRequired(message, Map.of("approval", approval, "howTo", howTo));
     }
 

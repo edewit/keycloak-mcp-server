@@ -72,7 +72,9 @@ public final class Sensitive {
     /** Longest audit message kept. */
     static final int MAX_MESSAGE = 500;
 
-    private static final Pattern JWT = Pattern.compile("eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]*");
+    /** A JWS (three parts) or JWE (five parts, the key part empty with {@code dir}). */
+    private static final Pattern JWT = Pattern
+        .compile("eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*(?:\\.[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*)?");
     private static final Pattern BEARER = Pattern.compile("(?i)(bearer\\s+)[A-Za-z0-9._~+/=-]{8,}");
     private static final Pattern ASSIGNMENT = Pattern.compile(
             "(?i)\\b([a-z_]*(?:password|passwd|secret|credential|token))([\"']?\\s*[:=]\\s*[\"']?)([^\\s\"',;&}]+)");
@@ -146,10 +148,22 @@ public final class Sensitive {
         for (String secret : secrets) {
             out = out.replace(secret, MASK);
         }
-        out = JWT.matcher(out).replaceAll(MASK);
-        out = BEARER.matcher(out).replaceAll("$1" + MASK);
+        out = tokens(out);
         out = ASSIGNMENT.matcher(out).replaceAll("$1$2" + MASK);
         return out.length() <= MAX_MESSAGE ? out : out.substring(0, MAX_MESSAGE - 1) + "…";
+    }
+
+    /**
+     * The text with everything shaped like a JWT (signed or encrypted) or a bearer token
+     * replaced by {@link #MASK}, at any length: for log lines, which libraries may fill
+     * with the token they failed to verify.
+     */
+    public static String tokens(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        String out = JWT.matcher(text).replaceAll(MASK);
+        return BEARER.matcher(out).replaceAll("$1" + MASK);
     }
 
     /** The original values wherever the redacted copy has the mask. */

@@ -10,11 +10,27 @@
 #   3. the same with a decline: the second call answers cancelled, nothing is deleted
 #   4. carol, signed in to the device as herself, sees none of alice's requests and cannot decide them
 #   5. confirm: true changes nothing: a new request reaches the device all the same
+#
+#   ./demo.sh                 runs the steps above
+#   ./demo.sh --users=5       only creates 5 users with random names in the demo realm (as alice, through the MCP
+#                             server; a write needs no approval), e.g. to have someone to delete from LM Studio
 set -euo pipefail
 cd "$(dirname "$0")"
 export MCP_URL=${MCP_URL:-http://localhost:8099/mcp}
 KEYCLOAK=${KEYCLOAK_URL:-http://localhost:8098}
 APPROVER=${APPROVER_URL:-http://localhost:8095}
+
+USERS=
+for arg in "$@"; do
+  case "$arg" in
+    --users=*) USERS=${arg#--users=} ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown argument: $arg (try --help)" >&2; exit 2 ;;
+  esac
+done
+if [ -n "$USERS" ] && ! [[ "$USERS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "--users needs a positive number, got '$USERS'" >&2; exit 2
+fi
 
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 call() { ./mcp-call.py "$@" || true; }
@@ -41,6 +57,21 @@ create() {
   local id; id=$(call --login alice:alice-demo keycloak_user_create "{\"username\": \"$name\", \"email\": \"$name@example.com\", \"firstName\": \"Temp\", \"lastName\": \"User\"}" | jq -r '.id')
   echo "$name $id"
 }
+
+# --users=N: create N users with random names and stop
+if [ -n "$USERS" ]; then
+  FIRST_NAMES=(Ada Ben Chloe David Emma Felix Grace Henry Iris Jonas Klara Leo Mia Noah Olivia Paul Rosa Sam Tara Yusuf)
+  LAST_NAMES=(Becker Costa Dubois Evans Fischer Garcia Hansen Ito Jansen Kowalski Larsen Meyer Novak Okafor Petrov Rossi Schmidt Tanaka Weber Young)
+  for i in $(seq 1 "$USERS"); do
+    first=${FIRST_NAMES[$(( $(od -An -N2 -tu2 /dev/urandom) % ${#FIRST_NAMES[@]} ))]}
+    last=${LAST_NAMES[$(( $(od -An -N2 -tu2 /dev/urandom) % ${#LAST_NAMES[@]} ))]}
+    # a random suffix keeps names unique across runs
+    name=$(tr 'A-Z' 'a-z' <<<"$first.$last")-$(uuidgen | tr 'A-Z' 'a-z' | cut -c1-4)
+    call --login alice:alice-demo keycloak_user_create "{\"username\": \"$name\", \"email\": \"$name@example.com\", \"firstName\": \"$first\", \"lastName\": \"$last\"}" \
+      | jq -c --arg n "$name" '{username: $n, id, error, message} | with_entries(select(.value != null))'
+  done
+  exit 0
+fi
 
 step "1. alice logs in to the MCP server; whoami"
 call --login alice:alice-demo whoami | jq -c '{caller: .caller.username, delegation, can: .can.demo}'

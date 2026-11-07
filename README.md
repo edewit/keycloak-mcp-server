@@ -655,8 +655,9 @@ the MCP session before a DESTRUCTIVE tool runs: `login_hint` = the caller's user
 additional parameters `code` (a two-digit number), `requester` (the MCP client's name) and `operation` for the device
 to show. Two-step flow (default): the first call answers `confirmation_required` at once with `approval: {status:
 requested, code, bindingMessage, expiresInSeconds}` and a `howTo` telling the model to have the user approve on
-their device and enter the number, then call again; the next call with the same arguments polls the token endpoint
-and runs the tool (`confirmed`), answers `cancelled` (declined), `confirmation_required` with `status: pending`
+their device and enter the number, then call again right away without waiting for a reply; the next call with the
+same arguments waits up to `poll-wait-seconds` for the device, polling the token endpoint, so the decision is noticed
+without the user writing in the chat. It runs the tool (`confirmed`), answers `cancelled` (declined), `confirmation_required` with `status: pending`
 (still waiting, after `poll-wait-seconds`) or `status: expired` (nothing changed, call again for a new request).
 Number matching as in Entra ID: the number is shown where the request originates and asked for where it is approved,
 so a request the user did not trigger carries a number they cannot know. `flow=blocking` waits in the call instead,

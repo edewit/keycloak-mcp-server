@@ -85,7 +85,10 @@ page, enter the number the chat shows and approve. "Sign out" ends the session h
 
 With LM Studio or another OAuth-capable MCP client: add `mcp-oauth.json`, log in as `alice / alice-demo`, ask it to
 delete a user, then approve or decline on the device page, signed in as alice. The model's answer names the binding
-message and the number the page asks for, so you can tell which request belongs to which operation.
+message and the number the page asks for, so you can tell which request belongs to which operation. The model then
+calls the tool again at once, and that call waits up to 25 s (`KC_MCP_SPI_CIBA_CONFIRMER_POLL_WAIT_SECONDS`) for your
+decision, so it notices the approval without you writing in the chat. A small model may still stop and ask; then
+say "done".
 
 ## What to look at
 
