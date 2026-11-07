@@ -90,7 +90,7 @@ COPY --chown=185 modules/backend/target/quarkus-app/lib/ /deployments/lib/
 COPY --chown=185 modules/backend/target/quarkus-app/*.jar /deployments/
 COPY --chown=185 modules/backend/target/quarkus-app/app/ /deployments/app/
 COPY --chown=185 modules/backend/target/quarkus-app/quarkus/ /deployments/quarkus/
-# extension jars (see README, "Extension jars"); mount or copy more into this directory
+# extension jars (docs/extending.md, "Extension jars"); mount or copy more into this directory
 COPY --chown=185 modules/backend/target/quarkus-app/providers/ /deployments/providers/
 
 # home for provisioned private_key_jwt keys (kc-mcp.keys-dir); mount the keys at /deployments/data/keys

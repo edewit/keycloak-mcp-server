@@ -116,5 +116,9 @@ jobs:
         with:
           name: server
 
+      - name: Recreate the empty providers directory
+        # the build leaves quarkus-app/providers/ empty and artifacts carry no empty directories; the Dockerfile copies it
+        run: mkdir -p modules/backend/target/quarkus-app/providers
+
       - name: Build the JVM image
         run: docker build -f modules/backend/src/main/docker/Dockerfile.jvm -t keycloak-mcp-server:ci .
