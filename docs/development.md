@@ -21,7 +21,7 @@ Modules under `modules/`:
   `.systems`, `.keys`, `.audit`
 - `backend`: `keycloak-mcp-server-backend`, Quarkus application, `...mcp.backend`
 - `distribution`: `keycloak-mcp-server-distribution`, the downloadable `keycloak-mcp-server-<version>.tar.gz` and `.zip`
-  (`bin/kcmcp.sh`, `bin/kcmcp.bat`, `conf/kcmcp.properties` with `conf/scenarios/`, the server under `lib/`, `providers/`,
+  (`bin/kcmcp.sh`, `bin/kcmcp.bat`, `conf/kcmcp.conf` with `conf/scenarios/`, the server under `lib/`, `providers/`,
   `data/`, `docs/`), assembled from `modules/distribution/src/main/content` and the backend's `quarkus-app` by
   `./mvnw package`
 

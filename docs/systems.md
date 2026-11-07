@@ -21,6 +21,10 @@ kc-mcp.default-system=prod
 - Roles, allowed realms, default realm, startup checks, audit: per system.
 - One `kc-mcp.jwt.key-file` serves all systems; without it each system gets its own key ([Dynamic systems](#dynamic-systems-and-per-system-keys)).
 - No `kc-mcp.systems.*`: one system `default`, no `system` argument.
+- One file per system: the distribution reads every `*.conf` file of a directory given to `--config`
+  (`kc-mcp.config-files`), so `conf/systems/prod.conf`, `conf/systems/staging.conf` and so on each hold
+  their system's `kc-mcp.systems.<name>.*` settings, and the shared ones stay in `conf/kcmcp.conf`
+  ([Configuration](configuration.md)).
 
 ## Dynamic systems and per-system keys
 

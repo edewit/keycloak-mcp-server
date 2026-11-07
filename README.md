@@ -62,7 +62,7 @@ The other access levels (full admin, realm manager, read-only, two systems, `pri
 one env file away, see [examples/run-modes](examples/run-modes/README.md).
 
 **Without a build:** the [releases](https://github.com/thomasdarimont/keycloak-mcp-server/releases) carry a
-`keycloak-mcp-server-<version>.tar.gz` and `.zip`. Unpack, edit `conf/kcmcp.properties` or pick a ready-made setup from
+`keycloak-mcp-server-<version>.tar.gz` and `.zip`. Unpack, edit `conf/kcmcp.conf` or pick a ready-made setup from
 `conf/scenarios/`, and start with `bin/kcmcp.sh start` (`bin\kcmcp.bat` on Windows); the archive's README explains the
 layout. `./mvnw package` builds the same archives into `modules/distribution/target/`.
 

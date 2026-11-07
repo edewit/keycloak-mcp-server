@@ -1,8 +1,9 @@
 #!/bin/sh
 # Starts keycloak-mcp-server from this distribution.
 #
-#   bin/kcmcp.sh start                                     conf/kcmcp.properties
-#   bin/kcmcp.sh start --config conf/scenarios/read-only.properties
+#   bin/kcmcp.sh start                                     conf/kcmcp.conf
+#   bin/kcmcp.sh start --config conf/scenarios/read-only.conf
+#   bin/kcmcp.sh start --config conf/systems/              every *.conf file in it, e.g. one per Keycloak system
 #   bin/kcmcp.sh start --kc-mcp.url=https://sso.example.com --quarkus.http.port=8082
 #   bin/kcmcp.sh start --debug 5005
 #   bin/kcmcp.sh --version | --help
@@ -24,13 +25,14 @@ abs_path() {
     if [ -z "$IS_CYGWIN" ]; then echo "$1"; else cygpath -w "$1"; fi
 }
 
-# a --config argument: absolute, relative to the current directory, or relative to the distribution
+# a --config argument, a file or a directory of *.conf files: absolute, relative to the current directory, or
+# relative to the distribution
 conf_file() {
     case "$1" in
         /*) echo "$1" ;;
         *)
-            if [ -f "$1" ]; then echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
-            elif [ -f "$KCMCP_HOME/$1" ]; then echo "$KCMCP_HOME/$1"
+            if [ -e "$1" ]; then echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+            elif [ -e "$KCMCP_HOME/$1" ]; then echo "$KCMCP_HOME/$1"
             else echo "$1"
             fi
             ;;
@@ -38,7 +40,7 @@ conf_file() {
 }
 
 usage() {
-    sed -n '2,12p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
+    sed -n '2,13p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
 }
 
 version() {
@@ -52,7 +54,7 @@ esceval() {
 DEBUG_MODE="${KCMCP_DEBUG:-false}"
 DEBUG_ADDRESS="${KCMCP_DEBUG_PORT:-5005}"
 DEBUG_SUSPEND="${KCMCP_DEBUG_SUSPEND:-n}"
-CONFIG_FILES="$KCMCP_HOME/conf/kcmcp.properties"
+CONFIG_FILES="$KCMCP_HOME/conf/kcmcp.conf"
 SERVER_OPTS=""
 COMMAND=""
 
@@ -90,7 +92,7 @@ fi
 CONFIG_LIST=""
 while IFS= read -r f; do
     [ -n "$f" ] || continue
-    if [ ! -f "$f" ]; then
+    if [ ! -e "$f" ]; then
         echo "configuration file not found: $f" >&2; exit 2
     fi
     CONFIG_LIST="$CONFIG_LIST${CONFIG_LIST:+,}$(abs_path "$f")"

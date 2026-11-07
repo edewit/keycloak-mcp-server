@@ -8,14 +8,14 @@ documentation is in `docs/`, starting with `docs/README.md`.
 
 Needs Java 21 or newer.
 
-1. Tell the server which Keycloak to use and how to authenticate: edit `conf/kcmcp.properties`, or pick a complete setup
+1. Tell the server which Keycloak to use and how to authenticate: edit `conf/kcmcp.conf`, or pick a complete setup
    from `conf/scenarios/` and change the URL and secret in it.
 2. Start it:
 
    ```shell
-   bin/kcmcp.sh start                                            # conf/kcmcp.properties
-   bin/kcmcp.sh start --config conf/scenarios/service-account.properties
-   bin\kcmcp.bat start --config conf\scenarios\service-account.properties    # Windows
+   bin/kcmcp.sh start                                            # conf/kcmcp.conf
+   bin/kcmcp.sh start --config conf/scenarios/service-account.conf
+   bin\kcmcp.bat start --config conf\scenarios\service-account.conf    # Windows
    ```
 
 3. Point an MCP client at `http://localhost:8081/mcp` (`docs/integrations.md` has the settings for LM Studio, Claude
@@ -42,7 +42,7 @@ the environment (`KC_MCP_URL`). `bin/kcmcp.sh --help` lists the options, `--debu
 | directory | holds |
 |---|---|
 | `bin/` | `kcmcp.sh`, `kcmcp.bat` |
-| `conf/` | `kcmcp.properties`, `scenarios/`, your keys and certificates |
+| `conf/` | `kcmcp.conf`, `scenarios/`, `systems/` (one file per Keycloak system), your keys and certificates |
 | `lib/` | the server (Quarkus fast-jar layout); nothing to edit |
 | `providers/` | extension jars, loaded at startup |
 | `data/` | the embedded database, per-system keys, logs |

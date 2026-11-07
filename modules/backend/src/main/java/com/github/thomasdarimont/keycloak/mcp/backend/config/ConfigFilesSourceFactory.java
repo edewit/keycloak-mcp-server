@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.eclipse.microprofile.config.spi.ConfigSource;
 
@@ -17,13 +19,15 @@ import io.smallrye.config.PropertiesConfigSource;
 
 /**
  * Loads the properties files named by {@code kc-mcp.config-files}, a comma-separated list
- * of paths: the distribution's {@code conf/kcmcp.properties} and the {@code --config}
- * files its scripts pass. Plain paths, so spaces and Windows drive letters need no
- * encoding. The first file gets ordinal {@value #ORDINAL}, every further one the next
- * number, so a later file overrides an earlier one (a {@code --config} scenario on top of
- * {@code conf/kcmcp.properties}): above the defaults in the jar's
- * {@code application.properties} (250), below {@code .env} (295), environment variables
- * (300) and system properties (400), so {@code KC_MCP_URL=...} and
+ * of paths: the distribution's {@code conf/kcmcp.conf} and the {@code --config} files its
+ * scripts pass. A directory stands for its {@code *.conf} and {@code *.properties} files
+ * in name order, so one file per Keycloak system under {@code conf/systems/} is loaded as
+ * a whole; the content is Java properties whatever the extension. Plain paths, so spaces
+ * and Windows drive letters need no encoding. The first file gets ordinal
+ * {@value #ORDINAL}, every further one the next number, so a later file overrides an
+ * earlier one (a {@code --config} scenario on top of {@code conf/kcmcp.conf}): above the
+ * defaults in the jar's {@code application.properties} (250), below {@code .env} (295),
+ * environment variables (300) and system properties (400), so {@code KC_MCP_URL=...} and
  * {@code --kc-mcp.url=...} override what any file says. A path cannot contain a comma.
  * {@code quarkus.config.locations} would rank the files like the source that names them,
  * which is the system property here, and a command line option could then not override a
@@ -52,18 +56,42 @@ public class ConfigFilesSourceFactory implements ConfigSourceFactory {
             if (name.isEmpty()) {
                 continue;
             }
-            Path file = Path.of(name);
-            if (!Files.isRegularFile(file)) {
-                throw new IllegalArgumentException(PROPERTY + ": configuration file not found: " + file);
-            }
-            try {
-                sources.add(new PropertiesConfigSource(file.toUri().toURL(), ordinal));
-                ordinal = Math.min(ordinal + 1, MAX_ORDINAL);
-            }
-            catch (IOException e) {
-                throw new IllegalArgumentException(PROPERTY + ": cannot read " + file + ": " + e.getMessage(), e);
+            for (Path file : files(Path.of(name))) {
+                try {
+                    sources.add(new PropertiesConfigSource(file.toUri().toURL(), ordinal));
+                    ordinal = Math.min(ordinal + 1, MAX_ORDINAL);
+                }
+                catch (IOException e) {
+                    throw new IllegalArgumentException(PROPERTY + ": cannot read " + file + ": " + e.getMessage(), e);
+                }
             }
         }
         return sources;
+    }
+
+    /** {@code .conf} as Keycloak names them, or {@code .properties}. */
+    static boolean isConfigFile(String name) {
+        return name.endsWith(".conf") || name.endsWith(".properties");
+    }
+
+    /**
+     * The file itself, or the {@code *.conf} and {@code *.properties} files of a
+     * directory in name order.
+     */
+    static List<Path> files(Path path) {
+        if (Files.isRegularFile(path)) {
+            return List.of(path);
+        }
+        if (Files.isDirectory(path)) {
+            try (Stream<Path> entries = Files.list(path)) {
+                return entries.filter(p -> Files.isRegularFile(p) && isConfigFile(p.getFileName().toString()))
+                    .sorted(Comparator.comparing(p -> p.getFileName().toString()))
+                    .toList();
+            }
+            catch (IOException e) {
+                throw new IllegalArgumentException(PROPERTY + ": cannot list " + path + ": " + e.getMessage(), e);
+            }
+        }
+        throw new IllegalArgumentException(PROPERTY + ": configuration file not found: " + path);
     }
 }

@@ -374,10 +374,10 @@ public interface McpServerConfig {
 
     /**
      * Properties files read at startup, comma separated: the distribution's
-     * {@code conf/kcmcp.properties} and the files its scripts pass with {@code --config}.
-     * They rank above the server's defaults and below the environment and system
-     * properties; a missing file stops the start (the backend's
-     * {@code ConfigFilesSourceFactory} loads them).
+     * {@code conf/kcmcp.conf} and the files its scripts pass with {@code --config}. They
+     * rank above the server's defaults and below the environment and system properties; a
+     * missing file stops the start (the backend's {@code ConfigFilesSourceFactory} loads
+     * them).
      */
     Optional<String> configFiles();
 

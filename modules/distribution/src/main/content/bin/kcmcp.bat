@@ -1,8 +1,9 @@
 @echo off
 rem Starts keycloak-mcp-server from this distribution.
 rem
-rem   bin\kcmcp.bat start                                     conf\kcmcp.properties
-rem   bin\kcmcp.bat start --config conf\scenarios\read-only.properties
+rem   bin\kcmcp.bat start                                     conf\kcmcp.conf
+rem   bin\kcmcp.bat start --config conf\scenarios\read-only.conf
+rem   bin\kcmcp.bat start --config conf\systems\              every *.conf file in it, e.g. one per Keycloak system
 rem   bin\kcmcp.bat start --kc-mcp.url=https://sso.example.com --quarkus.http.port=8082
 rem   bin\kcmcp.bat start --debug 5005
 rem   bin\kcmcp.bat --version | --help
@@ -26,7 +27,7 @@ if not "%KCMCP_DEBUG_PORT%" == "" set DEBUG_ADDRESS=%KCMCP_DEBUG_PORT%
 if not "%KCMCP_DEBUG_SUSPEND%" == "" set DEBUG_SUSPEND_VAR=%KCMCP_DEBUG_SUSPEND%
 
 rem the configuration files, read by the server from kc-mcp.config-files (plain paths, comma separated)
-set "CONFIG_FILES=%KCMCP_HOME%\conf\kcmcp.properties"
+set "CONFIG_FILES=%KCMCP_HOME%\conf\kcmcp.conf"
 set SERVER_OPTS=
 set COMMAND=
 

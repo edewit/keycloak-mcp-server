@@ -45,10 +45,10 @@ stop_server() { kill "$SERVER_PID"; wait "$SERVER_PID" 2>/dev/null || true; SERV
 echo "== version"; "$DIST/bin/kcmcp.sh" --version
 
 echo "== 1. a --config file by relative path, from outside the distribution"
-printf 'quarkus.http.port=%s\nkc-mcp.tool-exposure=lazy\n' "$PORT" > "$DIST/conf/smoke.properties"
-start_server --config conf/smoke.properties --kc-mcp.startup-check=off --kc-mcp.url=http://127.0.0.1:1 \
+printf 'quarkus.http.port=%s\nkc-mcp.tool-exposure=lazy\n' "$PORT" > "$DIST/conf/smoke.conf"
+start_server --config conf/smoke.conf --kc-mcp.startup-check=off --kc-mcp.url=http://127.0.0.1:1 \
   --kc-mcp.client-id=smoke --kc-mcp.client-secret=smoke
-grep -q 'exposure=LAZY' server.log || { echo "conf/smoke.properties was not read"; cat server.log; exit 1; }
+grep -q 'exposure=LAZY' server.log || { echo "conf/smoke.conf was not read"; cat server.log; exit 1; }
 echo "session $(cat .session), exposure lazy: ok"
 stop_server
 
@@ -63,7 +63,7 @@ for _ in $(seq 1 120); do curl -sf "http://localhost:$KC_PORT/realms/demo" > /de
 curl -sf "http://localhost:$KC_PORT/realms/demo" > /dev/null || { docker logs "$KC_ID" | tail -20; exit 1; }
 
 echo "== 3. the service-account scenario against it, keycloak_user_search over MCP"
-start_server --config conf/scenarios/service-account.properties --quarkus.http.port="$PORT" \
+start_server --config conf/scenarios/service-account.conf --quarkus.http.port="$PORT" \
   --kc-mcp.url="http://localhost:$KC_PORT" --kc-mcp.client-secret=mcp-admin-secret
 SESSION=$(cat .session)
 mcp '{"jsonrpc":"2.0","method":"notifications/initialized"}' "$SESSION" > /dev/null
