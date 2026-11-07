@@ -1,5 +1,2 @@
 *
-!modules/backend/target/*-runner
-!modules/backend/target/*-runner.jar
-!modules/backend/target/lib/*
 !modules/backend/target/quarkus-app/*

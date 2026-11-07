@@ -51,4 +51,7 @@ management UI bootstrap (login, sessions, BFF) done; the UI pages themselves are
 
 ## Quarkus notes
 
-Dev UI <http://localhost:8081/q/dev/>. Native: `./mvnw package -Dnative` (untested).
+Dev UI <http://localhost:8081/q/dev/>. The server runs on the JVM only: extension jars are loaded from `providers/` at
+runtime, the default storage is the embedded H2, and the storage derives keys with Bouncy Castle, none of which fits a
+GraalVM native image. The Quarkus native profile and Dockerfiles were removed for that reason; `Dockerfile.jvm` is the
+one container build.
