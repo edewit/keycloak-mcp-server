@@ -71,6 +71,11 @@ public class DefaultTenantInterceptorFactory implements ConfigSourceInterceptorF
      * exists.
      */
     static String defaultSystem(ConfigSourceInterceptorContext ctx) {
+        if ("false".equalsIgnoreCase(raw(ctx, "kc-mcp.static-systems"))) {
+            // repositories supply the systems at runtime: nothing to derive the tenant
+            // from
+            return null;
+        }
         String configured = raw(ctx, "kc-mcp.default-system");
         if (configured != null) {
             return configured;

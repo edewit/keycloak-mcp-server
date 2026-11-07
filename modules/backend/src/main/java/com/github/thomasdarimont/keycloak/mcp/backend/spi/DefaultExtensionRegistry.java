@@ -149,17 +149,17 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
             Confirmer.class, AuditListener.class, AuditScrubber.class, ProfileCheck.class, PendingApprovalStore.class);
 
     /**
-     * Resolves every extension point at startup instead of on first use, so that a
-     * required extension that cannot take part stops the start rather than the first
-     * call.
-     */
-    /**
      * Extension points picked outside the registry; discovered here too, so that their
      * ids count as present.
      */
     static final List<Class<? extends Extension>> OTHER_TYPES = List.of(KeycloakSystemRepository.class, KeyVault.class,
             SigningKeyGenerator.class, UserSessionStore.class);
 
+    /**
+     * Resolves every extension point at startup instead of on first use, so that a
+     * required extension that cannot take part stops the start rather than the first
+     * call.
+     */
     void onStart(@Observes StartupEvent event) {
         for (Class<? extends Extension> type : STARTUP_TYPES) {
             extensions(type);

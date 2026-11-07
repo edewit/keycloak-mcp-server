@@ -4,8 +4,11 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import jakarta.ws.rs.BadRequestException;
@@ -18,6 +21,7 @@ import org.keycloak.admin.client.resource.RealmResource;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
@@ -65,6 +69,11 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     private final Map<String, Delegate> delegates = new ConcurrentHashMap<>();
     private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
     private volatile Duration readTimeout = OutboundClients.Timeouts.DEFAULT.read();
+    /**
+     * Issuer bases a forwarded caller token may come from; {@code null} leaves it
+     * unchecked.
+     */
+    private volatile Set<String> callerIssuerBases;
 
     public DefaultKeycloakAdmin(KeycloakSystem system, SigningKeys jwtKeys) {
         this(system, jwtKeys, DelegationMode.OFF);
@@ -104,6 +113,16 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         }
         if (forwardedToken != null) {
             throw new IllegalStateException("this client already acts for a caller");
+        }
+        // the token stays within the trust domain that issued it: a token of Keycloak A
+        // is never sent to
+        // Keycloak B, not even to be refused there
+        String issuer = issuerOf(bearerToken);
+        if (callerIssuerBases != null && issuer != null && !callerIssuerBases.contains(base(issuer))) {
+            throw new ToolException("caller_foreign_system",
+                    "The caller's token was issued by " + issuer + "; system '" + system.name()
+                            + "' acts only for callers of " + system.publicUrl()
+                            + ". Log in at that system's entry (/mcp/systems/" + system.name() + ") instead.");
         }
         long now = System.currentTimeMillis();
         Delegate d = delegates.get(bearerToken);
@@ -176,6 +195,60 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
                 }
             }
         }
+    }
+
+    /**
+     * Which issuers' tokens this client forwards: the system's own URL and public URL,
+     * plus {@code extraIssuers} (the OIDC tenant's configured issuer for the default
+     * system). Compared by base, the part before {@code /realms/}, so every realm of that
+     * Keycloak counts.
+     */
+    public static Set<String> callerIssuerBases(KeycloakSystem system, Collection<String> extraIssuers) {
+        Set<String> bases = new HashSet<>();
+        bases.add(base(system.url()));
+        bases.add(base(system.publicUrl()));
+        for (String extra : extraIssuers) {
+            if (extra != null && !extra.isBlank()) {
+                bases.add(base(extra.trim()));
+            }
+        }
+        return Set.copyOf(bases);
+    }
+
+    /** The issuer bases of the callers whose tokens may be forwarded to this system. */
+    public DefaultKeycloakAdmin callerIssuers(Set<String> bases) {
+        this.callerIssuerBases = bases;
+        return this;
+    }
+
+    /** {@code https://sso.example.com/realms/demo} -> {@code https://sso.example.com}. */
+    static String base(String issuer) {
+        String v = issuer.trim();
+        int realms = v.indexOf("/realms/");
+        if (realms > 0) {
+            v = v.substring(0, realms);
+        }
+        return v.endsWith("/") ? v.substring(0, v.length() - 1) : v;
+    }
+
+    /**
+     * The {@code iss} claim, {@code null} when the token is not a readable JWT or has
+     * none.
+     */
+    static String issuerOf(String jwt) {
+        try {
+            String[] parts = jwt.split("\\.");
+            if (parts.length >= 2) {
+                var payload = new JsonObject(
+                        new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
+                String iss = payload.getString("iss");
+                return iss == null || iss.isBlank() ? null : iss;
+            }
+        }
+        catch (RuntimeException e) {
+            LOG.debugf("Cannot read token issuer: %s", e.toString());
+        }
+        return null;
     }
 
     /**

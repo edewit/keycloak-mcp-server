@@ -1,0 +1,68 @@
+package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.List;
+import java.util.Set;
+
+import org.junit.jupiter.api.Test;
+
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
+import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * A caller's token is forwarded to the Keycloak that issued it, never to another one; the
+ * positive path builds a real client and is covered by {@code TwoKeycloaksIT}.
+ */
+class CallerIssuerTest {
+
+    static String jwt(String issuer) {
+        String payload = "{\"iss\":\"" + issuer + "\",\"sub\":\"alice\",\"exp\":"
+                + (System.currentTimeMillis() / 1000 + 300) + "}";
+        return "eyJhbGciOiJub25lIn0."
+                + Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8))
+                + ".sig";
+    }
+
+    @Test
+    void theIssuerBaseIsTheKeycloakNotTheRealm() {
+        assertEquals("https://sso.example.com", DefaultKeycloakAdmin.base("https://sso.example.com/realms/demo"));
+        assertEquals("https://sso.example.com", DefaultKeycloakAdmin.base("https://sso.example.com/"));
+        assertEquals("http://keycloak:8080", DefaultKeycloakAdmin.base("http://keycloak:8080/realms/master/"));
+    }
+
+    @Test
+    void theAcceptedBasesAreTheSystemsOwnUrlsAndTheTenantsIssuer() {
+        KeycloakSystem internal = KeycloakSystem.builder("default", "http://keycloak:8080")
+            .issuer("http://localhost:8098/realms/demo")
+            .build();
+        Set<String> bases = DefaultKeycloakAdmin.callerIssuerBases(internal,
+                List.of("http://localhost:8098/realms/demo", " ", "https://public.example/realms/x"));
+        assertEquals(Set.of("http://keycloak:8080", "http://localhost:8098", "https://public.example"), bases);
+    }
+
+    @Test
+    void aTokenOfAnotherKeycloakIsRefusedBeforeItIsSent() {
+        KeycloakSystem other = KeycloakSystem.builder("other", "http://keycloak-b:8080").build();
+        DefaultKeycloakAdmin admin = new DefaultKeycloakAdmin(other, null, DelegationMode.FORWARD)
+            .callerIssuers(DefaultKeycloakAdmin.callerIssuerBases(other, List.of()));
+        ToolException e = assertThrows(ToolException.class,
+                () -> admin.forToken(jwt("http://keycloak-a:8080/realms/demo")));
+        assertEquals("caller_foreign_system", e.code());
+        assertTrue(
+                e.getMessage().contains("keycloak-a:8080/realms/demo") && e.getMessage().contains("/mcp/systems/other"),
+                e.getMessage());
+    }
+
+    @Test
+    void anUnreadableTokenIsNotJudgedByIssuer() {
+        assertNull(DefaultKeycloakAdmin.issuerOf("opaque-token"));
+        assertNull(DefaultKeycloakAdmin.issuerOf("a.b.c"));
+    }
+}

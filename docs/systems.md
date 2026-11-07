@@ -172,6 +172,8 @@ Same server, bound to one system or realm.
   `/.well-known/oauth-protected-resource`. MCP clients follow the link from the 401, so they log in at the right realm
   without further configuration.
 - Unknown system: `unknown_system` on every call. `/mcp/*` permission policy covers entries.
+- In delegation mode a caller's token never crosses to another Keycloak: a call that names a system whose Keycloak
+  did not issue the token answers `caller_foreign_system` ([Security](security.md#callers)).
 
 ```json
 { "mcpServers": {

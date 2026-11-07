@@ -187,6 +187,10 @@ require an audience). `KC_MCP_DELEGATION` then decides whose identity reaches Ke
   browser with code and PKCE, and retry. Per client: [Integrations](integrations.md).
 - **Keycloak side.** A public client with an *Audience* mapper for the server (`mcp-consumer` in
   `examples/run-modes/realms/demo-realm.json`); the humans hold the `realm-management` roles, groups preferred.
+- **One Keycloak per token.** A caller's token is forwarded only to the system whose Keycloak issued it, compared by
+  the issuer's base: the system's URL or its configured public issuer, and for the default system what the default
+  OIDC tenant verifies. A call that names another system answers `caller_foreign_system` before anything is sent;
+  the caller logs in at that system's entry instead.
 - **Audit.** The line names the human: `caller=alice(<sub>) delegated`.
 - **Exchange mode.** The MCP client must request the scope `delegation:client:<client id>`, advertised as
   `scopes_supported` in the protected resource metadata, and the user consents at login, every session. Without that

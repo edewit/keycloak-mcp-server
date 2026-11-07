@@ -5,11 +5,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ErrorMapper;
@@ -254,6 +256,23 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         return repository.repositories().stream().filter(r -> r.find(name).isPresent()).findFirst();
     }
 
+    /**
+     * The issuers whose caller tokens may be forwarded to a system: its own Keycloak; for
+     * the default system also what the default OIDC tenant is configured to verify
+     * ({@code quarkus.oidc.token.issuer}, {@code quarkus.oidc.auth-server-url}), which
+     * may name the public address of an internally reached Keycloak.
+     */
+    private Set<String> callerIssuers(KeycloakSystem system, String name) {
+        List<String> extra = new ArrayList<>();
+        if (name.equals(defaultName)) {
+            var config = ConfigProvider.getConfig();
+            for (String key : List.of("quarkus.oidc.token.issuer", "quarkus.oidc.auth-server-url")) {
+                config.getOptionalValue(key, String.class).ifPresent(extra::add);
+            }
+        }
+        return DefaultKeycloakAdmin.callerIssuerBases(system, extra);
+    }
+
     /** The hosts the server may talk to. */
     public HostAllowList allowedHosts() {
         return allowedHosts;
@@ -354,7 +373,8 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
             }
         }
         KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation).metrics(metrics)
-            .readTimeout(readTimeout);
+            .readTimeout(readTimeout)
+            .callerIssuers(callerIssuers(system, name));
         KeycloakAdmin previous = admins.put(name, created);
         if (previous != null) {
             LOG.infof("Keycloak system '%s' changed at its repository, reconnecting to %s", name, system.url());
