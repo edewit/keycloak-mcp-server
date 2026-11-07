@@ -165,7 +165,10 @@ jobs:
 
       - name: Unpack
         shell: bash
-        run: tar xzf keycloak-mcp-server-*.tar.gz && mv keycloak-mcp-server-*/ dist
+        run: |
+          tar xzf keycloak-mcp-server-*.tar.gz
+          mv keycloak-mcp-server-*/ dist
+          ls -la dist dist/bin dist/conf
 
       - name: Start with kcmcp.sh and initialize an MCP session
         if: runner.os != 'Windows'
@@ -189,9 +192,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          dist\bin\kcmcp.bat --version
+          .\dist\bin\kcmcp.bat --version
           "quarkus.http.port=8085`nkc-mcp.tool-exposure=lazy`n" | Set-Content dist\conf\smoke.properties
-          $p = Start-Process -FilePath "dist\bin\kcmcp.bat" -ArgumentList "start","--config","conf\smoke.properties","--kc-mcp.startup-check=off","--kc-mcp.url=http://127.0.0.1:1","--kc-mcp.client-id=smoke","--kc-mcp.client-secret=smoke" -RedirectStandardOutput server.log -RedirectStandardError server.err -PassThru -NoNewWindow
+          $p = Start-Process -FilePath ".\dist\bin\kcmcp.bat" -ArgumentList "start","--config","conf\smoke.properties","--kc-mcp.startup-check=off","--kc-mcp.url=http://127.0.0.1:1","--kc-mcp.client-id=smoke","--kc-mcp.client-secret=smoke" -RedirectStandardOutput server.log -RedirectStandardError server.err -PassThru -NoNewWindow
           $body = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
           $ok = $false
           for ($i = 0; $i -lt 60 -and -not $ok; $i++) {

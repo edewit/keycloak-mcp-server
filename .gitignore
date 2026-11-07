@@ -11,6 +11,8 @@ release.properties
 .classpath
 .settings/
 bin/
+# ... but not the distribution's start scripts
+!modules/distribution/src/main/content/bin/
 
 # IntelliJ
 .idea
