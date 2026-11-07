@@ -8,7 +8,7 @@ import jakarta.transaction.Transactional;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig;
-import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSession;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
@@ -23,7 +23,7 @@ import io.quarkus.scheduler.Scheduled;
  * the store off alone with {@code kc-mcp.spi.db-user-sessions.enabled=false}.
  */
 @ApplicationScoped
-@LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
+@LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabaseUserSessionStore implements UserSessionStore {
 
     public static final String ID = "db-user-sessions";

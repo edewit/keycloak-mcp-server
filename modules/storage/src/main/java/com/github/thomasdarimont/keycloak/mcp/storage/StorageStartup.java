@@ -36,7 +36,7 @@ public class StorageStartup {
             return;
         }
         String url = ConfigProvider.getConfig()
-            .getOptionalValue(StorageConfigSourceFactory.JDBC_URL, String.class)
+            .getOptionalValue(StorageEnabledInterceptorFactory.JDBC_URL, String.class)
             .orElse("(no quarkus.datasource.jdbc.url)");
         LOG.infof("Database storage on: systems, signing keys, secrets and audit events in %s", redact(url));
         if (!crypto.enabled()) {

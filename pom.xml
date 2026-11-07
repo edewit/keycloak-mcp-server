@@ -16,6 +16,8 @@
         <module>modules/frontend</module>
         <!-- the Quarkus application -->
         <module>modules/backend</module>
+        <!-- the downloadable distribution: bin/kcmcp.sh, conf/, the server under lib/ (tar.gz and zip) -->
+        <module>modules/distribution</module>
         <!-- test_* tools and prompts for the MCP conformance suite, an extension jar; see conformance/README.md -->
         <module>conformance/fixtures</module>
         <!-- examples/extensions -->

@@ -14,7 +14,7 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
-import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
@@ -34,7 +34,7 @@ import io.quarkus.arc.lookup.LookupIfProperty;
  * subject (an opaque id), realm and roles and the outcome stay in every mode.
  */
 @ApplicationScoped
-@LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
+@LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class PiiAuditScrubber implements AuditScrubber {
 
     public static final String ID = "pii-audit-scrubber";

@@ -102,6 +102,46 @@ Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. F
 - `GET /admin/storage`: encryption on/off, current key id, key ids in use per table. `POST /admin/storage/rekey`:
   re-encrypts under the current `kc-mcp.storage.secret-key` ([Database storage](storage.md), key rotation).
 
+### Walkthrough: a new system with `private_key_jwt`
+
+No shared secret changes hands: the server signs its token requests with a key pair of its own, and Keycloak fetches
+the public key from a JWKS the server publishes per system. `examples/dynamic-systems/` runs this end to end.
+
+1. **Server side.** Dynamic systems and the admin API are on, with the database storage holding systems and keys:
+   `kc-mcp.dynamic-systems=true`, `kc-mcp.admin.enabled=true` with `kc-mcp.admin.token` or an admin issuer,
+   `quarkus.datasource.jdbc.url` and `kc-mcp.storage.secret-key`. The Keycloak's host must pass `kc-mcp.allowed-hosts`.
+2. **Register the system** and let the server generate its key:
+
+   ```shell
+   curl -s -X PUT https://mcp.example.com/admin/systems/acme \
+     -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+     -d '{ "displayName": "ACME", "url": "https://sso.acme.example", "authRealm": "master",
+           "clientId": "keycloak-mcp-server", "clientAuth": "private_key_jwt",
+           "defaultRealm": "acme", "allowedRealms": ["acme"], "signingKey": "generate" }'
+   ```
+
+   The answer carries no secret: `signingKey.kid`, `signingKey.jwksPath` (`/auth/keys/acme/jwks.json`) and
+   `signingKey.jwksUrl`, the full URL as the caller reached the server, so an internal hostname needs
+   `X-Forwarded-Proto` and `X-Forwarded-Host` from the proxy to come out right. The JWKS is public and lists the
+   current key, after a rotation also the retired one for the grace period.
+3. **Client in Keycloak**, in the realm named as `authRealm`: a confidential client `keycloak-mcp-server` with
+   *Service accounts roles* on and the `realm-management` roles (or master `admin`) it needs; under *Credentials*
+   choose *Signed JWT*, switch *Use JWKS URL* on and enter `https://mcp.example.com/auth/keys/acme/jwks.json`. On
+   Keycloak 26.8.2 and later add the client scope `kc-admin-api` as a default scope. Keycloak fetches the key on the
+   first token request and again whenever it meets an unknown `kid`.
+4. **Check.** `GET /admin/systems/acme` shows the system with `source: db-systems`; a call to
+   `/mcp/systems/acme` (`whoami`) runs as the new service account. A failing token request answers
+   `keycloak_unreachable` or `unauthorized` with the Keycloak error: `invalid_client` usually means the JWKS URL is
+   not reachable from Keycloak or the `kid` is unknown, `Invalid token audience` that `issuer` must be set because
+   the server reaches Keycloak at an internal URL.
+5. **Rotate** with `POST /admin/systems/acme/signing-key`: the JWKS lists the new key first and keeps the retired one
+   for `kc-mcp.spi.db-key-vault.retired-key-grace-seconds`, so Keycloak switches without a gap.
+
+Without the database, the systems file does the same with a provisioned key: the entry in `kc-mcp.systems-file`
+names `"clientAuth": "private_key_jwt"`, the private key lies in `kc-mcp.keys-dir` as `<alias>.pem` (PKCS#8 PEM), and
+the JWKS of that key is served at the same `/auth/keys/<alias>/jwks.json`. `examples/multi-tenant/` provisions keys
+this way.
+
 Caller authentication is per MCP entry, not per system: one login per server URL. Several systems: one central identity
 (master admin), or one entry per system (next section).
 

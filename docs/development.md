@@ -20,6 +20,16 @@ Modules under `modules/`:
 - `storage`: `keycloak-mcp-server-storage`, Liquibase changelog, `...mcp.storage` (switch, startup log), `.crypto`,
   `.systems`, `.keys`, `.audit`
 - `backend`: `keycloak-mcp-server-backend`, Quarkus application, `...mcp.backend`
+- `distribution`: `keycloak-mcp-server-distribution`, the downloadable `keycloak-mcp-server-<version>.tar.gz` and `.zip`
+  (`bin/kcmcp.sh`, `bin/kcmcp.bat`, `conf/kcmcp.properties` with `conf/scenarios/`, the server under `lib/`, `providers/`,
+  `data/`, `docs/`), assembled from `modules/distribution/src/main/content` and the backend's `quarkus-app` by
+  `./mvnw package`
+
+## Releases
+
+A tag `v<version>` pushed to GitHub runs `.github/workflows/release.yml`: it sets the version from the tag for the
+build, runs the full verification, and publishes a GitHub release with the two archives attached. The CI workflow
+unpacks the archive and starts it with `kcmcp.sh` on Linux and `kcmcp.bat` on Windows on every push.
 
 Dev mode needs `-pl modules/backend -am`; other goals run from the root. `StorageTest` (backend, in-memory H2) always runs.
 IntelliJ: `.run/` holds run configurations for every example and the conformance suite (`examples/gen-run-configs.sh`).

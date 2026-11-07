@@ -21,7 +21,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKeyGenerator;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
-import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
@@ -44,7 +44,7 @@ import io.quarkus.panache.common.Sort;
  * {@link #findSigningKey} then serves the newer one and the older stays unused.
  */
 @ApplicationScoped
-@LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
+@LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabaseKeyVault implements KeyVault {
 
     public static final String ID = "db-key-vault";

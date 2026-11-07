@@ -6,7 +6,7 @@ import jakarta.transaction.Transactional;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
-import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
 import io.quarkus.panache.common.Sort;
@@ -21,7 +21,7 @@ import io.vertx.core.json.JsonObject;
  * default). Switch it off alone with {@code kc-mcp.spi.db-audit.enabled=false}.
  */
 @ApplicationScoped
-@LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
+@LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabaseAuditListener implements AuditListener {
 
     public static final String ID = "db-audit";

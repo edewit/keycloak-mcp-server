@@ -17,8 +17,8 @@ public interface StorageConfig {
     /**
      * Whether systems, keys, secrets and audit events are kept in the database. Defaults
      * to whether {@code quarkus.datasource.jdbc.url} is configured
-     * ({@link StorageConfigSourceFactory}); {@code false} keeps a configured datasource
-     * unused, {@code true} without a datasource fails at startup.
+     * ({@link StorageEnabledInterceptorFactory}); {@code false} keeps a configured
+     * datasource unused, {@code true} without a datasource fails at startup.
      */
     @WithDefault("false")
     boolean enabled();

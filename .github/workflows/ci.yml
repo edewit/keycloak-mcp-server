@@ -7,6 +7,8 @@
 #   conformance  the MCP conformance suite against the packaged server (conformance/run.sh); fails only on
 #                scenarios not baselined in conformance/expected-failures.yml. Reports as a workflow artifact.
 #   image        builds the JVM container image from modules/backend/src/main/docker/Dockerfile.jvm; nothing is pushed.
+#   distribution starts the unpacked distribution with bin/kcmcp.sh on Linux and bin/kcmcp.bat on Windows and
+#                checks that the server answers.
 name: CI
 
 on:
@@ -70,6 +72,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Keep the distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: distribution
+          path: modules/distribution/target/keycloak-mcp-server-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
   conformance:
     name: MCP conformance
     needs: build
@@ -122,3 +132,66 @@ jobs:
 
       - name: Build the JVM image
         run: docker build -f modules/backend/src/main/docker/Dockerfile.jvm -t keycloak-mcp-server:ci .
+
+  distribution:
+    name: Distribution on ${{ matrix.os }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: distribution
+
+      - name: Unpack
+        shell: bash
+        run: tar xzf keycloak-mcp-server-*.tar.gz && mv keycloak-mcp-server-*/ dist
+
+      - name: Start with kcmcp.sh and initialize an MCP session
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          dist/bin/kcmcp.sh --version
+          printf 'quarkus.http.port=8085\nkc-mcp.tool-exposure=lazy\n' > dist/conf/smoke.properties
+          dist/bin/kcmcp.sh start --config conf/smoke.properties --kc-mcp.startup-check=off \
+            --kc-mcp.url=http://127.0.0.1:1 --kc-mcp.client-id=smoke --kc-mcp.client-secret=smoke > server.log 2>&1 &
+          PID=$!
+          BODY='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
+          for _ in $(seq 1 60); do
+            curl -sf -X POST http://localhost:8085/mcp -H 'Content-Type: application/json' \
+              -H 'Accept: application/json, text/event-stream' -d "$BODY" > init.json && break; sleep 1
+          done
+          kill "$PID"; wait "$PID" || true
+          grep -q '"serverInfo"' init.json || { cat server.log; exit 1; }
+          grep -q 'exposure=LAZY' server.log || { echo "conf/smoke.properties was not read"; cat server.log; exit 1; }
+
+      - name: Start with kcmcp.bat and initialize an MCP session
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dist\bin\kcmcp.bat --version
+          "quarkus.http.port=8085`nkc-mcp.tool-exposure=lazy`n" | Set-Content dist\conf\smoke.properties
+          $p = Start-Process -FilePath "dist\bin\kcmcp.bat" -ArgumentList "start","--config","conf\smoke.properties","--kc-mcp.startup-check=off","--kc-mcp.url=http://127.0.0.1:1","--kc-mcp.client-id=smoke","--kc-mcp.client-secret=smoke" -RedirectStandardOutput server.log -RedirectStandardError server.err -PassThru -NoNewWindow
+          $body = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            try {
+              $r = Invoke-WebRequest -UseBasicParsing -Method Post -Uri http://localhost:8085/mcp -ContentType 'application/json' -Headers @{ Accept = 'application/json, text/event-stream' } -Body $body
+              $ok = $true
+            } catch { Start-Sleep 1 }
+          }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Process java -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Get-Content server.log, server.err
+          if (-not $ok) { throw "the server did not answer" }
+          if ($r.Content -notmatch '"serverInfo"') { throw "unexpected initialize answer" }
+          if (-not (Select-String -Path server.log -Pattern 'exposure=LAZY' -Quiet)) { throw "conf\smoke.properties was not read" }

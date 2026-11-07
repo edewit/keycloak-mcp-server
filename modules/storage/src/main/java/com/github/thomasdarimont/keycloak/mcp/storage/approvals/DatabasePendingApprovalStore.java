@@ -12,7 +12,7 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig;
-import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
@@ -30,7 +30,7 @@ import io.quarkus.scheduler.Scheduled;
  * {@code kc-mcp.spi.db-approvals.enabled=false}.
  */
 @ApplicationScoped
-@LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
+@LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabasePendingApprovalStore implements PendingApprovalStore {
 
     public static final String ID = "db-approvals";

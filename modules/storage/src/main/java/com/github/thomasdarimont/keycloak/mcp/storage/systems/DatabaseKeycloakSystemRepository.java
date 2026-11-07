@@ -24,7 +24,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SystemTimestamps;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
-import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
@@ -49,7 +49,7 @@ import io.vertx.core.json.JsonArray;
  * the current snapshot is served as is and a refresh is left to a worker thread.
  */
 @ApplicationScoped
-@LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
+@LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRepository {
 
     public static final String ID = "db-systems";
