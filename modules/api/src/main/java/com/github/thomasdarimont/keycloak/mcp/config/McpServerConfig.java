@@ -373,6 +373,15 @@ public interface McpServerConfig {
     String providersDir();
 
     /**
+     * Properties files read at startup, comma separated: the distribution's
+     * {@code conf/kcmcp.properties} and the files its scripts pass with {@code --config}.
+     * They rank above the server's defaults and below the environment and system
+     * properties; a missing file stops the start (the backend's
+     * {@code ConfigFilesSourceFactory} loads them).
+     */
+    Optional<String> configFiles();
+
+    /**
      * The admin API ({@code kc-mcp.admin.*}, {@code /admin/systems}): registers systems
      * in the first mutable {@code KeycloakSystemRepository} (the database storage), with
      * their {@code private_key_jwt} keys created in the {@code KeyVault}. Callers present

@@ -25,10 +25,8 @@ if not "%KCMCP_DEBUG%" == "" set DEBUG_MODE=%KCMCP_DEBUG%
 if not "%KCMCP_DEBUG_PORT%" == "" set DEBUG_ADDRESS=%KCMCP_DEBUG_PORT%
 if not "%KCMCP_DEBUG_SUSPEND%" == "" set DEBUG_SUSPEND_VAR=%KCMCP_DEBUG_SUSPEND%
 
-rem configuration files go to quarkus.config.locations as file:/// URIs with forward slashes: a bare drive letter
-rem would be read as a URI scheme
-set "HOME_URI=%KCMCP_HOME:\=/%"
-set "CONFIG_FILES=file:///%HOME_URI%/conf/kcmcp.properties"
+rem the configuration files, read by the server from kc-mcp.config-files (plain paths, comma separated)
+set "CONFIG_FILES=%KCMCP_HOME%\conf\kcmcp.properties"
 set SERVER_OPTS=
 set COMMAND=
 
@@ -65,7 +63,7 @@ if "%KEY%" == "--config" (
         echo configuration file not found: %~2 1>&2
         exit /b 2
     )
-    set "CONFIG_FILES=!CONFIG_FILES!,file:///!CFG:\=/!"
+    set "CONFIG_FILES=!CONFIG_FILES!,!CFG!"
     shift
     shift
     goto READ_ARGS
@@ -132,7 +130,7 @@ if "%DEBUG_MODE%" == "true" (
 )
 
 rem where this distribution keeps things; the configuration may refer to ${kcmcp.home.dir}
-set "HOME_OPTS=-Dkcmcp.home.dir="%KCMCP_HOME%" -Dquarkus.config.locations="%CONFIG_FILES%""
+set "HOME_OPTS=-Dkcmcp.home.dir="%KCMCP_HOME%" -Dkc-mcp.config-files="%CONFIG_FILES%""
 set "HOME_OPTS=%HOME_OPTS% -Dkc-mcp.providers-dir="%KCMCP_HOME%\providers" -Dkc-mcp.keys-dir="%KCMCP_HOME%\data\keys""
 set "HOME_OPTS=%HOME_OPTS% -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 

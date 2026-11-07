@@ -8,3 +8,6 @@ distribution's directory. Every setting can also be an environment variable (`kc
 
 Private keys for `private_key_jwt` and TLS certificates can live here too; keep the directory readable by the user
 the server runs as only.
+
+Without the scripts, the same files are read with `-Dkc-mcp.config-files=<file>,<file>` on the `java -jar` command line.
+Settings from the environment and the command line override the files, the files override the server's defaults.

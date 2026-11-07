@@ -4,10 +4,12 @@ import java.util.logging.Level;
 
 import org.jboss.logmanager.ExtLogRecord;
 import org.jboss.logmanager.ExtLogRecord.FormatStyle;
+import org.jboss.logmanager.formatters.PatternFormatter;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TokenRedactingLogFilterTest {
@@ -54,6 +56,38 @@ class TokenRedactingLogFilterTest {
         filter.isLoggable(r);
         assertEquals("CIBA request …kZNggt57tAO8 approved by alice", r.getFormattedMessage());
         assertEquals(FormatStyle.PRINTF, r.getFormatStyle(), "not rewritten");
+    }
+
+    @Test
+    void aLoggedExceptionWithATokenInItsMessageOrCauseIsRedactedInTheStackTrace() {
+        // what Quarkus OIDC logs at debug level with the exception attached: jose4j's
+        // message holds the token
+        Exception cause = new IllegalStateException("JWT (claims->{\"sub\":\"alice\"}) " + JWS + " rejected");
+        Exception thrown = new RuntimeException("Token verification failed: Bearer opaque-token-value-123", cause);
+        thrown.addSuppressed(new IllegalArgumentException("also saw " + JWE));
+        ExtLogRecord r = printf("authentication failed for %s", "alice");
+        r.setThrown(thrown);
+        filter.isLoggable(r);
+
+        String rendered = new PatternFormatter("%m%n%e").format(r);
+        assertFalse(rendered.contains("eyJ"), rendered);
+        assertFalse(rendered.contains("opaque-token-value-123"), rendered);
+        assertTrue(rendered.contains("java.lang.RuntimeException: Token verification failed: Bearer ***"), rendered);
+        assertTrue(
+                rendered.contains(
+                        "Caused by: java.lang.IllegalStateException: JWT (claims->{\"sub\":\"alice\"}) *** rejected"),
+                rendered);
+        assertTrue(rendered.contains("Suppressed: java.lang.IllegalArgumentException: also saw ***"), rendered);
+        assertTrue(rendered.contains("TokenRedactingLogFilterTest"), "the stack frames stay: " + rendered);
+    }
+
+    @Test
+    void anExceptionWithoutTokensIsLeftAsItIs() {
+        Exception thrown = new IllegalStateException("plain failure");
+        ExtLogRecord r = printf("failed");
+        r.setThrown(thrown);
+        filter.isLoggable(r);
+        assertSame(thrown, r.getThrown());
     }
 
     @Test

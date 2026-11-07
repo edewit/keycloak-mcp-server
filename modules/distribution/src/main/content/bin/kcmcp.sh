@@ -24,11 +24,6 @@ abs_path() {
     if [ -z "$IS_CYGWIN" ]; then echo "$1"; else cygpath -w "$1"; fi
 }
 
-# a configuration file as a URI for quarkus.config.locations (a Windows drive letter would be read as a URI scheme)
-conf_uri() {
-    if [ -z "$IS_CYGWIN" ]; then echo "$1"; else echo "file:///$(cygpath -m "$1")"; fi
-}
-
 # a --config argument: absolute, relative to the current directory, or relative to the distribution
 conf_file() {
     case "$1" in
@@ -70,10 +65,12 @@ while [ "$#" -gt 0 ]; do
             DEBUG_MODE=true
             if echo "$2" | grep -Eq '^[0-9]+$'; then DEBUG_ADDRESS="$2"; shift; fi
             ;;
-        --config=*) CONFIG_FILES="$CONFIG_FILES,$(conf_file "${1#--config=}")" ;;
+        --config=*) CONFIG_FILES="$CONFIG_FILES
+$(conf_file "${1#--config=}")" ;;
         --config)
             [ -n "$2" ] || { echo "--config needs a file" >&2; exit 2; }
-            CONFIG_FILES="$CONFIG_FILES,$(conf_file "$2")"; shift
+            CONFIG_FILES="$CONFIG_FILES
+$(conf_file "$2")"; shift
             ;;
         -D*) SERVER_OPTS="$SERVER_OPTS $(esceval "$1")" ;;
         --*=*)
@@ -89,13 +86,17 @@ if [ -z "$COMMAND" ]; then
     usage; exit 2
 fi
 
-CONFIG_URIS=""
-for f in $(echo "$CONFIG_FILES" | tr ',' ' '); do
+# one file per line, so paths with spaces survive; the server reads the list from kc-mcp.config-files
+CONFIG_LIST=""
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
     if [ ! -f "$f" ]; then
         echo "configuration file not found: $f" >&2; exit 2
     fi
-    CONFIG_URIS="$CONFIG_URIS${CONFIG_URIS:+,}$(conf_uri "$f")"
-done
+    CONFIG_LIST="$CONFIG_LIST${CONFIG_LIST:+,}$(abs_path "$f")"
+done <<EOF
+$CONFIG_FILES
+EOF
 
 if [ -z "$JAVA" ]; then
     if [ -n "$JAVA_HOME" ]; then JAVA="$JAVA_HOME/bin/java"; else JAVA="java"; fi
@@ -117,7 +118,7 @@ fi
 
 # where this distribution keeps things; the configuration may refer to ${kcmcp.home.dir}
 HOME_OPTS="-Dkcmcp.home.dir=$(esceval "$(abs_path "$KCMCP_HOME")")"
-HOME_OPTS="$HOME_OPTS -Dquarkus.config.locations=$(esceval "$CONFIG_URIS")"
+HOME_OPTS="$HOME_OPTS -Dkc-mcp.config-files=$(esceval "$CONFIG_LIST")"
 HOME_OPTS="$HOME_OPTS -Dkc-mcp.providers-dir=$(esceval "$(abs_path "$KCMCP_HOME/providers")")"
 HOME_OPTS="$HOME_OPTS -Dkc-mcp.keys-dir=$(esceval "$(abs_path "$KCMCP_HOME/data/keys")")"
 HOME_OPTS="$HOME_OPTS -Djava.util.logging.manager=org.jboss.logmanager.LogManager"

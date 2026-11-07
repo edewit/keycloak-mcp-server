@@ -69,6 +69,7 @@ Every property, its default and meaning. Property → environment variable: `kc-
 | `kc-mcp.result-max-items`       | `100`                       | cap for list results |
 | `kc-mcp.structured-content`     | `true`                      | mirror results as `structuredContent` |
 | `kc-mcp.confirm-timeout-seconds`| `120`                       | elicitation timeout |
+| `kc-mcp.config-files`           |                             | comma-separated properties files read at startup, between the built-in defaults and the environment: the distribution's `conf/kcmcp.properties` and its `--config` files; a missing file stops the start |
 | `kc-mcp.providers-dir`          | `providers`                 | extension jars ([Extension jars](extending.md#extension-jars-providers)) |
 | `kc-mcp.spi.<id>.<key>`         |                             | per extension; `enabled=false` disables; id kebab-case (`acmeTicketChecker` → `acme-ticket-checker`, env `KC_MCP_SPI_ACME_TICKET_CHECKER_*`, resolved by the server) |
 | `quarkus.http.cors.origins`     | local origins               | browser MCP clients; set to the client origin(s) in production |

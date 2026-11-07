@@ -7,8 +7,9 @@
 #   conformance  the MCP conformance suite against the packaged server (conformance/run.sh); fails only on
 #                scenarios not baselined in conformance/expected-failures.yml. Reports as a workflow artifact.
 #   image        builds the JVM container image from modules/backend/src/main/docker/Dockerfile.jvm; nothing is pushed.
-#   distribution starts the unpacked distribution with bin/kcmcp.sh on Linux and bin/kcmcp.bat on Windows and
-#                checks that the server answers.
+#   distribution starts the unpacked distribution with bin/kcmcp.sh on Linux (from a directory with a space, with a
+#                config file by relative path, then against a Keycloak in Docker with a real tool call) and with
+#                bin/kcmcp.bat on Windows (MCP session), see .github/scripts/dist-smoke.sh.
 #   typos        spell-checks the repository (crate-ci/typos, configured in _typos.toml).
 name: CI
 
@@ -170,24 +171,21 @@ jobs:
           mv keycloak-mcp-server-*/ dist
           ls -la dist dist/bin dist/conf
 
-      - name: Start with kcmcp.sh and initialize an MCP session
+      - uses: actions/checkout@v7
+        if: runner.os != 'Windows'
+        with:
+          sparse-checkout: |
+            .github/scripts
+            examples/run-modes/realms
+          path: repo
+
+      - name: Start with kcmcp.sh, then administer a Keycloak through the packaged server
         if: runner.os != 'Windows'
         shell: bash
+        # the distribution sits in a directory with a space in its name on purpose
         run: |
-          dist/bin/kcmcp.sh --version
-          printf 'quarkus.http.port=8085\nkc-mcp.tool-exposure=lazy\n' > dist/conf/smoke.properties
-          dist/bin/kcmcp.sh start --config conf/smoke.properties --kc-mcp.startup-check=off \
-            --kc-mcp.url=http://127.0.0.1:1 --kc-mcp.client-id=smoke --kc-mcp.client-secret=smoke > server.log 2>&1 &
-          PID=$!
-          BODY='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
-          for _ in $(seq 1 60); do
-            curl -sf -X POST http://localhost:8085/mcp -H 'Content-Type: application/json' \
-              -H 'Accept: application/json, text/event-stream' -d "$BODY" > init.json && break; sleep 1
-          done
-          kill "$PID" 2>/dev/null || { echo "the server is not running any more:"; cat server.log; exit 1; }
-          wait "$PID" || true
-          grep -q '"serverInfo"' init.json || { cat server.log; exit 1; }
-          grep -q 'exposure=LAZY' server.log || { echo "conf/smoke.properties was not read"; cat server.log; exit 1; }
+          mv dist "dist dir"
+          repo/.github/scripts/dist-smoke.sh "$PWD/dist dir" repo/examples/run-modes/realms/demo-realm.json
 
       - name: Start with kcmcp.bat and initialize an MCP session
         if: runner.os == 'Windows'
