@@ -9,6 +9,7 @@
 #   image        builds the JVM container image from modules/backend/src/main/docker/Dockerfile.jvm; nothing is pushed.
 #   distribution starts the unpacked distribution with bin/kcmcp.sh on Linux and bin/kcmcp.bat on Windows and
 #                checks that the server answers.
+#   typos        spell-checks the repository (crate-ci/typos, configured in _typos.toml).
 name: CI
 
 on:
@@ -28,6 +29,16 @@ env:
   MAVEN_ARGS: -B -ntp
 
 jobs:
+  typos:
+    name: Spelling
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the spelling
+        uses: crate-ci/typos@v1
+
   build:
     name: Build and test
     runs-on: ubuntu-latest

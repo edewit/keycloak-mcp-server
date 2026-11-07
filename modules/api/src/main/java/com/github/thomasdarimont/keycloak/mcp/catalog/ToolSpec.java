@@ -217,7 +217,7 @@ public record ToolSpec(String name, String title, String description, Category c
             return this;
         }
 
-        /** Additional per-call access predicate; several are ANDed. */
+        /** Additional per-call access predicate; several must all allow. */
         public Builder access(AccessCheck check) {
             accessChecks.add(check);
             return this;
