@@ -28,7 +28,7 @@ jobs:
         run: ./mvnw versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
 
       - name: Build and test, package the distribution
-        run: ./mvnw verify -DskipITs=false
+        run: ./mvnw verify -DskipITs=false -Pdist
 
       - name: Publish the release
         env:

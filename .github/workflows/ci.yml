@@ -1,6 +1,6 @@
 # Build, test and package on every push to main and every pull request.
 #
-#   build        ./mvnw verify with the integration tests: formatter check (spotless), unit tests, the storage
+#   build        ./mvnw verify -Pdist with the integration tests: formatter check (spotless), unit tests, the storage
 #                tests on H2 and the backend tests against Keycloak 26.8.2 in Docker (Testcontainers); the
 #                frontend is built by the frontend-maven-plugin (Node and npm packages cached). Uploads the
 #                packaged server for the two jobs below.
@@ -61,8 +61,8 @@ jobs:
             modules/frontend/node_modules
           key: frontend-${{ runner.os }}-${{ hashFiles('modules/frontend/package-lock.json', 'modules/frontend/pom.xml', 'pom.xml') }}
 
-      - name: Build, check the formatting, run unit and integration tests
-        run: ./mvnw verify -DskipITs=false
+      - name: Build, check the formatting, run unit and integration tests, package the distribution
+        run: ./mvnw verify -DskipITs=false -Pdist
 
       - name: Keep the test reports
         if: failure()

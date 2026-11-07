@@ -23,7 +23,7 @@ Modules under `modules/`:
 - `distribution`: `keycloak-mcp-server-distribution`, the downloadable `keycloak-mcp-server-<version>.tar.gz` and `.zip`
   (`bin/kcmcp.sh`, `bin/kcmcp.bat`, `conf/kcmcp.conf` with `conf/scenarios/`, the server under `lib/`, `providers/`,
   `data/`, `docs/`), assembled from `modules/distribution/src/main/content` and the backend's `quarkus-app` by
-  `./mvnw package`
+  `./mvnw package -Pdist` (the module is behind the `dist` profile; the default build stops at the jars)
 
 ## Releases
 

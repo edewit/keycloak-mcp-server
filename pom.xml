@@ -16,8 +16,6 @@
         <module>modules/frontend</module>
         <!-- the Quarkus application -->
         <module>modules/backend</module>
-        <!-- the downloadable distribution: bin/kcmcp.sh, conf/, the server under lib/ (tar.gz and zip) -->
-        <module>modules/distribution</module>
         <!-- test_* tools and prompts for the MCP conformance suite, an extension jar; see conformance/README.md -->
         <module>conformance/fixtures</module>
         <!-- examples/extensions -->
@@ -194,6 +192,14 @@
     </build>
 
     <profiles>
+        <profile>
+            <!-- The downloadable distribution (modules/distribution: bin/kcmcp.sh, conf/, the server under lib/, as
+                 tar.gz and zip): `./mvnw package -Pdist`. Not part of the default build, which stays at the jars. -->
+            <id>dist</id>
+            <modules>
+                <module>modules/distribution</module>
+            </modules>
+        </profile>
         <profile>
             <!-- The database kind of the storage module is fixed when the application is built (Quarkus bakes the
                  dialect in): the default build is for the embedded H2, `./mvnw package -Ppostgresql` builds the
