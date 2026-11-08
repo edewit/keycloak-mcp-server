@@ -119,19 +119,8 @@ for a complete stack.
 
 ## Examples
 
-Each example is a `docker compose` stack with a README and a scripted walkthrough.
-
-| example | shows |
-|---|---|
-| [run-modes](examples/run-modes/) | one Keycloak, a demo realm, one env file per access level; the place to start |
-| [multi-tenant](examples/multi-tenant/) | two tenants as systems, keys per tenant, one MCP entry per tenant or realm, user login per realm |
-| [dynamic-systems](examples/dynamic-systems/) | no system at startup; registration through the admin API into PostgreSQL with a generated key |
-| [delegated-auth](examples/delegated-auth/) | the server as a delegated agent (`KC_MCP_DELEGATION=exchange`) with Keycloak's token exchange delegation |
-| [ciba-confirm](examples/ciba-confirm/) | destructive tools approved on the user's device, with an approver app standing in for the phone |
-| [management-ui](examples/management-ui/) | the management UI with one or two identity providers |
-| [extensions](examples/extensions/) | an extension jar: tools, prompt, confirmer, access check, audit listener, scrubber, system repository |
-| [cimd-vscode](examples/cimd-vscode/) | VS Code logs in without a pre-registered client, with a Client ID Metadata Document (experimental in Keycloak) |
-| [distribution](examples/distribution/) | the packaged server from the `.tar.gz` against a Keycloak in Docker: users log in through LM Studio, `private_key_jwt`, a system entry and a realm entry |
+Runnable setups, from a first demo realm to several tenants, delegation and CIBA: [examples](examples/README.md). Start
+with [run-modes](examples/run-modes/).
 
 ## Development
 
