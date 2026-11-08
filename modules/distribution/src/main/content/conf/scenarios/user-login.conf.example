@@ -3,7 +3,8 @@
 # credentials. Keycloak: a public client (mcp-consumer) with PKCE, the MCP clients' redirect URIs and an Audience
 # mapper adding aud=mcp-admin; the kc-admin-api scope on it for Keycloak 26.8.2+. Client setup: docs/integrations.md.
 # Keycloak must be up before the server starts: it reads the realm's discovery document.
-#   bin/kcmcp.sh start --config conf/scenarios/user-login.conf
+#   cp conf/scenarios/user-login.conf.example conf/user-login.conf   # then edit, and
+#   bin/kcmcp.sh start --config conf/user-login.conf
 kc-mcp.systems.default.url=http://localhost:8080
 kc-mcp.systems.default.auth-realm=demo
 kc-mcp.delegation=forward

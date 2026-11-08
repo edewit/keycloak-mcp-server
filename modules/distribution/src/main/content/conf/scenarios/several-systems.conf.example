@@ -1,6 +1,7 @@
 # Several Keycloak systems from one server: every tool gets a system argument (prod, staging), each system its own
 # realms. Settings not given per system fall back to the top-level ones; see docs/systems.md.
-#   bin/kcmcp.sh start --config conf/scenarios/several-systems.conf
+#   cp conf/scenarios/several-systems.conf.example conf/several-systems.conf   # then edit, and
+#   bin/kcmcp.sh start --config conf/several-systems.conf
 kc-mcp.system-defaults.auth-realm=demo
 kc-mcp.system-defaults.grant-type=client_credentials
 kc-mcp.system-defaults.client-id=mcp-admin

@@ -1,9 +1,10 @@
-# A shared server for a team or an environment: users log in (as in user-login.properties) and the shared profile applies
+# A shared server for a team or an environment: users log in (as in user-login.conf.example) and the shared profile applies
 # the defaults of a server other people reach: anonymous requests get the OAuth challenge, destructive tools are
 # confirmed through elicitation only (confirm: true is not accepted), destructive tools must name the realm, the
 # Keycloak hosts are listed. Missing settings stop the start with the full list; see docs/security.md.
 # Several instances behind a load balancer share their state through the database storage (docs/storage.md).
-#   bin/kcmcp.sh start --config conf/scenarios/shared-server.conf
+#   cp conf/scenarios/shared-server.conf.example conf/shared-server.conf   # then edit, and
+#   bin/kcmcp.sh start --config conf/shared-server.conf
 kc-mcp.profile=shared
 kc-mcp.systems.default.url=https://sso.example.com
 kc-mcp.systems.default.auth-realm=demo

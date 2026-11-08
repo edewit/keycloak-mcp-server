@@ -5,7 +5,7 @@
 #   bin/kcmcp.sh start-dev                                 the same, in development mode: profile local, insecure
 #                                                          settings are warned about instead of refused, Keycloak at
 #                                                          http://localhost:8080 unless a system is configured
-#   bin/kcmcp.sh start --config conf/scenarios/read-only.conf
+#   bin/kcmcp.sh start --config conf/read-only.conf          a copy of a conf/scenarios/*.conf.example template
 #   bin/kcmcp.sh start --config conf/systems/              every *.conf file in it, e.g. one per Keycloak system
 #   bin/kcmcp.sh start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
 #   bin/kcmcp.sh start --debug 5005

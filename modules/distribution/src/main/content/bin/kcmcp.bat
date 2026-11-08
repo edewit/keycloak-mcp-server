@@ -6,7 +6,7 @@ rem   bin\kcmcp.bat start-dev                                 the same, in devel
 rem                                                          settings warned about, Keycloak at http://localhost:8080
 rem                                                          unless a system is configured
 rem                                                          settings are warned about instead of refused
-rem   bin\kcmcp.bat start --config conf\scenarios\read-only.conf
+rem   bin\kcmcp.bat start --config conf\read-only.conf          a copy of a conf\scenarios\*.conf.example template
 rem   bin\kcmcp.bat start --config conf\systems\              every *.conf file in it, e.g. one per Keycloak system
 rem   bin\kcmcp.bat start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
 rem   bin\kcmcp.bat start --debug 5005

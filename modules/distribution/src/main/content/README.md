@@ -8,14 +8,16 @@ documentation is in `docs/`, starting with `docs/README.md`.
 
 Needs Java 21 or newer.
 
-1. Tell the server which Keycloak to use and how to authenticate: edit `conf/kcmcp.conf`, or pick a complete setup
-   from `conf/scenarios/` and change the URL and secret in it.
+1. Tell the server which Keycloak to use and how to authenticate: edit `conf/kcmcp.conf`, or copy a complete setup
+   from `conf/scenarios/` next to it, without the `.example`, and change the URL and secret in the copy (the
+   `.example` files are templates, an upgrade may replace them).
 2. Start it:
 
    ```shell
    bin/kcmcp.sh start                                            # conf/kcmcp.conf
-   bin/kcmcp.sh start --config conf/scenarios/service-account.conf
-   bin\kcmcp.bat start --config conf\scenarios\service-account.conf    # Windows
+   cp conf/scenarios/service-account.conf.example conf/service-account.conf
+   bin/kcmcp.sh start --config conf/service-account.conf
+   bin\kcmcp.bat start --config conf\service-account.conf          # Windows
    ```
 
 3. Point an MCP client at `http://localhost:8081/mcp` (`docs/integrations.md` has the settings for LM Studio, Claude
@@ -32,24 +34,25 @@ reach.
 
 ## Scenarios
 
-| file in `conf/scenarios/` | setup |
+Templates in `conf/scenarios/`, each a complete configuration to copy and adjust:
+
+| file | setup |
 |---|---|
-| `local-admin.conf` | the Keycloak admin user, every realm; local demos only |
-| `service-account.conf` | a confidential client inside the realm with the roles it needs; the usual single-realm setup |
-| `read-only.conf` | a view-only service account plus the read-only switch |
-| `private-key-jwt.conf` | the service account authenticates with a signed JWT instead of a secret |
-| `several-systems.conf` | several Keycloak installations from one server, each tool with a `system` argument |
-| `user-login.conf` | users log in through their MCP client; every call runs with their own roles |
-| `shared-server.conf` | a server for a team or environment: user login plus the `shared` security profile |
-| `dynamic-systems.conf` | systems registered at runtime through the admin API or a systems file, kept in the database |
-| `dynamic-systems.conf` | no Keycloak configured; systems are registered through the admin API, each with a generated key and its own JWKS |
+| `local-admin.conf.example` | the Keycloak admin user, every realm; local demos only |
+| `service-account.conf.example` | a confidential client inside the realm with the roles it needs; the usual single-realm setup |
+| `read-only.conf.example` | a view-only service account plus the read-only switch |
+| `private-key-jwt.conf.example` | the service account authenticates with a signed JWT instead of a secret |
+| `several-systems.conf.example` | several Keycloak installations from one server, each tool with a `system` argument |
+| `user-login.conf.example` | users log in through their MCP client; every call runs with their own roles |
+| `shared-server.conf.example` | a server for a team or environment: user login plus the `shared` security profile |
+| `dynamic-systems.conf.example` | no Keycloak configured; systems are registered at runtime through the admin API or a systems file and kept in the database, each with a generated key and its own JWKS |
 
 ## Layout
 
 | directory | holds |
 |---|---|
 | `bin/` | `kcmcp.sh`, `kcmcp.bat` |
-| `conf/` | `kcmcp.conf`, `scenarios/`, `systems/` (one file per Keycloak system), your keys and certificates |
+| `conf/` | `kcmcp.conf`, `scenarios/` (templates), `systems/` (one file per Keycloak system), your keys and certificates |
 | `lib/` | the server (Quarkus fast-jar layout); nothing to edit |
 | `providers/` | extension jars, loaded at startup |
 | `data/` | the embedded database, per-system keys, logs |

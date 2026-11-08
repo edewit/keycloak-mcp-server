@@ -75,7 +75,8 @@ for _ in $(seq 1 120); do curl -sf "http://localhost:$KC_PORT/realms/demo" > /de
 curl -sf "http://localhost:$KC_PORT/realms/demo" > /dev/null || { docker logs "$KC_ID" | tail -20; exit 1; }
 
 echo "== 3. the service-account scenario against it, keycloak_user_search over MCP"
-start_server --config conf/scenarios/service-account.conf --quarkus.http.port="$PORT" \
+cp "$DIST/conf/scenarios/service-account.conf.example" "$DIST/conf/service-account.conf"
+start_server --config conf/service-account.conf --quarkus.http.port="$PORT" \
   --kc-mcp.systems.default.url="http://localhost:$KC_PORT" --kc-mcp.systems.default.client-secret=mcp-admin-secret
 SESSION=$(cat .session)
 mcp '{"jsonrpc":"2.0","method":"notifications/initialized"}' "$SESSION" > /dev/null
