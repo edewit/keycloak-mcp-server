@@ -69,27 +69,25 @@ public interface KeycloakAdmin extends AccessTokenSource {
 
     /**
      * Resolves a user by id, username or (unique) email. The value is tried as an id
-     * first: Keycloak's own ids are UUIDs, but federated and imported users carry
-     * whatever id their source gave them, and an id is the more specific name, so a
-     * username that happens to look like another user's id does not win. Values with
-     * {@code @}, {@code /} or blanks are never ids and skip that lookup.
+     * first, whatever it looks like: Keycloak's own ids are UUIDs, but federated and
+     * imported users carry whatever id their source gave them, an email address included,
+     * and an id is the more specific name, so a username that happens to look like
+     * another user's id never wins. One lookup more for a username, nothing else.
      */
     default UserRepresentation findUser(String realm, String idOrUsername) {
         RealmResource r = realm(realm);
         if (idOrUsername == null || idOrUsername.isBlank()) {
             throw ToolException.notFound("User", idOrUsername);
         }
-        if (!idOrUsername.contains("@") && !idOrUsername.contains("/") && idOrUsername.indexOf(' ') < 0) {
-            try {
-                return r.users().get(idOrUsername).toRepresentation();
-            }
-            catch (WebApplicationException e) {
-                // the Quarkus REST client answers a 404 with the plain exception, not
-                // NotFoundException: not an id, a username then
-                int status = e.getResponse() == null ? 0 : e.getResponse().getStatus();
-                if (status != 404 && status != 400) {
-                    throw e;
-                }
+        try {
+            return r.users().get(idOrUsername).toRepresentation();
+        }
+        catch (WebApplicationException e) {
+            // the Quarkus REST client answers a 404 with the plain exception, not
+            // NotFoundException: not an id, a username or email then
+            int status = e.getResponse() == null ? 0 : e.getResponse().getStatus();
+            if (status != 404 && status != 400) {
+                throw e;
             }
         }
         List<UserRepresentation> byName = r.users().searchByUsername(idOrUsername, true);

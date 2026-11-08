@@ -705,33 +705,34 @@ class KeycloakIT {
             .build()) {
             RealmResource realm = admin.realm(REALM);
             UserRepresentation legacy = new UserRepresentation();
-            legacy.setId("legacy-user-id-1");
+            legacy.setId("legacy@example.com");
             legacy.setUsername("legacy-user");
             legacy.setEnabled(true);
             UserRepresentation decoy = new UserRepresentation();
-            decoy.setUsername("legacy-user-id-1");
+            decoy.setUsername("legacy@example.com");
             decoy.setEnabled(true);
             PartialImportRepresentation imported = new PartialImportRepresentation();
             imported.setIfResourceExists("OVERWRITE");
             imported.setUsers(List.of(legacy, decoy));
             realm.partialImport(imported).close();
             try {
-                JsonObject byId = call("keycloak_user_get", new JsonObject().put("id", "legacy-user-id-1"));
-                assertEquals("legacy-user", byId.getString("username"), "the id wins over a look-alike username");
+                JsonObject byId = call("keycloak_user_get", new JsonObject().put("id", "legacy@example.com"));
+                assertEquals("legacy-user", byId.getString("username"),
+                        "the id wins over a look-alike username, even one shaped like an email");
                 JsonObject byName = call("keycloak_user_get", new JsonObject().put("id", "legacy-user"));
-                assertEquals("legacy-user-id-1", byName.getString("id"));
+                assertEquals("legacy@example.com", byName.getString("id"));
                 JsonObject disabled = call("keycloak_user_set_enabled",
-                        new JsonObject().put("id", "legacy-user-id-1").put("enabled", false));
+                        new JsonObject().put("id", "legacy@example.com").put("enabled", false));
                 assertEquals(false, disabled.getBoolean("enabled"), disabled.encode());
-                assertEquals(false, realm.users().get("legacy-user-id-1").toRepresentation().isEnabled(),
+                assertEquals(false, realm.users().get("legacy@example.com").toRepresentation().isEnabled(),
                         "the write reached the user with that id");
-                assertEquals(true, realm.users().searchByUsername("legacy-user-id-1", true).get(0).isEnabled(),
+                assertEquals(true, realm.users().searchByUsername("legacy@example.com", true).get(0).isEnabled(),
                         "not the look-alike");
             }
             finally {
-                realm.users().get("legacy-user-id-1").remove();
+                realm.users().get("legacy@example.com").remove();
                 realm.users()
-                    .searchByUsername("legacy-user-id-1", true)
+                    .searchByUsername("legacy@example.com", true)
                     .forEach(u -> realm.users().get(u.getId()).remove());
             }
         }

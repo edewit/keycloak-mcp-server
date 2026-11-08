@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
@@ -37,6 +38,8 @@ public class EntryRoutes {
 
     @ConfigProperty(name = "quarkus.mcp.server.http.root-path", defaultValue = "/mcp")
     String rootPath;
+    @Inject
+    HttpPaths paths;
 
     void register(@Observes Router router) {
         String base = root(rootPath) + "/" + SEGMENT + "/";
@@ -46,7 +49,8 @@ public class EntryRoutes {
     }
 
     private void reroute(RoutingContext ctx) {
-        Optional<EntryBinding> binding = resolveEntryBinding(ctx.request().path(), rootPath);
+        // the router is mounted under the HTTP root path, the request path carries it
+        Optional<EntryBinding> binding = resolveEntryBinding(paths.relative(ctx.request().path()), rootPath);
         if (binding.isEmpty()) {
             ctx.response()
                 .setStatusCode(404)
@@ -55,7 +59,8 @@ public class EntryRoutes {
             return;
         }
         ctx.put(EntryBinding.KEY, binding.get());
-        ctx.reroute(ctx.request().method(), root(rootPath));
+        // a reroute restarts at the top, so the target carries the HTTP root path
+        ctx.reroute(ctx.request().method(), paths.absoluteMcpRoot());
     }
 
     /**

@@ -87,6 +87,8 @@ public class TenantRegistryRepository implements KeycloakSystemRepository {
 ## Admin API: registering systems at runtime
 
 Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. Full flow: `examples/dynamic-systems/`.
+It can run on an instance of its own, with the MCP endpoint off there (`kc-mcp.mcp.enabled=false`), next to the MCP-facing
+instances on the same database ([Several instances](storage.md#several-instances-on-one-database)).
 
 - Bearer, preferably an access token of `kc-mcp.admin.issuer` (a realm URL, verified by Quarkus OIDC, optional
   `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role` (`realm:admin` default; `<client>.<role>` for client roles): a

@@ -11,10 +11,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.http.EntryRoutes;
+import com.github.thomasdarimont.keycloak.mcp.backend.http.HttpPaths;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.FileSystemKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.Jwks;
@@ -59,8 +59,8 @@ public class AdminSystems {
     DefaultKeycloakSystems systems;
     @Inject
     SigningKeys keys;
-    @ConfigProperty(name = "quarkus.mcp.server.http.root-path", defaultValue = "/mcp")
-    String rootPath;
+    @Inject
+    HttpPaths paths;
 
     void onStart(@Observes StartupEvent event) {
         if (!config.admin().enabled()) {
@@ -279,11 +279,11 @@ public class AdminSystems {
                 });
                 key.put("vault", keys.vault().id());
             }
-            key.put("jwksPath", path);
-            key.put("jwksUrl", publicBase + path);
+            key.put("jwksPath", paths.absolute(path));
+            key.put("jwksUrl", publicBase + paths.absolute(path));
             out.put("signingKey", key);
         }
-        String root = EntryRoutes.root(rootPath) + "/" + EntryRoutes.SEGMENT + "/" + s.name();
+        String root = paths.absoluteMcpRoot() + "/" + EntryRoutes.SEGMENT + "/" + s.name();
         List<String> entries = new ArrayList<>();
         entries.add(root);
         s.defaultRealm().ifPresent(r -> entries.add(root + "/" + r));

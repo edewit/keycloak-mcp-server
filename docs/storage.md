@@ -90,6 +90,11 @@ and the same `kc-mcp.storage.secret-key` on every instance.
 
 Two instances creating a first signing key at the same time both succeed: both keys are published, the newest signs.
 
+**Instances with different roles.** The same database also lets the roles split: the MCP-facing instances behind the
+public ingress run with `kc-mcp.admin.enabled=false` (and the UI off), and one instance on the internal network runs the
+admin API and the management UI with `kc-mcp.mcp.enabled=false`, so its MCP endpoint and entries answer a plain 404 and the admin API is never reachable from where the MCP clients are. Systems registered there, their keys
+and secrets reach the MCP instances within `cache-seconds`, as in the table above.
+
 **MCP sessions and several instances.** The streamable HTTP transport keeps a session (the `Mcp-Session-Id` the
 `initialize` answer hands out) in the memory of the instance that opened it: the MCP server extension's
 `ConnectionManager` is a map, deliberately without a store behind it (the upstream request for one, quarkiverse issue
@@ -101,11 +106,16 @@ taken from the request itself (the caller from the token, system and realm from 
 
 - **Clients speaking MCP 2026-07-28 or later** run stateless: no session, a transient connection per request with the
   client's capabilities in the request's `_meta`. Any instance serves any request; nothing to configure.
-- **Older clients** (2025-11-25 and before, most clients in the field) hold a session. A request that reaches an
-  instance which does not know its session answers 404, and the MCP specification has the client start over with a new
-  `initialize` on that answer: a failover, or plain round-robin routing, costs the client one re-initialization and is
-  invisible to the user. Sticky routing on the `Mcp-Session-Id` header (a hash of it, or a header-based affinity rule)
-  spares even that and keeps SSE streams on the instance that serves them; use it where the load balancer offers it.
+- **Older clients** (2025-11-25 and before, most clients in the field) hold a session, and their requests must reach
+  the instance that opened it: a request anywhere else answers 404, the client re-initializes there (the MCP
+  specification requires that of it), and under round-robin routing the next request lands elsewhere again, so without
+  affinity such a client re-initializes most of the time and no SSE stream survives. The affinity has to map a request
+  back to the initializing instance: a load-balancer cookie set on the `initialize` response works only with clients
+  that keep cookies, which MCP clients mostly do not; client address affinity works for clients that keep their
+  address; hashing the `Mcp-Session-Id` does not, since the id is minted by whichever instance served `initialize` and
+  says nothing about where it lives. Test the affinity with the clients you have before relying on it. On a failover
+  the session is gone whatever the affinity: in-flight requests fail, the client re-initializes on the next instance and
+  carries on; nothing the user did is lost.
 - **`quarkus.mcp.server.http.streamable.auto-init=true`** makes every instance accept any request from an older client
   by opening a session on the spot, honouring capabilities the client puts into `_meta` and assuming none otherwise. The
   extension documents it as a stop-gap until every client speaks the stateless protocol; without the capabilities the

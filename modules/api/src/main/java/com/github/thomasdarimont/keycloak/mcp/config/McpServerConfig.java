@@ -341,6 +341,18 @@ public interface McpServerConfig {
     boolean devMode();
 
     /**
+     * The MCP endpoint itself ({@code kc-mcp.mcp.*}). Off on an instance that serves only
+     * the admin API or the management UI next to the MCP-facing ones, all on one
+     * database: the endpoint and its entries answer a plain 404, everything else stays.
+     */
+    Mcp mcp();
+
+    interface Mcp {
+        @WithDefault("true")
+        boolean enabled();
+    }
+
+    /**
      * The admin API ({@code kc-mcp.admin.*}, {@code /admin/systems}): registers systems
      * in the first mutable {@code KeycloakSystemRepository} (the database storage), with
      * their {@code private_key_jwt} keys created in the {@code KeyVault}. Callers present

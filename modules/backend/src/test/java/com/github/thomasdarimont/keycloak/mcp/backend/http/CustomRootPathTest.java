@@ -29,6 +29,7 @@ import io.vertx.core.json.JsonObject;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The MCP endpoint moved to another path ({@code quarkus.mcp.server.http.root-path}) with
@@ -44,6 +45,14 @@ class CustomRootPathTest {
     static final int PORT = 18089;
     static final String ISSUER = "http://localhost:" + PORT + "/realms/review";
     static final String KID = "review-key";
+
+    /**
+     * The HTTP root path of the profile ({@code ""} here), the prefix of every path a
+     * client uses.
+     */
+    String httpRoot() {
+        return "";
+    }
 
     public static class Profile implements QuarkusTestProfile {
         // generated once: Quarkus instantiates a profile more than once, and the key in
@@ -77,6 +86,13 @@ class CustomRootPathTest {
             }
         }
 
+        /**
+         * The HTTP root path the JWKS is served under; the prefixed variant overrides it.
+         */
+        String jwksRoot() {
+            return "";
+        }
+
         @Override
         public Map<String, String> getConfigOverrides() {
             return Map.ofEntries(Map.entry("quarkus.mcp.server.http.root-path", "/review-mcp"),
@@ -90,7 +106,8 @@ class CustomRootPathTest {
                     Map.entry("kc-mcp.startup-check", "off"), Map.entry("quarkus.oidc.tenant-enabled", "true"),
                     Map.entry("quarkus.oidc.auth-server-url", ISSUER),
                     Map.entry("quarkus.oidc.discovery-enabled", "false"),
-                    Map.entry("quarkus.oidc.jwks-path", "http://localhost:" + PORT + "/.well-known/jwks.json"),
+                    Map.entry("quarkus.oidc.jwks-path",
+                            "http://localhost:" + PORT + jwksRoot() + "/.well-known/jwks.json"),
                     Map.entry("quarkus.oidc.token.audience", "mcp-admin"));
         }
     }
@@ -111,8 +128,31 @@ class CustomRootPathTest {
         initialize("/review-mcp", null).then().statusCode(401).header("WWW-Authenticate", containsString("Bearer"));
         initialize("/review-mcp/systems/default", null).then().statusCode(401);
         initialize("/review-mcp/systems/default/demo", null).then().statusCode(401);
-        // nothing is served at the default path any more
+        // nothing is served at the default path any more, nor outside the HTTP root path
         initialize("/mcp", null).then().statusCode(404);
+        given().basePath("").body(INITIALIZE).contentType("application/json").post("/mcp").then().statusCode(404);
+        if (!httpRoot().isEmpty()) {
+            given().basePath("")
+                .body(INITIALIZE)
+                .contentType("application/json")
+                .post("/review-mcp")
+                .then()
+                .statusCode(404);
+        }
+        // the challenge points at the metadata of the entry under the prefix, and that
+        // metadata is served
+        String challenge = initialize("/review-mcp/systems/default", null).getHeader("WWW-Authenticate");
+        assertTrue(challenge.contains("resource_metadata=\"http://localhost:" + PORT + httpRoot()
+                + "/.well-known/oauth-protected-resource/review-mcp/systems/default\""), challenge);
+        var metadata = given().basePath("")
+            .get(httpRoot() + "/.well-known/oauth-protected-resource/review-mcp/systems/default");
+        assertEquals(200, metadata.statusCode(), metadata.asString());
+        // Quarkus writes the identifier without the HTTP root path even though it serves
+        // the
+        // document under it (quarkus-oidc ResourceMetadataHandler); the entry path is
+        // ours
+        String resource = new JsonObject(metadata.asString()).getString("resource");
+        assertTrue(resource.endsWith("/review-mcp/systems/default"), resource);
     }
 
     // the profile runs in another class loader than the test, so its key is read back

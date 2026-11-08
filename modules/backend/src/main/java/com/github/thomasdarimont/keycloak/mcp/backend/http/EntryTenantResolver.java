@@ -72,6 +72,8 @@ public class EntryTenantResolver implements TenantConfigResolver {
     McpServerConfig config;
     @Inject
     UiTenant uiTenant;
+    @Inject
+    HttpPaths paths;
     @ConfigProperty(name = "quarkus.mcp.server.http.root-path", defaultValue = "/mcp")
     String rootPath;
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
@@ -79,7 +81,9 @@ public class EntryTenantResolver implements TenantConfigResolver {
 
     @Override
     public Uni<OidcTenantConfig> resolve(RoutingContext context, OidcRequestContext<OidcTenantConfig> requestContext) {
-        String path = context.request().path();
+        // the admin API, the BFF, the metadata and the entries are known relative to the
+        // HTTP root path
+        String path = paths.relative(context.request().path());
         if (path != null && (path.equals(AdminResource.PATH) || path.startsWith(AdminResource.PATH + "/"))
                 && config.admin().enabled()) {
             return Uni.createFrom().item(adminTenant(context.request().getHeader("Authorization")));
