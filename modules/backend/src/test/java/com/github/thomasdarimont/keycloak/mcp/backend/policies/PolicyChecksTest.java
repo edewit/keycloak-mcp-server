@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.policies;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -319,6 +320,26 @@ class PolicyChecksTest {
         Caller bob = Caller.of("id-bob", "bob", "demo", Set.of("realm:admin"));
         assertTrue(check.check(ctx(delete, bob, Map.of("id", "/admins"))).allowed(),
                 "bob holds the role directly, not through the group");
+    }
+
+    @Test
+    void theMembershipThatMattersMayBeTheFiveHundredAndFirst() {
+        // the directory lists memberships in pages of 500: the last one must count too
+        FakeDirectory many = new FakeDirectory();
+        List<String> groups = new ArrayList<>();
+        for (int i = 1; i <= 500; i++) {
+            groups.add("/teams/team-" + i);
+            many.group("/teams/team-" + i, Set.of(), Set.of());
+        }
+        groups.add("/teams/admins");
+        many.group("/teams", Set.of(), Set.of()).group("/teams/admins", Set.of("realm:admin"), Set.of());
+        many.user("gina", Set.of("realm:admin"), groups, Set.of());
+        Caller gina = Caller.of("id-gina", "gina", "demo", Set.of("realm:admin"));
+
+        SelfProtectionCheck check = new SelfProtectionCheck(many, SELF_ONLY);
+        AccessCheck.Decision d = check.check(ctx(tool("keycloak_group_delete", "id"), gina, Map.of("id", "/teams")));
+        assertEquals("self_protection", d.code(), d.message());
+        assertTrue(d.message().contains("/teams/admins"), d.message());
     }
 
     @Test

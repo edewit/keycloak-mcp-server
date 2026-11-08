@@ -64,6 +64,19 @@ class KeycloakDirectoryTest {
     }
 
     @Test
+    void theBoundIsOnTheMembershipsNotOnThePages() {
+        List<Integer> pagesAsked = new ArrayList<>();
+        assertEquals(KeycloakDirectory.MAX_GROUPS,
+                KeycloakDirectory.allGroups(memberOf(KeycloakDirectory.MAX_GROUPS, pagesAsked)).size(),
+                "exactly the maximum is read, the empty page after it ends the listing");
+        assertEquals(KeycloakDirectory.MAX_GROUPS / KeycloakDirectory.GROUP_PAGE + 1, pagesAsked.size());
+
+        ToolException e = assertThrows(ToolException.class,
+                () -> KeycloakDirectory.allGroups(memberOf(KeycloakDirectory.MAX_GROUPS + 1, new ArrayList<>())));
+        assertEquals("groups_unreadable", e.code());
+    }
+
+    @Test
     void aListingThatNeverEndsFailsTheLookup() {
         KeycloakDirectory.GroupPager endless = (first, max) -> IntStream.range(0, max).mapToObj(i -> {
             GroupRepresentation g = new GroupRepresentation();

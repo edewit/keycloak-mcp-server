@@ -198,20 +198,22 @@ public class KeycloakDirectory implements RealmDirectory {
     /**
      * Every group of a user, read page by page until a short page ends the listing. A
      * single page would silently drop the memberships beyond it, and a membership the
-     * policies do not see is one they cannot protect; a listing that does not end within
-     * {@link #MAX_GROUPS} fails the lookup for the same reason.
+     * policies do not see is one they cannot protect; a user in more than
+     * {@link #MAX_GROUPS} groups fails the lookup for the same reason.
      */
     static List<GroupRepresentation> allGroups(GroupPager pager) {
         List<GroupRepresentation> all = new ArrayList<>();
-        for (int first = 0; first < MAX_GROUPS; first += GROUP_PAGE) {
+        for (int first = 0;; first += GROUP_PAGE) {
             List<GroupRepresentation> page = pager.page(first, GROUP_PAGE);
             all.addAll(page);
+            if (all.size() > MAX_GROUPS) {
+                throw new ToolException("groups_unreadable", "The user belongs to more than " + MAX_GROUPS
+                        + " groups, more than the policies can judge in one call.");
+            }
             if (page.size() < GROUP_PAGE) {
                 return all;
             }
         }
-        throw new ToolException("groups_unreadable", "The user belongs to more than " + MAX_GROUPS
-                + " groups, more than the policies can judge in one call.");
     }
 
     private List<RoleRepresentation> groupChainMappings(String realm, String path) {
