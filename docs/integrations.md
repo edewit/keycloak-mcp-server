@@ -83,6 +83,8 @@ server is started. Register both callbacks on the client, the loopback one with 
 `http://127.0.0.1:33418/` and `https://vscode.dev/redirect`. A bearer token can also be passed as an `Authorization`
 header through an input variable. Documentation: <https://code.visualstudio.com/api/extension-guides/ai/mcp>.
 
+A Keycloak with the experimental `cimd` feature needs no client for VS Code at all: `examples/cimd-vscode/`.
+
 ## Cursor
 
 `~/.cursor/mcp.json` for the user or `.cursor/mcp.json` in the project:
@@ -136,6 +138,10 @@ body; the `Mcp-Session-Id` header of the `initialize` answer goes on every later
 - **Dynamic client registration.** Clients without a configured client ID try to register one. Keycloak's anonymous
   registration policies (trusted hosts) usually refuse that, and a pre-registered client keeps the audience mapper and
   redirect URIs under control. Name the client in the MCP client's configuration instead.
+- **Client ID Metadata Documents.** With `--features=cimd` and a client policy, a client's published metadata URL is
+  its `client_id` and Keycloak creates the client at first use. Such a client gets realm-level scopes only and no roles
+  unless a scope maps them, and the `resource-indicators` feature removes the Admin API audience forwarded tokens need
+  (`examples/cimd-vscode/`).
 - **Scopes.** Clients ask for what the protected resource metadata lists (`QUARKUS_OIDC_RESOURCE_METADATA_SCOPES`,
   default the admin API scope); every listed scope must exist on the client, or Keycloak answers `invalid_scope`.
   Claude Code also requests `offline_access`: assign it to the client as an optional scope, as the demo realms do. The

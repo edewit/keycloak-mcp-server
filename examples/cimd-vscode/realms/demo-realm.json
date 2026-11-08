@@ -1,0 +1,196 @@
+{
+  "realm": "demo",
+  "displayName": "Demo",
+  "enabled": true,
+  "sslRequired": "external",
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": true,
+  "bruteForceProtected": true,
+  "eventsEnabled": true,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "accessTokenLifespan": 1800,
+  "clients": [],
+  "groups": [
+    {
+      "name": "mcp-admins",
+      "path": "/mcp-admins",
+      "clientRoles": {
+        "realm-management": [
+          "realm-admin"
+        ]
+      }
+    },
+    {
+      "name": "mcp-support",
+      "path": "/mcp-support",
+      "clientRoles": {
+        "realm-management": [
+          "view-users"
+        ]
+      }
+    },
+    {
+      "name": "staff",
+      "path": "/staff"
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "realmRoles": [
+        "offline_access"
+      ],
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Liddell",
+      "email": "alice@example.com",
+      "groups": [
+        "/mcp-admins",
+        "/staff"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice-demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "carol",
+      "realmRoles": [
+        "offline_access"
+      ],
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Danvers",
+      "email": "carol@example.com",
+      "groups": [
+        "/mcp-support",
+        "/staff"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "carol-demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "bob",
+      "realmRoles": [
+        "offline_access"
+      ],
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Builder",
+      "email": "bob@example.com",
+      "groups": [
+        "/staff"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob-demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "dave",
+      "realmRoles": [
+        "offline_access"
+      ],
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dave",
+      "lastName": "Lister",
+      "email": "dave@example.com",
+      "groups": [
+        "/staff"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dave-demo",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "erin",
+      "realmRoles": [
+        "offline_access"
+      ],
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Erin",
+      "lastName": "Brockovich",
+      "email": "erin@example.com",
+      "groups": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "erin-demo",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "clientProfiles": {
+    "profiles": [
+      {
+        "name": "mcp-cimd",
+        "description": "MCP clients identified by a client ID metadata document",
+        "executors": [
+          {
+            "executor": "client-id-metadata-document",
+            "configuration": {
+              "cimd-allow-permitted-domains": [
+                "vscode.dev",
+                "code.visualstudio.com",
+                "127.0.0.1"
+              ],
+              "cimd-restrict-same-domain": false,
+              "cimd-required-properties": [
+                "client_id",
+                "client_name",
+                "redirect_uris"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "clientPolicies": {
+    "policies": [
+      {
+        "name": "mcp-cimd",
+        "description": "Client IDs that are https URLs on vscode.dev",
+        "enabled": true,
+        "conditions": [
+          {
+            "condition": "client-id-uri",
+            "configuration": {
+              "client-id-uri-scheme": [
+                "https"
+              ],
+              "client-id-uri-allow-permitted-domains": [
+                "vscode.dev"
+              ]
+            }
+          }
+        ],
+        "profiles": [
+          "mcp-cimd"
+        ]
+      }
+    ]
+  }
+}
