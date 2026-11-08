@@ -70,19 +70,23 @@ class FileSystemKeycloakSystemRepositoryTest {
         Files.writeString(file, """
                 {"systems": [
                   {"name": "a", "url": "https://sso-a.example"},
-                  {"name": "b", "url": "https://sso-b.example", "trustedIssuers": ["https://sso-a.example/realms/demo"]}
+                  {"name": "b", "url": "https://sso-b.example",
+                   "trustedIssuers": ["https://sso-a.example/realms/demo", "https://sso-d.example"]}
                 ]}
                 """);
         FileSystemKeycloakSystemRepository source = new FileSystemKeycloakSystemRepository(file);
         KeycloakSystem a = source.find("a").orElseThrow();
         KeycloakSystem b = source.find("b").orElseThrow();
-        assertEquals(Set.of("https://sso-a.example/realms/demo"), b.trustedIssuers());
+        assertEquals(Set.of("https://sso-a.example/realms/demo", "https://sso-d.example"), b.trustedIssuers());
         CallerIssuerPolicies policy = CallerIssuerPolicies.builtIn();
 
         Set<String> bOwn = DefaultKeycloakAdmin.callerIssuerBases(b, List.of());
         assertEquals(Optional.empty(), policy.refusal("https://sso-b.example/realms/master", b, bOwn), "its own");
-        assertEquals(Optional.empty(), policy.refusal("https://sso-a.example/realms/other", b, bOwn),
-                "trusted by base: any realm of A");
+        assertEquals(Optional.empty(), policy.refusal("https://sso-a.example/realms/demo", b, bOwn), "A's demo realm");
+        assertTrue(policy.refusal("https://sso-a.example/realms/other", b, bOwn).isPresent(),
+                "but not A's other realms: the entry names one realm");
+        assertEquals(Optional.empty(), policy.refusal("https://sso-d.example/realms/any", b, bOwn),
+                "every realm of D: the entry names the Keycloak");
         assertTrue(policy.refusal("https://sso-c.example/realms/x", b, bOwn).isPresent(), "nobody else");
 
         Set<String> aOwn = DefaultKeycloakAdmin.callerIssuerBases(a, List.of());

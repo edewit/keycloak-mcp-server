@@ -70,10 +70,43 @@ class CallerIssuerPoliciesTest {
             .trustedIssuer("https://sso-a.example/realms/demo")
             .build();
         Set<String> own = DefaultKeycloakAdmin.callerIssuerBases(trusting, List.of());
-        assertEquals(Optional.empty(),
-                CallerIssuerPolicies.builtIn().refusal("https://sso-a.example/realms/other", trusting, own),
-                "trusted by base: every realm of that Keycloak");
-        assertTrue(CallerIssuerPolicies.builtIn().refusal("https://sso-c.example/realms/x", trusting, own).isPresent());
+        CallerIssuerPolicies policy = CallerIssuerPolicies.builtIn();
+        assertEquals(Optional.empty(), policy.refusal("https://sso-a.example/realms/demo", trusting, own));
+        assertEquals(Optional.empty(), policy.refusal("https://sso-a.example/realms/demo/", trusting, own));
+        assertTrue(policy.refusal("https://sso-a.example/realms/other", trusting, own).isPresent(),
+                "a realm entry is that realm alone");
+        assertTrue(policy.refusal("https://sso-c.example/realms/x", trusting, own).isPresent());
+
+        KeycloakSystem trustingAll = trusting.toBuilder().trustedIssuers(List.of("https://sso-a.example/")).build();
+        assertEquals(Optional.empty(), policy.refusal("https://sso-a.example/realms/other", trustingAll, own),
+                "a base entry is every realm of that Keycloak");
+        assertTrue(policy.refusal("https://sso-a.example.evil/realms/demo", trustingAll, own).isPresent());
+
+        // a trusted Keycloak under the legacy context path, as a realm and as a whole
+        KeycloakSystem trustingLegacy = trusting.toBuilder()
+            .trustedIssuers(List.of("https://host1/auth/realms/foo", "https://host2/auth"))
+            .build();
+        assertEquals(Optional.empty(), policy.refusal("https://host1/auth/realms/foo", trustingLegacy, own));
+        assertTrue(policy.refusal("https://host1/auth/realms/bar", trustingLegacy, own).isPresent());
+        assertEquals(Optional.empty(), policy.refusal("https://host2/auth/realms/bar", trustingLegacy, own));
+        assertTrue(policy.refusal("https://host2/realms/bar", trustingLegacy, own).isPresent(),
+                "host2 without /auth is not the trusted Keycloak");
+    }
+
+    @Test
+    void keycloaksOnOneHostUnderDifferentContextPathsAreDifferentKeycloaks() {
+        KeycloakSystem auth1 = KeycloakSystem.builder("one", "https://host1/auth1").build();
+        Set<String> own1 = DefaultKeycloakAdmin.callerIssuerBases(auth1, List.of());
+        CallerIssuerPolicies policy = CallerIssuerPolicies.builtIn();
+        assertEquals(Optional.empty(), policy.refusal("https://host1/auth1/realms/foo", auth1, own1));
+        assertTrue(policy.refusal("https://host1/auth2/realms/bar", auth1, own1).isPresent(),
+                "the neighbour under /auth2 is another Keycloak");
+
+        KeycloakSystem trustingHost = auth1.toBuilder().trustedIssuers(List.of("https://host1")).build();
+        assertTrue(policy.refusal("https://host1/auth2/realms/bar", trustingHost, own1).isPresent(),
+                "an entry is matched whole, never as a prefix: the host alone trusts no instance under it");
+        KeycloakSystem trustingAuth2 = auth1.toBuilder().trustedIssuers(List.of("https://host1/auth2")).build();
+        assertEquals(Optional.empty(), policy.refusal("https://host1/auth2/realms/bar", trustingAuth2, own1));
     }
 
     @Test

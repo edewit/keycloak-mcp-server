@@ -109,8 +109,10 @@ CIBA has a page of its own: [CIBA confirmation](ciba-confirmation.md). `examples
 ## Caller issuer policies
 
 In delegation mode a caller's token is used at the Keycloak system a call targets. The built-in rule lets it reach
-the Keycloak that issued it, compared by the issuer's base, plus the `kc-mcp.systems.<name>.trusted-issuers`, and
-answers `caller_foreign_system` otherwise. A `CallerIssuerPolicy` (`@AutoService` or CDI bean, by `order()`) decides
+the Keycloak that issued it (any realm of it, compared by the issuer's base), plus the
+`kc-mcp.systems.<name>.trusted-issuers`: an entry with a realm path (`https://sso.example/realms/demo`) is that one
+issuer, an entry without (`https://sso.example`) every realm of that Keycloak. Everything else answers
+`caller_foreign_system`. A `CallerIssuerPolicy` (`@AutoService` or CDI bean, by `order()`) decides
 before that rule: `ALLOW`, `DENY`, or `ABSTAIN` to leave it to the next one; the built-in rule runs last and never
 abstains. A policy that throws counts as a denial.
 

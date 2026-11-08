@@ -192,7 +192,8 @@ require an audience). `KC_MCP_DELEGATION` then decides whose identity reaches Ke
   internal address, as the tokens carry the public one). What the default OIDC tenant verifies does not count: it
   may be another Keycloak. A token whose issuer cannot be read is not forwarded at all. A call that names another
   system answers `caller_foreign_system` before anything is sent; the caller logs in at that system's entry instead. `kc-mcp.systems.<name>.trusted-issuers` names further issuers
-  whose tokens the server may hand to that system, and a `CallerIssuerPolicy` extension replaces the rule
+  whose tokens the server may hand to that system, a realm's issuer URL for that realm alone or a Keycloak's base URL
+  for all of its realms, and a `CallerIssuerPolicy` extension replaces the rule
   ([Extending](extending.md#caller-issuer-policies)). Both decide what the server sends, not what Keycloak accepts:
   that is Keycloak's identity provider and JWT authorization grant configuration (RFC 7523, Keycloak 26.5 preview),
   which the server does not drive yet, so an entry Keycloak does not honour only moves the refusal there.

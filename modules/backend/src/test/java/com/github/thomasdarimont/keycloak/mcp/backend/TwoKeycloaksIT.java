@@ -1,5 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.backend;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import io.quarkus.test.common.QuarkusTestResource;
@@ -29,7 +31,7 @@ class TwoKeycloaksIT {
         JsonObject found = McpClient
             .text(own.callTool("keycloak_user_search", new JsonObject().put("search", "carol")));
         assertEquals(null, found.getString("error"), found.encode());
-        assertEquals("carol", found.getJsonArray("items").getJsonObject(0).getString("username"), found.encode());
+        assertTrue(usernames(found).contains("carol"), found.encode());
 
         // the root entry: the default tenant verified her token (first Keycloak), the
         // default system is the second;
@@ -58,7 +60,7 @@ class TwoKeycloaksIT {
         JsonObject found = McpClient
             .text(other.callTool("keycloak_user_search", new JsonObject().put("search", "admin")));
         assertEquals(null, found.getString("error"), found.encode());
-        assertEquals("admin", found.getJsonArray("items").getJsonObject(0).getString("username"), found.encode());
+        assertTrue(usernames(found).contains("admin"), found.encode());
         // the first Keycloak's realm is not his to reach: the bound entry refuses the
         // system argument before the issuer is even looked at
         JsonObject foreign = McpClient.text(other.callTool("keycloak_user_search",
@@ -72,6 +74,13 @@ class TwoKeycloaksIT {
             .body("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}")
             .post("/mcp/systems/default");
         assertEquals(401, r.statusCode(), r.asString());
+    }
+
+    private static List<String> usernames(JsonObject searchResult) {
+        return searchResult.getJsonArray("items")
+            .stream()
+            .map(item -> ((JsonObject) item).getString("username"))
+            .toList();
     }
 
     @Test

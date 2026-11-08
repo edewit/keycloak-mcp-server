@@ -3,6 +3,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,20 @@ class CallerIssuerTest {
         assertEquals("https://sso.example.com", DefaultKeycloakAdmin.base("https://sso.example.com/realms/demo"));
         assertEquals("https://sso.example.com", DefaultKeycloakAdmin.base("https://sso.example.com/"));
         assertEquals("http://keycloak:8080", DefaultKeycloakAdmin.base("http://keycloak:8080/realms/master/"));
+        // the legacy context path stays part of the Keycloak's base, as it is part of the
+        // system's URL
+        assertEquals("https://host1/auth", DefaultKeycloakAdmin.base("https://host1/auth/realms/foo"));
+    }
+
+    @Test
+    void aKeycloakUnderTheLegacyContextPathIsItsOwnBase() {
+        KeycloakSystem legacy = KeycloakSystem.builder("legacy", "https://host1/auth").build();
+        Set<String> bases = DefaultKeycloakAdmin.callerIssuerBases(legacy, List.of());
+        assertEquals(Set.of("https://host1/auth"), bases);
+        CallerIssuerPolicies policy = CallerIssuerPolicies.builtIn();
+        assertEquals(Optional.empty(), policy.refusal("https://host1/auth/realms/foo", legacy, bases));
+        assertTrue(policy.refusal("https://host1/realms/foo", legacy, bases).isPresent(),
+                "the same host without the context path is another Keycloak");
     }
 
     @Test

@@ -552,11 +552,13 @@ public interface McpServerConfig {
 
         /**
          * Issuers besides this system's own Keycloak whose caller tokens the server may
-         * hand to it (issuer URLs or their base; see {@code CallerIssuerPolicy}). This is
-         * the server's side only: whether the target Keycloak accepts such a token is
-         * decided there, by its identity provider and JWT authorization grant settings;
-         * an entry Keycloak does not honour moves the refusal from this server to
-         * Keycloak. Empty by default: a token stays with the Keycloak that issued it.
+         * hand to it: a realm's issuer URL ({@code https://sso.example/realms/demo}) for
+         * that realm alone, a Keycloak's base URL ({@code https://sso.example}) for every
+         * realm of it (see {@code CallerIssuerPolicy}). This is the server's side only:
+         * whether the target Keycloak accepts such a token is decided there, by its
+         * identity provider and JWT authorization grant settings; an entry Keycloak does
+         * not honour moves the refusal from this server to Keycloak. Empty by default: a
+         * token stays with the Keycloak that issued it.
          */
         Optional<List<String>> trustedIssuers();
 
