@@ -132,8 +132,9 @@ public final class SelfProtectionCheck implements AccessCheck {
     }
 
     /**
-     * Deleting a group the caller belongs to, directly or through a subgroup, when it
-     * grants their administrative access; a group that cannot be inspected is caught too.
+     * Deleting a group the caller belongs to, directly or through a subgroup, when the
+     * subtree grants their administrative access; a group that cannot be inspected is
+     * caught too.
      */
     private Decision groupDeletion(Context ctx, String groupRef) {
         if (groupRef == null) {
@@ -151,16 +152,19 @@ public final class SelfProtectionCheck implements AccessCheck {
             return refuse(caller, "delete group '" + groupRef + "', which could not be inspected (it may not exist or"
                     + " not be readable), so whether it grants your administrative access is unknown");
         }
-        boolean member = directory.groupPaths(ctx.realm(), callerId)
-            .stream()
-            .anyMatch(p -> p.equals(path.get()) || p.startsWith(path.get() + "/"));
-        if (!member) {
-            return Decision.allow();
+        // the whole subtree goes: every membership of the caller in it, with all the
+        // roles
+        // that membership's chain of groups grants (a subgroup may grant what the deleted
+        // group itself does not)
+        Set<String> admin = new TreeSet<>();
+        for (String membership : directory.groupPaths(ctx.realm(), callerId)) {
+            if (membership.equals(path.get()) || membership.startsWith(path.get() + "/")) {
+                admin.addAll(administrative(directory.groupRoles(ctx.realm(), membership)));
+            }
         }
-        Set<String> admin = administrative(directory.groupRoles(ctx.realm(), path.get()));
         if (!admin.isEmpty()) {
-            return refuse(caller,
-                    "delete group '" + path.get() + "', which grants your administrative access (" + admin + ")");
+            return refuse(caller, "delete group '" + path.get() + "', whose subtree grants your administrative access ("
+                    + admin + ")");
         }
         return Decision.allow();
     }

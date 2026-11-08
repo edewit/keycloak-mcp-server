@@ -177,7 +177,11 @@ public class KeycloakDirectory implements RealmDirectory {
                 addClientMappings(m, out);
             }
             catch (WebApplicationException e) {
-                // unreadable ancestor: skip
+                // an unreadable group would make the chain look smaller than it is, and
+                // the policies would then allow what they should not: fail the lookup
+                throw new ToolException("group_unreadable",
+                        "The role mappings of group '" + p + "' in realm '" + realm + "' could not be read (HTTP "
+                                + e.getResponse().getStatus() + "), so the policies cannot judge" + " this call.");
             }
         }
         return out;
@@ -206,7 +210,13 @@ public class KeycloakDirectory implements RealmDirectory {
                             visited);
                 }
                 catch (WebApplicationException e) {
-                    // composites unreadable: keep what we have
+                    // the same for a composite: a role that looks smaller than it is
+                    // would
+                    // pass the escalation check
+                    throw new ToolException("role_unreadable",
+                            "The composites of role '" + role.getName() + "' in realm '" + realm
+                                    + "' could not be read (HTTP " + e.getResponse().getStatus()
+                                    + "), so the policies cannot judge this call.");
                 }
             }
         }

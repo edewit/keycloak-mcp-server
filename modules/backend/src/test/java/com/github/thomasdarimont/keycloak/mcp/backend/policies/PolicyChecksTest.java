@@ -11,6 +11,7 @@ import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 
@@ -44,6 +45,9 @@ class PolicyChecksTest {
         .group("/team-b", Set.of("realm:viewer"), Set.of("org-2"))
         .group("/admins", Set.of("realm:admin"), Set.of())
         .group("/admins/ops", Set.of("realm:admin"), Set.of())
+        .group("/engineering", Set.of(), Set.of())
+        .group("/engineering/administrators", Set.of("realm:admin"), Set.of())
+        .user("frank", Set.of("realm:admin"), List.of("/engineering/administrators"), Set.of())
         .user("dan", Set.of("realm:admin"), List.of("/admins"), Set.of())
         .user("erin", Set.of("realm:admin"), List.of("/admins/ops"), Set.of());
 
@@ -304,6 +308,11 @@ class PolicyChecksTest {
         assertTrue(direct.message().contains("grants your administrative access"), direct.message());
         AccessCheck.Decision viaSubgroup = check.check(ctx(delete, ERIN, Map.of("id", "/admins")));
         assertEquals("self_protection", viaSubgroup.code(), "a member of /admins/ops depends on /admins too");
+        // the deleted group grants nothing itself, a subgroup in its subtree does
+        Caller frank = Caller.of("id-frank", "frank", "demo", Set.of("realm:admin"));
+        AccessCheck.Decision parent = check.check(ctx(delete, frank, Map.of("id", "/engineering")));
+        assertEquals("self_protection", parent.code(), parent.message());
+        assertTrue(parent.message().contains("subtree grants your administrative access"), parent.message());
         assertTrue(check.check(ctx(delete, DAN, Map.of("id", "/team-b"))).allowed(), "not a member");
         assertTrue(check.check(ctx(delete, ALICE, Map.of("id", "/team-a"))).allowed(),
                 "a member, but the group grants viewer only");
@@ -331,6 +340,19 @@ class PolicyChecksTest {
         AccessCheck.Decision unknownCallerGroup = check
             .check(ctx(tool("keycloak_group_delete", "id"), ZED, Map.of("id", "/team-b")));
         assertEquals("self_protection", unknownCallerGroup.code(), unknownCallerGroup.message());
+        // the group exists but its role mappings cannot be read: the lookup fails the
+        // call
+        // (access_check_failed) rather than passing an incomplete, harmless-looking set
+        FakeDirectory partlyReadable = new FakeDirectory()
+            .user("alice", Set.of("realm:admin"), List.of("/hidden"), Set.of())
+            .group("/hidden", Set.of("realm:admin"), Set.of())
+            .unreadable("/hidden");
+        SelfProtectionCheck strict = new SelfProtectionCheck(partlyReadable, SELF_ONLY);
+        assertThrows(ToolException.class,
+                () -> strict.check(ctx(tool("keycloak_group_member_remove", "groupId", "userId"), ALICE,
+                        Map.of("groupId", "/hidden", "userId", "id-alice"))));
+        assertThrows(ToolException.class,
+                () -> strict.check(ctx(tool("keycloak_group_delete", "id"), ALICE, Map.of("id", "/hidden"))));
         // a target nobody resolves to is nobody: the tool reports not_found
         assertTrue(check.check(ctx(tool("keycloak_user_delete", "id"), ALICE, Map.of("id", "nobody"))).allowed());
         // and all of it is off with the switch
