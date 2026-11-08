@@ -2,8 +2,10 @@ package com.github.thomasdarimont.keycloak.mcp.backend.http;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -38,6 +40,13 @@ import io.vertx.ext.web.RoutingContext;
  * {@code <system url>/realms/<realm>}. Entries that resolve to the default tenant's realm
  * keep using it.
  * <p>
+ * Quarkus keeps the verifier of a dynamic tenant as long as the resolver returns the very
+ * same configuration object, and reconnects only when the request carries its replace
+ * marker. The resolver therefore hands out one object per tenant while the system is
+ * unchanged and, when the system's URL (or anything else in the tenant) changes, say the
+ * system was replaced through the admin API, a new one with the marker set: the old
+ * issuer's tokens stop being accepted with that request, the new issuer's start.
+ * <p>
  * Requests to the admin API get the tenant {@code kc-mcp-admin} pointing at
  * {@code kc-mcp.admin.issuer}, whatever the default tenant is; one carrying the static
  * {@code kc-mcp.admin.token} gets a disabled tenant, so OIDC leaves it alone and the
@@ -63,7 +72,7 @@ public class EntryTenantResolver implements TenantConfigResolver {
     McpServerConfig config;
     @Inject
     UiTenant uiTenant;
-    @ConfigProperty(name = "quarkus.mcp.server.root-path", defaultValue = "/mcp")
+    @ConfigProperty(name = "quarkus.mcp.server.http.root-path", defaultValue = "/mcp")
     String rootPath;
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
     boolean tenantEnabled;
@@ -90,7 +99,7 @@ public class EntryTenantResolver implements TenantConfigResolver {
             return Uni.createFrom().nullItem();
         }
         // a system repository may go to a database: off the event loop
-        return requestContext.runBlocking(() -> tenantFor(binding.get()));
+        return requestContext.runBlocking(() -> tenantFor(binding.get(), context));
     }
 
     /**
@@ -115,9 +124,28 @@ public class EntryTenantResolver implements TenantConfigResolver {
     }
 
     /**
-     * The tenant of an entry, {@code null} for the default tenant or an unknown system.
+     * Quarkus's request attribute that makes it drop a dynamic tenant's verifier and
+     * reconnect instead of updating the tenant in place
+     * ({@code DefaultTenantConfigResolver}).
      */
+    static final String REPLACE_TENANT = "replace-tenant-configuration-context";
+
+    /** A tenant handed out: what it was built from and the one object Quarkus knows. */
+    private record Tenant(String fingerprint, OidcTenantConfig config) {
+    }
+
+    private final Map<String, Tenant> tenants = new ConcurrentHashMap<>();
+
+    /** The tenant of an entry without a request (unit tests): no replace marker. */
     OidcTenantConfig tenantFor(EntryBinding binding) {
+        return tenantFor(binding, null);
+    }
+
+    /**
+     * The tenant of an entry, {@code null} for the default tenant or an unknown system;
+     * the same object as last time while the system is unchanged.
+     */
+    OidcTenantConfig tenantFor(EntryBinding binding, RoutingContext context) {
         Optional<KeycloakAdmin> admin = systems.find(binding.system());
         if (admin.isEmpty()) {
             return null;
@@ -131,11 +159,28 @@ public class EntryTenantResolver implements TenantConfigResolver {
         if (authServerUrl.equals(defaults.authServerUrl().orElse(null))) {
             return null;
         }
-        LOG.debugf("Entry %s: callers log in at %s", binding.describe(), authServerUrl);
+        String tenantId = "kc-mcp-" + system.name() + (binding.realm() != null ? "-" + realm : "");
+        Set<String> scopes = scopesFor(system);
+        String fingerprint = authServerUrl + "|" + system.publicUrl() + "|" + scopes;
+        Tenant known = tenants.get(tenantId);
+        if (known != null && known.fingerprint().equals(fingerprint)) {
+            return known.config();
+        }
+        if (known != null) {
+            LOG.infof("Entry %s: callers now log in at %s, the tenant's verifier is replaced", binding.describe(),
+                    authServerUrl);
+            if (context != null) {
+                // read back with Boolean.valueOf(String): a String, not a Boolean
+                context.put(REPLACE_TENANT, "true");
+            }
+        }
+        else {
+            LOG.debugf("Entry %s: callers log in at %s", binding.describe(), authServerUrl);
+        }
         String entryPath = EntryRoutes.root(rootPath) + "/" + EntryRoutes.SEGMENT + "/" + system.name()
                 + (binding.realm() != null ? "/" + realm : "");
-        return OidcTenantConfig.builder(defaults)
-            .tenantId("kc-mcp-" + system.name() + (binding.realm() != null ? "-" + realm : ""))
+        OidcTenantConfig config = OidcTenantConfig.builder(defaults)
+            .tenantId(tenantId)
             .authServerUrl(authServerUrl)
             // RFC 9728: the metadata of the entry names the entry itself and the
             // realm's public URL,
@@ -143,9 +188,11 @@ public class EntryTenantResolver implements TenantConfigResolver {
             .resourceMetadata()
             .resource(entryPath)
             .authorizationServer(system.publicUrl() + "/realms/" + realm)
-            .scopes(scopesFor(system))
+            .scopes(scopes)
             .end()
             .build();
+        tenants.put(tenantId, new Tenant(fingerprint, config));
+        return config;
     }
 
     /**

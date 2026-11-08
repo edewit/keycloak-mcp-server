@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 
 import org.keycloak.admin.client.CreatedResponseUtil;
@@ -66,15 +67,29 @@ public interface KeycloakAdmin extends AccessTokenSource {
 
     // ---- users -----------------------------------------------------------------------
 
-    /** Resolves a user by id, username or (unique) email. */
+    /**
+     * Resolves a user by id, username or (unique) email. The value is tried as an id
+     * first: Keycloak's own ids are UUIDs, but federated and imported users carry
+     * whatever id their source gave them, and an id is the more specific name, so a
+     * username that happens to look like another user's id does not win. Values with
+     * {@code @}, {@code /} or blanks are never ids and skip that lookup.
+     */
     default UserRepresentation findUser(String realm, String idOrUsername) {
         RealmResource r = realm(realm);
-        if (isUuid(idOrUsername)) {
+        if (idOrUsername == null || idOrUsername.isBlank()) {
+            throw ToolException.notFound("User", idOrUsername);
+        }
+        if (!idOrUsername.contains("@") && !idOrUsername.contains("/") && idOrUsername.indexOf(' ') < 0) {
             try {
                 return r.users().get(idOrUsername).toRepresentation();
             }
-            catch (NotFoundException e) {
-                // fall through to username lookup
+            catch (WebApplicationException e) {
+                // the Quarkus REST client answers a 404 with the plain exception, not
+                // NotFoundException: not an id, a username then
+                int status = e.getResponse() == null ? 0 : e.getResponse().getStatus();
+                if (status != 404 && status != 400) {
+                    throw e;
+                }
             }
         }
         List<UserRepresentation> byName = r.users().searchByUsername(idOrUsername, true);

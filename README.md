@@ -13,7 +13,8 @@ their realms. Users log in to it through their MCP client, every Admin API call 
 policies, confirmations and audit sit in one place instead of on every laptop. The server itself holds no state: systems,
 keys, secrets, UI sessions, pending approvals and the audit trail live in a shared database
 ([Database storage](docs/storage.md), PostgreSQL for several instances), so it can be deployed in a HA setup behind a
-load balancer. The same server also runs locally for a single administrator, which is where the quick start below begins.
+load balancer that keeps an MCP session on the instance that opened it ([Several instances](docs/storage.md#several-instances-on-one-database)).
+The same server also runs locally for a single administrator, which is where the quick start below begins.
 
 - **Several Keycloak systems per server.** The systems of an environment are configured or registered at runtime,
   each with its own signing key; the model names the system, or a client gets an MCP entry bound to one system or

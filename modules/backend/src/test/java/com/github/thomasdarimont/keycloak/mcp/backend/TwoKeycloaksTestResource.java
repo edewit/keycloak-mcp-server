@@ -39,27 +39,15 @@ public class TwoKeycloaksTestResource extends ForwardTestResource {
                     Wait.forLogMessage(".*Keycloak .* started in .*\\n", 1).withStartupTimeout(Duration.ofMinutes(3)));
         other.start();
         otherBase = "http://" + other.getHost() + ":" + other.getMappedPort(8080);
+        // the first Keycloak's master realm gets the same public client: a system may
+        // move there (replacement test)
+        post("/admin/realms/master/clients", consumer());
         String admin = otherToken("admin-cli", "admin", "admin");
         HttpResponse<String> r = HttpClient.newHttpClient()
             .send(HttpRequest.newBuilder(URI.create(otherBase + "/admin/realms/master/clients"))
                 .header("Authorization", "Bearer " + admin)
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(new JsonObject().put("clientId", "mcp-consumer")
-                    .put("publicClient", true)
-                    .put("standardFlowEnabled", true)
-                    .put("directAccessGrantsEnabled", true)
-                    .put("fullScopeAllowed", true)
-                    .put("defaultClientScopes",
-                            new JsonArray().add("roles").add("profile").add("basic").add("email").add("kc-admin-api"))
-                    .put("redirectUris", new JsonArray().add("http://127.0.0.1:*/*"))
-                    .put("protocolMappers",
-                            new JsonArray().add(new JsonObject().put("name", "mcp audience")
-                                .put("protocol", "openid-connect")
-                                .put("protocolMapper", "oidc-audience-mapper")
-                                .put("config",
-                                        new JsonObject().put("included.custom.audience", "mcp-admin")
-                                            .put("access.token.claim", "true"))))
-                    .encode()))
+                .POST(HttpRequest.BodyPublishers.ofString(consumer().encode()))
                 .build(), HttpResponse.BodyHandlers.ofString());
         if (r.statusCode() >= 300) {
             throw new IllegalStateException(
@@ -67,11 +55,41 @@ public class TwoKeycloaksTestResource extends ForwardTestResource {
         }
     }
 
+    /**
+     * The public client callers log in with: audience {@code mcp-admin}, the Admin API
+     * scope.
+     */
+    private static JsonObject consumer() {
+        return new JsonObject().put("clientId", "mcp-consumer")
+            .put("publicClient", true)
+            .put("standardFlowEnabled", true)
+            .put("directAccessGrantsEnabled", true)
+            .put("fullScopeAllowed", true)
+            .put("defaultClientScopes",
+                    new JsonArray().add("roles").add("profile").add("basic").add("email").add("kc-admin-api"))
+            .put("redirectUris", new JsonArray().add("http://127.0.0.1:*/*"))
+            .put("protocolMappers",
+                    new JsonArray().add(new JsonObject().put("name", "mcp audience")
+                        .put("protocol", "openid-connect")
+                        .put("protocolMapper", "oidc-audience-mapper")
+                        .put("config", new JsonObject().put("included.custom.audience", "mcp-admin")
+                            .put("access.token.claim", "true"))));
+    }
+
     /** Password grant at the other Keycloak's master realm. */
     public static String otherToken(String client, String user, String password) {
+        return masterToken(otherBase, client, user, password);
+    }
+
+    /** Password grant at the first Keycloak's master realm. */
+    public static String firstMasterToken(String client, String user, String password) {
+        return masterToken(base, client, user, password);
+    }
+
+    private static String masterToken(String keycloak, String client, String user, String password) {
         try {
             HttpResponse<String> r = HttpClient.newHttpClient()
-                .send(HttpRequest.newBuilder(URI.create(otherBase + "/realms/master/protocol/openid-connect/token"))
+                .send(HttpRequest.newBuilder(URI.create(keycloak + "/realms/master/protocol/openid-connect/token"))
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .POST(HttpRequest.BodyPublishers.ofString(
                             "grant_type=password&client_id=" + client + "&username=" + user + "&password=" + password))
@@ -99,6 +117,11 @@ public class TwoKeycloaksTestResource extends ForwardTestResource {
         // what the tenant verifies must not count as the second system's own issuer
         config.put("kc-mcp.default-system", "other");
         config.put("kc-mcp.startup-check", "warn");
+        // systems registered through the admin API (alice, realm-admin of the first
+        // Keycloak's demo realm, may use it) live in an embedded database
+        config.put("quarkus.datasource.jdbc.url", "jdbc:h2:mem:kc-mcp-two-keycloaks;DB_CLOSE_DELAY=-1");
+        config.put("kc-mcp.storage.secret-key", "test-passphrase");
+        config.put("kc-mcp.dynamic-systems", "true");
         return config;
     }
 

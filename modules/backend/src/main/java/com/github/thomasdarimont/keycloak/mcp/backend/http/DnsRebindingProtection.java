@@ -35,7 +35,7 @@ public class DnsRebindingProtection {
 
     @Inject
     McpServerConfig config;
-    @ConfigProperty(name = "quarkus.mcp.server.root-path", defaultValue = "/mcp")
+    @ConfigProperty(name = "quarkus.mcp.server.http.root-path", defaultValue = "/mcp")
     String rootPath;
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
     boolean oidcEnabled;

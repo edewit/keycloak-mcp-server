@@ -13,6 +13,8 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.AuthorizationResource;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.representations.idm.PartialImportRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.authorization.ResourcePermissionRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceRepresentation;
 import org.keycloak.representations.idm.authorization.ScopeRepresentation;
@@ -685,5 +687,53 @@ class KeycloakIT {
         JsonObject notAllowed = McpClient
             .text(mcp.callTool("keycloak_user_search", new JsonObject().put("system", "mirror").put("realm", "other")));
         assertEquals("realm_not_allowed", notAllowed.getString("error"));
+    }
+
+    /**
+     * Imported and federated users carry ids that are not UUIDs; such an id resolves as
+     * an id, even when another user's username looks exactly like it.
+     */
+    @Test
+    @Order(13)
+    void idsThatAreNotUuidsStillResolveAsIds() {
+        try (Keycloak admin = KeycloakBuilder.builder()
+            .serverUrl(keycloakUrl)
+            .realm("master")
+            .clientId("admin-cli")
+            .username("admin")
+            .password("admin")
+            .build()) {
+            RealmResource realm = admin.realm(REALM);
+            UserRepresentation legacy = new UserRepresentation();
+            legacy.setId("legacy-user-id-1");
+            legacy.setUsername("legacy-user");
+            legacy.setEnabled(true);
+            UserRepresentation decoy = new UserRepresentation();
+            decoy.setUsername("legacy-user-id-1");
+            decoy.setEnabled(true);
+            PartialImportRepresentation imported = new PartialImportRepresentation();
+            imported.setIfResourceExists("OVERWRITE");
+            imported.setUsers(List.of(legacy, decoy));
+            realm.partialImport(imported).close();
+            try {
+                JsonObject byId = call("keycloak_user_get", new JsonObject().put("id", "legacy-user-id-1"));
+                assertEquals("legacy-user", byId.getString("username"), "the id wins over a look-alike username");
+                JsonObject byName = call("keycloak_user_get", new JsonObject().put("id", "legacy-user"));
+                assertEquals("legacy-user-id-1", byName.getString("id"));
+                JsonObject disabled = call("keycloak_user_set_enabled",
+                        new JsonObject().put("id", "legacy-user-id-1").put("enabled", false));
+                assertEquals(false, disabled.getBoolean("enabled"), disabled.encode());
+                assertEquals(false, realm.users().get("legacy-user-id-1").toRepresentation().isEnabled(),
+                        "the write reached the user with that id");
+                assertEquals(true, realm.users().searchByUsername("legacy-user-id-1", true).get(0).isEnabled(),
+                        "not the look-alike");
+            }
+            finally {
+                realm.users().get("legacy-user-id-1").remove();
+                realm.users()
+                    .searchByUsername("legacy-user-id-1", true)
+                    .forEach(u -> realm.users().get(u.getId()).remove());
+            }
+        }
     }
 }

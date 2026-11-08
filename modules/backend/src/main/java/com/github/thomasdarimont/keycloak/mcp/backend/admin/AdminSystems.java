@@ -59,7 +59,7 @@ public class AdminSystems {
     DefaultKeycloakSystems systems;
     @Inject
     SigningKeys keys;
-    @ConfigProperty(name = "quarkus.mcp.server.root-path", defaultValue = "/mcp")
+    @ConfigProperty(name = "quarkus.mcp.server.http.root-path", defaultValue = "/mcp")
     String rootPath;
 
     void onStart(@Observes StartupEvent event) {

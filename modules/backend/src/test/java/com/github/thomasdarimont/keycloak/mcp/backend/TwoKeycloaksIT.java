@@ -92,4 +92,50 @@ class TwoKeycloaksIT {
             .post("/mcp/systems/other");
         assertEquals(401, r.statusCode(), r.asString());
     }
+
+    private static int initialize(String path, String token) {
+        return given().header("Accept", "application/json, text/event-stream")
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + token)
+            .body("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\","
+                    + "\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"1\"}}}")
+            .post(path)
+            .statusCode();
+    }
+
+    @Test
+    void replacingASystemsKeycloakRevokesTheOldIssuersTokens() {
+        // alice, realm-admin of the first Keycloak's demo realm, may use the admin API
+        String alice = ForwardTestResource.token("mcp-consumer", "alice", "alice");
+        JsonObject service = new JsonObject().put("authRealm", "master")
+            .put("defaultRealm", "master")
+            .put("clientAuth", "client_secret")
+            .put("clientId", "mcp-admin")
+            .put("clientSecret", "unused-in-forward-mode");
+        given().header("Authorization", "Bearer " + alice)
+            .contentType("application/json")
+            .body(service.copy().put("url", TwoKeycloaksTestResource.otherBase).encode())
+            .put("/admin/systems/moved")
+            .then()
+            .statusCode(201);
+        String otherAdmin = TwoKeycloaksTestResource.otherToken("mcp-consumer", "admin", "admin");
+        assertEquals(200, initialize("/mcp/systems/moved", otherAdmin), "the second Keycloak's admin logs in");
+
+        // the system now points at the first Keycloak (its master realm, not the default
+        // tenant's demo realm)
+        given().header("Authorization", "Bearer " + alice)
+            .contentType("application/json")
+            .body(service.copy().put("url", ForwardTestResource.base).encode())
+            .put("/admin/systems/moved")
+            .then()
+            .statusCode(200);
+        assertEquals(401, initialize("/mcp/systems/moved", otherAdmin),
+                "the old Keycloak's tokens are no longer accepted at the entry");
+        String firstAdmin = TwoKeycloaksTestResource.firstMasterToken("mcp-consumer", "admin", "admin");
+        assertEquals(200, initialize("/mcp/systems/moved", firstAdmin), "the new Keycloak's admin logs in");
+        McpClient moved = new McpClient().path("/mcp/systems/moved").bearer(firstAdmin).initialize(false);
+        JsonObject who = McpClient.text(moved.callTool("whoami", new JsonObject()));
+        assertEquals("admin", who.getJsonObject("caller").getString("username"), who.encode());
+        assertEquals("moved", who.getString("system"), who.encode());
+    }
 }

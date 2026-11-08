@@ -90,6 +90,22 @@ and the same `kc-mcp.storage.secret-key` on every instance.
 
 Two instances creating a first signing key at the same time both succeed: both keys are published, the newest signs.
 
+**MCP sessions stay on their instance.** The streamable HTTP transport keeps a session (the `Mcp-Session-Id` the
+`initialize` answer hands out) in the memory of the instance that opened it; it is not in the database, and the MCP
+server extension has no store to put it in. The session holds little: the protocol version and the client's
+capabilities (whether it supports elicitation, which the confirmation of destructive tools relies on), plus an open SSE
+stream. Everything a request needs is taken from the request itself (the caller from the token, system and realm from
+the entry) or from the database (systems, keys, secrets, pending approvals, UI logins, the audit trail), so losing a
+session loses nothing the user did.
+
+A request that reaches an instance which does not know its session answers 404, and the MCP specification has the
+client start over with a new `initialize` on that answer: a failover, or plain round-robin routing, costs the client one
+re-initialization and is invisible to the user. Sticky routing on the `Mcp-Session-Id` header (a hash of it, or a
+header-based affinity rule) spares even that and keeps SSE streams on the instance that serves them; use it where the
+load balancer offers it. `quarkus.mcp.server.http.streamable.auto-init=true` would make every instance accept any
+request by opening a session on the spot, but it skips the capability negotiation, so the server could no longer tell
+whether a client supports elicitation; the extension documents it as a stop-gap, so leave it off on a shared server.
+
 ## From code
 
 `DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault` (`createSigningKey`

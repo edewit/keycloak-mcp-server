@@ -19,9 +19,9 @@ import io.vertx.ext.web.RoutingContext;
 /**
  * Logical MCP entries bound to one system or one realm: {@code <root>/systems/<system>}
  * and {@code <root>/systems/<system>/<realm>} ({@code root} is
- * {@code quarkus.mcp.server.root-path}, {@code /mcp}). The request is rerouted to the one
- * MCP handler with the {@link EntryBinding} attached, so a client configured with such a
- * URL cannot leave that system or realm: the invoker pins the {@code system} and
+ * {@code quarkus.mcp.server.http.root-path}, {@code /mcp}). The request is rerouted to
+ * the one MCP handler with the {@link EntryBinding} attached, so a client configured with
+ * such a URL cannot leave that system or realm: the invoker pins the {@code system} and
  * {@code realm} arguments, and the caller logs in against that system's realm
  * ({@link EntryTenantResolver}).
  */
@@ -35,7 +35,7 @@ public class EntryRoutes {
 
     private static final Pattern NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._~-]{0,99}");
 
-    @ConfigProperty(name = "quarkus.mcp.server.root-path", defaultValue = "/mcp")
+    @ConfigProperty(name = "quarkus.mcp.server.http.root-path", defaultValue = "/mcp")
     String rootPath;
 
     void register(@Observes Router router) {
