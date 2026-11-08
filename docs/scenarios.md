@@ -5,6 +5,9 @@
 The ways the server is run, as diagrams: who talks to whom, which token carries each call, and where state lives.
 Every scenario has a runnable example; the text next to each diagram names it and the page that explains the details.
 
+In the flowcharts the colours mean the same throughout: blue for clients and people, violet for the server, teal for
+Keycloak, amber for infrastructure. In the sequence diagrams the grey bands mark the phases of the flow.
+
 ## 1. One administrator, a service account
 
 The local setup of the quick start's fallback (`examples/run-modes/env/realm-admin.env`): the server holds a
@@ -13,9 +16,18 @@ ceiling. Nobody logs in; the MCP endpoint is anonymous and guarded against DNS r
 
 ```mermaid
 flowchart LR
-    M["MCP client<br/>(LM Studio, Claude Code, ...)"] -- "MCP over HTTP<br/>no login" --> S["keycloak-mcp-server<br/>profile local"]
-    S -- "client_credentials<br/>client mcp-admin" --> K["Keycloak<br/>realm demo"]
+    M("MCP client<br/>(LM Studio, Claude Code, ...)") -- "MCP over HTTP<br/>no login" --> S("keycloak-mcp-server<br/>profile local")
+    S -- "client_credentials<br/>client mcp-admin" --> K("Keycloak<br/>realm demo")
     S -- "Admin REST API<br/>service account token" --> K
+    classDef client fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef server fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    classDef keycloak fill:#ccfbf1,stroke:#0d9488,color:#134e4a
+    classDef infra fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef confirm fill:#ffe4e6,stroke:#e11d48,color:#881337
+    classDef audit fill:#e2e8f0,stroke:#64748b,color:#1e293b
+    class M client
+    class S server
+    class K keycloak
 ```
 
 [Security](security.md) (profiles, access levels), [Configuration](configuration.md).
@@ -34,19 +46,25 @@ sequenceDiagram
     participant C as MCP client
     participant S as keycloak-mcp-server
     participant K as Keycloak (realm demo)
+    rect rgba(127,127,127,0.10)
     C->>S: POST /mcp initialize
     S-->>C: 401, WWW-Authenticate: Bearer resource_metadata=...
     C->>S: GET /.well-known/oauth-protected-resource
     S-->>C: authorization_servers: [realm demo], scopes
+    end
+    rect rgba(127,127,127,0.10)
     C->>K: authorization code + PKCE (client mcp-consumer)
     K->>U: login page
     U-->>K: alice / alice-demo
     K-->>C: access token (aud mcp-admin, alice's roles)
+    end
+    rect rgba(127,127,127,0.10)
     C->>S: POST /mcp ... Authorization: Bearer <alice>
     S->>S: verify token (OIDC tenant), access checks, confirmation
     S->>K: Admin REST API with alice's token
     K-->>S: result, enforced by alice's realm-management roles
     S-->>C: tool result, audited as caller=alice delegated
+    end
 ```
 
 [Integrations](integrations.md) (the login's client side), [Security](security.md#callers).
@@ -63,18 +81,24 @@ sequenceDiagram
     participant C as MCP client
     participant S as keycloak-mcp-server<br/>(client keycloak-mcp)
     participant K as Keycloak
+    rect rgba(127,127,127,0.10)
     C->>K: login with scope delegation:client:keycloak-mcp, user consents
     K-->>C: T_user (aud keycloak-mcp, may_act = keycloak-mcp)
+    end
     C->>S: POST /mcp ... Bearer T_user
     S->>S: verify T_user
+    rect rgba(127,127,127,0.10)
     S->>K: client_credentials for keycloak-mcp
     K-->>S: T_sa (the actor's own token)
     S->>K: token exchange: subject_token=T_user, actor_token=T_sa
     K-->>S: T_del (sub = user, act = keycloak-mcp, roles = user's ∩ client's scope)
+    end
+    rect rgba(127,127,127,0.10)
     S->>S: access checks and confirmation judged on T_del
     S->>K: Admin REST API with T_del
     K-->>S: result, TOKEN_EXCHANGE and admin events name user and actor
     S-->>C: tool result
+    end
 ```
 
 [Security](security.md#callers), the example's README for the Keycloak setup (consent, Standard Token Exchange,
@@ -90,18 +114,28 @@ never reaches Keycloak B, unless B's `trusted-issuers` explicitly allow it.
 ```mermaid
 flowchart LR
     subgraph clients["MCP clients"]
-        R["/mcp<br/>system named per call"]
-        EP["/mcp/systems/prod<br/>bound to prod, login realm master"]
-        ER["/mcp/systems/prod/customers<br/>bound to prod and realm customers,<br/>login realm customers"]
-        ES["/mcp/systems/staging"]
+        R("/mcp<br/>system named per call")
+        EP("/mcp/systems/prod<br/>bound to prod, login realm master")
+        ER("/mcp/systems/prod/customers<br/>bound to prod and realm customers,<br/>login realm customers")
+        ES("/mcp/systems/staging")
     end
-    S["keycloak-mcp-server<br/>one OIDC tenant per entry,<br/>caller issuer checked per system"]
+    S("keycloak-mcp-server<br/>one OIDC tenant per entry,<br/>caller issuer checked per system")
     R --> S
     EP --> S
     ER --> S
     ES --> S
-    S -- "key of prod (private_key_jwt)" --> A["Keycloak prod<br/>realms master, customers, ..."]
-    S -- "key of staging" --> B["Keycloak staging"]
+    S -- "key of prod (private_key_jwt)" --> A("Keycloak prod<br/>realms master, customers, ...")
+    S -- "key of staging" --> B("Keycloak staging")
+    classDef client fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef server fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    classDef keycloak fill:#ccfbf1,stroke:#0d9488,color:#134e4a
+    classDef infra fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef confirm fill:#ffe4e6,stroke:#e11d48,color:#881337
+    classDef audit fill:#e2e8f0,stroke:#64748b,color:#1e293b
+    class R,EP,ER,ES client
+    class S server
+    class A,B keycloak
+    style clients fill:transparent,stroke:#2563eb,stroke-dasharray:5 4
 ```
 
 [Several Keycloak systems](systems.md), `examples/multi-tenant/`.
@@ -116,19 +150,19 @@ off there.
 ```mermaid
 flowchart TB
     subgraph users["Administrators"]
-        C1["MCP client"]
-        C2["MCP client"]
+        C1("MCP client")
+        C2("MCP client")
     end
-    LB["Load balancer<br/>affinity for clients that hold MCP sessions"]
+    LB("Load balancer<br/>affinity for clients that hold MCP sessions")
     subgraph mcp["MCP-facing instances (profile shared)"]
-        I1["instance 1<br/>kc-mcp.admin.enabled=false"]
-        I2["instance 2<br/>kc-mcp.admin.enabled=false"]
+        I1("instance 1<br/>kc-mcp.admin.enabled=false")
+        I2("instance 2<br/>kc-mcp.admin.enabled=false")
     end
-    ADM["admin instance (internal network)<br/>admin API, management UI,<br/>kc-mcp.mcp.enabled=false"]
+    ADM("admin instance (internal network)<br/>admin API, management UI,<br/>kc-mcp.mcp.enabled=false")
     DB[("PostgreSQL<br/>systems, keys, secrets,<br/>approvals, sessions, audit")]
-    K1["Keycloak A"]
-    K2["Keycloak B"]
-    OPS["Operator / automation<br/>issuer token or admin token"]
+    K1("Keycloak A")
+    K2("Keycloak B")
+    OPS("Operator / automation<br/>issuer token or admin token")
     C1 --> LB
     C2 --> LB
     LB --> I1
@@ -142,6 +176,18 @@ flowchart TB
     I2 --> K1
     I2 --> K2
     K1 -. "fetches JWKS per system" .-> LB
+    classDef client fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef server fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    classDef keycloak fill:#ccfbf1,stroke:#0d9488,color:#134e4a
+    classDef infra fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef confirm fill:#ffe4e6,stroke:#e11d48,color:#881337
+    classDef audit fill:#e2e8f0,stroke:#64748b,color:#1e293b
+    class C1,C2,OPS client
+    class I1,I2,ADM server
+    class LB,DB infra
+    class K1,K2 keycloak
+    style users fill:transparent,stroke:#2563eb,stroke-dasharray:5 4
+    style mcp fill:transparent,stroke:#7c3aed,stroke-dasharray:5 4
 ```
 
 [Database storage](storage.md#several-instances-on-one-database), [Security](security.md) (profile `shared`).
@@ -159,14 +205,18 @@ sequenceDiagram
     participant S as keycloak-mcp-server
     participant DB as Database
     participant K as Keycloak acme
+    rect rgba(127,127,127,0.10)
     O->>S: PUT /admin/systems/acme {url, authRealm, clientAuth: private_key_jwt, signingKey: generate}
     S->>DB: store system, create key pair (encrypted)
     S-->>O: 201 {signingKey.kid, jwksUrl: .../auth/keys/acme/jwks.json, entries}
     O->>K: client keycloak-mcp-server: Signed JWT, JWKS URL from the answer, service account roles
+    end
     Note over S,K: first call for system acme
+    rect rgba(127,127,127,0.10)
     S->>K: token request signed with acme's key
     K->>S: GET /auth/keys/acme/jwks.json
     K-->>S: service account token
+    end
     Note over O,S: POST /admin/systems/acme/signing-key rotates the key, the JWKS keeps the retired one for a grace period
 ```
 
@@ -185,18 +235,24 @@ sequenceDiagram
     participant S as keycloak-mcp-server
     participant K as Keycloak (CIBA)
     participant D as User's device
+    rect rgba(127,127,127,0.10)
     M->>S: keycloak_user_delete dave
     S->>K: CIBA request: login_hint alice, binding_message, code 42, requester, operation
     K-->>S: auth_req_id
     S-->>M: confirmation_required {status requested, code 42, howTo}
     M->>M: shows "approve on your device, enter 42"
+    end
+    rect rgba(127,127,127,0.10)
     K->>D: Delete user: dave (realm demo), requested by LM Studio
     D-->>K: alice enters 42, approves
+    end
+    rect rgba(127,127,127,0.10)
     M->>S: keycloak_user_delete dave (same arguments)
     S->>K: poll token endpoint (auth_req_id)
     K-->>S: approved (ID token of alice)
     S->>K: Admin REST API: delete dave
     S-->>M: deleted, the audit records the approval
+    end
 ```
 
 [CIBA confirmation](ciba-confirmation.md).
@@ -208,13 +264,24 @@ do next, and is audited like any other outcome.
 
 ```mermaid
 flowchart LR
-    A["tool call"] --> B["static policy<br/>read-only mode,<br/>tool and category lists"]
-    B --> C["entry binding, arguments<br/>system and realm pinned?<br/>validation, coercion"]
-    C --> D["target<br/>system and realm resolved,<br/>explicit target"]
-    D --> E["per-call access<br/>allowed realms, roles,<br/>access checks (policies, self-protection)"]
-    E --> F["confirmation<br/>elicitation, confirm flag,<br/>Confirmer, CIBA"]
-    F --> G["handler<br/>Admin REST API with the<br/>identity of the scenario"]
-    G --> H["audit<br/>caller, tool, outcome, refusals too,<br/>secrets redacted"]
+    A("tool call") --> B("static policy<br/>read-only mode,<br/>tool and category lists")
+    B --> C("entry binding, arguments<br/>system and realm pinned?<br/>validation, coercion")
+    C --> D("target<br/>system and realm resolved,<br/>explicit target")
+    D --> E("per-call access<br/>allowed realms, roles,<br/>access checks (policies, self-protection)")
+    E --> F("confirmation<br/>elicitation, confirm flag,<br/>Confirmer, CIBA")
+    F --> G("handler<br/>Admin REST API with the<br/>identity of the scenario")
+    G --> H("audit<br/>caller, tool, outcome, refusals too,<br/>secrets redacted")
+    classDef client fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef server fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    classDef keycloak fill:#ccfbf1,stroke:#0d9488,color:#134e4a
+    classDef infra fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef confirm fill:#ffe4e6,stroke:#e11d48,color:#881337
+    classDef audit fill:#e2e8f0,stroke:#64748b,color:#1e293b
+    class A client
+    class B,C,D,E server
+    class F confirm
+    class G keycloak
+    class H audit
 ```
 
 [Tools](tools.md), [Security](security.md), [Extending](extending.md) (your own checks and confirmers).
