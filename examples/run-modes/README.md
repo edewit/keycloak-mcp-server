@@ -44,7 +44,7 @@ An existing stack keeps its old realm: after changes to `realms/demo-realm.json`
 | users | `alice` (admins, team-a, mcp-admins, `group-manager`, R&D), `bob` (devs/backend, `demo-app` app-user), `carol` (team-b, mcp-support, `support`), `dave` (disabled). Password = `<username>-demo`. |
 | groups | `/admins` (→ editor), `/devs` (→ viewer) with `backend`, `frontend`, `/team-a` with `ops`, `/team-b`; `/mcp-admins` (→ realm-management `realm-admin`) and `/mcp-support` (→ `view-users`, `view-events`) for the user login demo |
 | realm roles | `viewer`, `editor` (composite of viewer), `group-manager`, `support` |
-| clients | `demo-app` (confidential, PKCE, client roles `app-user`/`app-admin`), `mcp-consumer` (public PKCE client MCP clients log the user in with; an audience mapper adds `aud=mcp-admin`, redirect URIs are LM Studio's `http://127.0.0.1:33389/mcp-oauth-callback`, access tokens live 30 min) |
+| clients | `demo-app` (confidential, PKCE, client roles `app-user`/`app-admin`), `mcp-consumer` (public PKCE client MCP clients log the user in with; an audience mapper adds `aud=mcp-admin`, redirect URIs are LM Studio's `http://127.0.0.1:33389/mcp-oauth-callback` and the loopback callbacks of Claude Code, Cursor and Codex (`http://localhost/callback`, `http://localhost/oauth/callback`, any port), access tokens live 30 min) |
 | MCP service accounts | `mcp-admin` → `realm-admin`; `mcp-manager` → view-users, manage-users, view-clients, view-events; `mcp-readonly` → view-* only. Secrets: `<clientId>-secret`. `mcp-jwt` → `realm-admin`, authenticates with `private_key_jwt` (JWKS URL → the MCP server) |
 | identity provider | `corp-oidc` (disabled stub, hidden on login) |
 | organization | `ACME Corp` (`acme`, domain acme.com) |

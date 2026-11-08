@@ -23,7 +23,10 @@ The same server also runs locally for a single administrator, which is where the
   reach needs.
 - **The user's own identity, or a service account.** Users log in through their MCP client, so every Admin API call
   runs with their own token and Keycloak enforces their roles; destructive tools can be approved on the user's own
-  device through CIBA. A service account is the alternative for a local or single-purpose setup.
+  device through CIBA. As a *delegated agent*, the server instead acts for the user with a token Keycloak exchanges
+  for it: the user consents, the token names both (`sub` the user, `act` the server's client), the server's own role
+  scope caps what it may do, and Keycloak's events show who acted for whom. A service account is the alternative for a
+  local or single-purpose setup.
 - **Guardrails by default.** Destructive tools need a confirmation, every call is audited with secrets redacted, roles
   the identity lacks hide the tools they would need, and allow-lists fence in realms, hosts and tools.
 - **Small models cope.** By default the model sees three tools: `whoami`, `search_tools` and `execute_tool`. It searches
@@ -34,34 +37,42 @@ The same server also runs locally for a single administrator, which is where the
 
 ## Quick start
 
-The shortest path is local: one Keycloak, the server on your machine with a service account. Needs Java 21 and Docker.
+The shortest path is local, in the shape the server is meant for: one Keycloak, the server on your machine, and you
+logging in through your MCP client, so every call runs with your own roles. Needs Java 21 and Docker.
 
-1. Start the demo Keycloak (realm `demo` with users, groups and a service account for the server):
+1. Start the demo Keycloak (realm `demo` with users, groups and the public client `mcp-consumer` that MCP clients log in
+   with):
 
    ```shell
    cd examples/run-modes && docker compose up -d && cd ../..
    ```
 
-2. Run the server as a realm admin of that realm:
+2. Run the server with the user's own login. It holds no admin credentials: every Admin API call is made with the token
+   of the person who logged in, and Keycloak enforces their roles. Keycloak has to be up first, the server reads the
+   realm's discovery document at startup.
 
    ```shell
-   set -a; source examples/run-modes/env/realm-admin.env; set +a
+   set -a; source examples/run-modes/env/user-forward.env; set +a
    ./mvnw quarkus:dev -pl modules/backend -am        # MCP endpoint: http://localhost:8081/mcp
    ```
 
-3. Connect an MCP client to `http://localhost:8081/mcp`:
+3. Connect an MCP client and log in. The browser opens on connect; log in as `alice / alice-demo` (realm admin) or
+   `carol / carol-demo` (may only view).
 
-   - LM Studio: add `examples/run-modes/mcp.json` to its MCP settings:
+   - LM Studio: add `examples/run-modes/mcp-oauth.json` to its MCP settings:
      ```json
-     { "mcpServers": { "keycloak": { "url": "http://localhost:8081/mcp" } } }
+     { "mcpServers": { "keycloak": { "url": "http://localhost:8081/mcp", "auth": { "CLIENT_ID": "mcp-consumer" } } } }
      ```
-   - Claude Code: `claude mcp add --transport http keycloak http://localhost:8081/mcp`
-   - VS Code, Cursor, Codex, Claude Desktop and the login setup: [Integrations](docs/integrations.md)
+   - Claude Code: `claude mcp add --transport http --client-id mcp-consumer --callback-port 33418 keycloak http://localhost:8081/mcp`,
+     then `/mcp` inside a session starts the login
+   - VS Code, Cursor, Codex, Claude Desktop: [Integrations](docs/integrations.md)
 
-4. Ask it something: "who am I", "find users named ali", "which groups is alice in", "disable bob".
+4. Ask it something: "who am I" lists your roles with readable labels, "find users named ali", "which groups is alice
+   in"; "disable bob" works as alice and comes back `forbidden` as carol, naming the role she lacks.
 
-The other access levels (full admin, realm manager, read-only, two systems, `private_key_jwt`, the user's own login) are
-one env file away, see [examples/run-modes](examples/run-modes/README.md).
+A service account instead of the login, for a client without OAuth or a single-purpose setup, is one env file away:
+`examples/run-modes/env/realm-admin.env` with the plain `examples/run-modes/mcp.json`. The other access levels (full
+admin, realm manager, read-only, two systems, `private_key_jwt`) are in [examples/run-modes](examples/run-modes/README.md).
 
 **Without a build:** the [releases](https://github.com/thomasdarimont/keycloak-mcp-server/releases) carry a
 `keycloak-mcp-server-<version>.tar.gz` and `.zip`. Unpack, edit `conf/kcmcp.conf` or copy a ready-made setup from
@@ -81,9 +92,10 @@ for a complete stack.
 - **One pipeline for every call.** Access policy, argument validation, realm check, confirmation, the handler, audit.
   Errors are structured (`unknown_tool`, `invalid_arguments`, `forbidden`, `confirmation_required`, ...) and say what
   to do next. [Tools](docs/tools.md), [Security](docs/security.md)
-- **Keycloak's roles are the boundary.** The server acts with a service account or with the signed-in user's token;
-  the `realm-management` roles of that identity decide what works, server flags only narrow further.
-  [Security](docs/security.md)
+- **Keycloak's roles are the boundary.** The server acts with a service account, with the signed-in user's token
+  (`forward`), or with a delegated token Keycloak issues for the user and the server's client together (`exchange`,
+  Keycloak's token exchange delegation); the `realm-management` roles of that identity decide what works, server
+  flags only narrow further. [Security](docs/security.md), [delegated-auth](examples/delegated-auth/)
 - **Destructive tools ask first.** Through the client's elicitation, a `confirm: true` flag (local profile), an own
   `Confirmer` such as a ticket check, or CIBA on the user's device. [CIBA confirmation](docs/ciba-confirmation.md)
 
