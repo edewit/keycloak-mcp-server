@@ -123,7 +123,11 @@ MCP client logs the user in at the right realm.
 - **Docker to host.** Keycloak reaches the server's JWKS as `host.docker.internal:9080` (the compose file maps that
   name to the host). The server accepts that `Host` header: it switches off the Quarkus host-header filter that
   would otherwise answer 400 to anything but `localhost`, and relies on its own DNS rebinding protection for the
-  MCP endpoint.
+  MCP endpoint. The server listens on `127.0.0.1` only; Docker Desktop (macOS, Windows) reaches that from the
+  container, native Linux Docker does not, since `host.docker.internal` is the bridge gateway there. On Linux
+  uncomment `quarkus.http.host=0.0.0.0` in `conf/server.conf`, then the server listens on every interface (users
+  still have to log in; the JWKS and the metadata are public by design). Keycloak's own port is published on
+  `127.0.0.1` only, so the demo admin account (`admin` / `admin`) is not reachable from other machines.
 
 ## Reset
 

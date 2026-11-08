@@ -24,7 +24,7 @@ services:
     volumes:
       - ./realms:/opt/keycloak/data/import:ro
     ports:
-      - "8098:8080"
+      - "127.0.0.1:8098:8080"
     healthcheck:
       # the image has no curl; talk HTTP to the management port with bash
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]

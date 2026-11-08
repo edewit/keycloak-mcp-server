@@ -13,6 +13,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import urlencode
 
 
 BEARER = None
@@ -25,7 +26,8 @@ def login(spec, url):
         parts = url.rstrip("/").split("/")
         realm = parts[-1] if "/systems/" in url and len(parts) >= 2 and parts[-3] == "systems" else "master"
     # kc-admin-api: the scope Keycloak 26.8.2+ wants on Admin API tokens (older servers ignore it)
-    form = f"grant_type=password&client_id=mcp-consumer&scope=kc-admin-api&username={username}&password={password}"
+    form = urlencode({"grant_type": "password", "client_id": "mcp-consumer", "scope": "kc-admin-api",
+                      "username": username, "password": password})
     request = urllib.request.Request(f"http://localhost:8080/realms/{realm}/protocol/openid-connect/token",
                                      form.encode(), {"content-type": "application/x-www-form-urlencoded"})
     with urllib.request.urlopen(request) as response:

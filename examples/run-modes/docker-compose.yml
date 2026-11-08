@@ -37,7 +37,7 @@ services:
       KC_FEATURES_DISABLED: twitter-broker
       KC_LOG_LEVEL: info
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
       - "9000:9000"
     volumes:
       - ./realms:/opt/keycloak/data/import:ro

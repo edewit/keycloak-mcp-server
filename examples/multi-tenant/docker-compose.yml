@@ -17,7 +17,7 @@ services:
       KC_FEATURES: identity-brokering-api:v2
       KC_FEATURES_DISABLED: twitter-broker
     ports:
-      - "8090:8080"
+      - "127.0.0.1:8090:8080"
       - "9090:9000"
     volumes:
       - ./realms:/opt/keycloak/data/import:ro
