@@ -38,6 +38,7 @@ class AdminOpenApiTest {
         JsonObject doc = new JsonObject(body);
         assertEquals("keycloak-mcp-server admin API", doc.getJsonObject("info").getString("title"));
         assertTrue(doc.getJsonObject("components").getJsonObject("securitySchemes").containsKey("bearer"));
+        given().get("/q/swagger-ui/").then().statusCode(200);
 
         TreeSet<String> documented = new TreeSet<>();
         JsonObject paths = doc.getJsonObject("paths");

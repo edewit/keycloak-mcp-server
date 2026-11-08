@@ -113,10 +113,9 @@ Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. F
   re-encrypts under the current `kc-mcp.storage.secret-key` ([Database storage](storage.md), key rotation).
 - **OpenAPI.** The server serves the API's description at `/q/openapi` (YAML; `?format=json`), with every operation,
   the request and response schemas and the error codes; the source is
-  `modules/backend/src/main/resources/META-INF/openapi.yaml`, kept in step with the resource by a test. Swagger UI is
-  at `/q/swagger-ui` in Quarkus dev mode (`./mvnw quarkus:dev`); `quarkus.swagger-ui.always-include=true` includes it
-  in a packaged server as well. The document is served whether the API is on or not; `kc-mcp.admin.openapi=false`
-  takes both it and Swagger UI off the server (404).
+  `modules/backend/src/main/resources/META-INF/openapi.yaml`, kept in step with the resource by a test. Swagger UI
+  browses it at `/q/swagger-ui`, in the packaged server too. Both are served whether the API is on or not;
+  `kc-mcp.admin.openapi=false` takes them off the server (404).
 
 ### Walkthrough: a new system with `private_key_jwt`
 

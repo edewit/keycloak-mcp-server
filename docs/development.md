@@ -53,8 +53,8 @@ management UI bootstrap (login, sessions, BFF) done; the UI pages themselves are
 
 ## Quarkus notes
 
-Dev UI <http://localhost:8081/q/dev/>, Swagger UI for the admin API <http://localhost:8081/q/swagger-ui/> (the document
-itself at `/q/openapi`, also in a packaged server). The server runs on the JVM only: extension jars are loaded from `providers/` at
+Dev UI <http://localhost:8081/q/dev/>; Swagger UI for the admin API <http://localhost:8081/q/swagger-ui/> and the
+document at `/q/openapi` are in every build. The server runs on the JVM only: extension jars are loaded from `providers/` at
 runtime, the default storage is the embedded H2, and the storage derives keys with Bouncy Castle, none of which fits a
 GraalVM native image. The Quarkus native profile and Dockerfiles were removed for that reason; `Dockerfile.jvm` is the
 one container build.
