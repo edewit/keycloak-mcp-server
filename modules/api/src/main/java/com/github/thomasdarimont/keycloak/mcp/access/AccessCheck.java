@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.access;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
@@ -32,9 +33,17 @@ public interface AccessCheck extends Extension {
      * @param caller who is acting through the connection
      * @param keycloak the admin client the call will run with (the caller's own under
      * delegation); {@code null} in unit tests
+     * @param attributes scratch space of this one evaluation, fresh per call: a check
+     * that looks something up, a directory say, keeps it here so the other checks of the
+     * same call reuse it instead of asking Keycloak again
      */
     record Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
-            Caller caller, KeycloakAdmin keycloak) {
+            Caller caller, KeycloakAdmin keycloak, Map<String, Object> attributes) {
+
+        public Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
+                Caller caller, KeycloakAdmin keycloak) {
+            this(tool, system, realm, args, roles, caller, keycloak, new ConcurrentHashMap<>());
+        }
 
         public Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
                 Caller caller) {

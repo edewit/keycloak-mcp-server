@@ -153,18 +153,17 @@ public final class SelfProtectionCheck implements AccessCheck {
                     + " not be readable), so whether it grants your administrative access is unknown");
         }
         // the whole subtree goes: every membership of the caller in it, with all the
-        // roles
-        // that membership's chain of groups grants (a subgroup may grant what the deleted
-        // group itself does not)
-        Set<String> admin = new TreeSet<>();
+        // roles that membership's chain of groups grants (a subgroup may grant what the
+        // deleted group itself does not); the first one that grants administrative
+        // access settles it, the question being whether any does
         for (String membership : directory.groupPaths(ctx.realm(), callerId)) {
             if (membership.equals(path.get()) || membership.startsWith(path.get() + "/")) {
-                admin.addAll(administrative(directory.groupRoles(ctx.realm(), membership)));
+                Set<String> admin = administrative(directory.groupRoles(ctx.realm(), membership));
+                if (!admin.isEmpty()) {
+                    return refuse(caller, "delete group '" + path.get() + "', whose subtree grants your"
+                            + " administrative access (" + admin + " through '" + membership + "')");
+                }
             }
-        }
-        if (!admin.isEmpty()) {
-            return refuse(caller, "delete group '" + path.get() + "', whose subtree grants your administrative access ("
-                    + admin + ")");
         }
         return Decision.allow();
     }

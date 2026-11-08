@@ -28,14 +28,29 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
  * {@link RealmDirectory} backed by the admin client. Effective roles = realm-level
  * effective roles (already group- and composite-expanded by Keycloak) + direct and
  * group-inherited client roles, with composites expanded through {@code roles-by-id}.
+ * <p>
+ * One instance serves one evaluation and remembers what it read: a group's own role
+ * mappings, a composite's members and a user's memberships. Sibling groups share their
+ * ancestors and the checks of one call ask about the same caller, so each group and role
+ * is read once per call however often the chains cross it; nothing is kept beyond the
+ * call except the client ids, which do not change.
  */
 public class KeycloakDirectory implements RealmDirectory {
 
     private final KeycloakAdmin kc;
-    private final Map<String, String> clientIdByUuid = new ConcurrentHashMap<>();
+    private final Map<String, String> clientIdByUuid;
+    private final Map<String, List<GroupRepresentation>> memberships = new ConcurrentHashMap<>();
+    private final Map<String, List<RoleRepresentation>> groupMappings = new ConcurrentHashMap<>();
+    private final Map<String, List<RoleRepresentation>> composites = new ConcurrentHashMap<>();
 
     public KeycloakDirectory(KeycloakAdmin kc) {
+        this(kc, new ConcurrentHashMap<>());
+    }
+
+    /** @param clientIdByUuid the client ids already known, shared across evaluations */
+    public KeycloakDirectory(KeycloakAdmin kc, Map<String, String> clientIdByUuid) {
         this.kc = kc;
+        this.clientIdByUuid = clientIdByUuid;
     }
 
     @Override
@@ -58,7 +73,7 @@ public class KeycloakDirectory implements RealmDirectory {
         UserResource u = r.users().get(userId);
         List<RoleRepresentation> seeds = new ArrayList<>(u.roles().realmLevel().listEffective(false));
         addClientMappings(u.roles().getAll(), seeds);
-        for (GroupRepresentation g : allGroups(u)) {
+        for (GroupRepresentation g : allGroups(realm, userId, u)) {
             seeds.addAll(groupChainMappings(realm, g.getPath()));
         }
         Set<String> out = new TreeSet<>();
@@ -86,7 +101,9 @@ public class KeycloakDirectory implements RealmDirectory {
 
     @Override
     public List<String> groupPaths(String realm, String userId) {
-        return allGroups(kc.realm(realm).users().get(userId)).stream().map(GroupRepresentation::getPath).toList();
+        return allGroups(realm, userId, kc.realm(realm).users().get(userId)).stream()
+            .map(GroupRepresentation::getPath)
+            .toList();
     }
 
     @Override
@@ -168,8 +185,14 @@ public class KeycloakDirectory implements RealmDirectory {
     static final int GROUP_PAGE = 500;
     static final int MAX_GROUPS = 20_000;
 
-    private static List<GroupRepresentation> allGroups(UserResource u) {
-        return allGroups((first, max) -> u.groups(first, max, true));
+    private List<GroupRepresentation> allGroups(String realm, String userId, UserResource u) {
+        String key = realm + '|' + userId;
+        List<GroupRepresentation> all = memberships.get(key);
+        if (all == null) {
+            all = allGroups((first, max) -> u.groups(first, max, true));
+            memberships.put(key, all);
+        }
+        return all;
     }
 
     /**
@@ -195,23 +218,36 @@ public class KeycloakDirectory implements RealmDirectory {
         List<RoleRepresentation> out = new ArrayList<>();
         RealmResource r = kc.realm(realm);
         for (String p : ancestorPaths(path)) {
-            try {
-                GroupRepresentation g = r.getGroupByPath(p);
-                MappingsRepresentation m = r.groups().group(g.getId()).roles().getAll();
-                if (m.getRealmMappings() != null) {
-                    out.addAll(m.getRealmMappings());
-                }
-                addClientMappings(m, out);
-            }
-            catch (WebApplicationException e) {
-                // an unreadable group would make the chain look smaller than it is, and
-                // the policies would then allow what they should not: fail the lookup
-                throw new ToolException("group_unreadable",
-                        "The role mappings of group '" + p + "' in realm '" + realm + "' could not be read (HTTP "
-                                + e.getResponse().getStatus() + "), so the policies cannot judge" + " this call.");
-            }
+            out.addAll(ownMappings(realm, r, p));
         }
         return out;
+    }
+
+    /** The role mappings of one group (not its ancestors'), read once per evaluation. */
+    private List<RoleRepresentation> ownMappings(String realm, RealmResource r, String path) {
+        String key = realm + '|' + path;
+        List<RoleRepresentation> own = groupMappings.get(key);
+        if (own != null) {
+            return own;
+        }
+        own = new ArrayList<>();
+        try {
+            GroupRepresentation g = r.getGroupByPath(path);
+            MappingsRepresentation m = r.groups().group(g.getId()).roles().getAll();
+            if (m.getRealmMappings() != null) {
+                own.addAll(m.getRealmMappings());
+            }
+            addClientMappings(m, own);
+        }
+        catch (WebApplicationException e) {
+            // an unreadable group would make the chain look smaller than it is, and
+            // the policies would then allow what they should not: fail the lookup
+            throw new ToolException("group_unreadable",
+                    "The role mappings of group '" + path + "' in realm '" + realm + "' could not be read (HTTP "
+                            + e.getResponse().getStatus() + "), so the policies cannot judge this call.");
+        }
+        groupMappings.put(key, List.copyOf(own));
+        return own;
     }
 
     private static void addClientMappings(MappingsRepresentation m, List<RoleRepresentation> out) {
@@ -232,21 +268,30 @@ public class KeycloakDirectory implements RealmDirectory {
             }
             out.add(keyOf(realm, role));
             if (role.isComposite()) {
-                try {
-                    expand(realm, new ArrayList<>(kc.realm(realm).rolesById().getRoleComposites(role.getId())), out,
-                            visited);
-                }
-                catch (WebApplicationException e) {
-                    // the same for a composite: a role that looks smaller than it is
-                    // would
-                    // pass the escalation check
-                    throw new ToolException("role_unreadable",
-                            "The composites of role '" + role.getName() + "' in realm '" + realm
-                                    + "' could not be read (HTTP " + e.getResponse().getStatus()
-                                    + "), so the policies cannot judge this call.");
-                }
+                expand(realm, compositesOf(realm, role), out, visited);
             }
         }
+    }
+
+    /** The roles a composite grants directly, read once per evaluation. */
+    private List<RoleRepresentation> compositesOf(String realm, RoleRepresentation role) {
+        String key = realm + '|' + role.getId();
+        List<RoleRepresentation> members = composites.get(key);
+        if (members != null) {
+            return members;
+        }
+        try {
+            members = List.copyOf(kc.realm(realm).rolesById().getRoleComposites(role.getId()));
+        }
+        catch (WebApplicationException e) {
+            // the same for a composite: a role that looks smaller than it is would pass
+            // the escalation check
+            throw new ToolException("role_unreadable",
+                    "The composites of role '" + role.getName() + "' in realm '" + realm + "' could not be read (HTTP "
+                            + e.getResponse().getStatus() + "), so the policies cannot judge this call.");
+        }
+        composites.put(key, members);
+        return members;
     }
 
     private String keyOf(String realm, RoleRepresentation role) {

@@ -7,6 +7,7 @@ import java.util.function.Function;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 import com.google.auto.service.AutoService;
@@ -59,17 +60,17 @@ public class PolicyToolProvider implements ToolProvider {
     @Override
     public void init(ToolProviderContext context) {
         if (directories == null) {
-            Map<String, RealmDirectory> cache = new ConcurrentHashMap<>();
-            directories = ctx -> {
-                if (ctx.keycloak() != null && ctx.keycloak().isDelegated()) {
-                    // delegated call: look things up with the caller's own token, the
-                    // server may have none
-                    return new KeycloakDirectory(ctx.keycloak());
-                }
-                String system = ctx.system();
-                return cache.computeIfAbsent(system == null ? "" : system,
-                        s -> new KeycloakDirectory(s.isEmpty() ? context.keycloak() : context.keycloak(s)));
-            };
+            // client ids are stable, the directory of one evaluation remembers the rest
+            Map<String, Map<String, String>> clientIds = new ConcurrentHashMap<>();
+            directories = ctx -> (RealmDirectory) ctx.attributes()
+                .computeIfAbsent(KeycloakDirectory.class.getName(), k -> {
+                    String system = ctx.system() == null ? "" : ctx.system();
+                    // a delegated call looks things up with the caller's own token,
+                    // the server may have none
+                    KeycloakAdmin kc = ctx.keycloak() != null && ctx.keycloak().isDelegated() ? ctx.keycloak()
+                            : system.isEmpty() ? context.keycloak() : context.keycloak(system);
+                    return new KeycloakDirectory(kc, clientIds.computeIfAbsent(system, s -> new ConcurrentHashMap<>()));
+                });
             settings = PolicySettings.from(context.config());
         }
     }
