@@ -69,5 +69,17 @@ $KCADM add-roles -r master --uusername root --rolename admin 2> /dev/null || tru
 scope_admin "$(client_id mcp-consumer)"
 echo "root holds master/admin: administers every realm"
 
+# Keycloak fetches the server's JWKS as host.docker.internal:9080. Docker Desktop (macOS, Windows) reaches the
+# server's loopback listener that way; on Linux the name is the bridge gateway, which does not.
+if [ "$(uname -s)" = Linux ] && ! grep -q '^quarkus.http.host=' conf/server.conf; then
+  echo
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "NOTE: WSL. If Keycloak cannot fetch the JWKS (the login fails with 'invalid_client' / 'Client authentication"
+    echo "      with signed JWT failed'), uncomment quarkus.http.host=0.0.0.0 in conf/server.conf."
+  else
+    echo "WARNING: Linux. The server listens on 127.0.0.1, which the Keycloak container cannot reach as"
+    echo "         host.docker.internal: uncomment quarkus.http.host=0.0.0.0 in conf/server.conf before starting it."
+  fi
+fi
 echo
 echo "Next: cd $DIST && bin/kcmcp.sh start --config ../conf/server.conf --config ../conf/systems/"
