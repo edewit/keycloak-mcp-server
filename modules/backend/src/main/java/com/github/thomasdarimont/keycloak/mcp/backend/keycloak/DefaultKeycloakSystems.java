@@ -12,7 +12,6 @@ import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
@@ -80,7 +79,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                 HostAllowList.of(config.allowedHosts().orElse(List.of())), repositories(config, extensions),
                 config.staticSystemsOrder(), config.delegation());
         this.metrics = metrics;
-        this.issuerPolicies = new CallerIssuerPolicies(issuerPolicies(config, extensions), config);
+        this.issuerPolicies = new CallerIssuerPolicies(issuerPolicies(config, extensions));
         this.readTimeout = config.http().readTimeout();
         this.dynamicPrivateHosts = config.effectiveDynamicPrivateHosts();
     }
@@ -273,20 +272,15 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     }
 
     /**
-     * The issuers whose caller tokens may be forwarded to a system: its own Keycloak; for
-     * the default system also what the default OIDC tenant is configured to verify
-     * ({@code quarkus.oidc.token.issuer}, {@code quarkus.oidc.auth-server-url}), which
-     * may name the public address of an internally reached Keycloak.
+     * The check a system's admin client runs on a caller token's issuer: the policy
+     * chain, with the system's own Keycloak as the bases the built-in rule accepts, its
+     * URL and its configured {@code issuer} (the public address of an internally reached
+     * Keycloak). What the default OIDC tenant verifies does not count: it may be another
+     * Keycloak, and a token of that one must not reach this system unless trusted
+     * explicitly.
      */
-    private Function<String, Optional<String>> callerIssuerCheck(KeycloakSystem system, String name) {
-        List<String> extra = new ArrayList<>();
-        if (name.equals(defaultName)) {
-            var config = ConfigProvider.getConfig();
-            for (String key : List.of("quarkus.oidc.token.issuer", "quarkus.oidc.auth-server-url")) {
-                config.getOptionalValue(key, String.class).ifPresent(extra::add);
-            }
-        }
-        Set<String> own = DefaultKeycloakAdmin.callerIssuerBases(system, extra);
+    private Function<String, Optional<String>> callerIssuerCheck(KeycloakSystem system) {
+        Set<String> own = DefaultKeycloakAdmin.callerIssuerBases(system, List.of());
         return issuer -> issuerPolicies.refusal(issuer, system, own);
     }
 
@@ -391,7 +385,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         }
         KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation).metrics(metrics)
             .readTimeout(readTimeout)
-            .callerIssuerCheck(callerIssuerCheck(system, name));
+            .callerIssuerCheck(callerIssuerCheck(system));
         KeycloakAdmin previous = admins.put(name, created);
         if (previous != null) {
             LOG.infof("Keycloak system '%s' changed at its repository, reconnecting to %s", name, system.url());

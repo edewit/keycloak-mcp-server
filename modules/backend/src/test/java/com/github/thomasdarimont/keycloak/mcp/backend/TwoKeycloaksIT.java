@@ -21,22 +21,28 @@ class TwoKeycloaksIT {
 
     @Test
     void aCallerOfOneKeycloakCannotActOnTheOther() {
-        McpClient alice = new McpClient().bearer(ForwardTestResource.token("mcp-consumer", "alice", "alice"))
-            .initialize(false);
-        JsonObject who = McpClient.text(alice.callTool("whoami", new JsonObject()));
-        assertEquals("alice", who.getJsonObject("caller").getString("username"), who.encode());
+        String aliceToken = ForwardTestResource.token("mcp-consumer", "alice", "alice");
 
-        // the default system (alice's Keycloak) works as before
+        // her own Keycloak, through its entry: works as before
+        McpClient own = new McpClient().path("/mcp/systems/default").bearer(aliceToken).initialize(false);
         JsonObject found = McpClient
-            .text(alice.callTool("keycloak_user_search", new JsonObject().put("search", "carol")));
+            .text(own.callTool("keycloak_user_search", new JsonObject().put("search", "carol")));
         assertEquals(null, found.getString("error"), found.encode());
         assertEquals("carol", found.getJsonArray("items").getJsonObject(0).getString("username"), found.encode());
 
-        // naming the other system: refused before the token travels
-        JsonObject foreign = McpClient.text(alice.callTool("keycloak_user_search",
+        // the root entry: the default tenant verified her token (first Keycloak), the
+        // default system is the second;
+        // that the tenant trusts her issuer does not make it the second system's issuer
+        McpClient root = new McpClient().bearer(aliceToken).initialize(false);
+        JsonObject who = McpClient.text(root.callTool("whoami", new JsonObject()));
+        assertEquals("alice", who.getJsonObject("caller").getString("username"), who.encode());
+        JsonObject implicit = McpClient
+            .text(root.callTool("keycloak_user_search", new JsonObject().put("realm", "master").put("search", "x")));
+        assertEquals("caller_foreign_system", implicit.getString("error"), implicit.encode());
+        JsonObject named = McpClient.text(root.callTool("keycloak_user_search",
                 new JsonObject().put("system", "other").put("realm", "master").put("search", "x")));
-        assertEquals("caller_foreign_system", foreign.getString("error"), foreign.encode());
-        assertTrue(foreign.getString("message").contains("/mcp/systems/other"), foreign.encode());
+        assertEquals("caller_foreign_system", named.getString("error"), named.encode());
+        assertTrue(named.getString("message").contains("/mcp/systems/other"), named.encode());
     }
 
     @Test

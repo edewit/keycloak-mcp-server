@@ -38,7 +38,10 @@ public class TwoKeycloaksTestResource extends ForwardTestResource {
         // every system has a default realm, so the realm argument stays optional for the
         // tests
         config.put("kc-mcp.systems.other.default-realm", "master");
-        config.put("kc-mcp.default-system", "default");
+        // the default tenant verifies callers of the first Keycloak ("default"), the
+        // default system is the second:
+        // what the tenant verifies must not count as the second system's own issuer
+        config.put("kc-mcp.default-system", "other");
         config.put("kc-mcp.startup-check", "warn");
         return config;
     }

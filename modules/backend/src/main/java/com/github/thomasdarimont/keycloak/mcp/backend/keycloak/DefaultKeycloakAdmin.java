@@ -118,8 +118,16 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
         // the token stays within the trust domain that issued it: a token of Keycloak A
         // is never sent to
         // Keycloak B, not even to be refused there
-        String issuer = issuerOf(bearerToken);
-        if (callerIssuerCheck != null && issuer != null) {
+        if (callerIssuerCheck != null) {
+            String issuer = issuerOf(bearerToken);
+            if (issuer == null) {
+                // fail closed: an opaque or unreadable token cannot prove where it came
+                // from
+                throw new ToolException("caller_foreign_system",
+                        "The caller's token names no readable issuer, so it" + " is not used at system '"
+                                + system.name() + "'. Log in at its entry (/mcp/systems/" + system.name()
+                                + ") with a token of its Keycloak.");
+            }
             Optional<String> refusal = callerIssuerCheck.apply(issuer);
             if (refusal.isPresent()) {
                 throw new ToolException("caller_foreign_system", refusal.get());

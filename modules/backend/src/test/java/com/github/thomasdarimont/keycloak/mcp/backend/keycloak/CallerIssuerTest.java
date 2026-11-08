@@ -62,8 +62,15 @@ class CallerIssuerTest {
     }
 
     @Test
-    void anUnreadableTokenIsNotJudgedByIssuer() {
+    void anUnreadableTokenIsRefusedWhereTheIssuerIsChecked() {
         assertNull(DefaultKeycloakAdmin.issuerOf("opaque-token"));
         assertNull(DefaultKeycloakAdmin.issuerOf("a.b.c"));
+        KeycloakSystem own = KeycloakSystem.builder("default", "http://keycloak-a:8080").build();
+        Set<String> bases = DefaultKeycloakAdmin.callerIssuerBases(own, List.of());
+        DefaultKeycloakAdmin admin = new DefaultKeycloakAdmin(own, null, DelegationMode.FORWARD)
+            .callerIssuerCheck(issuer -> CallerIssuerPolicies.builtIn().refusal(issuer, own, bases));
+        ToolException e = assertThrows(ToolException.class, () -> admin.forToken("opaque-token"));
+        assertEquals("caller_foreign_system", e.code());
+        assertTrue(e.getMessage().contains("no readable issuer"), e.getMessage());
     }
 }

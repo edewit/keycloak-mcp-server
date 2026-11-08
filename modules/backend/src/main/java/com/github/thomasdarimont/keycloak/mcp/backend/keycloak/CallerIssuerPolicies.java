@@ -11,15 +11,15 @@ import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
 import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy.Decision;
-import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 
 /**
  * The chain of {@link CallerIssuerPolicy}s a system's admin client asks before it uses a
  * caller's token: the registered policies in order, then the built-in rule, which allows
- * the system's own Keycloak and the configured {@code trusted-issuers} and denies the
- * rest.
+ * the system's own Keycloak and the system's {@code trustedIssuers} (configured, from the
+ * systems file or registered) and denies the rest. The system record is the only source:
+ * configured defaults were applied when it was resolved.
  */
 public final class CallerIssuerPolicies {
 
@@ -27,18 +27,15 @@ public final class CallerIssuerPolicies {
 
     private final List<CallerIssuerPolicy> custom;
 
-    private final McpServerConfig config;
-
-    public CallerIssuerPolicies(List<CallerIssuerPolicy> custom, McpServerConfig config) {
+    public CallerIssuerPolicies(List<CallerIssuerPolicy> custom) {
         List<CallerIssuerPolicy> ordered = new ArrayList<>(custom);
         ordered.sort(Comparator.comparingInt(Extension::order));
         this.custom = List.copyOf(ordered);
-        this.config = config;
     }
 
-    /** No registered policies, no configuration: the built-in rule alone. */
+    /** No registered policies: the built-in rule alone. */
     public static CallerIssuerPolicies builtIn() {
-        return new CallerIssuerPolicies(List.of(), null);
+        return new CallerIssuerPolicies(List.of());
     }
 
     /**
@@ -67,30 +64,14 @@ public final class CallerIssuerPolicies {
             }
         }
         Set<String> accepted = new HashSet<>(ownBases);
-        for (String trusted : trustedIssuers(system.name())) {
+        for (String trusted : system.trustedIssuers()) {
             accepted.add(DefaultKeycloakAdmin.base(trusted));
         }
         if (accepted.contains(DefaultKeycloakAdmin.base(issuer))) {
             return Optional.empty();
         }
         return Optional.of("The caller's token was issued by " + issuer + "; system '" + system.name()
-                + "' acts only for callers of " + system.publicUrl() + " (and kc-mcp.systems." + system.name()
-                + ".trusted-issuers). Log in at that system's entry (/mcp/systems/" + system.name() + ") instead.");
-    }
-
-    /**
-     * {@code kc-mcp.systems.<name>.trusted-issuers}, else the system defaults' list, else
-     * none.
-     */
-    List<String> trustedIssuers(String system) {
-        if (config == null) {
-            return List.of();
-        }
-        McpServerConfig.SystemSettings own = config.systems().get(system);
-        Optional<List<String>> list = own != null ? own.trustedIssuers() : Optional.empty();
-        if (list.isEmpty()) {
-            list = config.systemDefaults().trustedIssuers();
-        }
-        return list.orElse(List.of()).stream().map(String::trim).filter(v -> !v.isEmpty()).toList();
+                + "' acts only for callers of " + system.publicUrl() + " (and its trusted issuers). Log in at that"
+                + " system's entry (/mcp/systems/" + system.name() + ") instead.");
     }
 }
