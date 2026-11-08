@@ -27,6 +27,7 @@
     "email",
     "kc-admin-api"
   ],
+  "optionalClientScopes": ["offline_access"],
   "attributes": {
     "pkce.code.challenge.method": "S256",
     "access.token.lifespan": "1800"

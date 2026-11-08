@@ -16,6 +16,8 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
+import io.quarkiverse.mcp.server.InputRequiredException;
+
 /**
  * Runs the registered {@link Confirmer}s (ServiceLoader and CDI, by
  * {@link Confirmer#order()}) and the built-in {@link DefaultConfirmer} last; the first
@@ -70,6 +72,10 @@ public class ConfirmerChain implements Confirmer {
             Decision d;
             try {
                 d = c.confirm(request);
+            }
+            catch (InputRequiredException e) {
+                throw e; // the question to the user, not a failure: the client repeats
+                         // the call with the answer
             }
             catch (RuntimeException e) {
                 LOG.warnf(e, "Confirmer %s failed for %s", c.getClass().getName(), request.tool().name());

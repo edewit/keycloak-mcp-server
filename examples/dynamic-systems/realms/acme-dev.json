@@ -74,6 +74,7 @@
   "clients": [
     {
       "clientId": "mcp-consumer",
+      "optionalClientScopes": ["offline_access"],
       "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "basic", "email", "kc-admin-api"],
       "name": "MCP consumer (LLM client)",
       "enabled": true,

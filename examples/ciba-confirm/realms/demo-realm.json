@@ -13,6 +13,7 @@
   "users": [
     {
       "username": "alice",
+      "realmRoles": ["offline_access"],
       "enabled": true,
       "email": "alice@example.com",
       "emailVerified": true,
@@ -33,6 +34,7 @@
     },
     {
       "username": "carol",
+      "realmRoles": ["offline_access"],
       "enabled": true,
       "email": "carol@example.com",
       "emailVerified": true,
@@ -53,6 +55,7 @@
     },
     {
       "username": "dave",
+      "realmRoles": ["offline_access"],
       "enabled": true,
       "email": "dave@example.com",
       "emailVerified": true,
@@ -70,6 +73,7 @@
   "clients": [
     {
       "clientId": "mcp-consumer",
+      "optionalClientScopes": ["offline_access"],
       "name": "MCP consumer (LLM client)",
       "description": "Public PKCE client that MCP clients log the user in with; its tokens carry aud=mcp-admin for the MCP server. Direct access grants are on for demo.sh only.",
       "enabled": true,

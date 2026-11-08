@@ -22,7 +22,9 @@ public interface Prompter {
 
     /**
      * @return the answer, or empty when the human dismissed the question, it timed out or
-     * asking is not {@link #available()}
+     * asking is not {@link #available()}. With a client on a stateless MCP protocol
+     * version this ends the call with an unchecked exception instead, and the client
+     * repeats it with the answer: a {@code Confirmer} must let it pass.
      */
     Optional<Boolean> askYesNo(String message);
 

@@ -54,6 +54,9 @@ claude mcp add --transport http --client-id mcp-consumer --callback-port 33418 k
 The callback is `http://localhost:<port>/callback`. `-s project` writes the entry to `.mcp.json` for the whole
 repository. `claude mcp list` and `/mcp` show the state; `/mcp` also clears a stale login.
 
+Claude Code requests `offline_access` along with the scopes the server advertises, so the client needs that scope as
+well, and the user the `offline_access` role ([The Keycloak side of the login](#the-keycloak-side-of-the-login)).
+
 ## Claude Desktop and claude.ai
 
 Custom connectors (Settings → Connectors → Add custom connector) are reached from Anthropic's cloud, not from the
@@ -135,6 +138,9 @@ body; the `Mcp-Session-Id` header of the `initialize` answer goes on every later
   redirect URIs under control. Name the client in the MCP client's configuration instead.
 - **Scopes.** Clients ask for what the protected resource metadata lists (`QUARKUS_OIDC_RESOURCE_METADATA_SCOPES`,
   default the admin API scope); every listed scope must exist on the client, or Keycloak answers `invalid_scope`.
+  Claude Code also requests `offline_access`: assign it to the client as an optional scope, as the demo realms do. The
+  user needs the realm role `offline_access` too, or the token request answers `not_allowed`. It is part of the realm's
+  default roles, which users from a realm import only get if their `realmRoles` name `default-roles-<realm>`.
 - **Internal addresses.** When the server reaches Keycloak as `http://keycloak:8080` (Docker), set
   `QUARKUS_OIDC_TOKEN_ISSUER` and `QUARKUS_OIDC_RESOURCE_METADATA_AUTHORIZATION_SERVER` to the public realm URL,
   otherwise the browser is sent to `keycloak:8080` ([Configuration](configuration.md)).
@@ -146,7 +152,8 @@ body; the `Mcp-Session-Id` header of the `initialize` answer goes on every later
    realm is not the default one has its own document at the well-known path plus the entry's path, for example
    `/.well-known/oauth-protected-resource/mcp/systems/acme`; the 401 of the entry names it.
 2. Keycloak's admin console events (`LOGIN_ERROR`): `invalid_redirect_uri` means the client's callback is missing,
-   `invalid_scope` a scope from `scopes_supported` the client lacks.
+   `invalid_scope` a scope from `scopes_supported` the client lacks, or `offline_access`. The message `Invalid scopes:`
+   repeats everything the client requested, so the scopes it names are not all at fault.
 3. 401 after a successful login: wrong audience (the mapper, `QUARKUS_OIDC_TOKEN_AUDIENCE`) or issuer mismatch
    (`QUARKUS_OIDC_TOKEN_ISSUER`).
 4. After changing the realm, clear the client's stored login: LM Studio by removing and re-adding the server, Claude

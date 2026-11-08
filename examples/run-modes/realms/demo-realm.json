@@ -431,6 +431,7 @@
     },
     {
       "clientId": "mcp-consumer",
+      "optionalClientScopes": ["offline_access"],
       "defaultClientScopes": [
         "web-origins",
         "acr",

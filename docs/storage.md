@@ -105,7 +105,9 @@ taken from the request itself (the caller from the token, system and realm from 
 (systems, keys, secrets, pending approvals, UI logins, the audit trail), so losing a session loses nothing the user did.
 
 - **Clients speaking MCP 2026-07-28 or later** run stateless: no session, a transient connection per request with the
-  client's capabilities in the request's `_meta`. Any instance serves any request; nothing to configure.
+  client's capabilities in the request's `_meta`. Any instance serves any request; nothing to configure. The
+  confirmation of a destructive tool travels with the client too (an `input_required` result, then the same call
+  again with the answer), so it can finish on another instance.
 - **Older clients** (2025-11-25 and before, most clients in the field) hold a session, and their requests must reach
   the instance that opened it: a request anywhere else answers 404, the client re-initializes there (the MCP
   specification requires that of it), and under round-robin routing the next request lands elsewhere again, so without

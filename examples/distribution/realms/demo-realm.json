@@ -40,6 +40,7 @@
         "email",
         "kc-admin-api"
       ],
+      "optionalClientScopes": ["offline_access"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "access.token.lifespan": "1800"
@@ -118,6 +119,7 @@
   "users": [
     {
       "username": "alice",
+      "realmRoles": ["offline_access"],
       "enabled": true,
       "emailVerified": true,
       "firstName": "Alice",
@@ -137,6 +139,7 @@
     },
     {
       "username": "carol",
+      "realmRoles": ["offline_access"],
       "enabled": true,
       "emailVerified": true,
       "firstName": "Carol",
@@ -156,6 +159,7 @@
     },
     {
       "username": "bob",
+      "realmRoles": ["offline_access"],
       "enabled": true,
       "emailVerified": true,
       "firstName": "Bob",
@@ -174,6 +178,7 @@
     },
     {
       "username": "dave",
+      "realmRoles": ["offline_access"],
       "enabled": true,
       "emailVerified": true,
       "firstName": "Dave",
@@ -192,6 +197,7 @@
     },
     {
       "username": "erin",
+      "realmRoles": ["offline_access"],
       "enabled": true,
       "emailVerified": true,
       "firstName": "Erin",

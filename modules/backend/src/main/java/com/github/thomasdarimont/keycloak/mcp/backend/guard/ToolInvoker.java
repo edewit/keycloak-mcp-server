@@ -30,6 +30,7 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 
+import io.quarkiverse.mcp.server.InputRequiredException;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -213,6 +214,10 @@ public class ToolInvoker {
                     }
                 }
             }
+        }
+        catch (InputRequiredException e) {
+            throw e; // the call is not over: it is audited when the client repeats it
+                     // with the answer
         }
         catch (Exception e) {
             LOG.debugf(e, "Tool %s failed", spec.name());
