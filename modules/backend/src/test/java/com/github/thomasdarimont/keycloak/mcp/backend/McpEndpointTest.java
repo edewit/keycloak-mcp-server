@@ -240,7 +240,7 @@ class McpEndpointTest {
         JsonObject args = new JsonObject().put("realm", "demo").put("id", "x");
         JsonObject asked = mcp.statelessCall("keycloak_user_logout", args, null, null);
         assertEquals("input_required", asked.getString("resultType"), asked.encode());
-        JsonObject question = asked.getJsonObject("inputRequests").getJsonObject("confirm");
+        JsonObject question = asked.getJsonObject("inputRequests").getJsonObject("confirm-0");
         assertNotNull(question, asked.encode());
         assertEquals("elicitation/create", question.getString("method"), asked.encode());
         assertTrue(question.getJsonObject("params").getString("message").contains("keycloak_user_logout"));
@@ -252,19 +252,27 @@ class McpEndpointTest {
             .getBoolean("default"), asked.encode());
         String state = asked.getString("requestState");
 
-        JsonObject accept = new JsonObject().put("confirm",
+        JsonObject accept = new JsonObject().put("confirm-0",
                 new JsonObject().put("action", "accept").put("content", new JsonObject().put("confirm", true)));
         // confirmed: past the guard and on to Keycloak (which is down)
         JsonObject done = mcp.statelessCall("keycloak_user_logout", args, accept, state);
         assertEquals("keycloak_unreachable", McpClient.text(done).getString("error"), done.encode());
 
-        JsonObject decline = new JsonObject().put("confirm", new JsonObject().put("action", "decline"));
+        JsonObject decline = new JsonObject().put("confirm-0", new JsonObject().put("action", "decline"));
         JsonObject declined = mcp.statelessCall("keycloak_user_logout", args, decline, state);
         assertEquals("cancelled", McpClient.text(declined).getString("error"), declined.encode());
 
         // an answer to the question about another call does not count
         JsonObject other = mcp.statelessCall("keycloak_user_logout", args.copy().put("id", "y"), accept, state);
         assertEquals("input_required", other.getString("resultType"), other.encode());
+
+        // the redacted prompt reads the same for another password, the operation does not
+        JsonObject first = new JsonObject().put("realm", "demo").put("id", "x").put("password", "first-secret");
+        JsonObject resetAsked = mcp.statelessCall("keycloak_user_reset_password", first, null, null);
+        assertEquals("input_required", resetAsked.getString("resultType"), resetAsked.encode());
+        JsonObject changed = mcp.statelessCall("keycloak_user_reset_password",
+                first.copy().put("password", "other-secret"), accept, resetAsked.getString("requestState"));
+        assertEquals("input_required", changed.getString("resultType"), changed.encode());
 
         // the same through the meta tool, the way the hybrid exposure reaches a
         // destructive tool

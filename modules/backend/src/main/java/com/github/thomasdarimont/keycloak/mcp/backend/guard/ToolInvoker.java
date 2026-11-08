@@ -302,8 +302,10 @@ public class ToolInvoker {
                         .collect(Collectors.joining(" "));
             ConfirmationRequest request = new ConfirmationRequest(spec, system, realm, args,
                     confirmFlag && humanOnly.isEmpty(), ctx.caller(),
-                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout), ctx.clientName(), ctx.connectionId(),
-                    ctx.connection() != null && ctx.connection().isTransient(), reason);
+                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout,
+                            ElicitationPrompter.operation(spec.name(), system, realm, ctx.caller(), args)),
+                    ctx.clientName(), ctx.connectionId(), ctx.connection() != null && ctx.connection().isTransient(),
+                    reason);
             Decision decision = confirmer.confirm(request);
             switch (decision.outcome()) {
                 case DECLINED -> {
