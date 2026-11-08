@@ -8,9 +8,11 @@ info:
     (`quarkus.datasource.jdbc.url`) with `kc-mcp.dynamic-systems=true` to have somewhere to register systems in.
     With the API off every request answers 404 `admin_api_disabled`.
 
-    Every request carries `Authorization: Bearer ...`: the static `kc-mcp.admin.token`, or an access token of the
-    trusted `kc-mcp.admin.issuer` (optionally with `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role`
-    (`realm:admin` by default). Anything else is 401 with a Bearer challenge, a verified token without the role 403.
+    Every request carries `Authorization: Bearer ...`. Preferably an access token of the trusted `kc-mcp.admin.issuer`
+    (optionally with `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role` (`realm:admin` by default): a person's token
+    from the authorization code flow, or a service account's from the client credentials grant, so Keycloak governs
+    who administers the server. The static `kc-mcp.admin.token` is the alternative for bootstrapping and simple
+    automation. Anything else is 401 with a Bearer challenge, a verified token without the role 403.
     Refusals are JSON objects with `error` (a stable code) and `message`.
 
     Full documentation: `docs/systems.md`, "Admin API: registering systems at runtime"; a worked example in
@@ -325,7 +327,7 @@ components:
     bearer:
       type: http
       scheme: bearer
-      description: The static `kc-mcp.admin.token`, or an access token of `kc-mcp.admin.issuer` carrying `kc-mcp.admin.role`
+      description: Preferably an access token of `kc-mcp.admin.issuer` carrying `kc-mcp.admin.role` (a user's by authorization code, a service account's by client credentials); the static `kc-mcp.admin.token` for bootstrapping and automation
   parameters:
     alias:
       name: alias

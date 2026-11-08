@@ -88,9 +88,12 @@ public class TenantRegistryRepository implements KeycloakSystemRepository {
 
 Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. Full flow: `examples/dynamic-systems/`.
 
-- Bearer: static `kc-mcp.admin.token`, or an access token of `kc-mcp.admin.issuer` (realm URL, verified by Quarkus OIDC,
-  optional `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role` (`realm:admin` default; `<client>.<role>` for client
-  roles). One of token and issuer required.
+- Bearer, preferably an access token of `kc-mcp.admin.issuer` (a realm URL, verified by Quarkus OIDC, optional
+  `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role` (`realm:admin` default; `<client>.<role>` for client roles): a
+  person's token from the authorization code flow, or a service account's from the client credentials grant, so Keycloak
+  governs who administers the server, with expiry and revocation. The static `kc-mcp.admin.token` is the alternative for
+  bootstrapping and simple automation; it never expires and is only as safe as the file or variable holding it. One of
+  issuer and token is required.
 - `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `description`, `url`, `issuer`, `authRealm`,
   `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `trustedIssuers`, `version`, `clientSecret`) into the first
   `MutableKeycloakSystemRepository`. Registered systems are service clients: `client_credentials` with

@@ -46,14 +46,14 @@ public class AdminOpenApiFilter implements OASFilter {
                             .scheme("bearer")
                             .description("The static token of this server (kc-mcp.admin.token).")));
             admin.issuer()
-                .ifPresent(issuer -> schemes.put(OIDC,
-                        OASFactory.createSecurityScheme()
-                            .type(SecurityScheme.Type.OPENIDCONNECT)
-                            .openIdConnectUrl(noTrailingSlash(issuer) + "/.well-known/openid-configuration")
-                            .description("An access token of " + issuer + " carrying the role " + admin.role()
-                                    + admin.audience().map(a -> " and the audience " + a).orElse("")
-                                    + "; log in with a public client of that realm that has Swagger UI's redirect URI"
-                                    + " (<server>/q/swagger-ui/oauth2-redirect.html).")));
+                .ifPresent(issuer -> schemes.put(OIDC, OASFactory.createSecurityScheme()
+                    .type(SecurityScheme.Type.OPENIDCONNECT)
+                    .openIdConnectUrl(noTrailingSlash(issuer) + "/.well-known/openid-configuration")
+                    .description("An access token of " + issuer + " carrying the role " + admin.role()
+                            + admin.audience().map(a -> " and the audience " + a).orElse("")
+                            + ": a person's token (authorization code flow) or a service account's (client"
+                            + " credentials), the preferred way in. Log in with a public client of that realm"
+                            + " that has Swagger UI's redirect URI (<server>/q/swagger-ui/oauth2-redirect.html).")));
         }
         if (doc.getComponents() != null) {
             doc.getComponents().setSecuritySchemes(schemes.isEmpty() ? null : schemes);

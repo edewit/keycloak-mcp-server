@@ -3,6 +3,7 @@
 #   1. the server's private_key_jwt key pair (conf/keycloak-mcp-server.pem in the distribution)
 #   2. the master realm, which --import-realm cannot touch: the clients mcp-consumer and keycloak-mcp-server, the user
 #      root (password root-demo) with the master admin role, the service account with the admin role
+#   3. the admin API's token (conf/kcmcp.conf in the distribution, read on every start), printed for curl and Swagger UI
 # The server configuration stays here in conf/; the start command points at it.
 # Idempotent: run it again after `docker compose down -v`.
 #
@@ -68,6 +69,18 @@ $KCADM add-roles -r master --uusername root --rolename admin 2> /dev/null || tru
 # the admin role in mcp-consumer's role scope: root's token carries it (full scope off)
 scope_admin "$(client_id mcp-consumer)"
 echo "root holds master/admin: administers every realm"
+
+echo "== 3. the admin API token: $DIST/conf/kcmcp.conf"
+TOKEN=$(sed -n 's/^kc-mcp.admin.token=//p' "$DIST/conf/kcmcp.conf" | head -1)
+if [ -z "$TOKEN" ]; then
+  TOKEN="admintoken-$(openssl rand -hex 16)"
+  printf '\n# written by examples/distribution/setup.sh: the token of the admin API (kc-mcp.admin.enabled in conf/server.conf)\nkc-mcp.admin.token=%s\n' "$TOKEN" >> "$DIST/conf/kcmcp.conf"
+  echo "generated"
+else
+  echo "exists"
+fi
+echo "admin API:  curl -H 'Authorization: Bearer $TOKEN' http://localhost:9080/admin/systems"
+echo "Swagger UI: http://localhost:9080/q/swagger-ui/ (Authorize -> adminToken -> paste the token)"
 
 # Keycloak fetches the server's JWKS as host.docker.internal:9080. Docker Desktop (macOS, Windows) reaches the
 # server's loopback listener that way; on Linux the name is the bridge gateway, which does not.

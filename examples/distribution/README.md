@@ -24,8 +24,8 @@ MCP client logs the user in at the right realm.
 | `docker-compose.yml` | Keycloak 26.8.2 on :8080, imports `realms/` on the first start, reaches the host as `host.docker.internal` |
 | `realms/demo-realm.json` | the demo realm: clients `mcp-consumer` and `keycloak-mcp-server`, groups `/mcp-admins` and `/mcp-support`, the users |
 | `clients/*.json` | the same two clients for the master realm, created by `setup.sh` with the `admin` role in their scope (an import cannot touch `master`) |
-| `setup.sh` | the server's key pair, the master realm's clients and the user `root` |
-| `conf/server.conf` | the server: port 9080, user login (forward delegation), `private_key_jwt`, the audience; read in place by `--config` |
+| `setup.sh` | the server's key pair, the master realm's clients and the user `root`, the admin API's token |
+| `conf/server.conf` | the server: port 9080, user login (forward delegation), `private_key_jwt`, the audience, the admin API on; read in place by `--config` |
 | `conf/systems/sso.conf` | the one system: login realm `master`, default realm `master`; read in place by `--config` |
 | `mcp.json` | LM Studio: both entries, logging in as `mcp-consumer` |
 | `mcp-call.py` | calls a tool from the command line, logging a user in with the password grant (demo only) |
@@ -42,7 +42,7 @@ MCP client logs the user in at the right realm.
    rm -rf keycloak-mcp-server-1.0-SNAPSHOT && tar xzf keycloak-mcp-server-1.0-SNAPSHOT.tar.gz
    ```
 
-   A rebuilt archive comes without the key from step 3; `setup.sh` generates a new one (copy
+   A rebuilt archive comes without the key and the admin API token from step 3; `setup.sh` generates both anew (copy
    `conf/keycloak-mcp-server.pem` aside first if Keycloak should keep accepting the old one, or just let Keycloak
    fetch the new JWKS). The configuration is not affected: the server reads it from this folder's `conf/`.
 
@@ -56,7 +56,9 @@ MCP client logs the user in at the right realm.
    and prepares the master realm: the client
    `keycloak-mcp-server` (Signed JWT, JWKS URL `http://host.docker.internal:9080/.well-known/jwks.json`, service
    account with the `admin` role), the public client `mcp-consumer` (PKCE, the MCP clients' callbacks, audience
-   `keycloak-mcp-server`) and the user `root` with the `admin` role. It can run again at any time.
+   `keycloak-mcp-server`) and the user `root` with the `admin` role. It also generates the admin API's token into the
+   distribution's `conf/kcmcp.conf` (read on every start, next to the key) and prints it. It can run again at any
+   time; the key and the token are kept.
 
    ```shell
    ./setup.sh
@@ -89,6 +91,19 @@ MCP client logs the user in at the right realm.
    Expected: root's default realm is `master`, any other realm by name; alice's call succeeds; carol's search
    succeeds and her write answers `forbidden` with the missing role `manage-users`. The server's audit log names the
    person behind every call (`caller=alice(...) delegated`).
+
+   The admin API answers with the token `setup.sh` printed (it is in the distribution's `conf/kcmcp.conf`):
+
+   ```shell
+   curl -H "Authorization: Bearer admintoken-..." http://localhost:9080/admin/systems
+   ```
+
+   Swagger UI at <http://localhost:9080/q/swagger-ui/> describes the API; *Authorize* takes the same token. The static
+   token keeps the demo simple; on a real server the preferred way in is an access token of a trusted issuer
+   (`kc-mcp.admin.issuer`), a person's from the authorization code flow or a service account's from the client
+   credentials grant, carrying `kc-mcp.admin.role`, so Keycloak governs who administers the server. Without a database
+   this server only reads: registering a system answers 503 `no_mutable_repository`, which is the expected answer here
+   ([Several Keycloak systems](../../docs/systems.md), [Database storage](../../docs/storage.md)).
 
 6. **LM Studio.** Add the two servers from `mcp.json` (Program → Install → Edit mcp.json). On connect LM Studio opens
    the browser: log in as `root / root-demo` for `keycloak-sso`, as `alice` or `carol` for
