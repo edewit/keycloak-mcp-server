@@ -68,13 +68,13 @@ public final class InputSchema {
         return out;
     }
 
+    /** Tail of the system argument's description: entries override the default. */
+    static final String ENTRY_HINT = "; at an entry /mcp/systems/<name> omit it, the entry decides)";
+
     /**
      * Adds the {@code system} enum property in front of everything else (multi-system
      * deployments).
      */
-    /** Tail of the system argument's description: entries override the default. */
-    static final String ENTRY_HINT = "; at an entry /mcp/systems/<name> omit it, the entry decides)";
-
     public static JsonObject withSystem(JsonObject schema, List<String> systems, String defaultSystem) {
         return withSystem(schema, systems, defaultSystem, true);
     }

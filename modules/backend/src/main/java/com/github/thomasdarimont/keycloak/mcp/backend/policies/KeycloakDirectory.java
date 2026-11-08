@@ -58,7 +58,7 @@ public class KeycloakDirectory implements RealmDirectory {
         UserResource u = r.users().get(userId);
         List<RoleRepresentation> seeds = new ArrayList<>(u.roles().realmLevel().listEffective(false));
         addClientMappings(u.roles().getAll(), seeds);
-        for (GroupRepresentation g : u.groups(0, 500, true)) {
+        for (GroupRepresentation g : allGroups(u)) {
             seeds.addAll(groupChainMappings(realm, g.getPath()));
         }
         Set<String> out = new TreeSet<>();
@@ -86,13 +86,7 @@ public class KeycloakDirectory implements RealmDirectory {
 
     @Override
     public List<String> groupPaths(String realm, String userId) {
-        return kc.realm(realm)
-            .users()
-            .get(userId)
-            .groups(0, 500, true)
-            .stream()
-            .map(GroupRepresentation::getPath)
-            .toList();
+        return allGroups(kc.realm(realm).users().get(userId)).stream().map(GroupRepresentation::getPath).toList();
     }
 
     @Override
@@ -162,6 +156,39 @@ public class KeycloakDirectory implements RealmDirectory {
             out.add(sb.toString());
         }
         return out;
+    }
+
+    /**
+     * A page of a user's groups: {@code (first, max)} to the groups from {@code first}.
+     */
+    interface GroupPager {
+        List<GroupRepresentation> page(int first, int max);
+    }
+
+    static final int GROUP_PAGE = 500;
+    static final int MAX_GROUPS = 20_000;
+
+    private static List<GroupRepresentation> allGroups(UserResource u) {
+        return allGroups((first, max) -> u.groups(first, max, true));
+    }
+
+    /**
+     * Every group of a user, read page by page until a short page ends the listing. A
+     * single page would silently drop the memberships beyond it, and a membership the
+     * policies do not see is one they cannot protect; a listing that does not end within
+     * {@link #MAX_GROUPS} fails the lookup for the same reason.
+     */
+    static List<GroupRepresentation> allGroups(GroupPager pager) {
+        List<GroupRepresentation> all = new ArrayList<>();
+        for (int first = 0; first < MAX_GROUPS; first += GROUP_PAGE) {
+            List<GroupRepresentation> page = pager.page(first, GROUP_PAGE);
+            all.addAll(page);
+            if (page.size() < GROUP_PAGE) {
+                return all;
+            }
+        }
+        throw new ToolException("groups_unreadable", "The user belongs to more than " + MAX_GROUPS
+                + " groups, more than the policies can judge in one call.");
     }
 
     private List<RoleRepresentation> groupChainMappings(String realm, String path) {

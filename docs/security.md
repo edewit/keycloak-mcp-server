@@ -168,7 +168,7 @@ The provider `policies` adds caller-relative checks once callers are authenticat
 
 Denials: `group_out_of_scope`, `manager_role_required`, `privilege_escalation`, `target_outranks_caller`, `self_grant`,
 `self_protection`, `caller_unknown`, `caller_foreign_realm`, `caller_required`. Effective roles come from Keycloak: direct, through groups,
-composite.
+composite; a caller's group memberships are read in full, page by page, never only the first page.
 
 ## Callers
 
