@@ -55,7 +55,7 @@ MCP client logs the user in at the right realm.
 3. **Run the setup.** It generates the server's RSA key into the distribution's `conf/keycloak-mcp-server.pem`
    and prepares the master realm: the client
    `keycloak-mcp-server` (Signed JWT, JWKS URL `http://host.docker.internal:9080/.well-known/jwks.json`, service
-   account with the `admin` role), the public client `mcp-consumer` (PKCE, LM Studio's callback, audience
+   account with the `admin` role), the public client `mcp-consumer` (PKCE, the MCP clients' callbacks, audience
    `keycloak-mcp-server`) and the user `root` with the `admin` role. It can run again at any time.
 
    ```shell
