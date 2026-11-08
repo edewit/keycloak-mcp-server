@@ -68,7 +68,8 @@ class KeycloakSystemBuilderTest {
         // a trusted issuer that is no absolute http(s) URL would never match: refused up
         // front
         for (String bad : List.of("sso.example/realms/demo", "https://", "ldap://sso.example",
-                "https://sso.example?x=1", "https://sso.example/realms/demo#frag")) {
+                "https://sso.example?x=1", "https://sso.example/realms/demo#frag",
+                "https://admin:secret@sso.example/realms/demo")) {
             IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                     () -> KeycloakSystem.builder("x", "https://x").trustedIssuer(bad).build(), bad);
             assertTrue(e.getMessage().contains(bad), e.getMessage());

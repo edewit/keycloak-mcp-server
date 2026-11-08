@@ -358,7 +358,7 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             try {
                 URI u = new URI(value);
                 return (("https".equals(u.getScheme()) || "http".equals(u.getScheme())) && u.getHost() != null
-                        && u.getQuery() == null && u.getFragment() == null);
+                        && u.getRawUserInfo() == null && u.getQuery() == null && u.getFragment() == null);
             }
             catch (URISyntaxException e) {
                 return false;
