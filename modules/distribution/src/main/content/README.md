@@ -25,21 +25,24 @@ Any setting can go on the command line (`--kc-mcp.systems.default.url=https://ss
 or into the environment (`KC_MCP_SYSTEMS_DEFAULT_URL`). `bin/kcmcp.sh --help` lists the options, `--debug [port]` opens a debugger port.
 
 `bin/kcmcp.sh start-dev` runs the same configuration in development mode: the `local` security profile applies whatever
-the files say, so a missing setting that the `shared` profile would refuse to start on is only warned about, and a
-Keycloak that is down at startup is a warning too. Not for a server other people reach.
+the files say, so a missing setting that the `shared` profile would refuse to start on is only warned about, a
+Keycloak that is down at startup is a warning too, and without any configured system the Keycloak of the examples at
+`http://localhost:8080` is assumed (system `default`, the server's client in `master`). Not for a server other people
+reach.
 
 ## Scenarios
 
 | file in `conf/scenarios/` | setup |
 |---|---|
-| `local-admin.properties` | the Keycloak admin user, every realm; local demos only |
-| `service-account.properties` | a confidential client inside the realm with the roles it needs; the usual single-realm setup |
-| `read-only.properties` | a view-only service account plus the read-only switch |
-| `private-key-jwt.properties` | the service account authenticates with a signed JWT instead of a secret |
-| `several-systems.properties` | several Keycloak installations from one server, each tool with a `system` argument |
-| `user-login.properties` | users log in through their MCP client; every call runs with their own roles |
-| `shared-server.properties` | a server for a team or environment: user login plus the `shared` security profile |
-| `dynamic-systems.properties` | no Keycloak configured; systems are registered through the admin API, each with a generated key and its own JWKS |
+| `local-admin.conf` | the Keycloak admin user, every realm; local demos only |
+| `service-account.conf` | a confidential client inside the realm with the roles it needs; the usual single-realm setup |
+| `read-only.conf` | a view-only service account plus the read-only switch |
+| `private-key-jwt.conf` | the service account authenticates with a signed JWT instead of a secret |
+| `several-systems.conf` | several Keycloak installations from one server, each tool with a `system` argument |
+| `user-login.conf` | users log in through their MCP client; every call runs with their own roles |
+| `shared-server.conf` | a server for a team or environment: user login plus the `shared` security profile |
+| `dynamic-systems.conf` | systems registered at runtime through the admin API or a systems file, kept in the database |
+| `dynamic-systems.conf` | no Keycloak configured; systems are registered through the admin API, each with a generated key and its own JWKS |
 
 ## Layout
 

@@ -331,6 +331,16 @@ public interface McpServerConfig {
     Optional<String> configFiles();
 
     /**
+     * Development mode, what {@code bin/kcmcp.sh start-dev} sets: when no system is
+     * configured, the system {@code default} at {@code http://localhost:8080} (the
+     * Keycloak of the examples) is assumed; the backend's
+     * {@code DevModeInterceptorFactory} supplies it. Nothing else changes: the security
+     * profile and the startup check are set separately.
+     */
+    @WithDefault("false")
+    boolean devMode();
+
+    /**
      * The admin API ({@code kc-mcp.admin.*}, {@code /admin/systems}): registers systems
      * in the first mutable {@code KeycloakSystemRepository} (the database storage), with
      * their {@code private_key_jwt} keys created in the {@code KeyVault}. Callers present

@@ -3,7 +3,8 @@
 #
 #   bin/kcmcp.sh start                                     conf/kcmcp.conf
 #   bin/kcmcp.sh start-dev                                 the same, in development mode: profile local, insecure
-#                                                          settings are warned about instead of refused
+#                                                          settings are warned about instead of refused, Keycloak at
+#                                                          http://localhost:8080 unless a system is configured
 #   bin/kcmcp.sh start --config conf/scenarios/read-only.conf
 #   bin/kcmcp.sh start --config conf/systems/              every *.conf file in it, e.g. one per Keycloak system
 #   bin/kcmcp.sh start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
@@ -138,9 +139,10 @@ fi
 
 if [ "$COMMAND" = "start-dev" ]; then
     # development mode: the local profile's lenient defaults whatever the files say, startup problems with Keycloak
-    # are warnings; nothing for a server other people reach
-    echo "development mode (start-dev): profile local, startup checks warn; use 'start' for a shared server" >&2
-    SERVER_OPTS="$SERVER_OPTS -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn"
+    # are warnings, and without a configured system the Keycloak of the examples at http://localhost:8080 is assumed;
+    # nothing for a server other people reach
+    echo "development mode (start-dev): profile local, startup checks warn, Keycloak at http://localhost:8080 unless a system is configured; use 'start' for a shared server" >&2
+    SERVER_OPTS="$SERVER_OPTS -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn -Dkc-mcp.dev-mode=true"
 fi
 
 # where this distribution keeps things; the configuration may refer to ${kcmcp.home.dir}

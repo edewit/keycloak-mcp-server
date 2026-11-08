@@ -3,6 +3,8 @@ rem Starts keycloak-mcp-server from this distribution.
 rem
 rem   bin\kcmcp.bat start                                     conf\kcmcp.conf
 rem   bin\kcmcp.bat start-dev                                 the same, in development mode: profile local, insecure
+rem                                                          settings warned about, Keycloak at http://localhost:8080
+rem                                                          unless a system is configured
 rem                                                          settings are warned about instead of refused
 rem   bin\kcmcp.bat start --config conf\scenarios\read-only.conf
 rem   bin\kcmcp.bat start --config conf\systems\              every *.conf file in it, e.g. one per Keycloak system
@@ -129,8 +131,8 @@ goto :EOF
 :MAIN
 if "%COMMAND%" == "" goto USAGE
 if "%COMMAND%" == "start-dev" (
-    echo development mode ^(start-dev^): profile local, startup checks warn; use 'start' for a shared server 1>&2
-    set "SERVER_OPTS=%SERVER_OPTS% -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn"
+    echo development mode ^(start-dev^): profile local, startup checks warn, Keycloak at http://localhost:8080 unless a system is configured; use 'start' for a shared server 1>&2
+    set "SERVER_OPTS=%SERVER_OPTS% -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn -Dkc-mcp.dev-mode=true"
 )
 
 rem configuration inherited from the shell overrides the files; list it, or drop it with --clean-env
