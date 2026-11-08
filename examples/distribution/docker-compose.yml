@@ -1,0 +1,30 @@
+# The Keycloak of this example: 26.8.2 on http://localhost:8080 (admin / admin), the demo realm imported from
+# realms/ on the first start. The MCP server runs on the host (bin/kcmcp.sh, port 9080); Keycloak reaches its JWKS as
+# host.docker.internal:9080.
+#
+#   docker compose up -d          # start (the realm is imported once; `docker compose down -v` resets everything)
+#   ./setup.sh                    # then: master realm clients and user, the server's key and configuration
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8080
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_LOG_LEVEL: info
+    volumes:
+      - ./realms:/opt/keycloak/data/import:ro
+    ports:
+      - "8080:8080"
+    extra_hosts:
+      # lets Keycloak fetch the MCP server's JWKS on the host (private_key_jwt)
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s

@@ -82,7 +82,6 @@
       "fullScopeAllowed": true,
       "redirectUris": [
         "http://127.0.0.1:33389/mcp-oauth-callback",
-        "http://localhost:33389/mcp-oauth-callback",
         "http://127.0.0.1:*/*",
         "http://localhost:*/*"
       ],

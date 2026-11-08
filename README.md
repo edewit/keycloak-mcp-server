@@ -115,6 +115,7 @@ Each example is a `docker compose` stack with a README and a scripted walkthroug
 | [ciba-confirm](examples/ciba-confirm/) | destructive tools approved on the user's device, with an approver app standing in for the phone |
 | [management-ui](examples/management-ui/) | the management UI with one or two identity providers |
 | [extensions](examples/extensions/) | an extension jar: tools, prompt, confirmer, access check, audit listener, scrubber, system repository |
+| [distribution](examples/distribution/) | the packaged server from the `.tar.gz` against a Keycloak in Docker: users log in through LM Studio, `private_key_jwt`, a system entry and a realm entry |
 
 ## Development
 

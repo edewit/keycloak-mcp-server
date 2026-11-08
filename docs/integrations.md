@@ -35,6 +35,7 @@ LM Studio opens the browser on connect. Its callback is fixed: `http://127.0.0.1
 the `auth` block it tries dynamic client registration. The CIBA two-step flow works: the model shows the number, calls
 again and waits for the decision ([CIBA confirmation](ciba-confirmation.md)). If the login once worked and then
 fails after the realm changed, remove the server and add it again; LM Studio keeps the old token.
+A complete setup with login, run from the packaged distribution, is `examples/distribution/`.
 
 ## Claude Code
 
@@ -124,8 +125,11 @@ body; the `Mcp-Session-Id` header of the `initialize` answer goes on every later
   preferred. `KC_MCP_DELEGATION=exchange` also needs consent on the client and the delegation scope
   ([Security](security.md#callers), `examples/delegated-auth/`).
 - **Callbacks.** Every client's callback must be a redirect URI of that client. The demo realms register LM Studio's;
-  add the ones you use from the sections above. `*` is allowed only at the end of a pattern, so
-  `http://localhost:*/*` works for Claude Code's and Codex's variable ports, `http://127.0.0.1:*/*` does not.
+  add the ones you use from the sections above. For a loopback callback (`127.0.0.1`, `localhost`) Keycloak ignores
+  the port when the registered URI has none, host and path still have to match: `http://localhost/callback` covers
+  Claude Code's variable port and `http://localhost/oauth/callback` Codex's, with the path pinned. `127.0.0.1` and
+  `localhost` are different hosts to Keycloak, so register the one the client uses. `*` is allowed only at the end of
+  a pattern.
 - **Dynamic client registration.** Clients without a configured client ID try to register one. Keycloak's anonymous
   registration policies (trusted hosts) usually refuse that, and a pre-registered client keeps the audience mapper and
   redirect URIs under control. Name the client in the MCP client's configuration instead.

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "keycloak-sso": {
+      "url": "http://localhost:9080/mcp/systems/sso",
+      "auth": { "CLIENT_ID": "mcp-consumer" }
+    },
+    "keycloak-sso-demo": {
+      "url": "http://localhost:9080/mcp/systems/sso/demo",
+      "auth": { "CLIENT_ID": "mcp-consumer" }
+    }
+  }
+}
