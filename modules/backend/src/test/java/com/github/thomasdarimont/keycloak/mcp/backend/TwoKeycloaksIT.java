@@ -13,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Two independent Keycloaks behind one server in forward delegation: a caller of the
- * first never has their token sent to the second.
+ * first never has their token sent to the second, a caller of the second administers it
+ * through its entry.
  */
 @QuarkusTest
 @QuarkusTestResource(value = TwoKeycloaksTestResource.class, restrictToAnnotatedClass = true)
@@ -43,6 +44,34 @@ class TwoKeycloaksIT {
                 new JsonObject().put("system", "other").put("realm", "master").put("search", "x")));
         assertEquals("caller_foreign_system", named.getString("error"), named.encode());
         assertTrue(named.getString("message").contains("/mcp/systems/other"), named.encode());
+    }
+
+    @Test
+    void aCallerOfTheOtherKeycloakAdministersItThroughItsEntry() {
+        String adminToken = TwoKeycloaksTestResource.otherToken("mcp-consumer", "admin", "admin");
+
+        McpClient other = new McpClient().path("/mcp/systems/other").bearer(adminToken).initialize(false);
+        JsonObject who = McpClient.text(other.callTool("whoami", new JsonObject()));
+        assertEquals("admin", who.getJsonObject("caller").getString("username"), who.encode());
+        // the token of the second Keycloak is forwarded to it: the search runs with the
+        // caller's rights there
+        JsonObject found = McpClient
+            .text(other.callTool("keycloak_user_search", new JsonObject().put("search", "admin")));
+        assertEquals(null, found.getString("error"), found.encode());
+        assertEquals("admin", found.getJsonArray("items").getJsonObject(0).getString("username"), found.encode());
+        // the first Keycloak's realm is not his to reach: the bound entry refuses the
+        // system argument before the issuer is even looked at
+        JsonObject foreign = McpClient.text(other.callTool("keycloak_user_search",
+                new JsonObject().put("system", "default").put("realm", "demo").put("search", "alice")));
+        assertEquals("entry_mismatch", foreign.getString("error"), foreign.encode());
+
+        // and the first system's entry does not accept his token either
+        Response r = given().header("Accept", "application/json, text/event-stream")
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + adminToken)
+            .body("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}")
+            .post("/mcp/systems/default");
+        assertEquals(401, r.statusCode(), r.asString());
     }
 
     @Test

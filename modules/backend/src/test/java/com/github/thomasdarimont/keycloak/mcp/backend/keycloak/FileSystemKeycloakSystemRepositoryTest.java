@@ -63,4 +63,30 @@ class FileSystemKeycloakSystemRepositoryTest {
         assertThrows(IllegalArgumentException.class,
                 () -> FileSystemKeycloakSystemRepository.parse(new JsonObject("{\"systems\": [{\"name\": \"x\"}]}")));
     }
+
+    @Test
+    void aSystemsTrustedIssuersFromTheFileDecideWhoseTokensItTakes(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("systems.json");
+        Files.writeString(file, """
+                {"systems": [
+                  {"name": "a", "url": "https://sso-a.example"},
+                  {"name": "b", "url": "https://sso-b.example", "trustedIssuers": ["https://sso-a.example/realms/demo"]}
+                ]}
+                """);
+        FileSystemKeycloakSystemRepository source = new FileSystemKeycloakSystemRepository(file);
+        KeycloakSystem a = source.find("a").orElseThrow();
+        KeycloakSystem b = source.find("b").orElseThrow();
+        assertEquals(Set.of("https://sso-a.example/realms/demo"), b.trustedIssuers());
+        CallerIssuerPolicies policy = CallerIssuerPolicies.builtIn();
+
+        Set<String> bOwn = DefaultKeycloakAdmin.callerIssuerBases(b, List.of());
+        assertEquals(Optional.empty(), policy.refusal("https://sso-b.example/realms/master", b, bOwn), "its own");
+        assertEquals(Optional.empty(), policy.refusal("https://sso-a.example/realms/other", b, bOwn),
+                "trusted by base: any realm of A");
+        assertTrue(policy.refusal("https://sso-c.example/realms/x", b, bOwn).isPresent(), "nobody else");
+
+        Set<String> aOwn = DefaultKeycloakAdmin.callerIssuerBases(a, List.of());
+        assertTrue(policy.refusal("https://sso-b.example/realms/master", a, aOwn).isPresent(),
+                "trust is not mutual: A lists nobody");
+    }
 }
