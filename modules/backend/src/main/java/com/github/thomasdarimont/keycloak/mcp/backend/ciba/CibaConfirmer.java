@@ -706,6 +706,15 @@ public class CibaConfirmer implements Confirmer {
             }
             head += ": " + what;
         }
+        if (r.reason() != null) {
+            // why a policy asks the human: shortened before the target, never the system
+            // and realm
+            int room = MAX_OPERATION - head.length() - where.length() - 3;
+            if (room > 8) {
+                String note = r.reason();
+                head += " — " + (note.length() > room ? note.substring(0, room - 1) + "…" : note);
+            }
+        }
         String text = head + where;
         return text.length() <= MAX_OPERATION ? text : text.substring(0, MAX_OPERATION - 1) + "…";
     }

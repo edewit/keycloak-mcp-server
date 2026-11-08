@@ -24,7 +24,8 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
  * correlates a later call with this one, so a confirmer must decide within the call
  * @param reason why the human is asked beyond the tool being destructive (an access check
  * demanded their confirmation, such as the self-protection of the caller's own account),
- * or {@code null}; worth showing to them
+ * or {@code null}; confirmers show it to them, on their device too, so it carries no
+ * secrets
  */
 public record ConfirmationRequest(ToolSpec tool, String system, String realm, Map<String, Object> args,
         boolean confirmFlag, Caller caller, Prompter prompter, String clientName, String connectionId,

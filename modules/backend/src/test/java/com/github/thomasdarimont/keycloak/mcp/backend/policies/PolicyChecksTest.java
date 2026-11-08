@@ -25,6 +25,9 @@ class PolicyChecksTest {
     static final Caller EVE = Caller.of("id-eve", "eve", "demo", Set.of());
     static final Caller ROOT = Caller.of("id-root", "root", "demo", Set.of("realm:admin"));
     static final Caller OTHER_REALM = Caller.of("id-x", "x", "other", Set.of());
+    static final Caller DAN = Caller.of("id-dan", "dan", "demo", Set.of("realm:admin"));
+    static final Caller ERIN = Caller.of("id-erin", "erin", "demo", Set.of("realm:admin"));
+    static final Caller ZED = Caller.of("id-zed", "zed", "demo", Set.of("realm:admin"));
 
     final FakeDirectory dir = new FakeDirectory()
         .user("alice", Set.of("realm:group-manager", "realm:editor", "realm:viewer", "app.user"), List.of("/team-a"),
@@ -39,7 +42,10 @@ class PolicyChecksTest {
         .group("/team-a", Set.of("realm:viewer"), Set.of("org-1"))
         .group("/team-a/dev", Set.of("realm:editor", "realm:viewer"), Set.of("org-1"))
         .group("/team-b", Set.of("realm:viewer"), Set.of("org-2"))
-        .group("/admins", Set.of("realm:admin"), Set.of());
+        .group("/admins", Set.of("realm:admin"), Set.of())
+        .group("/admins/ops", Set.of("realm:admin"), Set.of())
+        .user("dan", Set.of("realm:admin"), List.of("/admins"), Set.of())
+        .user("erin", Set.of("realm:admin"), List.of("/admins/ops"), Set.of());
 
     static ToolSpec tool(String name, String... params) {
         var schema = InputSchema.builder();
@@ -287,5 +293,51 @@ class PolicyChecksTest {
         assertEquals(PolicySettings.SelfProtection.OFF, PolicySettings.SelfProtection.parse("false"));
         assertEquals(PolicySettings.SelfProtection.CONFIRM, PolicySettings.SelfProtection.parse(" Confirm "));
         assertThrows(IllegalArgumentException.class, () -> PolicySettings.SelfProtection.parse("maybe"));
+    }
+
+    @Test
+    void deletingAGroupThatGrantsTheCallersAdminAccessIsCaught() {
+        SelfProtectionCheck check = new SelfProtectionCheck(dir, SELF_ONLY);
+        ToolSpec delete = tool("keycloak_group_delete", "id");
+        AccessCheck.Decision direct = check.check(ctx(delete, DAN, Map.of("id", "/admins")));
+        assertEquals("self_protection", direct.code(), direct.message());
+        assertTrue(direct.message().contains("grants your administrative access"), direct.message());
+        AccessCheck.Decision viaSubgroup = check.check(ctx(delete, ERIN, Map.of("id", "/admins")));
+        assertEquals("self_protection", viaSubgroup.code(), "a member of /admins/ops depends on /admins too");
+        assertTrue(check.check(ctx(delete, DAN, Map.of("id", "/team-b"))).allowed(), "not a member");
+        assertTrue(check.check(ctx(delete, ALICE, Map.of("id", "/team-a"))).allowed(),
+                "a member, but the group grants viewer only");
+        Caller bob = Caller.of("id-bob", "bob", "demo", Set.of("realm:admin"));
+        assertTrue(check.check(ctx(delete, bob, Map.of("id", "/admins"))).allowed(),
+                "bob holds the role directly, not through the group");
+    }
+
+    @Test
+    void whatCannotBeInspectedIsNotAssumedHarmless() {
+        SelfProtectionCheck check = new SelfProtectionCheck(dir, SELF_ONLY);
+        AccessCheck.Decision ghostGroup = check
+            .check(ctx(tool("keycloak_group_delete", "id"), DAN, Map.of("id", "/ghost")));
+        assertEquals("self_protection", ghostGroup.code(), ghostGroup.message());
+        assertTrue(ghostGroup.message().contains("could not be inspected"), ghostGroup.message());
+        AccessCheck.Decision leaveGhost = check.check(ctx(tool("keycloak_group_member_remove", "groupId", "userId"),
+                ALICE, Map.of("groupId", "/ghost", "userId", "id-alice")));
+        assertEquals("self_protection", leaveGhost.code(), leaveGhost.message());
+        assertTrue(leaveGhost.message().contains("could not be inspected"), leaveGhost.message());
+        // the caller is unknown to the directory: whether a target is them cannot be told
+        AccessCheck.Decision unknownCaller = check
+            .check(ctx(tool("keycloak_user_delete", "id"), ZED, Map.of("id", "someone@example.com")));
+        assertEquals("self_protection", unknownCaller.code(), unknownCaller.message());
+        assertTrue(unknownCaller.message().contains("cannot be resolved"), unknownCaller.message());
+        AccessCheck.Decision unknownCallerGroup = check
+            .check(ctx(tool("keycloak_group_delete", "id"), ZED, Map.of("id", "/team-b")));
+        assertEquals("self_protection", unknownCallerGroup.code(), unknownCallerGroup.message());
+        // a target nobody resolves to is nobody: the tool reports not_found
+        assertTrue(check.check(ctx(tool("keycloak_user_delete", "id"), ALICE, Map.of("id", "nobody"))).allowed());
+        // and all of it is off with the switch
+        PolicySettings off = new PolicySettings(PolicySettings.GroupScope.OFF, null, true,
+                PolicySettings.SelfProtection.OFF, Map.of(), false, Set.of());
+        assertTrue(new SelfProtectionCheck(dir, off)
+            .check(ctx(tool("keycloak_group_delete", "id"), DAN, Map.of("id", "/admins")))
+            .allowed());
     }
 }

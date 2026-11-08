@@ -31,6 +31,9 @@ public final class SelfProtectionCheck implements AccessCheck {
             "keycloak_user_update", "id", "keycloak_user_role_unassign", "userId", "keycloak_user_client_role_unassign",
             "userId", "keycloak_group_member_remove", "userId");
 
+    /** deleting a group takes its role mappings from every member, the caller included */
+    static final String GROUP_DELETE = "keycloak_group_delete";
+
     private final Function<Context, RealmDirectory> directories;
     private final PolicySettings settings;
     private final Map<String, String> userArgs;
@@ -64,56 +67,100 @@ public final class SelfProtectionCheck implements AccessCheck {
     @Override
     public Decision check(Context ctx) {
         String tool = ctx.tool().name();
-        String userArg = userArgs.get(tool);
         Caller caller = ctx.caller();
-        if (settings.selfProtection() == PolicySettings.SelfProtection.OFF || userArg == null || caller.isAnonymous()
-                || ctx.arg(userArg) == null) {
+        if (settings.selfProtection() == PolicySettings.SelfProtection.OFF || caller.isAnonymous()) {
             return Decision.allow();
         }
         if (caller.realm() != null && ctx.realm() != null && !caller.realm().equals(ctx.realm())) {
             return Decision.allow();
         }
+        if (GROUP_DELETE.equals(tool)) {
+            return groupDeletion(ctx, ctx.arg("id"));
+        }
+        String userArg = userArgs.get(tool);
+        if (userArg == null || ctx.arg(userArg) == null) {
+            return Decision.allow();
+        }
         String target = ctx.arg(userArg);
+        Boolean self = isCaller(ctx, target);
+        if (self == null) {
+            return refuse(caller, "act on user '" + target + "' while your own account cannot be resolved in realm '"
+                    + ctx.realm() + "', so whether it is yours is unknown");
+        }
+        if (!self) {
+            return Decision.allow();
+        }
+        // from here on the target is the caller
         switch (tool) {
             case "keycloak_user_delete" -> {
-                if (isCaller(ctx, target)) {
-                    return refuse(caller, "delete your own account");
-                }
+                return refuse(caller, "delete your own account");
             }
             case "keycloak_user_set_enabled", "keycloak_user_update" -> {
-                if (disables(ctx) && isCaller(ctx, target)) {
+                if (disables(ctx)) {
                     return refuse(caller, "disable your own account");
                 }
             }
             case "keycloak_user_role_unassign", "keycloak_user_client_role_unassign" -> {
                 String key = "keycloak_user_role_unassign".equals(tool) ? "realm:" + ctx.arg("role")
                         : ctx.arg("clientId") + "." + ctx.arg("role");
-                if (isCaller(ctx, target)) {
-                    Set<String> granted = directories.apply(ctx).roleClosure(ctx.realm(), key);
-                    Set<String> admin = administrative(granted.isEmpty() ? Set.of(key) : granted);
-                    if (!admin.isEmpty()) {
-                        return refuse(caller, "remove your own administrative access (" + admin + ")");
-                    }
+                Set<String> granted = directories.apply(ctx).roleClosure(ctx.realm(), key);
+                Set<String> admin = administrative(granted.isEmpty() ? Set.of(key) : granted);
+                if (!admin.isEmpty()) {
+                    return refuse(caller, "remove your own administrative access (" + admin + ")");
                 }
             }
             case "keycloak_group_member_remove" -> {
-                if (isCaller(ctx, target)) {
-                    RealmDirectory directory = directories.apply(ctx);
-                    Set<String> admin = directory.groupPath(ctx.realm(), ctx.arg("groupId"))
-                        .map(path -> administrative(directory.groupRoles(ctx.realm(), path)))
-                        .orElse(Set.of());
-                    if (!admin.isEmpty()) {
-                        return refuse(caller, "leave a group that grants your administrative access (" + admin + ")");
-                    }
+                RealmDirectory directory = directories.apply(ctx);
+                String groupRef = ctx.arg("groupId");
+                Optional<String> path = directory.groupPath(ctx.realm(), groupRef);
+                if (path.isEmpty()) {
+                    return refuse(caller, "leave group '" + groupRef + "', which could not be inspected (it may not"
+                            + " exist or not be readable), so whether it grants your administrative access is unknown");
+                }
+                Set<String> admin = administrative(directory.groupRoles(ctx.realm(), path.get()));
+                if (!admin.isEmpty()) {
+                    return refuse(caller, "leave a group that grants your administrative access (" + admin + ")");
                 }
             }
             default -> {
                 // a configured tool of another provider: caught whenever it acts on the
                 // caller
-                if (isCaller(ctx, target)) {
-                    return refuse(caller, "act on your own account with " + tool);
-                }
+                return refuse(caller, "act on your own account with " + tool);
             }
+        }
+        return Decision.allow();
+    }
+
+    /**
+     * Deleting a group the caller belongs to, directly or through a subgroup, when it
+     * grants their administrative access; a group that cannot be inspected is caught too.
+     */
+    private Decision groupDeletion(Context ctx, String groupRef) {
+        if (groupRef == null) {
+            return Decision.allow();
+        }
+        Caller caller = ctx.caller();
+        RealmDirectory directory = directories.apply(ctx);
+        String callerId = CallerContext.callerUserId(directory, ctx);
+        if (callerId == null) {
+            return refuse(caller, "delete group '" + groupRef + "' while your own account cannot be resolved in realm '"
+                    + ctx.realm() + "', so whether you depend on it is unknown");
+        }
+        Optional<String> path = directory.groupPath(ctx.realm(), groupRef);
+        if (path.isEmpty()) {
+            return refuse(caller, "delete group '" + groupRef + "', which could not be inspected (it may not exist or"
+                    + " not be readable), so whether it grants your administrative access is unknown");
+        }
+        boolean member = directory.groupPaths(ctx.realm(), callerId)
+            .stream()
+            .anyMatch(p -> p.equals(path.get()) || p.startsWith(path.get() + "/"));
+        if (!member) {
+            return Decision.allow();
+        }
+        Set<String> admin = administrative(directory.groupRoles(ctx.realm(), path.get()));
+        if (!admin.isEmpty()) {
+            return refuse(caller,
+                    "delete group '" + path.get() + "', which grants your administrative access (" + admin + ")");
         }
         return Decision.allow();
     }
@@ -154,15 +201,23 @@ public final class SelfProtectionCheck implements AccessCheck {
         return enabled != null && "false".equalsIgnoreCase(String.valueOf(enabled));
     }
 
-    /** By subject or username first, then resolved in the realm when the forms differ. */
-    private boolean isCaller(Context ctx, String target) {
+    /**
+     * Whether the target is the caller: by subject or username first, then resolved in
+     * the realm when the forms differ; {@code null} when the caller themselves cannot be
+     * resolved there, which the check treats as unknown rather than harmless. A target
+     * that does not resolve is nobody, the tool reports it as not found.
+     */
+    private Boolean isCaller(Context ctx, String target) {
         Caller caller = ctx.caller();
         if (target.equals(caller.subject()) || (caller.name() != null && target.equalsIgnoreCase(caller.name()))) {
             return true;
         }
         RealmDirectory directory = directories.apply(ctx);
-        Optional<String> targetId = directory.userId(ctx.realm(), target);
         String callerId = CallerContext.callerUserId(directory, ctx);
+        if (callerId == null) {
+            return null;
+        }
+        Optional<String> targetId = directory.userId(ctx.realm(), target);
         return targetId.isPresent() && targetId.get().equals(callerId);
     }
 }

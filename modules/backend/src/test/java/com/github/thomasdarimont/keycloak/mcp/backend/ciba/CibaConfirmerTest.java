@@ -622,6 +622,20 @@ class CibaConfirmerTest {
         assertTrue(!store.put(late), "a late filer of the expired reservation cannot overwrite the new one");
     }
 
+    @Test
+    void thePolicyReasonReachesTheDevice() {
+        ConfirmationRequest plain = op("Update user", Map.of("id", "u1", "username", "alice"));
+        ConfirmationRequest withReason = new ConfirmationRequest(plain.tool(), null, "demo", plain.args(), false,
+                Caller.NONE, Prompter.NONE, null, null, false, "This would disable your own account ('alice')");
+        assertEquals("Update user: alice — This would disable your own account ('alice') (realm demo)",
+                CibaConfirmer.operation(withReason));
+        ConfirmationRequest longReason = new ConfirmationRequest(plain.tool(), null, "demo", plain.args(), false,
+                Caller.NONE, Prompter.NONE, null, null, false, "r".repeat(400));
+        String text = CibaConfirmer.operation(longReason);
+        assertTrue(text.length() <= 200, text);
+        assertTrue(text.endsWith("… (realm demo)"), "the reason is shortened, the realm kept: " + text);
+    }
+
     private static ConfirmationRequest op(String title, Map<String, Object> args) {
         ToolSpec spec = ToolSpec.builder("keycloak_x")
             .title(title)
