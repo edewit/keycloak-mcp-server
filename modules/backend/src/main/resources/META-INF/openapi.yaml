@@ -1,0 +1,611 @@
+openapi: 3.1.0
+info:
+  title: keycloak-mcp-server admin API
+  version: "1.0"
+  description: |
+    Registers Keycloak systems at runtime, keeps the secrets they reference and manages the encryption of the
+    database storage. Off by default: `kc-mcp.admin.enabled=true` turns it on, and it needs the database storage
+    (`quarkus.datasource.jdbc.url`) with `kc-mcp.dynamic-systems=true` to have somewhere to register systems in.
+    With the API off every request answers 404 `admin_api_disabled`.
+
+    Every request carries `Authorization: Bearer ...`: the static `kc-mcp.admin.token`, or an access token of the
+    trusted `kc-mcp.admin.issuer` (optionally with `kc-mcp.admin.audience`) carrying `kc-mcp.admin.role`
+    (`realm:admin` by default). Anything else is 401 with a Bearer challenge, a verified token without the role 403.
+    Refusals are JSON objects with `error` (a stable code) and `message`.
+
+    Full documentation: `docs/systems.md`, "Admin API: registering systems at runtime"; a worked example in
+    `examples/dynamic-systems/`.
+tags:
+  - name: systems
+    description: The Keycloak systems the server administers, with their signing keys and MCP entries
+  - name: secrets
+    description: The secrets in the key vault that systems reference as `vault:<name>`; values are never returned
+  - name: storage
+    description: Encryption of the database storage
+security:
+  - bearer: []
+paths:
+  /admin/systems:
+    get:
+      tags: [systems]
+      summary: Every known system
+      description: Configured systems come with their source repository and are read-only here; registered ones can be changed.
+      operationId: listSystems
+      responses:
+        "200":
+          description: The systems
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  systems:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/System"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/Disabled" }
+    post:
+      tags: [systems]
+      summary: Register or replace a system, alias in the body
+      description: The same as `PUT /admin/systems/{alias}` with the alias given as `alias` (or `name`) in the body.
+      operationId: registerSystem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/SystemRegistration"
+                - type: object
+                  required: [alias]
+                  properties:
+                    alias:
+                      $ref: "#/components/schemas/Alias"
+      responses:
+        "200":
+          description: An existing system was replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/System" }
+        "201":
+          description: A new system was registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/System" }
+        "400": { $ref: "#/components/responses/InvalidSystem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/RegistrationClosed" }
+        "404": { $ref: "#/components/responses/Disabled" }
+        "409": { $ref: "#/components/responses/SystemConflict" }
+        "503": { $ref: "#/components/responses/NoMutableRepository" }
+  /admin/systems/{alias}:
+    parameters:
+      - $ref: "#/components/parameters/alias"
+    get:
+      tags: [systems]
+      summary: One system
+      operationId: getSystem
+      responses:
+        "200":
+          description: The system without its secrets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/System" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownSystem" }
+    put:
+      tags: [systems]
+      summary: Register or replace a system
+      description: |
+        The fields of a systems file. Registered systems are service clients: `grantType` must be `client_credentials`
+        (the default) with `clientAuth` `private_key_jwt` (the default) or `client_secret`. The `url` must pass
+        `kc-mcp.allowed-hosts`. With `private_key_jwt` and no key configured on the server, `signingKey` says where the
+        system's key comes from: `generate` creates a new pair in the vault, `existing` expects one there, and an absent
+        field takes the existing key or generates one. A `clientSecret` of the form `vault:<name>` must name a secret
+        the vault holds; it is resolved on every connection, so rotating the secret needs no system change.
+      operationId: putSystem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SystemRegistration" }
+            example:
+              displayName: ACME Corp.
+              url: https://sso.acme.example
+              authRealm: master
+              clientId: keycloak-mcp-server
+              clientAuth: private_key_jwt
+              defaultRealm: acme
+              allowedRealms: [acme, acme-dev]
+              signingKey: generate
+      responses:
+        "200":
+          description: An existing system was replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/System" }
+        "201":
+          description: A new system was registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/System" }
+        "400": { $ref: "#/components/responses/InvalidSystem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/RegistrationClosed" }
+        "404": { $ref: "#/components/responses/Disabled" }
+        "409": { $ref: "#/components/responses/SystemConflict" }
+        "503": { $ref: "#/components/responses/NoMutableRepository" }
+    delete:
+      tags: [systems]
+      summary: Remove a registered system
+      description: The system leaves the mutable repository; its keys stay in the vault. Configured systems cannot be removed here.
+      operationId: deleteSystem
+      responses:
+        "204":
+          description: Removed
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownSystem" }
+        "409":
+          description: "`system_configured`: the system is defined by a repository the admin API cannot change"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /admin/systems/{alias}/signing-key:
+    parameters:
+      - $ref: "#/components/parameters/alias"
+    post:
+      tags: [systems]
+      summary: Rotate the system's signing key
+      description: |
+        A new key pair for a `private_key_jwt` system; the JWKS lists the new key first and keeps the retired one for
+        the grace period, Keycloak refetches the JWKS on an unknown `kid`.
+      operationId: rotateSigningKey
+      responses:
+        "200":
+          description: The system with its new key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/System" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownSystem" }
+        "409":
+          description: "`no_private_key_jwt`: the system authenticates otherwise; `vault_read_only`: the vault cannot create keys"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /admin/secrets:
+    get:
+      tags: [secrets]
+      summary: The names in the vault and the systems using each
+      operationId: listSecrets
+      responses:
+        "200":
+          description: The secrets, never a value
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vault:
+                    type: string
+                    description: Id of the key vault
+                    example: db-vault
+                  writable:
+                    type: boolean
+                    description: Whether `PUT` can store secrets in this vault
+                  secrets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Secret"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/Disabled" }
+  /admin/secrets/{name}:
+    parameters:
+      - $ref: "#/components/parameters/secretName"
+    get:
+      tags: [secrets]
+      summary: One secret's name and users
+      operationId: getSecret
+      responses:
+        "200":
+          description: The secret, never its value
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Secret" }
+        "400": { $ref: "#/components/responses/InvalidSecretName" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownSecret" }
+    put:
+      tags: [secrets]
+      summary: Store or replace a secret
+      description: |
+        Systems refer to it as `vault:<name>` and pick a new value up on their next connection. Only a vault that
+        stores secrets takes it: the database vault does, a file vault or a secrets manager answers 409.
+      operationId: putSecret
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: string
+                  description: The secret
+            example:
+              value: s3cr3t
+      responses:
+        "200":
+          description: An existing secret was replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Secret" }
+        "201":
+          description: A new secret was stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Secret" }
+        "400":
+          description: "`invalid_secret_name`, or `invalid_secret`: the body is not `{\"value\": \"...\"}`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/Disabled" }
+        "409":
+          description: "`vault_read_only`: this vault does not store secrets"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [secrets]
+      summary: Remove a secret no system refers to
+      operationId: deleteSecret
+      responses:
+        "204":
+          description: Removed
+        "400": { $ref: "#/components/responses/InvalidSecretName" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownSecret" }
+        "409":
+          description: "`secret_in_use`: systems still reference it; `vault_read_only`: this vault does not store secrets"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /admin/storage:
+    get:
+      tags: [storage]
+      summary: Encryption state of the database storage
+      operationId: storageStatus
+      responses:
+        "200":
+          description: Which key ids the stored values are under
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StorageStatus" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/Disabled" }
+        "503": { $ref: "#/components/responses/StorageDisabled" }
+  /admin/storage/rekey:
+    post:
+      tags: [storage]
+      summary: Re-encrypt everything under the current key
+      description: |
+        Rewrites every stored value that is not under `kc-mcp.storage.secret-key`, decrypting with the
+        `previous-secret-keys` where needed. Idempotent; the startup pass does the same.
+      operationId: rekeyStorage
+      responses:
+        "200":
+          description: What was rewritten
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RekeyResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/Disabled" }
+        "409":
+          description: "`encryption_disabled`: no `kc-mcp.storage.secret-key` to re-encrypt with"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/StorageDisabled" }
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: The static `kc-mcp.admin.token`, or an access token of `kc-mcp.admin.issuer` carrying `kc-mcp.admin.role`
+  parameters:
+    alias:
+      name: alias
+      in: path
+      required: true
+      description: The system's name
+      schema: { $ref: "#/components/schemas/Alias" }
+    secretName:
+      name: name
+      in: path
+      required: true
+      description: The secret's name; may contain `/`
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$"
+        example: acme/client-secret
+  schemas:
+    Alias:
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      example: acme
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: A stable code, e.g. `unknown_system`, `invalid_system`, `registration_closed`
+        message:
+          type: string
+          description: What went wrong, for the caller
+    SystemRegistration:
+      type: object
+      description: The fields of a systems file (`docs/systems.md`)
+      required: [url]
+      properties:
+        displayName:
+          type: string
+          description: A name for people, shown to the model with the system
+        description:
+          type: string
+          description: What the system is, shown to the model with the system
+        url:
+          type: string
+          format: uri
+          description: Base URL of the Keycloak including its context path; must pass `kc-mcp.allowed-hosts`
+          example: https://sso.acme.example
+        issuer:
+          type: string
+          format: uri
+          description: The issuer of the system's own tokens when it differs from `url` (a Keycloak behind a different public hostname)
+        authRealm:
+          type: string
+          default: master
+          description: The realm the server's client lives in
+        grantType:
+          type: string
+          enum: [client_credentials]
+          default: client_credentials
+          description: Registered systems are service clients; other grants answer 400 `grant_not_supported`
+        clientAuth:
+          type: string
+          enum: [private_key_jwt, client_secret]
+          default: private_key_jwt
+        clientId:
+          type: string
+          default: keycloak-mcp-server
+        clientSecret:
+          type: string
+          description: With `client_secret`; a literal, or `vault:<name>` for a secret the vault holds
+        defaultRealm:
+          type: string
+          description: The realm tools act on when the call names none
+        allowedRealms:
+          type: array
+          items: { type: string }
+          description: The realms the server may administer; empty means every realm
+        trustedIssuers:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Issuers whose user tokens this system accepts besides its own; a realm URL names one realm, a base URL every realm of that Keycloak
+        version:
+          type: string
+          description: The Keycloak version when the server should not discover it
+          example: "26.8.2"
+        signingKey:
+          type: string
+          enum: [generate, existing]
+          description: With `private_key_jwt`, where the key comes from; absent takes the existing key, else generates one
+    System:
+      type: object
+      description: A system without its secrets (`clientSecret` and `password` show `***`, or their `vault:` reference)
+      required: [alias, url, authRealm, grantType, clientAuth, allowedRealms, entries]
+      properties:
+        alias: { $ref: "#/components/schemas/Alias" }
+        displayName: { type: string }
+        description: { type: string }
+        url: { type: string, format: uri }
+        issuer: { type: string, format: uri }
+        authRealm: { type: string }
+        grantType:
+          type: string
+          example: client_credentials
+        clientAuth:
+          type: string
+          example: private_key_jwt
+        clientId: { type: string }
+        clientSecret:
+          type: string
+          description: "`***` or `vault:<name>`"
+        username: { type: string }
+        password:
+          type: string
+          description: "`***` or `vault:<name>`"
+        defaultRealm: { type: string }
+        allowedRealms:
+          type: array
+          items: { type: string }
+        trustedIssuers:
+          type: array
+          items: { type: string }
+        version: { type: string }
+        source:
+          type: string
+          description: Id of the repository defining the system; configured ones are read-only here
+          example: db-systems
+        createdAt:
+          type: string
+          format: date-time
+          description: From repositories that keep it (the database)
+        updatedAt:
+          type: string
+          format: date-time
+        signingKey:
+          $ref: "#/components/schemas/SigningKey"
+        entries:
+          type: array
+          description: The MCP entries of the system, `/mcp/systems/<alias>` and one per realm
+          items: { type: string }
+          example: ["/mcp/systems/acme", "/mcp/systems/acme/acme"]
+    SigningKey:
+      type: object
+      description: The `private_key_jwt` key Keycloak verifies the server's tokens with; the Keycloak client gets `jwksUrl`
+      properties:
+        configured:
+          type: boolean
+          description: The server-wide key from `kc-mcp.jwt.key-file` rather than a per-system one
+        kid:
+          type: string
+        algorithm:
+          type: string
+          example: RS256
+        vault:
+          type: string
+          description: Id of the key vault holding a per-system key
+        jwksPath:
+          type: string
+          example: /auth/keys/acme/jwks.json
+        jwksUrl:
+          type: string
+          format: uri
+          description: Built from the scheme and host the request came in on (`X-Forwarded-*` first)
+    Secret:
+      type: object
+      required: [name, reference, vault, usedBy]
+      properties:
+        name: { type: string }
+        reference:
+          type: string
+          description: How systems refer to it
+          example: vault:acme/client-secret
+        vault:
+          type: string
+          description: Id of the key vault
+        usedBy:
+          type: array
+          description: Aliases of the systems referencing it
+          items: { type: string }
+    StorageStatus:
+      type: object
+      required: [encryption, keyIds]
+      properties:
+        encryption:
+          type: boolean
+          description: Whether `kc-mcp.storage.secret-key` is set
+        currentKeyId:
+          type: string
+          description: Id of the key new values are written under
+        previousKeys:
+          type: boolean
+          description: Whether `kc-mcp.storage.previous-secret-keys` holds rotated-away keys
+        keyIds:
+          type: object
+          description: Per table, how many values are under which key id (`plain` for unencrypted ones)
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: integer
+              format: int64
+          example:
+            systems: { "k1": 3 }
+            signing_keys: { "k1": 2, "k0": 1 }
+    RekeyResult:
+      type: object
+      required: [currentKeyId, rewritten, remaining]
+      properties:
+        currentKeyId: { type: string }
+        rewritten:
+          type: object
+          description: Values rewritten per table
+          properties:
+            systems: { type: integer, format: int64 }
+            signingKeys: { type: integer, format: int64 }
+            secrets: { type: integer, format: int64 }
+            userSessions: { type: integer, format: int64 }
+        remaining:
+          type: object
+          description: Key ids values are still under because no configured key decrypts them, with counts
+          additionalProperties:
+            type: integer
+            format: int64
+  responses:
+    Unauthorized:
+      description: "`unauthorized`: no or no acceptable bearer token; comes with a `WWW-Authenticate: Bearer` challenge"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: "`forbidden`: a verified token without `kc-mcp.admin.role`"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Disabled:
+      description: "`admin_api_disabled`: the admin API is off (`kc-mcp.admin.enabled`)"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    UnknownSystem:
+      description: "`unknown_system`: no system of that alias; or `admin_api_disabled`"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    UnknownSecret:
+      description: "`unknown_secret`: no secret of that name in the vault; or `admin_api_disabled`"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InvalidSecretName:
+      description: "`invalid_secret_name`: the name does not match the pattern"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InvalidSystem:
+      description: |
+        `invalid_system` (malformed body or fields), `invalid_alias`, `invalid_url`, `grant_not_supported`,
+        `host_not_allowed`, `private_host`, `unknown_secret` (a `vault:` reference the vault lacks),
+        `no_signing_key` (`existing` but none there), `vault_read_only` (`generate` in a vault that cannot create
+        keys), `invalid_signing_key`
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RegistrationClosed:
+      description: "`registration_closed`: `kc-mcp.admin.allow-new-systems=false` and the alias is new; or `forbidden`"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    SystemConflict:
+      description: "`system_configured`: a repository the admin API cannot change defines the alias; `signing_key_exists`: `generate` for an alias that already has a key"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NoMutableRepository:
+      description: "`no_mutable_repository`: no database storage with `kc-mcp.dynamic-systems=true` to register systems in"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    StorageDisabled:
+      description: "`storage_disabled`: the database storage is off (`quarkus.datasource.jdbc.url`)"
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }

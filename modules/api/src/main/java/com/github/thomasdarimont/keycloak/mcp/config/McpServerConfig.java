@@ -431,6 +431,15 @@ public interface McpServerConfig {
          */
         @WithDefault("true")
         boolean allowNewSystems();
+
+        /**
+         * Whether the admin API's OpenAPI document ({@code /q/openapi}) and Swagger UI
+         * are served; {@code false} answers 404 for both. The document carries no secrets
+         * and is served whether the API itself is on or not, so a server that should not
+         * even describe the API switches it off here.
+         */
+        @WithDefault("true")
+        boolean openapi();
     }
 
     interface Ui {
