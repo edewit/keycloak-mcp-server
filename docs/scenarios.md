@@ -85,7 +85,7 @@ the `delegate` permission).
 Every Keycloak the server administers is a named system (`kc-mcp.systems.<name>.*`, a systems file, or the admin API).
 A client at the root names the system in each call; a client bound to an entry does not and cannot reach another one.
 Each entry logs its users in at its own realm: the server resolves an OIDC tenant per entry, so a token of Keycloak A
-never reaches Keycloak B.
+never reaches Keycloak B, unless B's `trusted-issuers` explicitly allow it.
 
 ```mermaid
 flowchart LR
@@ -175,8 +175,8 @@ sequenceDiagram
 ## 7. Approval on the user's device (CIBA)
 
 The built-in `ciba-confirmer` (`examples/ciba-confirm/`) takes the decision on a destructive tool out of the channel the
-model controls: the server files a backchannel authentication request for the signed-in user, the device shows what is
-asked and a number, and the tool runs once the user approved there.
+model controls: the server files a backchannel authentication request for the signed-in user, the chat shows a number,
+the device shows what is asked and has the user enter that number, and the tool runs once the user approved there.
 
 ```mermaid
 sequenceDiagram
@@ -204,17 +204,17 @@ sequenceDiagram
 ## 8. What every call goes through
 
 Whatever the scenario, a tool call runs the same pipeline; a refusal at any step is a structured error that says what to
-do next.
+do next, and is audited like any other outcome.
 
 ```mermaid
 flowchart LR
-    A["tool call"] --> B["entry binding<br/>system and realm pinned?"]
-    B --> C["access policy<br/>roles, allow-lists,<br/>access checks (policies, self-protection)"]
-    C --> D["arguments<br/>validation, coercion"]
-    D --> E["realm check<br/>allowed realms, explicit target"]
+    A["tool call"] --> B["static policy<br/>read-only mode,<br/>tool and category lists"]
+    B --> C["entry binding, arguments<br/>system and realm pinned?<br/>validation, coercion"]
+    C --> D["target<br/>system and realm resolved,<br/>explicit target"]
+    D --> E["per-call access<br/>allowed realms, roles,<br/>access checks (policies, self-protection)"]
     E --> F["confirmation<br/>elicitation, confirm flag,<br/>Confirmer, CIBA"]
     F --> G["handler<br/>Admin REST API with the<br/>identity of the scenario"]
-    G --> H["audit<br/>caller, tool, outcome,<br/>secrets redacted"]
+    G --> H["audit<br/>caller, tool, outcome, refusals too,<br/>secrets redacted"]
 ```
 
 [Tools](tools.md), [Security](security.md), [Extending](extending.md) (your own checks and confirmers).
