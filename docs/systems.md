@@ -114,8 +114,11 @@ Needs database storage and `kc-mcp.admin.enabled=true`. JAX-RS under `/admin`. F
 - **OpenAPI.** The server serves the API's description at `/q/openapi` (YAML; `?format=json`), with every operation,
   the request and response schemas and the error codes; the source is
   `modules/backend/src/main/resources/META-INF/openapi.yaml`, kept in step with the resource by a test. Swagger UI
-  browses it at `/q/swagger-ui`, in the packaged server too. Both are served whether the API is on or not;
-  `kc-mcp.admin.openapi=false` takes them off the server (404).
+  browses it at `/q/swagger-ui`, in the packaged server too. Its *Authorize* dialog offers what this server is
+  configured for: the static token, and the trusted issuer's login by OpenID Connect discovery (a public client of that
+  realm with the redirect URI `<server>/q/swagger-ui/oauth2-redirect.html`, PKCE); with the API off it offers nothing
+  and the document says so. Both are served whether the API is on or not; `kc-mcp.admin.openapi=false` takes them off
+  the server (404).
 
 ### Walkthrough: a new system with `private_key_jwt`
 

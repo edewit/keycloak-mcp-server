@@ -17,6 +17,7 @@ import io.vertx.core.json.JsonObject;
 
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -37,7 +38,11 @@ class AdminOpenApiTest {
             .asString();
         JsonObject doc = new JsonObject(body);
         assertEquals("keycloak-mcp-server admin API", doc.getJsonObject("info").getString("title"));
-        assertTrue(doc.getJsonObject("components").getJsonObject("securitySchemes").containsKey("bearer"));
+        // the admin API is off in this profile: nothing to authorize with, and the
+        // document says so
+        assertFalse(doc.getJsonObject("components").containsKey("securitySchemes"));
+        assertFalse(doc.containsKey("security"));
+        assertTrue(doc.getJsonObject("info").getString("description").startsWith("**The admin API is off"));
         given().get("/q/swagger-ui/").then().statusCode(200);
 
         TreeSet<String> documented = new TreeSet<>();
