@@ -1,5 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.keycloak;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -329,7 +331,11 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             return this;
         }
 
-        /** @throws IllegalArgumentException without a name or url */
+        /**
+         * @throws IllegalArgumentException without a name or url, or with a trusted
+         * issuer that is not an absolute http(s) URL (such an entry would silently never
+         * match)
+         */
         public KeycloakSystem build() {
             if (name == null || name.isBlank()) {
                 throw new IllegalArgumentException("A system needs a name");
@@ -337,9 +343,26 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             if (url == null || url.isBlank()) {
                 throw new IllegalArgumentException("The system '" + name + "' needs a url");
             }
+            for (String trusted : trustedIssuers) {
+                if (!isHttpUrl(trusted)) {
+                    throw new IllegalArgumentException("The system '" + name + "' trusts the issuer '" + trusted
+                            + "', which is not an absolute http(s) URL (a realm URL or a Keycloak's base URL)");
+                }
+            }
             return new KeycloakSystem(name.trim(), url.trim(), grantType, clientAuth, authRealm, text(clientId),
                     text(clientSecret), text(username), text(password), text(defaultRealm), Set.copyOf(allowedRealms),
                     text(version), text(issuer), text(displayName), text(description), Set.copyOf(trustedIssuers));
+        }
+
+        private static boolean isHttpUrl(String value) {
+            try {
+                URI u = new URI(value);
+                return (("https".equals(u.getScheme()) || "http".equals(u.getScheme())) && u.getHost() != null
+                        && u.getQuery() == null && u.getFragment() == null);
+            }
+            catch (URISyntaxException e) {
+                return false;
+            }
         }
 
         private static Optional<String> text(String value) {
