@@ -41,7 +41,7 @@ public class DefaultConfirmer implements Confirmer {
     @Override
     public Decision confirm(ConfirmationRequest r) {
         if (r.prompter().available()) {
-            String message = "Confirm " + r.tool().title().toLowerCase()
+            String message = (r.reason() != null ? r.reason() + "\n" : "") + "Confirm " + r.tool().title().toLowerCase()
                     + (r.realm() != null ? " in realm '" + r.realm() + "'" : "") + "?\n" + r.tool().name() + " "
                     + new JsonObject(Sensitive.redact(r.tool().inputSchema(), r.args())).encode();
             Optional<Boolean> answer = r.prompter().askYesNo(message);

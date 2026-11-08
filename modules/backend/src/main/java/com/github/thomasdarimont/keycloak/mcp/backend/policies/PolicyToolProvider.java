@@ -15,8 +15,10 @@ import com.google.auto.service.AutoService;
  * Built-in policies: no tools, only access checks. Configure with
  * {@code kc-mcp.spi.policies.*}: {@code group-scope=off|group|organization},
  * {@code manager-role=realm:group-manager}, {@code no-escalation=true},
- * {@code anonymous=allow|deny}, {@code super-roles=...}. Both checks only act for
- * authenticated callers unless {@code anonymous=deny}.
+ * {@code self-protection=reject|confirm|off},
+ * {@code self-protection-tools=<tool>=<arg>,...}, {@code anonymous=allow|deny},
+ * {@code super-roles=...}. The checks only act for authenticated callers unless
+ * {@code anonymous=deny}.
  */
 @AutoService(ToolProvider.class)
 public class PolicyToolProvider implements ToolProvider {
@@ -45,7 +47,8 @@ public class PolicyToolProvider implements ToolProvider {
 
     @Override
     public String description() {
-        return "Group / organization scoping of group management and a no-privilege-escalation rule.";
+        return "Group / organization scoping of group management, a no-privilege-escalation rule and the"
+                + " protection of the caller's own account.";
     }
 
     @Override
@@ -81,6 +84,7 @@ public class PolicyToolProvider implements ToolProvider {
         if (!settings.enabled()) {
             return List.of();
         }
-        return List.of(new GroupScopeCheck(directories, settings), new NoEscalationCheck(directories, settings));
+        return List.of(new GroupScopeCheck(directories, settings), new NoEscalationCheck(directories, settings),
+                new SelfProtectionCheck(directories, settings));
     }
 }

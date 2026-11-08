@@ -52,12 +52,20 @@ public interface AccessCheck extends Extension {
     }
 
     /**
-     * {@code allowed} or a denial with an error code (defaults to {@code access_denied})
-     * and a message.
+     * {@code allowed}, a denial with an error code (defaults to {@code access_denied})
+     * and a message, or {@code confirmation}: allowed provided the human confirms this
+     * very call themselves. The server then runs the call through its confirmers as if
+     * the tool were destructive, with the model's {@code confirm: true} not counting, so
+     * only a client with elicitation or a confirmer that asks the human (CIBA) lets it
+     * through; {@code code} and {@code message} say why.
      */
-    record Decision(boolean allowed, String code, String message) {
+    record Decision(boolean allowed, String code, String message, boolean confirmation) {
 
-        public static final Decision ALLOW = new Decision(true, null, null);
+        public static final Decision ALLOW = new Decision(true, null, null, false);
+
+        public Decision(boolean allowed, String code, String message) {
+            this(allowed, code, message, false);
+        }
 
         public static Decision allow() {
             return ALLOW;
@@ -69,6 +77,11 @@ public interface AccessCheck extends Extension {
 
         public static Decision deny(String code, String message) {
             return new Decision(false, code, message);
+        }
+
+        /** Allowed once the human confirms it themselves; see {@link #confirmation()}. */
+        public static Decision confirm(String code, String message) {
+            return new Decision(true, code, message, true);
         }
     }
 }

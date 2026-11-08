@@ -249,6 +249,16 @@ public class AccessPolicy {
      */
     public Optional<ToolResult> forbids(ToolSpec spec, String system, String realm, Map<String, Object> args,
             InvocationContext ctx, KeycloakAdmin admin) {
+        return forbids(spec, system, realm, args, ctx, admin, null);
+    }
+
+    /**
+     * @param confirmations receives the access checks' demands that the human confirm
+     * this call themselves ({@link AccessCheck.Decision#confirmation()}); {@code null} to
+     * ignore them
+     */
+    public Optional<ToolResult> forbids(ToolSpec spec, String system, String realm, Map<String, Object> args,
+            InvocationContext ctx, KeycloakAdmin admin, List<AccessCheck.Decision> confirmations) {
         if (!permits(spec)) {
             if (readOnly && !spec.isReadOnly()) {
                 return Optional.of(ToolResult.error("read_only_mode", "This server runs in read-only mode; "
@@ -308,13 +318,13 @@ public class AccessPolicy {
             AccessCheck.Context context = new AccessCheck.Context(spec, system, realm, args,
                     granted == null ? GrantedRoles.UNKNOWN : granted, ctx.caller(), admin);
             for (AccessCheck check : globalChecks) {
-                Optional<ToolResult> denied = evaluate(check, context);
+                Optional<ToolResult> denied = evaluate(check, context, confirmations);
                 if (denied.isPresent()) {
                     return denied;
                 }
             }
             for (AccessCheck check : spec.accessChecks()) {
-                Optional<ToolResult> denied = evaluate(check, context);
+                Optional<ToolResult> denied = evaluate(check, context, confirmations);
                 if (denied.isPresent()) {
                     return denied;
                 }
@@ -407,7 +417,8 @@ public class AccessPolicy {
         return systems.find(name).map(admin -> admin.forToken(callerToken).accessToken()).orElse(callerToken);
     }
 
-    private static Optional<ToolResult> evaluate(AccessCheck check, AccessCheck.Context context) {
+    private static Optional<ToolResult> evaluate(AccessCheck check, AccessCheck.Context context,
+            List<AccessCheck.Decision> confirmations) {
         AccessCheck.Decision d;
         try {
             d = check.check(context);
@@ -416,6 +427,9 @@ public class AccessPolicy {
             return Optional.of(ToolResult.error("access_check_failed", "Access check failed: " + e.getMessage()));
         }
         if (d == null || d.allowed()) {
+            if (d != null && d.confirmation() && confirmations != null) {
+                confirmations.add(d);
+            }
             return Optional.empty();
         }
         return Optional.of(ToolResult.error(d.code() == null ? "access_denied" : d.code(),

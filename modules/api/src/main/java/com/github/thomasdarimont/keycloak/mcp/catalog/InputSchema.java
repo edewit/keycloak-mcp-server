@@ -29,7 +29,7 @@ public final class InputSchema {
         JsonObject realm = new JsonObject().put("type", "string");
         String desc = "Realm name";
         if ("(per system)".equals(defaultRealm)) {
-            desc += " (default: the system's default realm)";
+            desc += " (default: the system's default realm; at an entry /mcp/systems/<system>/<realm> omit it)";
         }
         else if (defaultRealm != null) {
             desc += " (default: " + defaultRealm + ")";
@@ -72,6 +72,9 @@ public final class InputSchema {
      * Adds the {@code system} enum property in front of everything else (multi-system
      * deployments).
      */
+    /** Tail of the system argument's description: entries override the default. */
+    static final String ENTRY_HINT = "; at an entry /mcp/systems/<name> omit it, the entry decides)";
+
     public static JsonObject withSystem(JsonObject schema, List<String> systems, String defaultSystem) {
         return withSystem(schema, systems, defaultSystem, true);
     }
@@ -83,14 +86,18 @@ public final class InputSchema {
     public static JsonObject withSystem(JsonObject schema, List<String> systems, String defaultSystem,
             boolean enumerate) {
         JsonObject prop = new JsonObject().put("type", "string");
-        String description = defaultSystem != null ? "Keycloak system (default: " + defaultSystem + ")"
-                : "Keycloak system";
+        String description = "Keycloak system";
         if (enumerate) {
             prop.put("enum", new JsonArray(systems));
         }
         else if (systems != null && !systems.isEmpty()) {
             description += ", e.g. " + String.join(", ", systems);
         }
+        // the default holds at the root /mcp only: an entry /mcp/systems/<name> binds
+        // every
+        // call to its system, and a model told otherwise reasons in circles
+        description += defaultSystem != null ? " (default at /mcp: " + defaultSystem + ENTRY_HINT
+                : " (required at /mcp" + ENTRY_HINT;
         prop.put("description", description);
         JsonObject props = new JsonObject().put(SYSTEM, prop);
         JsonObject old = schema.getJsonObject("properties");

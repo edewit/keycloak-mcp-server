@@ -152,7 +152,7 @@ tool("keycloak_user_delete")
   `federation_sync`.
 - Version and feature requirements: [Supported Keycloak versions](keycloak-versions.md).
 
-### Built-in policies: group scope and no escalation
+### Built-in policies: group scope, no escalation, self-protection
 
 The provider `policies` adds caller-relative checks once callers are authenticated ([Callers](#callers)).
 
@@ -161,11 +161,13 @@ The provider `policies` adds caller-relative checks once callers are authenticat
 | `group-scope` | `off` | `group`: callers manage only groups they belong to, or subgroups of them; `organization`: the groups of their organizations |
 | `manager-role` | | the role needed for group management, e.g. `realm:group-manager` |
 | `no-escalation` | `true` | grants (direct, client role, group mapping, membership) only within the caller's effective roles; no touching users who outrank them; no self-grants |
+| `self-protection` | `reject` | a caller deleting or disabling their own account (`user_delete`, `user_set_enabled`, `user_update` with `enabled=false`) or removing their own administrative access (`realm:admin`, `realm-management.*`, master `<realm>-realm.*`, super roles; directly or by leaving a group that grants one) is refused; `confirm` lets the call through only after the human confirmed it themselves, by elicitation or a confirmer that asks them such as [CIBA](ciba-confirmation.md), never by the model's `confirm: true`; `off` disables it. Other roles and groups of their own callers may drop; super roles do not bypass it |
+| `self-protection-tools` | | more tools the guard covers, `<tool>=<user argument>` comma separated (a tool of another provider is caught whenever it acts on the caller); `<tool>=` removes a built-in one |
 | `anonymous` | `allow` | `deny`: guarded tools are refused without a known caller |
-| `super-roles` | `realm:admin, realm-management.realm-admin` | holders bypass both checks |
+| `super-roles` | `realm:admin, realm-management.realm-admin` | holders bypass the group scope and escalation checks, not self-protection |
 
 Denials: `group_out_of_scope`, `manager_role_required`, `privilege_escalation`, `target_outranks_caller`, `self_grant`,
-`caller_unknown`, `caller_foreign_realm`, `caller_required`. Effective roles come from Keycloak: direct, through groups,
+`self_protection`, `caller_unknown`, `caller_foreign_realm`, `caller_required`. Effective roles come from Keycloak: direct, through groups,
 composite.
 
 ## Callers

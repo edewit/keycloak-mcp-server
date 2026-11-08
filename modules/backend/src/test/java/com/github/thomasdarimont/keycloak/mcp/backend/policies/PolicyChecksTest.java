@@ -15,6 +15,8 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PolicyChecksTest {
@@ -59,7 +61,8 @@ class PolicyChecksTest {
     }
 
     PolicySettings settings(PolicySettings.GroupScope scope, String managerRole, boolean denyAnonymous) {
-        return new PolicySettings(scope, managerRole, true, denyAnonymous, Set.of("realm:admin"));
+        return new PolicySettings(scope, managerRole, true, PolicySettings.SelfProtection.REJECT, Map.of(),
+                denyAnonymous, Set.of("realm:admin"));
     }
 
     @Test
@@ -159,7 +162,7 @@ class PolicyChecksTest {
     @Test
     void providerIsSilentWhenDisabled() {
         assertTrue(new PolicyToolProvider(dir, PolicySettings.DISABLED).accessChecks(null).isEmpty());
-        assertEquals(2,
+        assertEquals(3,
                 new PolicyToolProvider(dir, settings(PolicySettings.GroupScope.GROUP, null, false)).accessChecks(null)
                     .size());
     }
@@ -167,5 +170,122 @@ class PolicyChecksTest {
     @Test
     void ancestorPaths() {
         assertEquals(List.of("/a", "/a/b", "/a/b/c"), KeycloakDirectory.ancestorPaths("/a/b/c"));
+    }
+
+    // self-protection: the caller's own account, whatever their rank
+
+    static final PolicySettings SELF_ONLY = new PolicySettings(PolicySettings.GroupScope.OFF, null, false,
+            PolicySettings.SelfProtection.REJECT, Map.of(), false, Set.of("realm:admin"));
+
+    @Test
+    void nobodyDeletesOrDisablesThemselvesNotEvenASuperRole() {
+        SelfProtectionCheck check = new SelfProtectionCheck(dir, SELF_ONLY);
+        AccessCheck.Decision byId = check.check(ctx(tool("keycloak_user_delete", "id"), ROOT, Map.of("id", "id-root")));
+        assertEquals("self_protection", byId.code(), byId.message());
+        assertTrue(byId.message().contains("delete your own account"), byId.message());
+        AccessCheck.Decision byName = check
+            .check(ctx(tool("keycloak_user_delete", "id"), ALICE, Map.of("id", "Alice")));
+        assertEquals("self_protection", byName.code(), "username, case-insensitively");
+        AccessCheck.Decision disable = check.check(ctx(tool("keycloak_user_set_enabled", "id", "enabled"), ALICE,
+                Map.of("id", "id-alice", "enabled", false)));
+        assertEquals("self_protection", disable.code(), disable.message());
+        assertTrue(disable.message().contains("disable your own account"), disable.message());
+        AccessCheck.Decision update = check.check(ctx(tool("keycloak_user_update", "id", "enabled"), ALICE,
+                Map.of("id", "id-alice", "enabled", "false")));
+        assertEquals("self_protection", update.code(), "user_update with enabled=false disables too");
+        // administrative access: the realm admin role, a realm-management role, a group
+        // granting one
+        AccessCheck.Decision role = check.check(ctx(tool("keycloak_user_role_unassign", "userId", "role"), ALICE,
+                Map.of("userId", "id-alice", "role", "admin")));
+        assertEquals("self_protection", role.code(), role.message());
+        assertTrue(role.message().contains("administrative access"), role.message());
+        AccessCheck.Decision clientRole = check
+            .check(ctx(tool("keycloak_user_client_role_unassign", "userId", "clientId", "role"), ALICE,
+                    Map.of("userId", "id-alice", "clientId", "realm-management", "role", "manage-users")));
+        assertEquals("self_protection", clientRole.code(),
+                "a realm-management role even when the directory does not know it");
+        AccessCheck.Decision group = check.check(ctx(tool("keycloak_group_member_remove", "groupId", "userId"), ALICE,
+                Map.of("groupId", "/admins", "userId", "alice")));
+        assertEquals("self_protection", group.code(), group.message());
+        assertTrue(group.message().contains("realm:admin"), group.message());
+    }
+
+    @Test
+    void selfProtectionLeavesEverythingElseAlone() {
+        SelfProtectionCheck check = new SelfProtectionCheck(dir, SELF_ONLY);
+        assertTrue(check.check(ctx(tool("keycloak_user_delete", "id"), ALICE, Map.of("id", "bob"))).allowed(),
+                "another user, resolved through the directory");
+        assertTrue(check
+            .check(ctx(tool("keycloak_user_set_enabled", "id", "enabled"), ALICE,
+                    Map.of("id", "id-alice", "enabled", true)))
+            .allowed(), "enabling yourself is harmless");
+        assertTrue(check
+            .check(ctx(tool("keycloak_user_update", "id", "email"), ALICE,
+                    Map.of("id", "id-alice", "email", "a@example.com")))
+            .allowed(), "editing your own profile is fine");
+        assertTrue(
+                check.check(ctx(tool("keycloak_user_reset_password", "id"), ALICE, Map.of("id", "id-alice"))).allowed(),
+                "not a guarded tool");
+        // ordinary roles and groups of your own may go: a test membership, a role tried
+        // out
+        assertTrue(check
+            .check(ctx(tool("keycloak_group_member_remove", "groupId", "userId"), ALICE,
+                    Map.of("groupId", "/team-a", "userId", "id-alice")))
+            .allowed(), "leaving a group that grants viewer only");
+        assertTrue(check
+            .check(ctx(tool("keycloak_user_role_unassign", "userId", "role"), ALICE,
+                    Map.of("userId", "id-alice", "role", "editor")))
+            .allowed(), "dropping an ordinary role");
+        assertTrue(check
+            .check(ctx(tool("keycloak_user_client_role_unassign", "userId", "clientId", "role"), ALICE,
+                    Map.of("userId", "id-alice", "clientId", "app", "role", "user")))
+            .allowed(), "an application role");
+        assertTrue(check.check(ctx(tool("keycloak_user_delete", "id"), OTHER_REALM, Map.of("id", "x"))).allowed(),
+                "a caller of another realm cannot be the target");
+        assertTrue(check.check(ctx(tool("keycloak_user_delete", "id"), Caller.NONE, Map.of("id", "x"))).allowed(),
+                "no caller, nobody to protect");
+        PolicySettings off = new PolicySettings(PolicySettings.GroupScope.OFF, null, true,
+                PolicySettings.SelfProtection.OFF, Map.of(), false, Set.of());
+        assertTrue(new SelfProtectionCheck(dir, off)
+            .check(ctx(tool("keycloak_user_delete", "id"), ROOT, Map.of("id", "id-root")))
+            .allowed(), "switched off");
+    }
+
+    @Test
+    void selfProtectionCanHandTheCallToTheHumanInstead() {
+        PolicySettings confirm = new PolicySettings(PolicySettings.GroupScope.OFF, null, false,
+                PolicySettings.SelfProtection.CONFIRM, Map.of(), false, Set.of());
+        AccessCheck.Decision d = new SelfProtectionCheck(dir, confirm)
+            .check(ctx(tool("keycloak_user_delete", "id"), ROOT, Map.of("id", "id-root")));
+        assertTrue(d.allowed(), "not a denial");
+        assertTrue(d.confirmation(), "but the human must confirm it themselves");
+        assertEquals("self_protection", d.code());
+        assertTrue(d.message().contains("only you can confirm"), d.message());
+    }
+
+    @Test
+    void theGuardedToolsCanBeExtendedAndTrimmed() {
+        PolicySettings custom = new PolicySettings(PolicySettings.GroupScope.OFF, null, false,
+                PolicySettings.SelfProtection.REJECT, Map.of("acme_user_purge", "user", "keycloak_user_update", ""),
+                false, Set.of());
+        SelfProtectionCheck check = new SelfProtectionCheck(dir, custom);
+        assertEquals("user", check.userArgs().get("acme_user_purge"));
+        assertFalse(check.userArgs().containsKey("keycloak_user_update"));
+        AccessCheck.Decision purge = check.check(ctx(tool("acme_user_purge", "user"), ALICE, Map.of("user", "alice")));
+        assertEquals("self_protection", purge.code(), purge.message());
+        assertTrue(purge.message().contains("act on your own account with acme_user_purge"), purge.message());
+        assertTrue(check.check(ctx(tool("acme_user_purge", "user"), ALICE, Map.of("user", "bob"))).allowed());
+        assertTrue(check
+            .check(ctx(tool("keycloak_user_update", "id", "enabled"), ALICE,
+                    Map.of("id", "id-alice", "enabled", false)))
+            .allowed(), "removed from the guard");
+    }
+
+    @Test
+    void selfProtectionSettingsParse() {
+        assertEquals(PolicySettings.SelfProtection.REJECT, PolicySettings.SelfProtection.parse("true"));
+        assertEquals(PolicySettings.SelfProtection.OFF, PolicySettings.SelfProtection.parse("false"));
+        assertEquals(PolicySettings.SelfProtection.CONFIRM, PolicySettings.SelfProtection.parse(" Confirm "));
+        assertThrows(IllegalArgumentException.class, () -> PolicySettings.SelfProtection.parse("maybe"));
     }
 }

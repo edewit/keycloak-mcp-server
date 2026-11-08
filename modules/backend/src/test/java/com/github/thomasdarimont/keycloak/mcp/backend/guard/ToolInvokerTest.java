@@ -7,6 +7,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.backend.Fixtures;
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems;
@@ -324,5 +325,40 @@ class ToolInvokerTest {
         assertEquals("confirmation_required", denied.get("error"), "confirm: true does not count");
         assertEquals(DefaultConfirmer.ELICITATION_REQUIRED, denied.get("message"));
         assertTrue(String.valueOf(denied.get("howTo")).contains("not accepted"), denied.toString());
+    }
+
+    @Test
+    void anAccessCheckCanDemandTheHumansOwnConfirmation() {
+        AccessCheck selfProtection = c -> AccessCheck.Decision.confirm("self_protection",
+                "This would disable your own account ('alice'): only you can confirm that.");
+        ToolSpec guarded = ToolSpec.builder("keycloak_self")
+            .title("Disable yourself")
+            .description("d")
+            .category(Category.USERS)
+            .write()
+            .access(selfProtection)
+            .handler(call -> ToolResult.ok(Map.of("ran", true)))
+            .build();
+        ToolCatalog c = new ToolCatalog(List.of(guarded), "demo", 50, List.of());
+        ToolSpec spec = c.get("keycloak_self").orElseThrow();
+        // the flag-fallback confirmer: the model's confirm: true would normally do
+        Confirmer flag = req -> req.confirmFlag() ? Decision.CONFIRMED : Decision.CONFIRMATION_REQUIRED;
+        ToolResult r = new ToolInvoker(c, new AccessPolicy(false, List.of()), flag, 50).invoke(spec, Map.of(), true,
+                ctx);
+        assertTrue(r.isError(), r.toJson());
+        Map<String, Object> p = payload(r);
+        assertEquals("confirmation_required", p.get("error"));
+        assertEquals("self_protection", p.get("policy"));
+        assertTrue(String.valueOf(p.get("howTo")).contains("Only the user can confirm"), r.toJson());
+        assertTrue(String.valueOf(p.get("message")).contains("your own account"), r.toJson());
+        // a confirmer that asks the human sees why, and its yes lets the call run
+        Confirmer human = req -> {
+            assertTrue(req.reason().contains("your own account"), req.reason());
+            assertFalse(req.confirmFlag(), "the model's flag does not reach the confirmers");
+            return Decision.CONFIRMED;
+        };
+        ToolResult ok = new ToolInvoker(c, new AccessPolicy(false, List.of()), human, 50).invoke(spec, Map.of(), true,
+                ctx);
+        assertFalse(ok.isError(), ok.toJson());
     }
 }

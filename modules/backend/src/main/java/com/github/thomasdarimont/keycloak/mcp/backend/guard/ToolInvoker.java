@@ -1,15 +1,19 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ArgumentValidator;
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
@@ -202,9 +206,10 @@ public class ToolInvoker {
                                 "defaultRealm", realm);
                     }
                     else {
-                        Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin);
+                        List<AccessCheck.Decision> humanOnly = new ArrayList<>();
+                        Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin, humanOnly);
                         result = denied.isPresent() ? denied.get()
-                                : runWithConfirmation(spec, system, admin, realm, args, confirmFlag, ctx);
+                                : runWithConfirmation(spec, system, admin, realm, args, confirmFlag, ctx, humanOnly);
                     }
                 }
             }
@@ -275,12 +280,25 @@ public class ToolInvoker {
         return kv;
     }
 
+    /**
+     * @param humanOnly access checks that demand the human's own confirmation of this
+     * call: then the confirmers are asked even for a non-destructive tool, and the
+     * model's {@code confirm: true} does not count, so only elicitation or a confirmer
+     * that asks the human lets the call through
+     */
     private ToolResult runWithConfirmation(ToolSpec spec, String system, KeycloakAdmin admin, String realm,
-            Map<String, Object> args, boolean confirmFlag, InvocationContext ctx) throws Exception {
-        if (spec.isDestructive()) {
-            ConfirmationRequest request = new ConfirmationRequest(spec, system, realm, args, confirmFlag, ctx.caller(),
+            Map<String, Object> args, boolean confirmFlag, InvocationContext ctx, List<AccessCheck.Decision> humanOnly)
+            throws Exception {
+        if (spec.isDestructive() || !humanOnly.isEmpty()) {
+            String reason = humanOnly.isEmpty() ? null
+                    : humanOnly.stream()
+                        .map(AccessCheck.Decision::message)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.joining(" "));
+            ConfirmationRequest request = new ConfirmationRequest(spec, system, realm, args,
+                    confirmFlag && humanOnly.isEmpty(), ctx.caller(),
                     ElicitationPrompter.of(ctx.elicitation(), confirmTimeout), ctx.clientName(), ctx.connectionId(),
-                    ctx.connection() != null && ctx.connection().isTransient());
+                    ctx.connection() != null && ctx.connection().isTransient(), reason);
             Decision decision = confirmer.confirm(request);
             switch (decision.outcome()) {
                 case DECLINED -> {
@@ -290,8 +308,13 @@ public class ToolInvoker {
                 case CONFIRMATION_REQUIRED, ABSTAIN -> {
                     Map<String, Object> fields = new LinkedHashMap<>();
                     ConfirmationGuidance.Mode mode = guidance.mode(ctx);
-                    if (mode == ConfirmationGuidance.Mode.ASK && !confirmFallback.acceptsFlag()) {
+                    if (!humanOnly.isEmpty()
+                            || (mode == ConfirmationGuidance.Mode.ASK && !confirmFallback.acceptsFlag())) {
                         mode = ConfirmationGuidance.Mode.SERVER;
+                    }
+                    if (!humanOnly.isEmpty()) {
+                        fields.put("policy", humanOnly.getFirst().code());
+                        fields.put("reason", reason);
                     }
                     fields.put("howTo", switch (mode) {
                         case ASK -> "Ask the user, then call again with the same arguments plus confirm: true.";
@@ -301,8 +324,12 @@ public class ToolInvoker {
                                 + " confirm: true is not accepted as a substitute.";
                     });
                     fields.putAll(decision.details());
-                    return ToolResult.error("confirmation_required", decision.message() != null ? decision.message()
-                            : spec.title() + " is destructive and needs confirmation.", flatten(fields));
+                    return ToolResult.error("confirmation_required",
+                            decision.message() != null ? decision.message()
+                                    : !humanOnly.isEmpty()
+                                            ? spec.title() + " needs the user's own confirmation: " + reason
+                                            : spec.title() + " is destructive and needs confirmation.",
+                            flatten(fields));
                 }
                 default -> {
                     // confirmed
