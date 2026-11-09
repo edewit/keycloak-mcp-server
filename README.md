@@ -307,11 +307,11 @@ Caller authentication is per MCP entry, not per system: one login per server URL
 
 ### Management UI (optional): `/ui`, BFF under `/bff`
 
-Module `frontend` (`keycloak-mcp-server-frontend`, a Lit single-page app; the BFF is in the backend, package `ui`).
+Lit SPA under `modules/backend/src/main/resources/web` (Quarkus Web Bundler + mvnpm, no Node); BFF in package `ui`.
 The server is the OIDC relying party: authorization code flow with PKCE, the browser holds an HttpOnly, Secure,
 `SameSite=Lax` cookie with an opaque id, the tokens stay in the database (`kc_mcp_user_session`, encrypted like the
 other secrets, `UserSessionStore` SPI, `db-user-sessions`). Needs database storage and HTTPS. Bootstrap:
-`examples/management-ui/`, `modules/frontend/README.md`.
+`examples/management-ui/`.
 
 - `kc-mcp.ui.enabled=true`; `kc-mcp.ui.issuer` (default `kc-mcp.admin.issuer`, else the auth realm) and
   `kc-mcp.ui.client-id` (`keycloak-mcp-ui`: public, PKCE S256, redirect URI `<server>/bff/login`, post logout redirect
@@ -339,7 +339,8 @@ other secrets, `UserSessionStore` SPI, `db-user-sessions`). Needs database stora
   `quarkus.http.ssl-port=8443`; behind a TLS proxy `quarkus.http.proxy.proxy-address-forwarding=true`
 - Several instances: set `QUARKUS_OIDC_KC_MCP_UI_<ALIAS>_AUTHENTICATION_STATE_SECRET` so any instance can finish a login
   another one started; the session rows are shared through the database
-- Build: `./mvnw package` runs npm (Node downloaded once into `modules/frontend/node/`); `-Dui.skip=true` leaves the UI out
+- Build: `./mvnw package` bundles the UI with Quarkus Web Bundler (esbuild via the extension); turn the UI off with
+  `kc-mcp.ui.enabled=false`
 
 ### Entries per system or realm: `/mcp/systems/<system>[/<realm>]`
 

@@ -11,9 +11,9 @@ fi
 curl -sf -X POST "$KC/admin/realms/master/clients" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{
   "clientId": "keycloak-mcp-ui", "name": "Keycloak MCP server UI", "publicClient": true, "standardFlowEnabled": true,
   "directAccessGrantsEnabled": false, "fullScopeAllowed": true,
-  "redirectUris": ["https://localhost:8443/bff/login", "https://localhost:5173/bff/login"],
+  "redirectUris": ["https://localhost:8443/bff/login"],
   "webOrigins": ["+"],
-  "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "https://localhost:8443/ui/*##https://localhost:5173/ui/*",
+  "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "https://localhost:8443/ui/*",
                  "backchannel.logout.url": "http://host.docker.internal:8081/bff/backchannel-logout", "backchannel.logout.session.required": "true"}
 }'
 echo "created master/keycloak-mcp-ui"

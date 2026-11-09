@@ -6,7 +6,7 @@
 #
 # The server picks the files up with
 #   QUARKUS_TLS_KEY_STORE_PEM_UI_CERT=.certs/localhost.pem QUARKUS_TLS_KEY_STORE_PEM_UI_KEY=.certs/localhost-key.pem
-# and the Vite dev server of modules/frontend reads them from the same place.
+# (used by quarkus:dev with the management UI on HTTPS).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 command -v mkcert >/dev/null || { echo "mkcert not found: brew install mkcert (and nss for Firefox)"; exit 1; }
