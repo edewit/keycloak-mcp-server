@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.config;
 
 import java.net.URI;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -21,7 +22,7 @@ public final class PublicHostname {
     }
 
     /**
-     * The value without a trailing slash.
+     * The value in lower case without a trailing slash.
      * @throws IllegalArgumentException when it is not an http(s) origin
      */
     public static String normalize(String value) {
@@ -40,7 +41,8 @@ public final class PublicHostname {
         if (!http || uri.getHost() == null || !originOnly) {
             throw invalid(value);
         }
-        return origin;
+        // Quarkus recognizes an absolute resource by a lower-case scheme
+        return origin.toLowerCase(Locale.ROOT);
     }
 
     /** {@code host[:port]} of a canonical value. */

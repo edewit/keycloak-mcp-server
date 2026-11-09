@@ -76,6 +76,22 @@ class HttpsInterceptorFactoryTest {
     }
 
     @Test
+    void passwordsKeepTheirSpacesWhileOtherValuesAreTrimmed() {
+        SmallRyeConfig keyStore = config(
+                Map.of("kc-mcp.https-key-store-file", " s.p12 ", "kc-mcp.https-key-store-password", "  pass word  "));
+        assertEquals("s.p12", keyStore.getRawValue("quarkus.tls.key-store.p12.path"));
+        assertEquals("  pass word  ", keyStore.getRawValue("quarkus.tls.key-store.p12.password"));
+        assertEquals("   ",
+                config(Map.of("kc-mcp.https-key-store-file", "s.p12", "kc-mcp.https-key-store-password", "   "))
+                    .getRawValue("quarkus.tls.key-store.p12.password"),
+                "not mistaken for a missing password");
+        assertEquals(" key pw ",
+                config(Map.of("kc-mcp.https-certificate-file", "c.pem", "kc-mcp.https-certificate-key-file", "k.pem",
+                        "kc-mcp.https-certificate-key-file-password", " key pw "))
+                    .getRawValue("quarkus.tls.key-store.pem.server.password"));
+    }
+
+    @Test
     void halfAPemPairIsRefused() {
         SmallRyeConfig c = config(Map.of("kc-mcp.https-certificate-file", "c.pem"));
         assertThrows(IllegalArgumentException.class, () -> c.getRawValue("quarkus.tls.reload-period"));

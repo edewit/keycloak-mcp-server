@@ -80,11 +80,11 @@ public class HttpsInterceptorFactory implements ConfigSourceInterceptorFactory {
         if (certificate != null) {
             target.put(PEM + "cert", certificate);
             target.put(PEM + "key", key);
-            putIfSet(target, PEM + "password", option(ctx, "https-certificate-key-file-password"));
+            putIfSet(target, PEM + "password", secret(ctx, "https-certificate-key-file-password"));
         }
         else if (keyStore != null) {
             String type = keyStoreType(keyStore, option(ctx, "https-key-store-type"));
-            String password = option(ctx, "https-key-store-password");
+            String password = secret(ctx, "https-key-store-password");
             target.put(KEY_STORE + type + ".path", keyStore);
             target.put(KEY_STORE + type + ".password", password == null ? "password" : password);
         }
@@ -139,6 +139,12 @@ public class HttpsInterceptorFactory implements ConfigSourceInterceptorFactory {
     private static String option(ConfigSourceInterceptorContext ctx, String name) {
         ConfigValue value = ctx.proceed(PREFIX + name);
         return present(value) ? value.getValue().trim() : null;
+    }
+
+    /** A password: exactly as configured, spaces are part of it. */
+    private static String secret(ConfigSourceInterceptorContext ctx, String name) {
+        ConfigValue value = ctx.proceed(PREFIX + name);
+        return value == null || value.getValue() == null || value.getValue().isEmpty() ? null : value.getValue();
     }
 
     private static boolean present(ConfigValue value) {

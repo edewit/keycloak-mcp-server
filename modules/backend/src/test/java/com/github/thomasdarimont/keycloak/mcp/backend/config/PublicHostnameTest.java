@@ -16,8 +16,16 @@ class PublicHostnameTest {
     void acceptsAnOriginAndDropsATrailingSlash() {
         assertEquals("https://mcp.example.com", PublicHostname.normalize("https://mcp.example.com/"));
         assertEquals("http://mcp.internal:8081", PublicHostname.normalize(" http://mcp.internal:8081 "));
+        assertEquals("https://mcp.example.com", PublicHostname.normalize("HTTPS://MCP.Example.com/"));
         assertEquals("mcp.internal:8081", PublicHostname.authority("http://mcp.internal:8081"));
         assertEquals(Optional.empty(), PublicHostname.of(Optional.of(" ")));
+    }
+
+    @Test
+    void anUpperCaseSchemeStaysAnAbsoluteResource() {
+        assertEquals("https://mcp.example.com",
+                HttpsInterceptorFactoryTest.config(Map.of("kc-mcp.hostname", "HTTPS://MCP.Example.com"))
+                    .getRawValue("quarkus.oidc.resource-metadata.resource"));
     }
 
     @Test
