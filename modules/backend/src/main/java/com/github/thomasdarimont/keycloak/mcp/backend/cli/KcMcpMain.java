@@ -104,14 +104,15 @@ public class KcMcpMain implements Callable<Integer> {
 
     @Command(name = "start-dev",
             description = "Start the server in development mode: profile local, startup checks warn, "
-                    + "Keycloak at http://localhost:8080 unless a system is configured. Not for a server other people reach.")
+                    + "Keycloak at http://localhost:8080 unless a system is configured, the UI and an H2 database "
+                    + "in a distribution, no HTTPS needed. Not for a server other people reach.")
     static class StartDev extends ServerCommand {
 
         @Override
         void beforeStart() {
             System.err.println(
                     "development mode (start-dev): profile local, startup checks warn, Keycloak at http://localhost:8080 "
-                            + "unless a system is configured; use 'start' for a shared server");
+                            + "unless a system is configured, session cookies without Secure; use 'start' for a shared server");
             System.setProperty("kc-mcp.profile", "local");
             System.setProperty("kc-mcp.startup-check", "warn");
             System.setProperty("kc-mcp.dev-mode", "true");

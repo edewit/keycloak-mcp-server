@@ -3,7 +3,9 @@ package com.github.thomasdarimont.keycloak.mcp.backend.ui;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -27,11 +29,14 @@ import io.vertx.ext.web.RoutingContext;
  * {@code META-INF/resources/index.html}. {@code /ui} goes to {@code /ui/}, and
  * extension-less paths ({@code /ui/systems}) get that index with
  * {@code Cache-Control: no-cache} so the browser picks up hashed bundles after a rebuild.
- * Bundle assets under {@code /static/bundle/} keep the static handler's caching. Web
- * Bundler also publishes the index at {@code /}; this class redirects that to
- * {@code /ui/} when the UI is on and answers 404 when it is off, so the product entry
- * stays {@code /ui}. At startup a {@link UserSessionStore} must be registered, else the
- * server does not start; a missing index is reported.
+ * Bundle assets under {@code /static/bundle/} are served from the class path when they
+ * are there, which the static handler cannot do for the jar of a Maven-built distribution
+ * ({@code modules/ui-bundle}): its list of files is made at build time and misses them; a
+ * bundle only Web Bundler's dev mode knows passes on to it. Web Bundler also publishes
+ * the index at {@code /}; this class redirects that to {@code /ui/} when the UI is on and
+ * answers 404 when it is off, so the product entry stays {@code /ui}. At startup a
+ * {@link UserSessionStore} must be registered, else the server does not start; a missing
+ * index is reported.
  */
 @ApplicationScoped
 public class UiRoutes {
@@ -51,8 +56,11 @@ public class UiRoutes {
     UiTenant tenant;
     @ConfigProperty(name = "quarkus.http.ssl-port", defaultValue = "8443")
     int sslPort;
+    @ConfigProperty(name = "quarkus.http.port", defaultValue = "8080")
+    int httpPort;
 
     private volatile byte[] indexPage;
+    private final Map<String, byte[]> bundleFiles = new ConcurrentHashMap<>();
 
     @Inject
     KcMcpMetrics metrics;
@@ -78,8 +86,10 @@ public class UiRoutes {
         }
         UserSessionStore kept = store.get();
         metrics.uiSessions(() -> kept.countLive(System.currentTimeMillis()));
-        LOG.infof("Management UI at https://<host>:%d%s/, sessions kept by %s; identity providers: %s", sslPort,
-                UiTenant.UI_PATH, store.get().id(), idps.stream().map(UiTenant.Idp::describe).toList());
+        String location = config.devMode() ? "http://<host>:%d%s/ (https port %d with a certificate)".formatted(
+                httpPort, UiTenant.UI_PATH, sslPort) : "https://<host>:%d%s/".formatted(sslPort, UiTenant.UI_PATH);
+        LOG.infof("Management UI at %s, sessions kept by %s; identity providers: %s", location, store.get().id(),
+                idps.stream().map(UiTenant.Idp::describe).toList());
     }
 
     void register(@Observes Router router) {
@@ -87,10 +97,56 @@ public class UiRoutes {
         // under /ui.
         router.route(HttpMethod.GET, "/").order(-2000).handler(this::root);
         router.route(HttpMethod.GET, "/index.html").order(-2000).handler(this::root);
+        router.route(HttpMethod.GET, "/static/bundle/*").order(-2000).handler(this::bundle);
         // Vert.x lets the exact path /ui match /ui/ as well, so one handler sorts both
         // out
         router.route(HttpMethod.GET, UiTenant.UI_PATH).handler(this::serve);
         router.route(HttpMethod.GET, UiTenant.UI_PATH + "/*").handler(this::serve);
+    }
+
+    /** A file of the bundle, read once; anything not on the class path passes on. */
+    private void bundle(RoutingContext ctx) {
+        String path = ctx.normalizedPath();
+        byte[] file = config.ui().enabled() && !path.contains("..") ? bundleFile(path) : null;
+        if (file == null) {
+            ctx.next();
+            return;
+        }
+        ctx.response()
+            .putHeader("Content-Type", contentType(path))
+            .putHeader("Cache-Control", "public, max-age=86400")
+            .end(Buffer.buffer(file));
+    }
+
+    private byte[] bundleFile(String path) {
+        byte[] file = bundleFiles.get(path);
+        if (file != null) {
+            return file;
+        }
+        try (InputStream in = Thread.currentThread()
+            .getContextClassLoader()
+            .getResourceAsStream("META-INF/resources" + path)) {
+            if (in == null) {
+                return null;
+            }
+            file = in.readAllBytes();
+        }
+        catch (IOException e) {
+            LOG.warnf("Cannot read %s: %s", path, e.getMessage());
+            return null;
+        }
+        bundleFiles.put(path, file);
+        return file;
+    }
+
+    static String contentType(String path) {
+        String extension = path.substring(path.lastIndexOf('.') + 1);
+        return switch (extension) {
+            case "js" -> "text/javascript;charset=UTF-8";
+            case "css" -> "text/css;charset=UTF-8";
+            case "map" -> "application/json";
+            default -> "application/octet-stream";
+        };
     }
 
     /**

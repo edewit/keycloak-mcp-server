@@ -233,7 +233,8 @@ public class UiTenant {
             // cookie
             .redirectPath(LOGIN_PATH)
             .pkceRequired(true)
-            .cookieForceSecure(true)
+            // start-dev may run without certificates; Quarkus then goes by the request
+            .cookieForceSecure(!config.devMode())
             .javaScriptAutoRedirect(false)
             .verifyAccessToken(true)
             .sessionAgeExtension(idp.sessionAgeExtension())

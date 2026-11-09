@@ -64,6 +64,17 @@ echo "prod and staging configured from conf/systems/: ok"
 stop_server
 rm -f "$DIST/conf/systems/prod.conf" "$DIST/conf/systems/staging.conf"
 
+echo "== 1b2. the management UI with its bundle, in the distribution as Maven built it"
+start_server --config conf/smoke.conf --kc-mcp.startup-check=off --kc-mcp.ui.enabled=true \
+  --kc-mcp.systems.default.url=http://127.0.0.1:1 --kc-mcp.systems.default.client-id=smoke \
+  --kc-mcp.systems.default.client-secret=smoke --quarkus.datasource.jdbc.url="jdbc:h2:file:$DIST/data/smoke-ui"
+BUNDLE=$(curl -sf "http://localhost:$PORT/ui/" | grep -oE '/static/bundle/[^"]+\.js' | head -1)
+[ -n "$BUNDLE" ] || { echo "the UI page names no bundle"; cat server.log; exit 1; }
+curl -sf -o /dev/null "http://localhost:$PORT$BUNDLE" || { echo "$BUNDLE is not served"; exit 1; }
+echo "/ui/ and $BUNDLE: ok"
+stop_server
+rm -f "$DIST"/data/smoke-ui.*
+
 echo "== 1c. build: the database kind of the unpacked distribution"
 if "$DIST/bin/kcmcp.sh" build --db=mysql 2> build.err; then echo "an unsupported database was accepted"; exit 1; fi
 grep -q 'build needs --db' build.err || { cat build.err; exit 1; }

@@ -174,15 +174,16 @@ public class UiResource {
     }
 
     /**
-     * The session cookie as Quarkus sets it: HttpOnly, Secure, SameSite=Lax, for the
-     * whole host.
+     * The session cookie as Quarkus sets it: HttpOnly, SameSite=Lax, for the whole host;
+     * Secure except for a plain HTTP request in start-dev, which runs without
+     * certificates unless given some.
      */
-    private static NewCookie cookie(String name, String value, int maxAge) {
+    private NewCookie cookie(String name, String value, int maxAge) {
         return new NewCookie.Builder(name).value(value)
             .path("/")
             .maxAge(maxAge)
             .httpOnly(true)
-            .secure(true)
+            .secure(!config.devMode() || request.get().getCurrent().request().isSSL())
             .sameSite(NewCookie.SameSite.LAX)
             .build();
     }

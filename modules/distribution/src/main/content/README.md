@@ -33,8 +33,12 @@ The distribution is built for H2. To keep the server's data in PostgreSQL, stop 
 `bin/kcmcp.sh start-dev` runs the same configuration in development mode: the `local` security profile applies whatever
 the files say, so a missing setting that the `shared` profile would refuse to start on is only warned about, a
 Keycloak that is down at startup is a warning too, and without any configured system the Keycloak of the examples at
-`http://localhost:8080` is assumed (system `default`, the server's client in `master`). Not for a server other people
-reach.
+`http://localhost:8080` is assumed (system `default`, the server's client in `master`). An H2 build also gets a database
+in `data/` and the management UI at `http://localhost:8081/ui/`, without HTTPS because the session cookies drop `Secure`;
+the realm needs the client `keycloak-mcp-ui` (`docs/management-ui.md`). Any of these you configure wins: a certificate
+(`conf/scenarios/https.conf.example`) serves HTTPS with `Secure` cookies, and a `quarkus.datasource.jdbc.url` replaces H2
+(for PostgreSQL after `build --db=postgresql`). Not for a
+server other people reach.
 
 ## Scenarios
 

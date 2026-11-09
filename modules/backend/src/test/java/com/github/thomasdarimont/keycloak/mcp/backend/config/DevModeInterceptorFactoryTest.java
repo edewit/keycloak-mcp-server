@@ -1,10 +1,14 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.config;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import io.smallrye.config.PropertiesConfigSource;
 import io.smallrye.config.SmallRyeConfig;
@@ -37,6 +41,49 @@ class DevModeInterceptorFactoryTest {
         assertEquals("http://localhost:8080/realms/master",
                 c.getRawValue(DefaultTenantInterceptorFactory.AUTH_SERVER_URL),
                 "the default tenant follows the assumed system");
+    }
+
+    @Test
+    void aDistributionGetsAnH2DatabaseAndTheUi(@TempDir Path home) {
+        Map<String, String> dev = Map.of("kc-mcp.dev-mode", "true", "kcmcp.home.dir", home.toString(),
+                "quarkus.datasource.db-kind", "h2");
+        SmallRyeConfig c = config(dev);
+        assertEquals("jdbc:h2:file:" + home.resolve("data").resolve("kc-mcp"),
+                c.getRawValue("quarkus.datasource.jdbc.url"));
+        assertEquals("true", c.getRawValue("kc-mcp.ui.enabled"));
+        assertTrue(names(c).contains("quarkus.datasource.jdbc.url"));
+    }
+
+    @Test
+    void whatIsConfiguredWinsOverTheDevelopmentDatabaseAndUi(@TempDir Path home) {
+        Map<String, String> dev = new HashMap<>(Map.of("kc-mcp.dev-mode", "true", "kcmcp.home.dir", home.toString(),
+                "quarkus.datasource.db-kind", "h2"));
+        Map<String, String> ownDatabase = new HashMap<>(dev);
+        ownDatabase.put("quarkus.datasource.jdbc.url", "jdbc:h2:mem:mine");
+        assertEquals("jdbc:h2:mem:mine", config(ownDatabase).getRawValue("quarkus.datasource.jdbc.url"));
+        assertEquals("true", config(ownDatabase).getRawValue("kc-mcp.ui.enabled"), "the UI uses that database");
+        Map<String, String> uiOff = new HashMap<>(dev);
+        uiOff.put("kc-mcp.ui.enabled", "false");
+        assertEquals("false", config(uiOff).getRawValue("kc-mcp.ui.enabled"));
+        Map<String, String> noStorage = new HashMap<>(dev);
+        noStorage.put("kc-mcp.storage.enabled", "false");
+        assertNull(config(noStorage).getRawValue("quarkus.datasource.jdbc.url"));
+        assertNull(config(noStorage).getRawValue("kc-mcp.ui.enabled"));
+    }
+
+    @Test
+    void noDevelopmentDatabaseOutsideDevModeOrOnAnotherDatabase(@TempDir Path home) throws Exception {
+        SmallRyeConfig notDev = config(Map.of("kcmcp.home.dir", home.toString(), "quarkus.datasource.db-kind", "h2"));
+        assertNull(notDev.getRawValue("quarkus.datasource.jdbc.url"));
+        assertNull(notDev.getRawValue("kc-mcp.ui.enabled"));
+        assertNull(config(Map.of("kc-mcp.dev-mode", "true", "quarkus.datasource.db-kind", "h2"))
+            .getRawValue("quarkus.datasource.jdbc.url"), "from source there is no distribution directory");
+        Files.createDirectories(home.resolve("lib/quarkus"));
+        Files.writeString(home.resolve("lib/quarkus/db-kind"), "postgresql\n");
+        SmallRyeConfig rebuilt = config(Map.of("kc-mcp.dev-mode", "true", "kcmcp.home.dir", home.toString(),
+                "quarkus.datasource.db-kind", "h2"));
+        assertNull(rebuilt.getRawValue("quarkus.datasource.jdbc.url"), "build --db=postgresql has replaced h2");
+        assertNull(rebuilt.getRawValue("kc-mcp.ui.enabled"), "no store for the sessions");
     }
 
     @Test
