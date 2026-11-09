@@ -8,13 +8,23 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
@@ -22,6 +32,10 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
+
+import io.quarkus.runtime.ShutdownEvent;
 
 /**
  * Finds the implementations of an extension point ({@code ToolProvider},
@@ -42,6 +56,12 @@ public class Extensions {
 
     private static final Logger LOG = Logger.getLogger(Extensions.class);
 
+    private final Set<String> seen = ConcurrentHashMap.newKeySet();
+    private static final String REQUIRED = "required";
+
+    private final Map<Class<?>, List<?>> discovered = new ConcurrentHashMap<>();
+    private final Map<Extension, Boolean> admitted = new ConcurrentHashMap<>();
+    private final List<Extension> toClose = new CopyOnWriteArrayList<>();
     private final Path dir;
     private final List<Path> jars;
     private final ClassLoader loader;
@@ -83,9 +103,22 @@ public class Extensions {
 
     /**
      * The implementations of {@code spi}, ServiceLoader entries first (class path, then
-     * providers directory), then CDI beans; each class once.
+     * providers directory), then CDI beans; each class once. Found once per extension
+     * point, so every caller gets the same instances.
      */
+    @SuppressWarnings("unchecked")
     public <T> List<T> discover(Class<T> spi) {
+        List<?> known = discovered.get(spi);
+        if (known != null) {
+            return (List<T>) known;
+        }
+        // not computeIfAbsent: creating a CDI bean may discover another extension point
+        List<T> found = find(spi);
+        List<?> raced = discovered.putIfAbsent(spi, found);
+        return raced != null ? (List<T>) raced : found;
+    }
+
+    private <T> List<T> find(Class<T> spi) {
         Map<String, T> byClass = new LinkedHashMap<>();
         for (T t : ServiceLoader.load(spi, loader)) {
             byClass.putIfAbsent(t.getClass().getName(), t);
@@ -95,7 +128,74 @@ public class Extensions {
                 byClass.computeIfAbsent(h.getBean().getBeanClass().getName(), k -> h.get());
             }
         }
+        for (T t : byClass.values()) {
+            if (t instanceof Extension e) {
+                seen.add(key(e.spiName(), e.id()));
+            }
+        }
         return List.copyOf(byClass.values());
+    }
+
+    /**
+     * The ids ({@code kc-mcp.spi.<spi>.<id>} form) of every extension discovered so far,
+     * of any extension point.
+     */
+    public Set<String> seen() {
+        return Set.copyOf(seen);
+    }
+
+    /**
+     * The ids that {@code kc-mcp.spi.<spi>.<id>.required=true} names but no discovered
+     * extension has: a required security control whose jar is missing must stop the
+     * start, not be skipped because there is nothing to check.
+     */
+    public static List<String> missingRequired(McpServerConfig config, Set<String> seen) {
+        return missingRequired(config, seen, System.getenv());
+    }
+
+    /**
+     * @param env the environment: {@code KC_MCP_SPI_<SPI>_<ID>_REQUIRED} also names
+     * extensions that appear nowhere else, and overrides a file's value
+     */
+    public static List<String> missingRequired(McpServerConfig config, Set<String> seen, Map<String, String> env) {
+        Map<String, Boolean> required = new TreeMap<>();
+        config.spi().forEach((spi, spiSettings) -> spiSettings.extensions().forEach((id, settings) -> {
+            if (settings.containsKey(REQUIRED)) {
+                required.put(key(spi, id), Boolean.parseBoolean(settings.get(REQUIRED).trim()));
+            }
+        }));
+        env.forEach((name, value) -> requiredVariable(name)
+            .ifPresent(extension -> required.put(extension, Boolean.parseBoolean(value.trim()))));
+        return required.entrySet()
+            .stream()
+            .filter(e -> e.getValue() && !seen.contains(e.getKey()))
+            .map(Map.Entry::getKey)
+            .toList();
+    }
+
+    /**
+     * {@code <spi>.<id>} of a {@code KC_MCP_SPI_<SPI>_<ID>_REQUIRED} variable. With an
+     * unknown extension point the whole remainder is the id: it cannot be installed, and
+     * a required control must not be skipped because of a typo.
+     */
+    private static Optional<String> requiredVariable(String name) {
+        String suffix = "_REQUIRED";
+        String root = "KC_MCP_SPI_";
+        if (!name.startsWith(root) || !name.endsWith(suffix) || name.length() <= root.length() + suffix.length()) {
+            return Optional.empty();
+        }
+        String path = name.substring(root.length(), name.length() - suffix.length());
+        for (String spi : ProviderConfig.SPIS) {
+            String prefix = spi.toUpperCase(Locale.ROOT).replace('-', '_') + "_";
+            if (path.startsWith(prefix) && path.length() > prefix.length()) {
+                return Optional.of(key(spi, path.substring(prefix.length()).replace('_', '-')));
+            }
+        }
+        return Optional.of(path.toLowerCase(Locale.ROOT).replace('_', '-'));
+    }
+
+    private static String key(String spi, String id) {
+        return spi + "." + ProviderConfig.configId(id);
     }
 
     /** The providers directory, {@code null} when none is configured. */
@@ -106,6 +206,98 @@ public class Extensions {
     /** The extension jars loaded from the providers directory. */
     public List<Path> jars() {
         return jars;
+    }
+
+    /**
+     * {@link #usable}, decided once per extension; one that takes part is closed at
+     * shutdown.
+     */
+    public boolean admit(Extension e, String kind, McpServerConfig config) {
+        Boolean decided = admitted.get(e);
+        if (decided != null) {
+            return decided;
+        }
+        boolean usable = usable(e, kind, config);
+        if (admitted.putIfAbsent(e, usable) == null && usable) {
+            toClose.add(e);
+        }
+        return usable;
+    }
+
+    /**
+     * The extension serving an extension point that has exactly one: the one
+     * {@code kc-mcp.spi.<spi>.provider} names, which must be found and usable, else the
+     * usable candidate with the lowest order, the built-ins last. The candidates not
+     * chosen are neither configured nor closed.
+     *
+     * @param builtIns candidates the server makes itself rather than discovers
+     * @throws IllegalStateException when the named provider cannot serve
+     */
+    public <T extends Extension> Optional<T> select(Class<T> type, String spi, String kind, McpServerConfig config,
+            List<? extends T> builtIns) {
+        return select(discover(type), builtIns, spi, kind, config);
+    }
+
+    /** {@link #select(Class, String, String, McpServerConfig, List)} among these. */
+    public <T extends Extension> Optional<T> select(List<T> discoveredCandidates, List<? extends T> builtIns,
+            String spi, String kind, McpServerConfig config) {
+        List<T> candidates = new ArrayList<>(discoveredCandidates);
+        candidates.sort(Comparator.comparingInt(Extension::order).thenComparing(Extension::id));
+        candidates.addAll(builtIns);
+        builtIns.forEach(b -> seen.add(key(b.spiName(), b.id())));
+        Optional<String> wanted = ProviderConfig.selectedProvider(spi, config, System.getenv());
+        if (wanted.isEmpty()) {
+            return candidates.stream().filter(c -> admit(c, kind, config)).findFirst();
+        }
+        String id = ProviderConfig.configId(wanted.get());
+        T chosen = candidates.stream()
+            .filter(c -> ProviderConfig.configId(c.id()).equals(id))
+            .findFirst()
+            .orElseThrow(
+                    () -> new IllegalStateException(ProviderConfig.PREFIX + spi + ".provider names '" + wanted.get()
+                            + "', which is not installed; found " + candidates.stream().map(Extension::id).toList()));
+        if (!admit(chosen, kind, config)) {
+            throw new IllegalStateException(ProviderConfig.PREFIX + spi + ".provider names '" + wanted.get()
+                    + "', which is switched off or not supported with the current configuration");
+        }
+        return Optional.of(chosen);
+    }
+
+    /**
+     * {@code kc-mcp.spi.<spi>.provider} settings that select nothing: on an extension
+     * point where every extension runs, or on one that does not exist.
+     */
+    public static List<String> misplacedProviders(McpServerConfig config, Map<String, String> env) {
+        List<String> misplaced = new ArrayList<>();
+        Set<String> spis = new TreeSet<>(ProviderConfig.SPIS);
+        spis.addAll(config.spi().keySet());
+        for (String spi : spis) {
+            if (!ProviderConfig.SINGLE_PROVIDER_SPIS.contains(spi)
+                    && ProviderConfig.selectedProvider(spi, config, env).isPresent()) {
+                misplaced.add(ProviderConfig.PREFIX + spi + ".provider");
+            }
+        }
+        return misplaced;
+    }
+
+    /** On the shutdown event, while the extensions' CDI beans are still alive. */
+    void onShutdown(@Observes ShutdownEvent event) {
+        closeExtensions();
+    }
+
+    /** Closes what was admitted, last admitted first; each once. */
+    void closeExtensions() {
+        List<Extension> closing = new ArrayList<>(toClose);
+        toClose.clear();
+        Collections.reverse(closing);
+        for (Extension e : closing) {
+            try {
+                e.close();
+            }
+            catch (RuntimeException ex) {
+                LOG.warnf(ex, "Extension '%s' failed to close", e.id());
+            }
+        }
     }
 
     @PreDestroy
@@ -175,5 +367,57 @@ public class Extensions {
     private static ClassLoader contextLoader() {
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         return cl != null ? cl : Extensions.class.getClassLoader();
+    }
+
+    /**
+     * Whether a found extension takes part: not switched off with
+     * {@code kc-mcp.spi.<spi>.<id>.enabled=false}, then {@link Extension#configure} with
+     * its settings, and {@link Extension#isSupported} with the current configuration.
+     * Every place that picks extensions asks here, so the rules and the log lines are the
+     * same for all extension points.
+     * <p>
+     * Fail closed where it matters: an extension marked
+     * {@code kc-mcp.spi.<spi>.<id>.required=true} that is switched off or unsupported
+     * stops the start, and so does an {@code isSupported} that throws in profile
+     * {@code shared}; elsewhere both are logged and the extension is left out.
+     *
+     * @param kind the extension point, for the log ({@code Confirmer}, {@code KeyVault},
+     * ...)
+     * @throws IllegalStateException when a required extension cannot take part
+     */
+    public static boolean usable(Extension e, String kind, McpServerConfig config) {
+        ProviderConfig settings = ProviderConfig.forExtension(e, config);
+        boolean required = settings.getBoolean("required", false);
+        if (!settings.getBoolean("enabled", true)) {
+            if (required) {
+                throw new IllegalStateException(kind + " '" + e.id() + "' is required (" + settings.providerPrefix()
+                        + "required=true) but switched off (" + settings.providerPrefix() + "enabled=false)");
+            }
+            LOG.infof("%s '%s' disabled by configuration", kind, e.id());
+            return false;
+        }
+        boolean supported;
+        try {
+            e.configure(settings);
+            supported = e.isSupported(config, settings);
+        }
+        catch (RuntimeException ex) {
+            if (required || config.profile().shared()) {
+                throw new IllegalStateException(kind + " '" + e.id()
+                        + "' could not be configured or cannot tell whether it works with this" + " configuration ("
+                        + ex + "); " + (required ? "it is required" : "profile shared") + " does not start without it",
+                        ex);
+            }
+            LOG.warnf(ex, "%s '%s' left out: configure or isSupported failed: %s", kind, e.id(), ex.getMessage());
+            return false;
+        }
+        if (!supported) {
+            if (required) {
+                throw new IllegalStateException(kind + " '" + e.id() + "' is required (" + settings.providerPrefix()
+                        + "required=true) but not supported with the current configuration");
+            }
+            LOG.infof("%s '%s' left out: not supported with the current configuration", kind, e.id());
+        }
+        return supported;
     }
 }

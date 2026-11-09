@@ -104,7 +104,8 @@ public class IdpToolProvider extends AbstractToolProvider {
                         .string("firstBrokerLoginFlowAlias", "First login flow (default 'first broker login')")
                         .stringMap("config",
                                 "Provider config: clientId, clientSecret, authorizationUrl, tokenUrl, "
-                                        + "issuer, defaultScope, entityId, singleSignOnServiceUrl, ..."))
+                                        + "issuer, defaultScope, entityId, singleSignOnServiceUrl, ...")
+                        .sensitiveKeys(SECRET_KEYS.toArray(String[]::new)))
                     .handler(this::create)
                     .roles("manage-identity-providers")
                     .api(post(R + "/identity-provider/instances").body("IdentityProviderRepresentation", "alias",

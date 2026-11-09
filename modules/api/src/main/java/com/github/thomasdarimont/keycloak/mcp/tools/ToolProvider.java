@@ -20,10 +20,21 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  * {@code providers/} folder.</li>
  * <li>CDI: any bean implementing this interface.</li>
  * </ul>
- * Per-provider configuration lives under {@code kc-mcp.spi.<id>.*} (env
- * {@code KC_MCP_SPI_<ID>_*}); the key {@code enabled=false} switches a provider off.
+ * Per-provider configuration lives under {@code kc-mcp.spi.<spi>.<id>.*} (env
+ * {@code KC_MCP_SPI_<SPI>_<ID>_*}); the key {@code enabled=false} switches a provider
+ * off.
  */
 public interface ToolProvider extends Extension {
+
+    /**
+     * This extension point's name in configuration keys: {@code kc-mcp.spi.tools.<id>.*}.
+     */
+    String SPI = "tools";
+
+    @Override
+    default String spiName() {
+        return SPI;
+    }
 
     /** Unique, stable id such as {@code users} or {@code acme-custom}. */
     @Override
@@ -42,9 +53,5 @@ public interface ToolProvider extends Extension {
      */
     default List<AccessCheck> accessChecks(ToolProviderContext context) {
         return List.of();
-    }
-
-    /** Called on shutdown. */
-    default void close() {
     }
 }

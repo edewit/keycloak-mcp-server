@@ -1,0 +1,17 @@
+# Systems registered at runtime: no Keycloak in the configuration; systems come through the admin API (or a systems
+# file) and live in the embedded database with their signing keys. Register one with
+#   curl -X PUT http://localhost:8081/admin/systems/acme -H 'Authorization: Bearer change-me' \
+#     -H 'Content-Type: application/json' -d '{"url": "https://sso.acme.example", "authRealm": "master",
+#     "clientId": "keycloak-mcp-server", "clientAuth": "private_key_jwt", "defaultRealm": "acme", "signingKey": "generate"}'
+# then give the Keycloak client the JWKS URL http://<this server>:8081/auth/keys/acme/jwks.json (docs/systems.md,
+# "Walkthrough: a new system with private_key_jwt"). Several servers share one PostgreSQL instead of H2.
+#   cp conf/scenarios/dynamic-systems.conf.example conf/dynamic-systems.conf   # then edit, and
+#   bin/kcmcp.sh start --config conf/dynamic-systems.conf
+kc-mcp.static-systems=false
+kc-mcp.dynamic-systems=true
+kc-mcp.allowed-hosts=*.acme.example
+kc-mcp.admin.enabled=true
+kc-mcp.admin.token=change-me
+quarkus.datasource.jdbc.url=jdbc:h2:file:${kcmcp.home.dir}/data/kc-mcp
+kc-mcp.storage.secret-key=change-me-to-base64-of-32-random-bytes
+kc-mcp.tool-exposure=hybrid

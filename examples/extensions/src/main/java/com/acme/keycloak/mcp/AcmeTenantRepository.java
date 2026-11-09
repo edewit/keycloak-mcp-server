@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
@@ -12,9 +13,9 @@ import com.google.auto.service.AutoService;
 
 /**
  * Extension point {@link KeycloakSystemRepository}: Keycloak systems from a tenant
- * registry, here a setting ({@code KC_MCP_SPI_ACME_TENANTS_SYSTEMS}) of the form
- * {@code alias=https://sso.tenant.example[|realm];...}. Each tenant registers the
- * confidential client {@code keycloak-mcp-server} with Signed JWT and the JWKS URL
+ * registry, here a setting ({@code KC_MCP_SPI_SYSTEM_REPOSITORY_ACME_TENANTS_SYSTEMS}) of
+ * the form {@code alias=https://sso.tenant.example[|realm];...}. Each tenant registers
+ * the confidential client {@code keycloak-mcp-server} with Signed JWT and the JWKS URL
  * {@code <server>/auth/keys/<alias>/jwks.json}; the server signs with its own key per
  * tenant, so no secret appears here. Active only with
  * {@code kc-mcp.dynamic-systems=true}.
@@ -22,10 +23,10 @@ import com.google.auto.service.AutoService;
 @AutoService(KeycloakSystemRepository.class)
 public class AcmeTenantRepository implements KeycloakSystemRepository {
 
-    private final Map<String, KeycloakSystem> tenants;
+    private Map<String, KeycloakSystem> tenants;
 
     public AcmeTenantRepository() {
-        this(ProviderConfig.forExtension("acme-tenants", Map.of()).get("systems", ""));
+        this("");
     }
 
     AcmeTenantRepository(String setting) {
@@ -35,6 +36,20 @@ public class AcmeTenantRepository implements KeycloakSystemRepository {
     @Override
     public String id() {
         return "acme-tenants";
+    }
+
+    @Override
+    public void configure(ProviderConfig config) {
+        tenants = parse(config.get("systems", ""));
+    }
+
+    /**
+     * Without tenants in {@code kc-mcp.spi.system-repository.acme-tenants.systems} there
+     * is nothing to serve: left out.
+     */
+    @Override
+    public boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {
+        return !config.get("systems", "").isBlank();
     }
 
     @Override

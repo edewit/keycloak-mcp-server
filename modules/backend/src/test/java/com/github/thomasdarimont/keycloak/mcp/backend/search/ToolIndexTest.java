@@ -108,4 +108,20 @@ class ToolIndexTest {
         // unknown words pass through unchanged, English is untouched
         assertEquals(List.of("foobar", "user"), Tokenizer.tokens("foobar users"));
     }
+
+    @Test
+    void negationIsNotASafetyMechanismOfTheSearch() {
+        // "Benutzer nicht löschen, nur deaktivieren": the conversation is about deleting,
+        // so the
+        // delete tool belongs in the hits next to the disable tool; the level, the policy
+        // and
+        // the confirmation decide what runs, the search only finds (see the 2026-11-06
+        // review)
+        List<String> hits = index.search("Benutzer nicht löschen, nur deaktivieren", null, 5, s -> true)
+            .stream()
+            .map(h -> h.spec().name())
+            .toList();
+        assertTrue(hits.contains("keycloak_user_delete"), hits.toString());
+        assertTrue(hits.contains("keycloak_user_set_enabled"), hits.toString());
+    }
 }

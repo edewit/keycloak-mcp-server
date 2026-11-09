@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 
 import org.keycloak.admin.client.resource.OrganizationsResource;
@@ -191,7 +192,7 @@ public class OrgToolProvider extends AbstractToolProvider {
             try {
                 return orgs.get(idOrAliasOrName).toRepresentation();
             }
-            catch (jakarta.ws.rs.NotFoundException e) {
+            catch (NotFoundException e) {
                 // fall through
             }
         }

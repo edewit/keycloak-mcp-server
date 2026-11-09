@@ -1,0 +1,11 @@
+# Local admin: the Keycloak admin user through the public admin-cli client, every realm. For a Keycloak on your own
+# machine only; the password grant is deprecated and the admin user holds everything.
+#   cp conf/scenarios/local-admin.conf.example conf/local-admin.conf   # then edit, and
+#   bin/kcmcp.sh start --config conf/local-admin.conf
+kc-mcp.systems.default.url=http://localhost:8080
+kc-mcp.systems.default.auth-realm=master
+kc-mcp.systems.default.grant-type=password
+kc-mcp.systems.default.client-id=admin-cli
+kc-mcp.systems.default.username=admin
+kc-mcp.systems.default.password=admin
+kc-mcp.tool-exposure=hybrid

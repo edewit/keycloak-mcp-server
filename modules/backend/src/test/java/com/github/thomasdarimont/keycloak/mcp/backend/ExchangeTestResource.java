@@ -65,12 +65,15 @@ public class ExchangeTestResource implements QuarkusTestResourceLifecycleManager
         catch (IOException | InterruptedException e) {
             throw new IllegalStateException("Keycloak bootstrap failed", e);
         }
-        return Map.ofEntries(Map.entry("kc-mcp.url", base), Map.entry("kc-mcp.auth-realm", "demo"),
-                Map.entry("kc-mcp.delegation", "exchange"), Map.entry("kc-mcp.grant-type", "client_credentials"),
-                Map.entry("kc-mcp.client-id", ACTOR), Map.entry("kc-mcp.client-secret", ACTOR_SECRET),
-                Map.entry("kc-mcp.username", ""), Map.entry("kc-mcp.password", ""),
-                Map.entry("kc-mcp.default-realm", "demo"), Map.entry("kc-mcp.allowed-realms", "demo"),
-                Map.entry("kc-mcp.tool-exposure", "direct"), Map.entry("quarkus.oidc.tenant-enabled", "true"),
+        return Map.ofEntries(Map.entry("kc-mcp.systems.default.url", base),
+                Map.entry("kc-mcp.systems.default.auth-realm", "demo"), Map.entry("kc-mcp.delegation", "exchange"),
+                Map.entry("kc-mcp.systems.default.grant-type", "client_credentials"),
+                Map.entry("kc-mcp.systems.default.client-id", ACTOR),
+                Map.entry("kc-mcp.systems.default.client-secret", ACTOR_SECRET),
+                Map.entry("kc-mcp.systems.default.username", ""), Map.entry("kc-mcp.systems.default.password", ""),
+                Map.entry("kc-mcp.systems.default.default-realm", "demo"),
+                Map.entry("kc-mcp.systems.default.allowed-realms", "demo"), Map.entry("kc-mcp.tool-exposure", "direct"),
+                Map.entry("quarkus.oidc.tenant-enabled", "true"),
                 Map.entry("quarkus.oidc.auth-server-url", base + "/realms/demo"),
                 Map.entry("quarkus.oidc.token.audience", ACTOR),
                 Map.entry("quarkus.oidc.resource-metadata.scopes", "openid," + DELEGATION_SCOPE));

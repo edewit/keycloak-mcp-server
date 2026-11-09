@@ -29,11 +29,14 @@ import io.vertx.core.json.JsonObject;
  * @param accessChecks extra per-call predicates, evaluated after roles and before
  * confirmation
  * @param delegation whether the tool may run under delegated access
+ * @param sensitiveResult the result carries a secret (a client secret, a generated
+ * password): it still goes to the caller, who asked for it, but the audit event says so
+ * and nothing the server logs itself contains it
  */
 public record ToolSpec(String name, String title, String description, Category category, ToolLevel level,
         boolean idempotent, JsonObject inputSchema, List<String> synonyms, boolean hot, boolean realmScoped,
         List<ApiOperation> api, Set<String> requiredRoles, List<Requirement> requires, List<AccessCheck> accessChecks,
-        Delegation delegation, ToolHandler handler) {
+        Delegation delegation, ToolHandler handler, boolean sensitiveResult) {
 
     public ToolSpec {
         Objects.requireNonNull(name, "name");
@@ -61,7 +64,7 @@ public record ToolSpec(String name, String title, String description, Category c
 
     public ToolSpec withInputSchema(JsonObject schema) {
         return new ToolSpec(name, title, description, category, level, idempotent, schema, synonyms, hot, realmScoped,
-                api, requiredRoles, requires, accessChecks, delegation, handler);
+                api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult);
     }
 
     public ToolSpec withName(String newName) {
@@ -69,12 +72,12 @@ public record ToolSpec(String name, String title, String description, Category c
             return this;
         }
         return new ToolSpec(newName, title, description, category, level, idempotent, inputSchema, synonyms, hot,
-                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler);
+                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult);
     }
 
     public ToolSpec withHot(boolean hotFlag) {
         return new ToolSpec(name, title, description, category, level, idempotent, inputSchema, synonyms, hotFlag,
-                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler);
+                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult);
     }
 
     /** Parameter names declared in the (effective) schema, in declaration order. */
@@ -92,7 +95,7 @@ public record ToolSpec(String name, String title, String description, Category c
         private String title;
         private String description;
         private Category category;
-        private ToolLevel level = ToolLevel.READ;
+        private ToolLevel level;
         private Boolean idempotent;
         private JsonObject inputSchema;
         private final List<String> synonyms = new ArrayList<>();
@@ -104,6 +107,7 @@ public record ToolSpec(String name, String title, String description, Category c
         private final List<AccessCheck> accessChecks = new ArrayList<>();
         private Delegation delegation = Delegation.ALLOWED;
         private ToolHandler handler;
+        private boolean sensitiveResult;
 
         private Builder(String name) {
             this.name = name;
@@ -213,7 +217,7 @@ public record ToolSpec(String name, String title, String description, Category c
             return this;
         }
 
-        /** Additional per-call access predicate; several are ANDed. */
+        /** Additional per-call access predicate; several must all allow. */
         public Builder access(AccessCheck check) {
             accessChecks.add(check);
             return this;
@@ -228,15 +232,32 @@ public record ToolSpec(String name, String title, String description, Category c
             return this;
         }
 
+        /** The result carries a secret; see {@link ToolSpec#sensitiveResult()}. */
+        public Builder sensitiveResult() {
+            this.sensitiveResult = true;
+            return this;
+        }
+
         public Builder handler(ToolHandler handler) {
             this.handler = handler;
             return this;
         }
 
+        /**
+         * @throws IllegalStateException when no level was declared: every tool says
+         * {@link #read()}, {@link #write()} or {@link #destructive()}, the level drives
+         * the read-only filter, the confirmation and the explicit-target rule, so it is
+         * never assumed
+         */
         public ToolSpec build() {
+            if (level == null) {
+                throw new IllegalStateException("Tool '" + name + "' declares no level: call read(), write() or"
+                        + " destructive() on the builder (READ is not assumed, the level drives read-only mode,"
+                        + " confirmation and the explicit-target rule)");
+            }
             boolean idem = idempotent != null ? idempotent : level == ToolLevel.READ;
             return new ToolSpec(name, title, description, category, level, idem, inputSchema, synonyms, hot,
-                    realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler);
+                    realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult);
         }
     }
 }

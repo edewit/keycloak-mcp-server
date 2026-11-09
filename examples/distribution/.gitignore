@@ -1,0 +1,7 @@
+# the unpacked distribution and its archive (step 1 of the README), the server's key, logs
+keycloak-mcp-server-*/
+keycloak-mcp-server-*.tar.gz
+keycloak-mcp-server-*.zip
+*.pem
+*.log
+__pycache__/

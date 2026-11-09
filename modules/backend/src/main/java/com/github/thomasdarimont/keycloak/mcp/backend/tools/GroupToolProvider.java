@@ -1,5 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.tools;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -171,7 +173,7 @@ public class GroupToolProvider extends AbstractToolProvider {
         // keep real matches only
         String needle = Objects.requireNonNull(call.str("search")).toLowerCase();
         List<GroupRepresentation> tree = groups.groups(call.str("search"), false, call.first(), call.max(), false);
-        List<GroupRepresentation> flat = new java.util.ArrayList<>();
+        List<GroupRepresentation> flat = new ArrayList<>();
         flatten(tree, flat);
         List<GroupRepresentation> matches = flat.stream()
             .filter(g -> g.getName() != null && g.getName().toLowerCase().contains(needle))
@@ -194,7 +196,7 @@ public class GroupToolProvider extends AbstractToolProvider {
         GroupRepresentation full = call.kc().realm(call.realm()).groups().group(g.getId()).toRepresentation();
         Map<String, Object> m = Views.group(full);
         if (full.getAttributes() != null && !full.getAttributes().isEmpty()) {
-            Map<String, Object> attrs = new java.util.LinkedHashMap<>();
+            Map<String, Object> attrs = new LinkedHashMap<>();
             full.getAttributes().forEach((k, v) -> attrs.put(k, v != null && v.size() == 1 ? v.getFirst() : v));
             m.put("attributes", attrs);
         }

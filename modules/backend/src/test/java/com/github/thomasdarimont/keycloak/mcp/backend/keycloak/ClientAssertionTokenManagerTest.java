@@ -9,6 +9,7 @@ import java.security.KeyPairGenerator;
 import java.util.ArrayList;
 import java.util.List;
 import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
 
 import org.junit.jupiter.api.Test;
 
@@ -79,7 +80,7 @@ class ClientAssertionTokenManagerTest {
     @Test
     void requestsTheScopeAndDropsItWhenTheServerRefusesIt() throws Exception {
         try (TokenEndpoint old = new TokenEndpoint(false); TokenEndpoint current = new TokenEndpoint(true)) {
-            Client client = jakarta.ws.rs.client.ClientBuilder.newClient();
+            Client client = ClientBuilder.newClient();
 
             ClientAssertionTokenManager against26_8_1 = manager(client, old.url());
             assertEquals("kc-admin-api", against26_8_1.scope());

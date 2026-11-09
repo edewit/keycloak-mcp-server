@@ -1,0 +1,20 @@
+# The server itself serves HTTPS, and trusts a Keycloak behind a private CA. Combine with another scenario:
+#   cp conf/scenarios/https.conf.example conf/https.conf   # then edit, and
+#   bin/kcmcp.sh start --config conf/service-account.conf --config conf/https.conf
+# See docs/tls.md. Behind a TLS terminating proxy you need none of the https options.
+
+# The certificate: a PEM pair...
+kc-mcp.https-certificate-file=${kcmcp.home.dir}/conf/server.crt.pem
+kc-mcp.https-certificate-key-file=${kcmcp.home.dir}/conf/server.key.pem
+# ...or a PKCS12 or JKS key store (the PEM pair wins when both are set)
+#kc-mcp.https-key-store-file=${kcmcp.home.dir}/conf/server.p12
+#kc-mcp.https-key-store-password=change-me
+
+kc-mcp.https-port=8443
+# Plain HTTP stays on unless switched off; bearer tokens should not cross a network unencrypted.
+kc-mcp.http-enabled=false
+# Listen on all interfaces
+#quarkus.http.host=0.0.0.0
+
+# A Keycloak behind a private CA: put its CA into conf/truststores/, or name files or directories outside it
+#kc-mcp.truststore-paths=/etc/pki/my-company-ca.pem

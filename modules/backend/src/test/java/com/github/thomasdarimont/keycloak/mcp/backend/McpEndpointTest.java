@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend;
 
 import java.util.List;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -9,6 +10,7 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.RecordingAuditListener;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.RestAssured;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -33,20 +35,20 @@ class McpEndpointTest {
 
     @Test
     void corsAllowsLocalOriginsOnly() {
-        io.restassured.RestAssured.given()
+        RestAssured.given()
             .header("Origin", "http://localhost:5173")
             .header("Access-Control-Request-Method", "POST")
             .header("Access-Control-Request-Headers", "content-type,mcp-session-id,mcp-protocol-version")
             .options("/mcp")
             .then()
             .header("Access-Control-Allow-Origin", "http://localhost:5173")
-            .header("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsStringIgnoringCase("mcp-session-id"));
-        io.restassured.RestAssured.given()
+            .header("Access-Control-Allow-Headers", Matchers.containsStringIgnoringCase("mcp-session-id"));
+        RestAssured.given()
             .header("Origin", "https://evil.example")
             .header("Access-Control-Request-Method", "POST")
             .options("/mcp")
             .then()
-            .header("Access-Control-Allow-Origin", org.hamcrest.Matchers.nullValue());
+            .header("Access-Control-Allow-Origin", Matchers.nullValue());
     }
 
     @Test
@@ -231,6 +233,54 @@ class McpEndpointTest {
                 new JsonObject().put("name", "keycloak_user_serach").put("arguments", new JsonObject())));
         assertEquals("unknown_tool", unknown.getString("error"));
         assertEquals("keycloak_user_search", unknown.getJsonArray("didYouMean").getJsonObject(0).getString("name"));
+    }
+
+    @Test
+    void statelessClientConfirmsAcrossARetry() {
+        JsonObject args = new JsonObject().put("realm", "demo").put("id", "x");
+        JsonObject asked = mcp.statelessCall("keycloak_user_logout", args, null, null);
+        assertEquals("input_required", asked.getString("resultType"), asked.encode());
+        JsonObject question = asked.getJsonObject("inputRequests").getJsonObject("confirm-0");
+        assertNotNull(question, asked.encode());
+        assertEquals("elicitation/create", question.getString("method"), asked.encode());
+        assertTrue(question.getJsonObject("params").getString("message").contains("keycloak_user_logout"));
+        // ticked in advance: Accept alone confirms
+        assertTrue(question.getJsonObject("params")
+            .getJsonObject("requestedSchema")
+            .getJsonObject("properties")
+            .getJsonObject("confirm")
+            .getBoolean("default"), asked.encode());
+        String state = asked.getString("requestState");
+
+        JsonObject accept = new JsonObject().put("confirm-0",
+                new JsonObject().put("action", "accept").put("content", new JsonObject().put("confirm", true)));
+        // confirmed: past the guard and on to Keycloak (which is down)
+        JsonObject done = mcp.statelessCall("keycloak_user_logout", args, accept, state);
+        assertEquals("keycloak_unreachable", McpClient.text(done).getString("error"), done.encode());
+
+        JsonObject decline = new JsonObject().put("confirm-0", new JsonObject().put("action", "decline"));
+        JsonObject declined = mcp.statelessCall("keycloak_user_logout", args, decline, state);
+        assertEquals("cancelled", McpClient.text(declined).getString("error"), declined.encode());
+
+        // an answer to the question about another call does not count
+        JsonObject other = mcp.statelessCall("keycloak_user_logout", args.copy().put("id", "y"), accept, state);
+        assertEquals("input_required", other.getString("resultType"), other.encode());
+
+        // the redacted prompt reads the same for another password, the operation does not
+        JsonObject first = new JsonObject().put("realm", "demo").put("id", "x").put("password", "first-secret");
+        JsonObject resetAsked = mcp.statelessCall("keycloak_user_reset_password", first, null, null);
+        assertEquals("input_required", resetAsked.getString("resultType"), resetAsked.encode());
+        JsonObject changed = mcp.statelessCall("keycloak_user_reset_password",
+                first.copy().put("password", "other-secret"), accept, resetAsked.getString("requestState"));
+        assertEquals("input_required", changed.getString("resultType"), changed.encode());
+
+        // the same through the meta tool, the way the hybrid exposure reaches a
+        // destructive tool
+        JsonObject viaMeta = new JsonObject().put("name", "keycloak_user_logout").put("arguments", args);
+        JsonObject metaAsked = mcp.statelessCall("execute_tool", viaMeta, null, null);
+        assertEquals("input_required", metaAsked.getString("resultType"), metaAsked.encode());
+        JsonObject metaDone = mcp.statelessCall("execute_tool", viaMeta, accept, metaAsked.getString("requestState"));
+        assertEquals("keycloak_unreachable", McpClient.text(metaDone).getString("error"), metaDone.encode());
     }
 
     @Test

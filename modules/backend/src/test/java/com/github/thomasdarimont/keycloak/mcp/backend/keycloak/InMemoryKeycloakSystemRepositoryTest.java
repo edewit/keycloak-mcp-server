@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -29,7 +30,7 @@ class InMemoryKeycloakSystemRepositoryTest {
         CountDownLatch start = new CountDownLatch(1);
         AtomicInteger inconsistencies = new AtomicInteger();
         try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<Future<?>> tasks = new java.util.ArrayList<>();
+            List<Future<?>> tasks = new ArrayList<>();
             for (int w = 0; w < writers; w++) {
                 String name = "sys-" + (w % 4);
                 tasks.add(pool.submit(() -> {

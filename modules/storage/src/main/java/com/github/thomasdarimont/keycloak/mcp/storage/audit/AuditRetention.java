@@ -8,6 +8,7 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig;
@@ -16,12 +17,12 @@ import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
 
 /**
- * Removes audit events older than {@code kc-mcp.spi.db-audit.retention-days}
- * ({@code KC_MCP_SPI_DB_AUDIT_RETENTION_DAYS}): once at startup and then every hour, on a
- * worker thread, one {@code DELETE} by {@code occurred_at}. Unset or {@code 0} keeps
- * every row, as Keycloak's own event store does without an expiration. Several replicas
- * on one database may all purge; the statement is idempotent. Does nothing while the
- * storage is off or the {@code db-audit} listener is disabled.
+ * Removes audit events older than {@code kc-mcp.spi.audit-listener.db.retention-days}
+ * ({@code KC_MCP_SPI_AUDIT_LISTENER_DB_RETENTION_DAYS}): once at startup and then every
+ * hour, on a worker thread, one {@code DELETE} by {@code occurred_at}. Unset or {@code 0}
+ * keeps every row, as Keycloak's own event store does without an expiration. Several
+ * replicas on one database may all purge; the statement is idempotent. Does nothing while
+ * the storage is off or the {@code db} listener is disabled.
  */
 @ApplicationScoped
 public class AuditRetention {
@@ -43,7 +44,7 @@ public class AuditRetention {
         if (!active()) {
             return;
         }
-        LOG.infof("Audit events are kept for %d days (kc-mcp.spi.db-audit.retention-days)", retentionDays());
+        LOG.infof("Audit events are kept for %d days (kc-mcp.spi.audit-listener.db.retention-days)", retentionDays());
         purge();
     }
 
@@ -54,8 +55,8 @@ public class AuditRetention {
 
     /** The configured retention in days; {@code 0} for none. */
     public int retentionDays() {
-        return Math.max(0,
-                ProviderConfig.forExtension(DatabaseAuditListener.ID, serverConfig.spi()).getInt(RETENTION_DAYS, 0));
+        return Math.max(0, ProviderConfig.forExtension(AuditListener.SPI, DatabaseAuditListener.ID, serverConfig)
+            .getInt(RETENTION_DAYS, 0));
     }
 
     /**

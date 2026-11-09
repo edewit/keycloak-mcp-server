@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.http.HttpClient;
@@ -349,7 +350,7 @@ class UiLoginIT {
                 assertTrue(login.header("Location").endsWith("/ui/"), login.header("Location"));
                 return browser;
             }
-            catch (java.io.IOException | InterruptedException e) {
+            catch (IOException | InterruptedException e) {
                 throw new IllegalStateException(e);
             }
         }

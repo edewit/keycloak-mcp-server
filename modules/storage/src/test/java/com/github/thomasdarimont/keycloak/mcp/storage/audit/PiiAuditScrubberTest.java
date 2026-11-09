@@ -93,7 +93,7 @@ class PiiAuditScrubberTest {
 
     @Test
     void dropRemovesPersonalValuesAndKeepsTheRest() {
-        PiiAuditScrubber scrubber = new PiiAuditScrubber(Policy.DROP, "email, Search", "db-audit, siem", CRYPTO);
+        PiiAuditScrubber scrubber = new PiiAuditScrubber(Policy.DROP, "email, Search", "db, siem", CRYPTO);
         AuditEvent s = scrubber.scrub(userUpdate(), DB);
         assertEquals("***", s.args().get("email"));
         assertEquals("***", s.args().get("id"), "the id of a user tool counts whatever the list says");
@@ -113,11 +113,11 @@ class PiiAuditScrubberTest {
     @Test
     void thePolicyComesFromTheExtensionConfig() {
         assertEquals(Policy.PSEUDONYMIZE,
-                new PiiAuditScrubber(new ProviderConfig(PiiAuditScrubber.ID, Map.of("pii", "pseudonymize")), CRYPTO)
+                new PiiAuditScrubber(new ProviderConfig(PiiAuditScrubber.ID, Map.of("mode", "pseudonymize")), CRYPTO)
                     .policy());
         assertEquals(Policy.DROP,
-                new PiiAuditScrubber(new ProviderConfig(PiiAuditScrubber.ID, Map.of("pii", "drop")), CRYPTO).policy());
+                new PiiAuditScrubber(new ProviderConfig(PiiAuditScrubber.ID, Map.of("mode", "drop")), CRYPTO).policy());
         assertThrows(IllegalArgumentException.class,
-                () -> new PiiAuditScrubber(new ProviderConfig(PiiAuditScrubber.ID, Map.of("pii", "maybe")), CRYPTO));
+                () -> new PiiAuditScrubber(new ProviderConfig(PiiAuditScrubber.ID, Map.of("mode", "maybe")), CRYPTO));
     }
 }

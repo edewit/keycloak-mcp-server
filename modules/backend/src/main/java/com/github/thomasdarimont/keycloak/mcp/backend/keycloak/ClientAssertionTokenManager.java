@@ -43,6 +43,8 @@ public class ClientAssertionTokenManager implements AutoCloseable {
     private long expiresAt;
     private String scope;
     private boolean scopeRefused;
+    private Runnable onScopeRefused = () -> {
+    };
 
     public ClientAssertionTokenManager(Client client, String serverUrl, String realm, String clientId, JwtSigner signer,
             int assertionLifespan, GrantType grantType, String username, String password) {
@@ -75,6 +77,13 @@ public class ClientAssertionTokenManager implements AutoCloseable {
         this.grantType = grantType;
         this.username = username;
         this.password = password;
+    }
+
+    /** Called once when the server refuses the scope (metrics). */
+    public ClientAssertionTokenManager onScopeRefused(Runnable listener) {
+        this.onScopeRefused = listener == null ? () -> {
+        } : listener;
+        return this;
     }
 
     /**
@@ -171,6 +180,7 @@ public class ClientAssertionTokenManager implements AutoCloseable {
                     LOG.infof("Keycloak at %s does not know the scope '%s' (%s); requesting tokens without it",
                             tokenEndpoint, scope, body.replaceAll("\\s+", " ").trim());
                     scopeRefused = true;
+                    onScopeRefused.run();
                     grant();
                     return;
                 }

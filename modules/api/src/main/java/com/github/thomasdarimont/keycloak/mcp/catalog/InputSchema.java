@@ -29,7 +29,7 @@ public final class InputSchema {
         JsonObject realm = new JsonObject().put("type", "string");
         String desc = "Realm name";
         if ("(per system)".equals(defaultRealm)) {
-            desc += " (default: the system's default realm)";
+            desc += " (default: the system's default realm; at an entry /mcp/systems/<system>/<realm> omit it)";
         }
         else if (defaultRealm != null) {
             desc += " (default: " + defaultRealm + ")";
@@ -68,6 +68,9 @@ public final class InputSchema {
         return out;
     }
 
+    /** Tail of the system argument's description: entries override the default. */
+    static final String ENTRY_HINT = "; at an entry /mcp/systems/<name> omit it, the entry decides)";
+
     /**
      * Adds the {@code system} enum property in front of everything else (multi-system
      * deployments).
@@ -83,14 +86,18 @@ public final class InputSchema {
     public static JsonObject withSystem(JsonObject schema, List<String> systems, String defaultSystem,
             boolean enumerate) {
         JsonObject prop = new JsonObject().put("type", "string");
-        String description = defaultSystem != null ? "Keycloak system (default: " + defaultSystem + ")"
-                : "Keycloak system";
+        String description = "Keycloak system";
         if (enumerate) {
             prop.put("enum", new JsonArray(systems));
         }
         else if (systems != null && !systems.isEmpty()) {
             description += ", e.g. " + String.join(", ", systems);
         }
+        // the default holds at the root /mcp only: an entry /mcp/systems/<name> binds
+        // every
+        // call to its system, and a model told otherwise reasons in circles
+        description += defaultSystem != null ? " (default at /mcp: " + defaultSystem + ENTRY_HINT
+                : " (required at /mcp" + ENTRY_HINT;
         prop.put("description", description);
         JsonObject props = new JsonObject().put(SYSTEM, prop);
         JsonObject old = schema.getJsonObject("properties");
@@ -199,6 +206,37 @@ public final class InputSchema {
         public Builder anyMap(String name, String description) {
             add(name, "object", description);
             current.put("additionalProperties", true);
+            return this;
+        }
+
+        /**
+         * Marks the most recently added property as sensitive (a password, a secret):
+         * JSON Schema {@code writeOnly}, and {@code format: password} for a string, so
+         * clients can mask it; the server never shows or records its value (audit log,
+         * confirmation prompts, the CIBA device), see {@link Sensitive}.
+         */
+        public Builder sensitive() {
+            current.put("writeOnly", true);
+            if ("string".equals(current.getString("type"))) {
+                current.put("format", "password");
+            }
+            return this;
+        }
+
+        /**
+         * Marks keys of the most recently added map property as sensitive, e.g. the
+         * {@code clientSecret} in an identity provider's {@code config}: they become
+         * declared {@code writeOnly} properties of the object, other keys stay free.
+         */
+        public Builder sensitiveKeys(String... keys) {
+            JsonObject props = current.getJsonObject("properties");
+            if (props == null) {
+                props = new JsonObject();
+                current.put("properties", props);
+            }
+            for (String k : keys) {
+                props.put(k, new JsonObject().put("type", "string").put("writeOnly", true).put("format", "password"));
+            }
             return this;
         }
 

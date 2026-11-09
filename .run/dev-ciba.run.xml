@@ -1,0 +1,49 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="quarkus:dev (ciba: ciba-confirm stack on :8098, approver :8095, MCP :8099)" type="MavenRunConfiguration" factoryName="Maven">
+    <MavenSettings>
+      <option name="myGeneralSettings" />
+      <option name="myRunnerSettings">
+        <MavenRunnerSettings>
+          <option name="delegateBuildToMaven" value="false" />
+          <option name="environmentProperties">
+            <map>
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_URL" value="http://localhost:8098" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM" value="demo" />
+              <entry key="KC_MCP_DELEGATION" value="forward" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_DEFAULT_REALM" value="demo" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_ALLOWED_REALMS" value="demo" />
+              <entry key="KC_MCP_TOOL_EXPOSURE" value="hybrid" />
+              <entry key="KC_MCP_CONFIRM_FALLBACK" value="deny" />
+              <entry key="QUARKUS_HTTP_PORT" value="8099" />
+              <entry key="QUARKUS_OIDC_TENANT_ENABLED" value="true" />
+              <entry key="QUARKUS_OIDC_TOKEN_AUDIENCE" value="mcp-admin" />
+              <entry key="QUARKUS_OIDC_RESOURCE_METADATA_SCOPES" value="openid" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_ENABLED" value="true" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_ID" value="mcp-ciba" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_SECRET" value="mcp-ciba-secret" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_TIMEOUT_SECONDS" value="90" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_POLL_WAIT_SECONDS" value="25" />
+            </map>
+          </option>
+          <option name="jreName" value="#USE_PROJECT_JDK" />
+          <option name="mavenProperties"><map /></option>
+          <option name="passParentEnv" value="true" />
+          <option name="runMavenInBackground" value="true" />
+          <option name="skipTests" value="false" />
+          <option name="vmOptions" value="" />
+        </MavenRunnerSettings>
+      </option>
+      <option name="myRunnerParameters">
+        <MavenRunnerParameters>
+          <option name="profiles"><set /></option>
+          <option name="goals"><list><option value="quarkus:dev" /><option value="-pl" /><option value="modules/backend" /><option value="-am" /></list></option>
+          <option name="pomFileName" value="pom.xml" />
+          <option name="profilesMap"><map /></option>
+          <option name="resolveToWorkspace" value="false" />
+          <option name="workingDirPath" value="$PROJECT_DIR$" />
+        </MavenRunnerParameters>
+      </option>
+    </MavenSettings>
+    <method v="2" />
+  </configuration>
+</component>

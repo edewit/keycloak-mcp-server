@@ -1,6 +1,8 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.systems;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -19,10 +21,11 @@ import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SystemTimestamps;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
-import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
@@ -40,19 +43,19 @@ import io.vertx.core.json.JsonArray;
  * when {@code kc-mcp.storage.secret-key} is set.
  * <p>
  * Reads serve a snapshot of the enabled rows that is reloaded when older than
- * {@code kc-mcp.spi.db-systems.cache-seconds} (10 by default; a write through this
- * instance reloads at once), so a tool call costs no query, and a system registered on
- * another replica shows up within that time. The server asks repositories from event loop
- * threads too (the {@code tools/list} filter), where no database call is allowed: there
- * the current snapshot is served as is and a refresh is left to a worker thread.
+ * {@code kc-mcp.spi.system-repository.db.cache-seconds} (10 by default; a write through
+ * this instance reloads at once), so a tool call costs no query, and a system registered
+ * on another replica shows up within that time. The server asks repositories from event
+ * loop threads too (the {@code tools/list} filter), where no database call is allowed:
+ * there the current snapshot is served as is and a refresh is left to a worker thread.
  */
 @ApplicationScoped
-@LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
+@LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRepository {
 
-    public static final String ID = "db-systems";
+    public static final String ID = "db";
 
-    /** Default of {@code kc-mcp.spi.db-systems.cache-seconds}. */
+    /** Default of {@code kc-mcp.spi.system-repository.db.cache-seconds}. */
     public static final int DEFAULT_CACHE_SECONDS = 10;
 
     private static final String ENABLED_IN_ORDER = "enabled = true order by createdAt, alias";
@@ -71,8 +74,8 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
 
     @Inject
     public DatabaseKeycloakSystemRepository(StorageCrypto crypto, McpServerConfig serverConfig) {
-        this(crypto,
-                ProviderConfig.forExtension(ID, serverConfig.spi()).getInt("cache-seconds", DEFAULT_CACHE_SECONDS));
+        this(crypto, ProviderConfig.forExtension(KeycloakSystemRepository.SPI, ID, serverConfig)
+            .getInt("cache-seconds", DEFAULT_CACHE_SECONDS));
     }
 
     /**
@@ -145,11 +148,11 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
                 return s.systems();
             }
             Map<String, KeycloakSystem> loaded = QuarkusTransaction.requiringNew().call(() -> {
-                Map<String, KeycloakSystem> out = new java.util.LinkedHashMap<>();
+                Map<String, KeycloakSystem> out = new LinkedHashMap<>();
                 for (SystemEntity e : SystemEntity.<SystemEntity>list(ENABLED_IN_ORDER)) {
                     out.put(e.alias, toSystem(e));
                 }
-                return java.util.Collections.unmodifiableMap(out);
+                return Collections.unmodifiableMap(out);
             });
             snapshot = new Snapshot(loaded, System.currentTimeMillis(), true);
             return loaded;
@@ -222,6 +225,8 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
         e.defaultRealm = system.defaultRealm().orElse(null);
         e.allowedRealms = system.allowedRealms().isEmpty() ? null
                 : new JsonArray(system.allowedRealms().stream().sorted().toList()).encode();
+        e.trustedIssuers = system.trustedIssuers().isEmpty() ? null
+                : new JsonArray(system.trustedIssuers().stream().sorted().toList()).encode();
         e.version = system.version().orElse(null);
         e.issuer = system.issuer().orElse(null);
         e.updatedAt = now;
@@ -277,6 +282,7 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
             .clientSecret(crypto.reveal(e.clientSecret))
             .defaultRealm(e.defaultRealm)
             .allowedRealms(realms(e.allowedRealms))
+            .trustedIssuers(realms(e.trustedIssuers))
             .version(e.version)
             .issuer(e.issuer)
             .displayName(e.name)

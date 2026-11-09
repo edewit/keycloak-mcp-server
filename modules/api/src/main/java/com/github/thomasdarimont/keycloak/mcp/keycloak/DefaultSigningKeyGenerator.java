@@ -34,7 +34,7 @@ public class DefaultSigningKeyGenerator implements SigningKeyGenerator {
 
     @Override
     public String id() {
-        return "default-signing-key-generator";
+        return "default";
     }
 
     @Override

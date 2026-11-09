@@ -19,13 +19,23 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  */
 public interface KeycloakSystemRepository extends Extension {
 
+    /**
+     * This extension point's name in configuration keys:
+     * {@code kc-mcp.spi.system-repository.<id>.*}.
+     */
+    String SPI = "system-repository";
+
+    @Override
+    default String spiName() {
+        return SPI;
+    }
+
     /** The names of the systems this repository currently knows. */
     List<String> names();
 
     /** A system by name, empty when this repository does not know it. */
     Optional<KeycloakSystem> find(String name);
 
-    /** All systems, in the order of {@link #names()}. */
     /**
      * When the record of a system was created and last changed, for repositories that
      * keep that; empty by default and for unknown names.
@@ -34,6 +44,7 @@ public interface KeycloakSystemRepository extends Extension {
         return Optional.empty();
     }
 
+    /** All systems, in the order of {@link #names()}. */
     default List<KeycloakSystem> all() {
         return names().stream().map(this::find).flatMap(Optional::stream).toList();
     }

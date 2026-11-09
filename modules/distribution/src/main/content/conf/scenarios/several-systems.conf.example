@@ -1,0 +1,13 @@
+# Several Keycloak systems from one server: every tool gets a system argument (prod, staging), each system its own
+# realms. Settings not given per system fall back to the top-level ones; see docs/systems.md.
+#   cp conf/scenarios/several-systems.conf.example conf/several-systems.conf   # then edit, and
+#   bin/kcmcp.sh start --config conf/several-systems.conf
+kc-mcp.system-defaults.auth-realm=demo
+kc-mcp.system-defaults.grant-type=client_credentials
+kc-mcp.system-defaults.client-id=mcp-admin
+kc-mcp.system-defaults.client-secret=change-me
+kc-mcp.system-defaults.default-realm=demo
+kc-mcp.systems.prod.url=https://sso.example.com
+kc-mcp.systems.staging.url=https://sso-staging.example.com
+kc-mcp.systems.staging.allowed-realms=demo
+kc-mcp.default-system=prod

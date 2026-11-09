@@ -3,9 +3,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -16,6 +14,7 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
 import com.github.thomasdarimont.keycloak.mcp.audit.NoOpAuditScrubber;
+import com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
@@ -81,15 +80,19 @@ public class AuditLog {
         String message = null;
         if (result.isError() && result.payload() instanceof Map<?, ?> m && m.get("error") != null) {
             outcome = String.valueOf(m.get("error"));
-            message = m.get("message") == null ? null : String.valueOf(m.get("message"));
+            // a raw exception text may echo what the caller sent or what a server
+            // answered:
+            // secrets out, length capped
+            message = m.get("message") == null ? null
+                    : Sensitive.scrub(String.valueOf(m.get("message")), spec.inputSchema(), args);
         }
         else if (result.isError()) {
+            // no structured error: the code only, never the result itself
             outcome = "error";
-            message = result.toJson();
         }
-        AuditEvent event = new AuditEvent(Instant.now(), spec.name(), spec.level(), system, realm, redact(args),
-                outcome, message, ctx.via(), ctx.caller().withoutToken(), ctx.clientName(), ctx.connectionId(),
-                Duration.ofNanos(nanos));
+        AuditEvent event = new AuditEvent(Instant.now(), spec.name(), spec.level(), system, realm,
+                Sensitive.redact(spec.inputSchema(), args), outcome, message, ctx.via(), ctx.caller().withoutToken(),
+                ctx.clientName(), ctx.connectionId(), Duration.ofNanos(nanos), spec.sensitiveResult());
         for (AuditListener l : listeners) {
             try {
                 AuditEvent scrubbed = event;
@@ -110,20 +113,11 @@ public class AuditLog {
     }
 
     /**
-     * Replaces values of password-like arguments (any nesting level is not needed:
-     * schemas are flat).
+     * The arguments with password-like values replaced (name hints only; see
+     * {@code Sensitive}).
      */
     static Map<String, Object> redact(Map<String, Object> args) {
-        if (args == null || args.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        args.forEach((k, v) -> {
-            String key = k.toLowerCase(Locale.ROOT);
-            boolean secret = v != null && SECRET_ARGS.stream().anyMatch(key::contains);
-            out.put(k, secret ? "***" : v);
-        });
-        return out;
+        return Sensitive.redact(null, args);
     }
 
 }

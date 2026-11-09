@@ -111,6 +111,48 @@ public class McpClient {
         return result;
     }
 
+    /**
+     * A {@code tools/call} of a stateless (2026-07-28) client that supports elicitation,
+     * without a session.
+     *
+     * @return the JSON-RPC result, an {@code input_required} one or the tool's
+     */
+    public JsonObject statelessCall(String name, JsonObject arguments, JsonObject inputResponses, String requestState) {
+        String version = "2026-07-28";
+        String prefix = "io.modelcontextprotocol/";
+        JsonObject params = new JsonObject().put("name", name)
+            .put("arguments", arguments)
+            .put("_meta",
+                    new JsonObject().put(prefix + "protocolVersion", version)
+                        .put(prefix + "clientCapabilities", new JsonObject().put("elicitation", new JsonObject()))
+                        .put(prefix + "clientInfo", new JsonObject().put("name", "test-client").put("version", "1.0")));
+        if (inputResponses != null) {
+            params.put("inputResponses", inputResponses);
+        }
+        if (requestState != null) {
+            params.put("requestState", requestState);
+        }
+        JsonObject msg = new JsonObject().put("jsonrpc", "2.0")
+            .put("id", ids.incrementAndGet())
+            .put("method", "tools/call")
+            .put("params", params);
+        Response r = given().header("Accept", "application/json, text/event-stream")
+            .header("Content-Type", "application/json")
+            .header("Mcp-Protocol-Version", version)
+            .header("Mcp-Method", "tools/call")
+            .header("Mcp-Name", name)
+            .body(msg.encode())
+            .post(path);
+        if (r.statusCode() >= 400) {
+            throw new IllegalStateException("HTTP " + r.statusCode() + ": " + r.asString());
+        }
+        JsonObject response = parse(r);
+        if (response.containsKey("error")) {
+            throw new IllegalStateException(response.getJsonObject("error").encode());
+        }
+        return response.getJsonObject("result");
+    }
+
     /** Parses the text content of a tool result as JSON. */
     public static JsonObject text(JsonObject toolResult) {
         return new JsonObject(toolResult.getJsonArray("content").getJsonObject(0).getString("text"));

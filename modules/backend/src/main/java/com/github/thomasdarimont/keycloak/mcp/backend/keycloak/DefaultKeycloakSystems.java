@@ -1,22 +1,30 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ErrorMapper;
+import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.PrivateHosts;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.CompositeKeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAddressCheck;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAllowList;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.InMemoryKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
@@ -26,7 +34,8 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
-import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
+
+import io.quarkus.runtime.BlockingOperationNotAllowedException;
 
 /**
  * The Keycloak systems: a {@link CompositeKeycloakSystemRepository} of the static
@@ -58,12 +67,47 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     private final HostAllowList allowedHosts;
     private final SigningKeys keys;
     private final DelegationMode delegation;
+    private volatile PrivateHosts dynamicPrivateHosts = PrivateHosts.ALLOW;
+    private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
+    private volatile Duration readTimeout = OutboundClients.Timeouts.DEFAULT.read();
+    private volatile CallerIssuerPolicies issuerPolicies = CallerIssuerPolicies.builtIn();
 
     @Inject
-    public DefaultKeycloakSystems(McpServerConfig config, SigningKeys keys, Extensions extensions) {
+    public DefaultKeycloakSystems(McpServerConfig config, SigningKeys keys, Extensions extensions,
+            KcMcpMetrics metrics) {
         this(resolve(config), config.defaultSystem().orElse(null), keys,
                 HostAllowList.of(config.allowedHosts().orElse(List.of())), repositories(config, extensions),
                 config.staticSystemsOrder(), config.delegation());
+        this.metrics = metrics;
+        this.issuerPolicies = new CallerIssuerPolicies(issuerPolicies(config, extensions));
+        this.readTimeout = config.http().readTimeout();
+        this.dynamicPrivateHosts = config.effectiveDynamicPrivateHosts();
+    }
+
+    /**
+     * Whether systems from repositories may resolve to private addresses
+     * ({@code kc-mcp.dynamic-private-hosts}).
+     */
+    public DefaultKeycloakSystems dynamicPrivateHosts(PrivateHosts setting) {
+        this.dynamicPrivateHosts = setting == null ? PrivateHosts.ALLOW : setting;
+        return this;
+    }
+
+    public PrivateHosts dynamicPrivateHosts() {
+        return dynamicPrivateHosts;
+    }
+
+    /**
+     * Why a URL may not serve as a system registered at runtime, empty when it may: not
+     * covered by {@code kc-mcp.allowed-hosts}, or resolving to a private address the list
+     * does not name literally ({@link HostAddressCheck}).
+     */
+    public Optional<String> dynamicHostProblem(String url) {
+        if (!allowedHosts.permits(url)) {
+            return Optional
+                .of("The url " + url + " is not covered by kc-mcp.allowed-hosts " + allowedHosts.patterns() + ".");
+        }
+        return HostAddressCheck.refuse(url, allowedHosts, dynamicPrivateHosts);
     }
 
     public DefaultKeycloakSystems(List<KeycloakSystem> systems, String defaultSystem, SigningKeys keys) {
@@ -107,7 +151,8 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         this.allowedHosts = allowedHosts;
         this.dynamic = !repositories.isEmpty();
         if (systems.isEmpty() && repositories.isEmpty()) {
-            throw new IllegalStateException("No Keycloak system configured");
+            throw new IllegalStateException("No Keycloak system configured: set kc-mcp.systems.<name>.url"
+                    + " (kc-mcp.systems.default.url for a single one), or kc-mcp.dynamic-systems=true with a repository");
         }
         for (KeycloakSystem s : systems) {
             if (!allowedHosts.permits(s.url())) {
@@ -120,7 +165,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         all.add(staticSystems);
         all.addAll(repositories);
         this.repository = new CompositeKeycloakSystemRepository(all, (r, e) -> {
-            if (e instanceof io.quarkus.runtime.BlockingOperationNotAllowedException) {
+            if (e instanceof BlockingOperationNotAllowedException) {
                 // a programming error worth a stack trace: a caller resolved systems on
                 // the event loop
                 LOG.warnf(e, "Keycloak system repository '%s' was asked on an event loop thread", r.id());
@@ -143,7 +188,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
             this.defaultName = defaultSystem;
         }
         else if (systems.size() == 1 && !dynamic) {
-            this.defaultName = systems.get(0).name();
+            this.defaultName = systems.getFirst().name();
         }
         else {
             this.defaultName = staticSystems.find(KeycloakSystem.DEFAULT_NAME).isPresent() ? KeycloakSystem.DEFAULT_NAME
@@ -152,19 +197,41 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         ErrorMapper.register(KeycloakErrors::map);
     }
 
+    /**
+     * The configured systems, {@code kc-mcp.systems.<name>.*} each; none without a block
+     * (the registry then needs a repository). {@code kc-mcp.system-defaults.url} is a
+     * mistake worth stopping for: defaults do not make a system.
+     */
     public static List<KeycloakSystem> resolve(McpServerConfig config) {
         if (!config.staticSystems()) {
             return List.of();
         }
-        if (config.systems().isEmpty()) {
-            return List.of(KeycloakSystem.fromTopLevel(config));
+        if (config.systemDefaults().url().filter(v -> !v.isBlank()).isPresent()) {
+            throw new IllegalStateException("kc-mcp.system-defaults.url does not configure a system: name it,"
+                    + " kc-mcp.systems.<name>.url (the system 'default' is kc-mcp.systems.default.url)");
         }
+        // a block without a url is no system: a blank url switches a configured one off
+        // (a test or a
+        // deployment overriding a file)
         return config.systems()
             .entrySet()
             .stream()
+            .filter(e -> e.getValue().url().filter(v -> !v.isBlank()).isPresent())
             .sorted(Map.Entry.comparingByKey())
             .map(e -> KeycloakSystem.resolve(e.getKey(), config, e.getValue()))
             .toList();
+    }
+
+    /** The registered {@link CallerIssuerPolicy}s, minus the disabled and unsupported. */
+    static List<CallerIssuerPolicy> issuerPolicies(McpServerConfig config, Extensions extensions) {
+        List<CallerIssuerPolicy> found = new ArrayList<>();
+        for (CallerIssuerPolicy p : extensions.discover(CallerIssuerPolicy.class)) {
+            if (extensions.admit(p, "CallerIssuerPolicy", config)) {
+                found.add(p);
+                LOG.infof("Caller issuer policy '%s' registered (%s)", p.id(), p.getClass().getName());
+            }
+        }
+        return found;
     }
 
     /**
@@ -179,11 +246,8 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                         + " let repositories add systems at runtime", r.id());
                 continue;
             }
-            if (ProviderConfig.forExtension(r.id(), config.spi()).getBoolean("enabled", true)) {
+            if (extensions.admit(r, "KeycloakSystemRepository", config)) {
                 found.add(r);
-            }
-            else {
-                LOG.infof("Keycloak system repository '%s' disabled by configuration", r.id());
             }
         }
         return found;
@@ -205,6 +269,19 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     /** The repository that knows a system, empty when none does. */
     public Optional<KeycloakSystemRepository> repositoryOf(String name) {
         return repository.repositories().stream().filter(r -> r.find(name).isPresent()).findFirst();
+    }
+
+    /**
+     * The check a system's admin client runs on a caller token's issuer: the policy
+     * chain, with the system's own Keycloak as the bases the built-in rule accepts, its
+     * URL and its configured {@code issuer} (the public address of an internally reached
+     * Keycloak). What the default OIDC tenant verifies does not count: it may be another
+     * Keycloak, and a token of that one must not reach this system unless trusted
+     * explicitly.
+     */
+    private Function<String, Optional<String>> callerIssuerCheck(KeycloakSystem system) {
+        Set<String> own = DefaultKeycloakAdmin.callerIssuerBases(system, List.of());
+        return issuer -> issuerPolicies.refusal(issuer, system, own);
     }
 
     /** The hosts the server may talk to. */
@@ -255,7 +332,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     public List<String> names() {
         List<String> out = new ArrayList<>(repository.names());
         if (defaultName != null && out.remove(defaultName)) {
-            out.add(0, defaultName);
+            out.addFirst(defaultName);
         }
         return List.copyOf(out);
     }
@@ -299,7 +376,16 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                     system.url(), allowedHosts.patterns());
             return Optional.empty();
         }
-        KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation);
+        if (staticSystems.find(name).isEmpty()) {
+            Optional<String> privateHost = HostAddressCheck.refuse(system.url(), allowedHosts, dynamicPrivateHosts);
+            if (privateHost.isPresent()) {
+                LOG.warnf("Keycloak system '%s' refused: %s", name, privateHost.get());
+                return Optional.empty();
+            }
+        }
+        KeycloakAdmin created = new DefaultKeycloakAdmin(system, keys, delegation).metrics(metrics)
+            .readTimeout(readTimeout)
+            .callerIssuerCheck(callerIssuerCheck(system));
         KeycloakAdmin previous = admins.put(name, created);
         if (previous != null) {
             LOG.infof("Keycloak system '%s' changed at its repository, reconnecting to %s", name, system.url());

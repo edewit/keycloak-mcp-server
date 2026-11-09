@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class GrantedRolesTest {
     }
 
     static JsonObject resourceAccess(String client, String... roles) {
-        return new JsonObject().put(client, new JsonObject().put("roles", new JsonArray(java.util.List.of(roles))));
+        return new JsonObject().put(client, new JsonObject().put("roles", new JsonArray(List.of(roles))));
     }
 
     @Test

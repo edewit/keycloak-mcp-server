@@ -1,11 +1,10 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.ui;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import jakarta.annotation.Priority;
@@ -19,8 +18,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
-import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
-import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSession;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
 
@@ -133,7 +130,7 @@ public class UserSessionTokenStateManager implements TokenStateManager {
         if (s == null) {
             s = resolve().orElseThrow(() -> new IllegalStateException(
                     "The management UI needs a UserSessionStore: configure the database storage"
-                            + " (quarkus.datasource.jdbc.url) or register one (kc-mcp.spi.db-user-sessions)"));
+                            + " (quarkus.datasource.jdbc.url) or register one (kc-mcp.spi.session-store.db)"));
             store = s;
         }
         return s;
@@ -141,14 +138,7 @@ public class UserSessionTokenStateManager implements TokenStateManager {
 
     /** The store the server would use, empty when none is registered and enabled. */
     public Optional<UserSessionStore> resolve() {
-        List<UserSessionStore> found = new ArrayList<>();
-        for (UserSessionStore candidate : extensions.discover(UserSessionStore.class)) {
-            if (ProviderConfig.forExtension(candidate.id(), config.spi()).getBoolean("enabled", true)) {
-                found.add(candidate);
-            }
-        }
-        found.sort(Comparator.comparingInt(Extension::order).thenComparing(Extension::id));
-        return found.stream().findFirst();
+        return extensions.select(UserSessionStore.class, UserSessionStore.SPI, "UserSessionStore", config, List.of());
     }
 
     private String newId() {
@@ -199,7 +189,7 @@ public class UserSessionTokenStateManager implements TokenStateManager {
         try {
             return json.readTree(new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8));
         }
-        catch (RuntimeException | java.io.IOException e) {
+        catch (RuntimeException | IOException e) {
             LOG.debugf("Cannot read the payload of a token (%d parts, head %s, part1 head %s): %s", parts.length,
                     jwt.substring(0, Math.min(16, jwt.length())),
                     parts[1].substring(0, Math.min(16, parts[1].length())), e.toString());

@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.access;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
@@ -20,6 +21,17 @@ import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 @FunctionalInterface
 public interface AccessCheck extends Extension {
 
+    /**
+     * This extension point's name in configuration keys:
+     * {@code kc-mcp.spi.access-check.<id>.*}.
+     */
+    String SPI = "access-check";
+
+    @Override
+    default String spiName() {
+        return SPI;
+    }
+
     Decision check(Context context);
 
     /**
@@ -32,9 +44,17 @@ public interface AccessCheck extends Extension {
      * @param caller who is acting through the connection
      * @param keycloak the admin client the call will run with (the caller's own under
      * delegation); {@code null} in unit tests
+     * @param attributes scratch space of this one evaluation, fresh per call: a check
+     * that looks something up, a directory say, keeps it here so the other checks of the
+     * same call reuse it instead of asking Keycloak again
      */
     record Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
-            Caller caller, KeycloakAdmin keycloak) {
+            Caller caller, KeycloakAdmin keycloak, Map<String, Object> attributes) {
+
+        public Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
+                Caller caller, KeycloakAdmin keycloak) {
+            this(tool, system, realm, args, roles, caller, keycloak, new ConcurrentHashMap<>());
+        }
 
         public Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
                 Caller caller) {
@@ -52,12 +72,20 @@ public interface AccessCheck extends Extension {
     }
 
     /**
-     * {@code allowed} or a denial with an error code (defaults to {@code access_denied})
-     * and a message.
+     * {@code allowed}, a denial with an error code (defaults to {@code access_denied})
+     * and a message, or {@code confirmation}: allowed provided the human confirms this
+     * very call themselves. The server then runs the call through its confirmers as if
+     * the tool were destructive, with the model's {@code confirm: true} not counting, so
+     * only a client with elicitation or a confirmer that asks the human (CIBA) lets it
+     * through; {@code code} and {@code message} say why.
      */
-    record Decision(boolean allowed, String code, String message) {
+    record Decision(boolean allowed, String code, String message, boolean confirmation) {
 
-        public static final Decision ALLOW = new Decision(true, null, null);
+        public static final Decision ALLOW = new Decision(true, null, null, false);
+
+        public Decision(boolean allowed, String code, String message) {
+            this(allowed, code, message, false);
+        }
 
         public static Decision allow() {
             return ALLOW;
@@ -69,6 +97,11 @@ public interface AccessCheck extends Extension {
 
         public static Decision deny(String code, String message) {
             return new Decision(false, code, message);
+        }
+
+        /** Allowed once the human confirms it themselves; see {@link #confirmation()}. */
+        public static Decision confirm(String code, String message) {
+            return new Decision(true, code, message, true);
         }
     }
 }

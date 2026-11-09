@@ -11,7 +11,9 @@ import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.access.RoleRef;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.DefaultExtensionRegistry;
+import com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -50,10 +52,7 @@ class CatalogLintTest {
             if (spec.realmScoped() && spec.requiredRoles().isEmpty() && !spec.name().startsWith("keycloak_acme_")) {
                 problems.add(spec.name() + ": realm scoped tool without requiredRoles");
             }
-            List<com.github.thomasdarimont.keycloak.mcp.access.RoleRef> refs = spec.requiredRoles()
-                .stream()
-                .map(com.github.thomasdarimont.keycloak.mcp.access.RoleRef::parse)
-                .toList();
+            List<RoleRef> refs = spec.requiredRoles().stream().map(RoleRef::parse).toList();
             if (spec.isReadOnly()
                     && refs.stream().anyMatch(r -> r.isRealmManagement() && r.role().startsWith("manage-"))) {
                 problems.add(spec.name() + ": READ tool requiring a manage-* role");
@@ -71,7 +70,8 @@ class CatalogLintTest {
                 if (prop.containsKey("oneOf") || prop.containsKey("anyOf") || prop.containsKey("allOf")) {
                     problems.add(spec.name() + "." + p + ": no oneOf/anyOf/allOf");
                 }
-                if ("object".equals(prop.getString("type")) && prop.containsKey("properties")) {
+                if ("object".equals(prop.getString("type")) && prop.containsKey("properties")
+                        && !onlySensitiveKeyDeclarations(prop.getJsonObject("properties"))) {
                     problems.add(spec.name() + "." + p + ": nested object properties");
                 }
                 if ("array".equals(prop.getString("type"))
@@ -125,5 +125,42 @@ class CatalogLintTest {
             }
         }
         return names;
+    }
+
+    @Test
+    void secretLookingArgumentsAreDeclaredSensitive() {
+        // the name hints are a fallback; every built-in secret argument is declared, so
+        // that
+        // clients can mask it and the redaction does not depend on how an argument is
+        // named
+        List<String> undeclared = new ArrayList<>();
+        for (ToolSpec spec : catalog.all()) {
+            var props = spec.inputSchema().getJsonObject("properties");
+            if (props == null) {
+                continue;
+            }
+            for (String name : props.fieldNames()) {
+                boolean looksSecret = Sensitive.byName(name);
+                if (looksSecret && !props.getJsonObject(name).getBoolean("writeOnly", false)) {
+                    undeclared.add(spec.name() + "." + name);
+                }
+            }
+        }
+        assertTrue(undeclared.isEmpty(), "declare with .sensitive(): " + undeclared);
+    }
+
+    @Test
+    void secretReturningToolsDeclareTheirResult() {
+        for (String name : List.of("keycloak_client_get_secret", "keycloak_client_regenerate_secret")) {
+            assertTrue(catalog.get(name).orElseThrow().sensitiveResult(), name);
+        }
+    }
+
+    /**
+     * A map's declared {@code writeOnly} keys (see {@code sensitiveKeys}) are not a
+     * nested schema for the model.
+     */
+    static boolean onlySensitiveKeyDeclarations(JsonObject props) {
+        return props.fieldNames().stream().allMatch(k -> props.getJsonObject(k).getBoolean("writeOnly", false));
     }
 }

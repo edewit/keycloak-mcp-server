@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.catalog;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,7 +41,7 @@ public record PromptSpec(String name, String title, String description, List<Arg
 
     /** Arguments as received plus the defaults of the missing ones. */
     public Map<String, String> withDefaults(Map<String, String> given) {
-        Map<String, String> out = new java.util.LinkedHashMap<>();
+        Map<String, String> out = new LinkedHashMap<>();
         for (Argument a : arguments) {
             String v = given == null ? null : given.get(a.name());
             if ((v == null || v.isBlank()) && a.defaultValue() != null) {

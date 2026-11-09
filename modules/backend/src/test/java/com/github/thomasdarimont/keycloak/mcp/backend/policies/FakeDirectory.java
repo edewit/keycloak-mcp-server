@@ -1,10 +1,13 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.policies;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 
 /** In-memory directory for one realm. */
 public class FakeDirectory implements RealmDirectory {
@@ -14,6 +17,14 @@ public class FakeDirectory implements RealmDirectory {
     final Map<String, Set<String>> closures = new HashMap<>();
     final Map<String, List<String>> userGroups = new HashMap<>();
     final Map<String, Set<String>> groupRoles = new HashMap<>();
+    final Set<String> unreadable = new HashSet<>();
+
+    /** The group exists, but reading its role mappings fails (Keycloak answers 403). */
+    FakeDirectory unreadable(String path) {
+        unreadable.add(path);
+        return this;
+    }
+
     final Map<String, Set<String>> userOrgs = new HashMap<>();
     final Map<String, Set<String>> groupOrgs = new HashMap<>();
 
@@ -69,6 +80,10 @@ public class FakeDirectory implements RealmDirectory {
 
     @Override
     public Set<String> groupRoles(String realm, String groupPath) {
+        if (unreadable.contains(groupPath)) {
+            throw new ToolException("group_unreadable",
+                    "The role mappings of group '" + groupPath + "' could not be read.");
+        }
         return groupRoles.getOrDefault(groupPath, Set.of());
     }
 

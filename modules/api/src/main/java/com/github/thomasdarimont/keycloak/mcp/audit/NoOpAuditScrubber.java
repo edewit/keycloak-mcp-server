@@ -7,7 +7,7 @@ public final class NoOpAuditScrubber implements AuditScrubber {
 
     @Override
     public String id() {
-        return "no-op-audit-scrubber";
+        return "no-op";
     }
 
     @Override

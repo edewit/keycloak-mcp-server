@@ -7,12 +7,12 @@
           <option name="delegateBuildToMaven" value="false" />
           <option name="environmentProperties">
             <map>
-              <entry key="KC_MCP_URL" value="http://localhost:8080" />
-              <entry key="KC_MCP_GRANT_TYPE" value="password" />
-              <entry key="KC_MCP_AUTH_REALM" value="master" />
-              <entry key="KC_MCP_CLIENT_ID" value="admin-cli" />
-              <entry key="KC_MCP_USERNAME" value="admin" />
-              <entry key="KC_MCP_PASSWORD" value="admin" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_URL" value="http://localhost:8080" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_GRANT_TYPE" value="password" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM" value="master" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_CLIENT_ID" value="admin-cli" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_USERNAME" value="admin" />
+              <entry key="KC_MCP_SYSTEMS_DEFAULT_PASSWORD" value="admin" />
               <entry key="KC_MCP_TOOL_EXPOSURE" value="hybrid" />
             </map>
           </option>

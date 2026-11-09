@@ -20,10 +20,14 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
+import com.github.thomasdarimont.keycloak.mcp.storage.approvals.DatabasePendingApprovalStore;
+import com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.AuditEventEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.AuditRetention;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.DatabaseAuditListener;
@@ -92,7 +96,7 @@ class DatabaseStorageIT {
     @Test
     void systemsAreStoredByAliasWithALabelAndEncryptedSecrets() {
         DatabaseKeycloakSystemRepository repo = repositories.select(DatabaseKeycloakSystemRepository.class).get();
-        assertEquals("db-systems", repo.id());
+        assertEquals("db", repo.id());
         String alias = "tenant-" + UUID.randomUUID();
         KeycloakSystem tenant = system(alias, "https://sso.example.com", Optional.of("top-secret"),
                 Set.of("tenant", "tenant-2"));
@@ -170,9 +174,23 @@ class DatabaseStorageIT {
     }
 
     @Test
+    void trustedIssuersRoundTrip() {
+        DatabaseKeycloakSystemRepository repo = repositories.select(DatabaseKeycloakSystemRepository.class).get();
+        String alias = "trusting-" + UUID.randomUUID();
+        KeycloakSystem trusting = system(alias, "https://sso.example.com", Optional.empty(), Set.of()).toBuilder()
+            .trustedIssuer("https://idp.example.com/realms/partners")
+            .trustedIssuer("https://sso-b.example.com/realms/master")
+            .build();
+        repo.save(trusting);
+        assertEquals(trusting.trustedIssuers(), repo.find(alias).orElseThrow().trustedIssuers());
+        repo.save(trusting.toBuilder().trustedIssuers(List.of()).build());
+        assertEquals(Set.of(), repo.find(alias).orElseThrow().trustedIssuers(), "cleared again");
+    }
+
+    @Test
     void theVaultCreatesRotatesAndEncryptsKeysAndKeepsSecrets() {
         DatabaseKeyVault vault = vaults.select(DatabaseKeyVault.class).get();
-        assertEquals("db-key-vault", vault.id());
+        assertEquals("db", vault.id());
         assertTrue(vault.supportsKeyCreation());
         String alias = "tenant-" + UUID.randomUUID();
 
@@ -228,7 +246,7 @@ class DatabaseStorageIT {
     @Test
     void auditEventsBecomeRows() {
         DatabaseAuditListener audit = listeners.select(DatabaseAuditListener.class).get();
-        assertEquals("db-audit", audit.id());
+        assertEquals("db", audit.id());
         String subject = UUID.randomUUID().toString();
         Caller alice = Caller.of(subject, "alice", "tenant", Set.of("realm:admin"));
         Instant at = Instant.now();
@@ -305,7 +323,8 @@ class DatabaseStorageIT {
     @Test
     void retentionRemovesOldEventsOnly() {
         DatabaseAuditListener audit = listeners.select(DatabaseAuditListener.class).get();
-        assertEquals(30, retention.retentionDays(), "kc-mcp.spi.db-audit.retention-days of the test configuration");
+        assertEquals(30, retention.retentionDays(),
+                "kc-mcp.spi.audit-listener.db.retention-days of the test configuration");
         String subject = UUID.randomUUID().toString();
         Caller caller = Caller.of(subject, "old-timer", "tenant", Set.of());
         Instant now = Instant.now();
@@ -327,7 +346,7 @@ class DatabaseStorageIT {
     @Test
     void userSessionsAreStoredEncryptedAndExpire() {
         UserSessionStore store = sessionStores.get();
-        assertEquals("db-user-sessions", store.id());
+        assertEquals("db", store.id());
         long now = System.currentTimeMillis();
         String id = UUID.randomUUID().toString();
         String issuer = "https://sso.example.com/realms/corp";
@@ -359,5 +378,60 @@ class DatabaseStorageIT {
         assertEquals(1, store.deleteExpired(now));
         assertEquals(0, store.deleteExpired(now));
         store.delete("unknown");
+    }
+
+    @Inject
+    @Any
+    Instance<PendingApprovalStore> approvalStores;
+
+    @Test
+    void pendingApprovalsAreFencedByGenerationAndClaimedByOneCollector() {
+        var store = approvalStores.select(DatabasePendingApprovalStore.class).get();
+        assertEquals("db", store.id());
+        String key = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
+        long now = System.currentTimeMillis();
+        String gen = store.reserve(key, now + 30_000).orElseThrow(() -> new AssertionError("first reservation wins"));
+        assertTrue(store.reserve(key, now + 30_000).isEmpty(), "the second is refused while the first lives");
+        assertTrue(!store.find(key).orElseThrow().filed(), "reserved, not filed yet");
+
+        var approval = new PendingApproval(key, gen, "auth-req-id-secret", "…id", "42", "kc-mcp-abc",
+                "https://sso.example.com/realms/demo", "alice", "sub", "https://sso.example.com/realms/demo",
+                "Delete user: dave (realm demo)", "f".repeat(64), "prod", "demo", now + 60_000, 2, now, null, 0);
+        var stale = new PendingApproval(key, "other-generation", "x", "x", "x", "x", "x", "x", "x", "x", "x",
+                "0".repeat(64), "x", "x", now + 60_000, 2, now, null, 0);
+        assertTrue(!store.put(stale), "another generation cannot overwrite");
+        assertTrue(store.put(approval));
+        var filed = store.find(key).orElseThrow();
+        assertEquals("auth-req-id-secret", filed.authReqId());
+        assertEquals("f".repeat(64), filed.operationHash());
+        assertEquals("prod", filed.system());
+        assertEquals("demo", filed.realm());
+        var row = PendingApprovalEntity.<PendingApprovalEntity>findById(key);
+        assertTrue(StorageCrypto.isEncrypted(row.authReqId), "auth_req_id encrypted at rest: " + row.authReqId);
+
+        assertTrue(store.claim(key, gen, "collector-a", now + 20_000));
+        assertTrue(!store.claim(key, gen, "collector-b", now + 20_000), "one collector at a time");
+        assertTrue(store.claim(key, gen, "collector-a", now + 25_000), "the holder may renew");
+        assertTrue(!store.claim(key, "other-generation", "collector-c", now + 20_000));
+        store.release(key, gen, "collector-b"); // not the holder: no effect
+        assertTrue(!store.claim(key, gen, "collector-b", now + 20_000));
+        store.release(key, gen, "collector-a");
+        assertTrue(store.claim(key, gen, "collector-b", now + 20_000), "released: free for the next collector");
+
+        assertTrue(!store.find(key).orElseThrow().approved());
+        assertTrue(!store.markApproved(key, "other-generation"), "only this generation is marked");
+        assertTrue(store.markApproved(key, gen));
+        assertTrue(store.find(key).orElseThrow().approved(), "recorded before it is consumed");
+        assertTrue(!store.remove(key, "other-generation"), "another generation cannot consume");
+        assertTrue(store.remove(key, gen), "consumed once");
+        assertTrue(!store.remove(key, gen), "not twice");
+        assertTrue(store.find(key).isEmpty());
+
+        // an expired reservation can be taken over, with a new generation
+        String old = store.reserve(key, now - 1).orElseThrow();
+        String taken = store.reserve(key, now + 30_000).orElseThrow(() -> new AssertionError("expired: free again"));
+        assertTrue(!old.equals(taken));
+        assertTrue(!store.remove(key, old), "the old generation is gone");
+        assertTrue(store.deleteExpired(now + 60_000) >= 1);
     }
 }

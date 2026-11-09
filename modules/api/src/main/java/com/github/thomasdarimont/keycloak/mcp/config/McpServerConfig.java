@@ -8,29 +8,47 @@ import java.util.Optional;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithConverter;
 import io.smallrye.config.WithDefault;
+import io.smallrye.config.WithParentName;
 
 /**
  * Server configuration. Every property maps to an env variable with the {@code KC_MCP_}
- * prefix, e.g. {@code kc-mcp.grant-type} -> {@code KC_MCP_GRANT_TYPE}.
+ * prefix, e.g. {@code kc-mcp.systems.default.url} -> {@code KC_MCP_SYSTEMS_DEFAULT_URL}.
  */
 @ConfigMapping(prefix = "kc-mcp")
 public interface McpServerConfig {
 
-    /** Keycloak base URL, e.g. {@code http://localhost:8080}. */
-    @WithDefault("http://localhost:8080")
-    String url();
+    /**
+     * Deployment profile: {@code local} (default, one person's machine) or {@code shared}
+     * (a server others reach over the network). The profile sets the defaults of
+     * {@link #requireCaller()}, {@link #confirmFallback()} and {@link #explicitTarget()}
+     * and, as {@code shared}, refuses to start without caller authentication with an
+     * audience, {@link #allowedHosts()}, an admin API audience and an encrypted storage.
+     */
+    @WithDefault("local")
+    @WithConverter(Profile.Converter.class)
+    Profile profile();
 
     /**
-     * Named Keycloak systems: {@code kc-mcp.systems.<name>.url} etc. Each field falls
-     * back to the top-level value. When empty, the top-level settings form a single
-     * system called {@code default}. With several systems the tools gain a {@code system}
-     * argument.
+     * The Keycloak systems, one block each: {@code kc-mcp.systems.<name>.url} and the
+     * other {@link SystemSettings}; a system exists exactly when its {@code url} is set.
+     * Every setting a system leaves out comes from {@link #systemDefaults()}, then from
+     * the built-in default. With several systems the tools gain a {@code system}
+     * argument. Environment form: {@code KC_MCP_SYSTEMS_DEFAULT_URL} (names from the
+     * environment are lower-case letters and digits).
      */
     Map<String, SystemSettings> systems();
 
     /**
-     * System used when the {@code system} argument is omitted; inferred when only one
-     * system exists.
+     * Settings shared by every system that does not set its own:
+     * {@code kc-mcp.system-defaults.client-id}, {@code .grant-type}, {@code .auth-realm},
+     * {@code .allowed-realms} and the rest of {@link SystemSettings}; {@code url} has no
+     * meaning here and is refused.
+     */
+    SystemSettings systemDefaults();
+
+    /**
+     * System used when the {@code system} argument is omitted: the one named here, else
+     * the only system, else the one called {@code default}.
      */
     Optional<String> defaultSystem();
 
@@ -45,58 +63,10 @@ public interface McpServerConfig {
     Explanations explanations();
 
     /**
-     * Keycloak version of the (default) system, e.g. {@code 26.8.2}, when the server info
-     * endpoint is not readable or should be overridden. Tools that need a newer version
-     * are refused with {@code unsupported}; unknown means unchecked.
-     */
-    Optional<String> version();
-
-    /**
-     * Issuer URL of the auth realm as Keycloak states it
-     * ({@code https://sso.example.com/realms/master}), used as the audience of
-     * {@code private_key_jwt} client assertions when {@code kc-mcp.url} is an internal
-     * address that differs from Keycloak's public hostname. Defaults to
-     * {@code <url>/realms/<auth-realm>}.
-     */
-    Optional<String> issuer();
-
-    /**
      * Optional prefix for every tool name, e.g. {@code prod_} ->
      * {@code prod_keycloak_user_search}.
      */
     Optional<String> toolPrefix();
-
-    /**
-     * OAuth grant used to obtain the admin token: {@code client_credentials} (default) or
-     * {@code password}.
-     */
-    @WithDefault("client_credentials")
-    @WithConverter(GrantType.Converter.class)
-    GrantType grantType();
-
-    /**
-     * Client authentication at the token endpoint: {@code client_secret},
-     * {@code private_key_jwt} or {@code none}. When unset it is inferred: a configured
-     * secret means {@code client_secret}, a configured JWT key means
-     * {@code private_key_jwt}, otherwise {@code none} (public client, password grant
-     * only).
-     */
-    @WithConverter(ClientAuth.Converter.class)
-    Optional<ClientAuth> clientAuth();
-
-    /** Realm the admin client / service account lives in. */
-    @WithDefault("master")
-    String authRealm();
-
-    /** Defaults to {@code admin-cli} for the password grant with a public client. */
-    Optional<String> clientId();
-
-    Optional<String> clientSecret();
-
-    /** Admin user for the password grant. */
-    Optional<String> username();
-
-    Optional<String> password();
 
     /** Key settings for {@link ClientAuth#PRIVATE_KEY_JWT}. */
     Jwt jwt();
@@ -106,7 +76,7 @@ public interface McpServerConfig {
      * Off by default: a repository found on the class path is then listed in the log but
      * not asked, so an extension cannot point the server at a Keycloak it was not
      * configured for. Each repository can additionally be switched with
-     * {@code kc-mcp.spi.<id>.enabled}.
+     * {@code kc-mcp.spi.<spi>.<id>.enabled}.
      */
     @WithDefault("false")
     boolean dynamicSystems();
@@ -198,14 +168,74 @@ public interface McpServerConfig {
     @WithDefault("false")
     boolean requireCaller();
 
-    /**
-     * If set, the {@code realm} tool argument becomes optional and defaults to this
-     * realm.
-     */
-    Optional<String> defaultRealm();
+    /** Effective value: {@link #requireCaller()}, or always in profile {@code shared}. */
+    default boolean callerRequired() {
+        return requireCaller() || profile().shared();
+    }
 
-    /** Realms the server may touch. Empty = all realms. */
-    Optional<List<String>> allowedRealms();
+    /**
+     * What confirms a DESTRUCTIVE tool when the client has no elicitation: {@code flag}
+     * ({@code confirm: true} in the arguments) or {@code deny} (refused until a client
+     * with elicitation or another {@code Confirmer} confirms). Default: {@code flag} in
+     * profile {@code local}, {@code deny} in {@code shared}.
+     */
+    @WithConverter(ConfirmFallback.Converter.class)
+    Optional<ConfirmFallback> confirmFallback();
+
+    /**
+     * What the model is told about confirming destructive tools: {@code ask} (ask the
+     * user once after {@code confirmation_required}, then {@code confirm: true}),
+     * {@code server} (the server asks, through the client or the user's device: call
+     * right away) or {@code auto} (default: {@code server} when a confirmer asks the
+     * human itself, the client supports elicitation or {@code confirm: true} is not
+     * accepted; else {@code ask}). Guidance only; the server enforces its confirmation
+     * either way.
+     */
+    @WithDefault("auto")
+    @WithConverter(ModelConfirmation.Converter.class)
+    ModelConfirmation modelConfirmation();
+
+    /**
+     * Callers holding one of these roles ({@code realm:<role>} or
+     * {@code <client>.<role>}, as in the policies) are assumed to know what they do: in
+     * {@code ask} mode the model is told to pass {@code confirm: true} right away instead
+     * of asking them first. Does not apply where the server asks itself.
+     */
+    Optional<List<String>> modelConfirmationTrustedRoles();
+
+    /** Effective value of {@link #confirmFallback()}, by profile when unset. */
+    default ConfirmFallback effectiveConfirmFallback() {
+        return confirmFallback().orElse(profile().shared() ? ConfirmFallback.DENY : ConfirmFallback.FLAG);
+    }
+
+    /**
+     * Which tools must name {@code system} (when several exist) and {@code realm} instead
+     * of taking the defaults: {@code off}, {@code destructive} or {@code write}. A
+     * system-specific endpoint counts as explicit. Default: {@code off} in profile
+     * {@code local}, {@code destructive} in {@code shared}.
+     */
+    @WithConverter(ExplicitTarget.Converter.class)
+    Optional<ExplicitTarget> explicitTarget();
+
+    /** Effective value of {@link #explicitTarget()}, by profile when unset. */
+    default ExplicitTarget effectiveExplicitTarget() {
+        return explicitTarget().orElse(profile().shared() ? ExplicitTarget.DESTRUCTIVE : ExplicitTarget.OFF);
+    }
+
+    /**
+     * Whether systems registered at runtime (admin API, repositories) may point at
+     * private, loopback or link-local addresses: {@code allow}, or {@code listed} (only
+     * hosts that {@link #allowedHosts()} names literally, without a wildcard). Static
+     * systems are not checked. Default: {@code allow} in profile {@code local},
+     * {@code listed} in {@code shared}.
+     */
+    @WithConverter(PrivateHosts.Converter.class)
+    Optional<PrivateHosts> dynamicPrivateHosts();
+
+    /** Effective value of {@link #dynamicPrivateHosts()}, by profile when unset. */
+    default PrivateHosts effectiveDynamicPrivateHosts() {
+        return dynamicPrivateHosts().orElse(profile().shared() ? PrivateHosts.LISTED : PrivateHosts.ALLOW);
+    }
 
     /**
      * Hosts the server may talk to: every configured Keycloak URL (top level and per
@@ -272,10 +302,24 @@ public interface McpServerConfig {
     boolean structuredContent();
 
     /**
-     * Per tool-provider settings: {@code kc-mcp.spi.<provider-id>.<key>=value} (env
-     * {@code KC_MCP_SPI_<ID>_<KEY>}). {@code enabled=false} switches a provider off.
+     * Per tool-provider settings: {@code kc-mcp.spi.<spi>.<id>.<key>=value} (env
+     * {@code KC_MCP_SPI_<SPI>_<ID>_<KEY>}). {@code enabled=false} switches a provider
+     * off.
      */
-    Map<String, Map<String, String>> spi();
+    Map<String, Spi> spi();
+
+    /** The settings of one extension point, {@code kc-mcp.spi.<spi>.*}. */
+    interface Spi {
+        /**
+         * Which extension serves an extension point that has exactly one: its id. Without
+         * it the lowest {@code order()} wins.
+         */
+        Optional<String> provider();
+
+        /** Per extension: {@code kc-mcp.spi.<spi>.<id>.<key>}. */
+        @WithParentName
+        Map<String, Map<String, String>> extensions();
+    }
 
     /** Elicitation / confirmation prompt timeout in seconds. */
     @WithDefault("120")
@@ -293,6 +337,37 @@ public interface McpServerConfig {
     String providersDir();
 
     /**
+     * Properties files read at startup, comma separated: the distribution's
+     * {@code conf/kcmcp.conf} and the files its scripts pass with {@code --config}. They
+     * rank above the server's defaults and below the environment and system properties; a
+     * missing file stops the start (the backend's {@code ConfigFilesSourceFactory} loads
+     * them).
+     */
+    Optional<String> configFiles();
+
+    /**
+     * Development mode, what {@code bin/kcmcp.sh start-dev} sets: when no system is
+     * configured, the system {@code default} at {@code http://localhost:8080} (the
+     * Keycloak of the examples) is assumed; the backend's
+     * {@code DevModeInterceptorFactory} supplies it. Nothing else changes: the security
+     * profile and the startup check are set separately.
+     */
+    @WithDefault("false")
+    boolean devMode();
+
+    /**
+     * The MCP endpoint itself ({@code kc-mcp.mcp.*}). Off on an instance that serves only
+     * the admin API or the management UI next to the MCP-facing ones, all on one
+     * database: the endpoint and its entries answer a plain 404, everything else stays.
+     */
+    Mcp mcp();
+
+    interface Mcp {
+        @WithDefault("true")
+        boolean enabled();
+    }
+
+    /**
      * The admin API ({@code kc-mcp.admin.*}, {@code /admin/systems}): registers systems
      * in the first mutable {@code KeycloakSystemRepository} (the database storage), with
      * their {@code private_key_jwt} keys created in the {@code KeyVault}. Callers present
@@ -308,6 +383,89 @@ public interface McpServerConfig {
      * the browser only holds an opaque session id in an HttpOnly, Secure cookie.
      */
     Ui ui();
+
+    /**
+     * The server's OpenTelemetry metrics ({@code kc-mcp.metrics.*}); export is Quarkus'
+     * {@code quarkus.otel.*}.
+     */
+    Metrics metrics();
+
+    /**
+     * Additional trusted certificates for outbound TLS: PEM files, unencrypted PKCS12
+     * files, directories of them. Read by the truststore interceptor before the server
+     * starts; declared here so the option is known.
+     */
+    Optional<List<String>> truststorePaths();
+
+    /**
+     * The address clients use, {@code scheme://host[:port]}: fixes the links the server
+     * hands out instead of taking them from each request's headers.
+     */
+    Optional<String> hostname();
+
+    /** PEM server certificate or chain; see {@code HttpsInterceptorFactory}. */
+    Optional<String> httpsCertificateFile();
+
+    /** PEM private key of the server certificate. */
+    Optional<String> httpsCertificateKeyFile();
+
+    /** Password of an encrypted PEM (PKCS#8) key. */
+    Optional<String> httpsCertificateKeyFilePassword();
+
+    /** PKCS12 or JKS key store with the server certificate. */
+    Optional<String> httpsKeyStoreFile();
+
+    /** Password of the key store. */
+    Optional<String> httpsKeyStorePassword();
+
+    /** Type of the key store; by default from the file's extension. */
+    Optional<String> httpsKeyStoreType();
+
+    /** The HTTPS port. */
+    Optional<Integer> httpsPort();
+
+    /** TLS protocols to enable. */
+    Optional<List<String>> httpsProtocols();
+
+    /** TLS cipher suites to enable. */
+    Optional<List<String>> httpsCipherSuites();
+
+    /** How often certificate files are reloaded, {@code -1} never. */
+    Optional<String> httpsCertificatesReloadPeriod();
+
+    /** Whether the plain HTTP listener stays on. */
+    Optional<Boolean> httpEnabled();
+
+    /**
+     * Outbound HTTP of the server's own clients ({@code kc-mcp.http.*}): the Keycloak
+     * admin client (read timeout; its connect timeout is the client's built-in 15 s), the
+     * CIBA confirmer and the UI's calls to its identity providers, each overridable.
+     */
+    Http http();
+
+    interface Http {
+        /** Time to establish a connection ({@code 10s}, {@code 500ms}, {@code PT10S}). */
+        @WithDefault("10s")
+        @WithConverter(Durations.DurationConverter.class)
+        Duration connectTimeout();
+
+        /**
+         * Time to wait for an answer. Generous by default: admin calls such as a
+         * directory sync or a partial export can take a while.
+         */
+        @WithDefault("60s")
+        @WithConverter(Durations.DurationConverter.class)
+        Duration readTimeout();
+    }
+
+    interface Metrics {
+        /**
+         * Add the {@code realm} attribute to the tool call metrics. Off by default: a
+         * multi-tenant server can have thousands of realms, one series each.
+         */
+        @WithDefault("false")
+        boolean includeRealm();
+    }
 
     interface Admin {
         /** Off by default; on needs a {@link #token()} or an {@link #issuer()}. */
@@ -346,6 +504,15 @@ public interface McpServerConfig {
          */
         @WithDefault("true")
         boolean allowNewSystems();
+
+        /**
+         * Whether the admin API's OpenAPI document ({@code /q/openapi}) and Swagger UI
+         * are served; {@code false} answers 404 for both. The document carries no secrets
+         * and is served whether the API itself is on or not, so a server that should not
+         * even describe the API switches it off here.
+         */
+        @WithDefault("true")
+        boolean openapi();
     }
 
     interface Ui {
@@ -392,6 +559,27 @@ public interface McpServerConfig {
          * single provider {@code default}.
          */
         Map<String, IdpSettings> idps();
+
+        /**
+         * Named TLS configuration ({@code quarkus.tls.<name>.*}) the server's own calls
+         * to the identity providers use (discovery, keys, session checks), for providers
+         * behind a private CA. Unset: the JVM's default trust. Quarkus' OIDC login has
+         * its own ({@code quarkus.oidc.tls.tls-configuration-name}).
+         */
+        Optional<String> tlsConfigurationName();
+
+        /**
+         * Connect timeout of those calls; falls back to
+         * {@code kc-mcp.http.connect-timeout}.
+         */
+        @WithConverter(Durations.DurationConverter.class)
+        Optional<Duration> connectTimeout();
+
+        /**
+         * Read timeout of those calls; falls back to {@code kc-mcp.http.read-timeout}.
+         */
+        @WithConverter(Durations.DurationConverter.class)
+        Optional<Duration> readTimeout();
     }
 
     /** One identity provider of the management UI. */
@@ -423,7 +611,15 @@ public interface McpServerConfig {
         Optional<Boolean> hideOnLoginPage();
     }
 
+    /**
+     * One Keycloak system, or the shared defaults
+     * ({@link McpServerConfig#systemDefaults()}).
+     */
     interface SystemSettings {
+        /**
+         * Base URL, context path included; set only per system, it is what makes a system
+         * exist.
+         */
         Optional<String> url();
 
         @WithConverter(GrantType.Converter.class)
@@ -445,6 +641,18 @@ public interface McpServerConfig {
         Optional<String> defaultRealm();
 
         Optional<List<String>> allowedRealms();
+
+        /**
+         * Issuers besides this system's own Keycloak whose caller tokens the server may
+         * hand to it: a realm's issuer URL ({@code https://sso.example/realms/demo}) for
+         * that realm alone, a Keycloak's base URL ({@code https://sso.example}) for every
+         * realm of it (see {@code CallerIssuerPolicy}). This is the server's side only:
+         * whether the target Keycloak accepts such a token is decided there, by its
+         * identity provider and JWT authorization grant settings; an entry Keycloak does
+         * not honour moves the refusal from this server to Keycloak. Empty by default: a
+         * token stays with the Keycloak that issued it.
+         */
+        Optional<List<String>> trustedIssuers();
 
         /** Keycloak version of this system; see {@link McpServerConfig#version()}. */
         Optional<String> version();

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -67,7 +68,7 @@ public class AccessPolicy {
 
     private final boolean readOnly;
     private final Set<String> allowedRealms;
-    private final java.util.function.Function<String, Set<String>> allowedRealmsBySystem;
+    private final Function<String, Set<String>> allowedRealmsBySystem;
     private final Set<String> allowedTools;
     private final Set<String> deniedTools;
     private final Set<Category> allowedCategories;
@@ -82,9 +83,9 @@ public class AccessPolicy {
     @Inject
     public AccessPolicy(McpServerConfig config, RoleDiscovery roles, CapabilityDiscovery capabilities,
             DefaultExtensionRegistry registry, KeycloakSystems systems) {
-        this(config.readOnly(), config.allowedRealms().orElse(List.of()), config.allowedTools().orElse(List.of()),
-                config.deniedTools().orElse(List.of()), config.allowedCategories().orElse(List.of()), roles,
-                collectChecks(registry),
+        this(config.readOnly(), config.systemDefaults().allowedRealms().orElse(List.of()),
+                config.allowedTools().orElse(List.of()), config.deniedTools().orElse(List.of()),
+                config.allowedCategories().orElse(List.of()), roles, collectChecks(registry),
                 name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()), capabilities,
                 config.explanations(), systems, config.delegation());
     }
@@ -116,7 +117,7 @@ public class AccessPolicy {
 
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
-            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem) {
+            List<AccessCheck> globalChecks, Function<String, Set<String>> allowedRealmsBySystem) {
         this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
                 allowedRealmsBySystem, null);
     }
@@ -127,7 +128,7 @@ public class AccessPolicy {
      */
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
-            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            List<AccessCheck> globalChecks, Function<String, Set<String>> allowedRealmsBySystem,
             CapabilityDiscovery capabilities) {
         this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
                 allowedRealmsBySystem, capabilities, Explanations.AUTO);
@@ -139,7 +140,7 @@ public class AccessPolicy {
      */
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
-            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            List<AccessCheck> globalChecks, Function<String, Set<String>> allowedRealmsBySystem,
             CapabilityDiscovery capabilities, Explanations explanations) {
         this(readOnly, allowedRealms, allowedTools, deniedTools, allowedCategories, roles, globalChecks,
                 allowedRealmsBySystem, capabilities, explanations, null, DelegationMode.OFF);
@@ -151,7 +152,7 @@ public class AccessPolicy {
      */
     public AccessPolicy(boolean readOnly, List<String> allowedRealms, List<String> allowedTools,
             List<String> deniedTools, List<String> allowedCategories, RoleDiscovery roles,
-            List<AccessCheck> globalChecks, java.util.function.Function<String, Set<String>> allowedRealmsBySystem,
+            List<AccessCheck> globalChecks, Function<String, Set<String>> allowedRealmsBySystem,
             CapabilityDiscovery capabilities, Explanations explanations, KeycloakSystems systems,
             DelegationMode delegation) {
         this.systems = systems;
@@ -248,6 +249,16 @@ public class AccessPolicy {
      */
     public Optional<ToolResult> forbids(ToolSpec spec, String system, String realm, Map<String, Object> args,
             InvocationContext ctx, KeycloakAdmin admin) {
+        return forbids(spec, system, realm, args, ctx, admin, null);
+    }
+
+    /**
+     * @param confirmations receives the access checks' demands that the human confirm
+     * this call themselves ({@link AccessCheck.Decision#confirmation()}); {@code null} to
+     * ignore them
+     */
+    public Optional<ToolResult> forbids(ToolSpec spec, String system, String realm, Map<String, Object> args,
+            InvocationContext ctx, KeycloakAdmin admin, List<AccessCheck.Decision> confirmations) {
         if (!permits(spec)) {
             if (readOnly && !spec.isReadOnly()) {
                 return Optional.of(ToolResult.error("read_only_mode", "This server runs in read-only mode; "
@@ -307,13 +318,13 @@ public class AccessPolicy {
             AccessCheck.Context context = new AccessCheck.Context(spec, system, realm, args,
                     granted == null ? GrantedRoles.UNKNOWN : granted, ctx.caller(), admin);
             for (AccessCheck check : globalChecks) {
-                Optional<ToolResult> denied = evaluate(check, context);
+                Optional<ToolResult> denied = evaluate(check, context, confirmations);
                 if (denied.isPresent()) {
                     return denied;
                 }
             }
             for (AccessCheck check : spec.accessChecks()) {
-                Optional<ToolResult> denied = evaluate(check, context);
+                Optional<ToolResult> denied = evaluate(check, context, confirmations);
                 if (denied.isPresent()) {
                     return denied;
                 }
@@ -406,7 +417,8 @@ public class AccessPolicy {
         return systems.find(name).map(admin -> admin.forToken(callerToken).accessToken()).orElse(callerToken);
     }
 
-    private static Optional<ToolResult> evaluate(AccessCheck check, AccessCheck.Context context) {
+    private static Optional<ToolResult> evaluate(AccessCheck check, AccessCheck.Context context,
+            List<AccessCheck.Decision> confirmations) {
         AccessCheck.Decision d;
         try {
             d = check.check(context);
@@ -415,6 +427,9 @@ public class AccessPolicy {
             return Optional.of(ToolResult.error("access_check_failed", "Access check failed: " + e.getMessage()));
         }
         if (d == null || d.allowed()) {
+            if (d != null && d.confirmation() && confirmations != null) {
+                confirmations.add(d);
+            }
             return Optional.empty();
         }
         return Optional.of(ToolResult.error(d.code() == null ? "access_denied" : d.code(),

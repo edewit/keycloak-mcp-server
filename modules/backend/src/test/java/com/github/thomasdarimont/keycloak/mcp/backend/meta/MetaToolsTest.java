@@ -15,14 +15,17 @@ import com.github.thomasdarimont.keycloak.mcp.backend.exposure.ExposurePolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.CapabilityDiscovery;
+import com.github.thomasdarimont.keycloak.mcp.backend.guard.ConfirmationGuidance;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ToolInvoker;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.ExposureMode;
+import com.github.thomasdarimont.keycloak.mcp.config.ModelConfirmation;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
@@ -407,5 +410,32 @@ class MetaToolsTest {
         Map<?, ?> s = (Map<?, ?>) unknown.get("server");
         assertEquals("unknown", s.get("version"));
         assertFalse(s.containsKey("unavailableTools"));
+    }
+
+    @Test
+    void destructiveHitsCarryTheConfirmationGuidance() {
+        MetaTools m = meta(false);
+        Map<String, Object> p = payload(m.search("delete user", null, 5, "c1", ExposureMode.HYBRID));
+        Map<?, ?> delete = ((List<?>) p.get("tools")).stream()
+            .map(t -> (Map<?, ?>) t)
+            .filter(t -> t.get("name").equals("keycloak_user_delete"))
+            .findFirst()
+            .orElseThrow();
+        assertTrue(String.valueOf(delete.get("confirmation")).contains("confirm: true"), delete.toString());
+        Map<?, ?> search = ((List<?>) p.get("tools")).stream()
+            .map(t -> (Map<?, ?>) t)
+            .filter(t -> t.get("name").equals("keycloak_user_search"))
+            .findFirst()
+            .orElse(null);
+        assertTrue(search == null || !search.containsKey("confirmation"), "read tools carry no guidance");
+
+        m.guidance(new ConfirmationGuidance(ModelConfirmation.SERVER, ConfirmFallback.FLAG, true, Set.of()));
+        Map<String, Object> server = payload(m.search("delete user", null, 5, "c1", ExposureMode.HYBRID));
+        Map<?, ?> again = ((List<?>) server.get("tools")).stream()
+            .map(t -> (Map<?, ?>) t)
+            .filter(t -> t.get("name").equals("keycloak_user_delete"))
+            .findFirst()
+            .orElseThrow();
+        assertTrue(String.valueOf(again.get("confirmation")).contains("not your job"), again.toString());
     }
 }

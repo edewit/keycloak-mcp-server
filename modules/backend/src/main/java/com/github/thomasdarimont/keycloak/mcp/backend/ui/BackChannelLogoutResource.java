@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.Response;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
 
 /**
@@ -35,6 +36,8 @@ public class BackChannelLogoutResource {
     LogoutTokens tokens;
     @Inject
     UserSessionTokenStateManager sessions;
+    @Inject
+    KcMcpMetrics metrics;
 
     @POST
     @Path("backchannel-logout")
@@ -47,6 +50,7 @@ public class BackChannelLogoutResource {
         }
         catch (LogoutTokens.InvalidLogoutToken e) {
             LOG.warnf("Back-channel logout refused: %s", e.getMessage());
+            metrics.backchannelLogout("invalid");
             return Response.status(400)
                 .header("Cache-Control", "no-store")
                 .entity(Map.of("error", "invalid_request", "message", e.getMessage()))
@@ -55,6 +59,7 @@ public class BackChannelLogoutResource {
         UserSessionStore store = sessions.store();
         long ended = token.sid() != null && !token.sid().isBlank() ? store.deleteBySession(token.issuer(), token.sid())
                 : store.deleteBySubject(token.issuer(), token.subject());
+        metrics.backchannelLogout("ended");
         LOG.infof("Back-channel logout from %s: %d session(s) ended (%s)", token.idp().alias(), ended,
                 token.sid() != null ? "sid " + token.sid() : "subject " + token.subject());
         return Response.ok().header("Cache-Control", "no-store").build();

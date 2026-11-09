@@ -1,0 +1,202 @@
+# Build, test and package on every push to main and every pull request.
+#
+#   build        ./mvnw verify -Pdist with the integration tests: formatter check (spotless), unit tests, the storage
+#                tests on H2 and the backend tests against Keycloak 26.8.2 in Docker (Testcontainers); the
+#                frontend is built by the frontend-maven-plugin (Node and npm packages cached). Uploads the
+#                packaged server for the two jobs below.
+#   conformance  the MCP conformance suite against the packaged server (conformance/run.sh); fails only on
+#                scenarios not baselined in conformance/expected-failures.yml. Reports as a workflow artifact.
+#   image        builds the JVM container image from modules/backend/src/main/docker/Dockerfile.jvm; nothing is pushed.
+#   distribution starts the unpacked distribution with bin/kcmcp.sh on Linux (from a directory with a space, with a
+#                config file by relative path, then against a Keycloak in Docker with a real tool call) and with
+#                bin/kcmcp.bat on Windows (MCP session), see .github/scripts/dist-smoke.sh.
+#   typos        spell-checks the repository (crate-ci/typos, configured in _typos.toml).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MAVEN_ARGS: -B -ntp
+
+jobs:
+  typos:
+    name: Spelling
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the spelling
+        uses: crate-ci/typos@v1
+
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build, check the formatting, run unit and integration tests, package the distribution
+        run: ./mvnw verify -DskipITs=false -Pdist
+
+      - name: Keep the test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            **/target/surefire-reports/
+            **/target/failsafe-reports/
+          if-no-files-found: ignore
+
+      - name: Keep the packaged server
+        uses: actions/upload-artifact@v7
+        with:
+          name: server
+          path: |
+            modules/backend/target/quarkus-app/
+            conformance/fixtures/target/keycloak-mcp-server-conformance-fixtures-*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Keep the distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: distribution
+          path: modules/distribution/target/keycloak-mcp-server-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  conformance:
+    name: MCP conformance
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: server
+
+      - name: Run the conformance suite against the packaged server
+        run: conformance/run.sh
+
+      - name: Keep the conformance reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: conformance-results
+          path: |
+            conformance/results/
+            conformance/results-server.log
+          if-no-files-found: ignore
+
+  image:
+    name: Container image
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: server
+
+      - name: Recreate the empty providers directory
+        # the build leaves quarkus-app/providers/ empty and artifacts carry no empty directories; the Dockerfile copies it
+        run: mkdir -p modules/backend/target/quarkus-app/providers
+
+      - name: Build the JVM image
+        run: docker build -f modules/backend/src/main/docker/Dockerfile.jvm -t keycloak-mcp-server:ci .
+
+  distribution:
+    name: Distribution on ${{ matrix.os }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: distribution
+
+      - name: Unpack
+        shell: bash
+        run: |
+          tar xzf keycloak-mcp-server-*.tar.gz
+          mv keycloak-mcp-server-*/ dist
+          ls -la dist dist/bin dist/conf
+
+      - uses: actions/checkout@v7
+        if: runner.os != 'Windows'
+        with:
+          sparse-checkout: |
+            .github/scripts
+            examples/run-modes/realms
+          path: repo
+
+      - name: Start with kcmcp.sh, then administer a Keycloak through the packaged server
+        if: runner.os != 'Windows'
+        shell: bash
+        # the distribution sits in a directory with a space in its name on purpose
+        run: |
+          mv dist "dist dir"
+          repo/.github/scripts/dist-smoke.sh "$PWD/dist dir" repo/examples/run-modes/realms/demo-realm.json
+
+      - name: Start with kcmcp.bat and initialize an MCP session
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\dist\bin\kcmcp.bat --version
+          "quarkus.http.port=8085`nkc-mcp.tool-exposure=lazy`n" | Set-Content dist\conf\smoke.conf
+          $p = Start-Process -FilePath ".\dist\bin\kcmcp.bat" -ArgumentList "start","--config","conf\smoke.conf","--kc-mcp.startup-check=off","--kc-mcp.systems.default.url=http://127.0.0.1:1","--kc-mcp.systems.default.client-id=smoke","--kc-mcp.systems.default.client-secret=smoke" -RedirectStandardOutput server.log -RedirectStandardError server.err -PassThru -NoNewWindow
+          $body = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            try {
+              $r = Invoke-WebRequest -UseBasicParsing -Method Post -Uri http://localhost:8085/mcp -ContentType 'application/json' -Headers @{ Accept = 'application/json, text/event-stream' } -Body $body
+              $ok = $true
+            } catch { Start-Sleep 1 }
+          }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Process java -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Get-Content server.log, server.err
+          if (-not $ok) { throw "the server did not answer" }
+          if ($r.Content -notmatch '"serverInfo"') { throw "unexpected initialize answer" }
+          if (-not (Select-String -Path server.log -Pattern 'exposure=LAZY' -Quiet)) { throw "conf\smoke.conf was not read" }

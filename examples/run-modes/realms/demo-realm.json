@@ -431,6 +431,7 @@
     },
     {
       "clientId": "mcp-consumer",
+      "optionalClientScopes": ["offline_access"],
       "defaultClientScopes": [
         "web-origins",
         "acr",
@@ -450,7 +451,8 @@
       "implicitFlowEnabled": false,
       "redirectUris": [
         "http://127.0.0.1:33389/mcp-oauth-callback",
-        "http://localhost:33389/mcp-oauth-callback"
+        "http://localhost/callback",
+        "http://localhost/oauth/callback"
       ],
       "webOrigins": [
         "+"

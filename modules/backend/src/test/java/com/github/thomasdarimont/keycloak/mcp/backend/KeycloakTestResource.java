@@ -32,14 +32,19 @@ public class KeycloakTestResource implements QuarkusTestResourceLifecycleManager
                     Wait.forLogMessage(".*Keycloak .* started in .*\\n", 1).withStartupTimeout(Duration.ofMinutes(3)));
         keycloak.start();
         String url = "http://" + keycloak.getHost() + ":" + keycloak.getMappedPort(8080);
-        return Map.ofEntries(Map.entry("kc-mcp.url", url), Map.entry("kc-mcp.grant-type", "password"),
-                Map.entry("kc-mcp.auth-realm", "master"), Map.entry("kc-mcp.username", "admin"),
-                Map.entry("kc-mcp.password", "admin"), Map.entry("kc-mcp.tool-exposure", "direct"),
-                Map.entry("kc-mcp.systems.primary.url", url), Map.entry("kc-mcp.systems.mirror.url", url),
+        return Map.ofEntries(Map.entry("kc-mcp.system-defaults.grant-type", "password"),
+                Map.entry("kc-mcp.system-defaults.auth-realm", "master"),
+                Map.entry("kc-mcp.system-defaults.username", "admin"),
+                Map.entry("kc-mcp.system-defaults.password", "admin"), Map.entry("kc-mcp.tool-exposure", "direct"),
+                // the baseline's "default" system is switched off: this test has primary
+                // and mirror
+                Map.entry("kc-mcp.systems.default.url", ""), Map.entry("kc-mcp.systems.primary.url", url),
+                Map.entry("kc-mcp.systems.mirror.url", url),
                 Map.entry("kc-mcp.systems.mirror.allowed-realms", "master"),
-                Map.entry("kc-mcp.default-system", "primary"), Map.entry("kc-mcp.spi.policies.group-scope", "group"),
-                Map.entry("kc-mcp.spi.policies.manager-role", "realm:create-realm"),
-                Map.entry("kc-mcp.spi.policies.no-escalation", "true"));
+                Map.entry("kc-mcp.default-system", "primary"),
+                Map.entry("kc-mcp.spi.tools.policies.group-scope", "group"),
+                Map.entry("kc-mcp.spi.tools.policies.manager-role", "realm:create-realm"),
+                Map.entry("kc-mcp.spi.tools.policies.no-escalation", "true"));
     }
 
     @Override

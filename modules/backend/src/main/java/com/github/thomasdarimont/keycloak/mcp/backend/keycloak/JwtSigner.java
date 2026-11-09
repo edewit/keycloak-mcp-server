@@ -13,11 +13,13 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
+import java.security.cert.Certificate;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.PSSParameterSpec;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
 
@@ -73,7 +75,7 @@ public final class JwtSigner {
                         jwt.keystorePassword().orElse(""));
                 String alias = keyAlias(ks, jwt.keyAlias().orElse(null));
                 key = privateKey(ks, alias, jwt.keyPassword().or(jwt::keystorePassword).orElse(""));
-                java.security.cert.Certificate cert = ks.getCertificate(alias);
+                Certificate cert = ks.getCertificate(alias);
                 publicKey = cert == null ? null : cert.getPublicKey();
             }
             else {
@@ -174,10 +176,10 @@ public final class JwtSigner {
             offset += der[1] & 0x7f;
         }
         int rLen = der[offset + 1];
-        byte[] r = new BigInteger(1, java.util.Arrays.copyOfRange(der, offset + 2, offset + 2 + rLen)).toByteArray();
+        byte[] r = new BigInteger(1, Arrays.copyOfRange(der, offset + 2, offset + 2 + rLen)).toByteArray();
         offset += 2 + rLen;
         int sLen = der[offset + 1];
-        byte[] s = new BigInteger(1, java.util.Arrays.copyOfRange(der, offset + 2, offset + 2 + sLen)).toByteArray();
+        byte[] s = new BigInteger(1, Arrays.copyOfRange(der, offset + 2, offset + 2 + sLen)).toByteArray();
         byte[] out = new byte[partLength * 2];
         copyRightAligned(r, out, 0, partLength);
         copyRightAligned(s, out, partLength, partLength);

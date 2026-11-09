@@ -58,7 +58,7 @@ public class TokenExchange {
         this.tokenEndpoint = base + "/realms/" + system.authRealm() + "/protocol/openid-connect/token";
         this.clientId = system.clientId()
             .filter(v -> !v.isBlank())
-            .orElseThrow(() -> new IllegalStateException("Missing configuration 'kc-mcp.client-id'"));
+            .orElseThrow(() -> new IllegalStateException("Missing configuration 'kc-mcp.systems.<name>.client-id'"));
         this.actorToken = actorToken;
         if (system.clientAuth() == ClientAuth.PRIVATE_KEY_JWT) {
             this.clientSecret = null;
@@ -68,7 +68,8 @@ public class TokenExchange {
         else {
             this.clientSecret = system.clientSecret()
                 .filter(v -> !v.isBlank())
-                .orElseThrow(() -> new IllegalStateException("Missing configuration 'kc-mcp.client-secret'"));
+                .orElseThrow(
+                        () -> new IllegalStateException("Missing configuration 'kc-mcp.systems.<name>.client-secret'"));
             this.clientAssertion = null;
         }
     }
@@ -155,7 +156,7 @@ public class TokenExchange {
         }
         else if (status == 401 || "invalid_client".equals(error) || "unauthorized_client".equals(error)) {
             fix = "The server's own client credentials were refused or the client may not use token exchange; "
-                    + "check kc-mcp.client-id / kc-mcp.client-secret and 'Standard Token Exchange' on the client.";
+                    + "check kc-mcp.systems.<name>.client-id / .client-secret and 'Standard Token Exchange' on the client.";
         }
         else if ("unsupported_grant_type".equals(error)) {
             fix = "This Keycloak does not offer token exchange delegation: it needs version 26.8 or later started with "

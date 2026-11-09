@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
@@ -34,11 +35,11 @@ public class PrivateKeyJwtProfile implements QuarkusTestProfile {
                                     .encodeToString(keyPair.getPrivate().getEncoded())
                                 + "\n-----END PRIVATE KEY-----\n");
         }
-        catch (IOException | java.security.GeneralSecurityException e) {
+        catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException(e);
         }
-        return Map.of("kc-mcp.grant-type", "client_credentials", "kc-mcp.client-auth", "private_key_jwt",
-                "kc-mcp.client-id", "mcp-admin", "kc-mcp.jwt.key-file", pem.toString(), "kc-mcp.jwt.key-id",
-                "kc-mcp-test-key", "kc-mcp.startup-check", "off");
+        return Map.of("kc-mcp.systems.default.grant-type", "client_credentials", "kc-mcp.systems.default.client-auth",
+                "private_key_jwt", "kc-mcp.systems.default.client-id", "mcp-admin", "kc-mcp.jwt.key-file",
+                pem.toString(), "kc-mcp.jwt.key-id", "kc-mcp-test-key", "kc-mcp.startup-check", "off");
     }
 }

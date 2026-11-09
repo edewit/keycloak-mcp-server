@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.http;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -12,6 +13,7 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.config.PublicHostname;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 
 import io.vertx.ext.web.Router;
@@ -22,10 +24,11 @@ import io.vertx.ext.web.RoutingContext;
  * resolves its own name to 127.0.0.1 and talks to the local server with that name in the
  * {@code Host} header. Requests to {@code <root>} and below are accepted only with a
  * localhost {@code Host} and, when present, a localhost {@code Origin}, plus the values
- * of {@code kc-mcp.dns-rebinding-allowed-hosts}. {@code kc-mcp.dns-rebinding-protection}:
- * {@code auto} (on while the endpoint is anonymous), {@code on}, {@code off}. Other
- * routes (JWKS, admin API, well-known) are not touched; the MCP spec asks for this check
- * on local servers without HTTPS and authentication.
+ * of {@code kc-mcp.dns-rebinding-allowed-hosts} and the host of {@code kc-mcp.hostname}.
+ * {@code kc-mcp.dns-rebinding-protection}: {@code auto} (on while the endpoint is
+ * anonymous), {@code on}, {@code off}. Other routes (JWKS, admin API, well-known) are not
+ * touched; the MCP spec asks for this check on local servers without HTTPS and
+ * authentication.
  */
 @ApplicationScoped
 public class DnsRebindingProtection {
@@ -35,7 +38,7 @@ public class DnsRebindingProtection {
 
     @Inject
     McpServerConfig config;
-    @ConfigProperty(name = "quarkus.mcp.server.root-path", defaultValue = "/mcp")
+    @ConfigProperty(name = "quarkus.mcp.server.http.root-path", defaultValue = "/mcp")
     String rootPath;
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
     boolean oidcEnabled;
@@ -47,7 +50,9 @@ public class DnsRebindingProtection {
             LOG.debugf("DNS rebinding protection off (%s)", config.dnsRebindingProtection());
             return;
         }
-        allowed = allowedHosts(config.dnsRebindingAllowedHosts().orElse(List.of()));
+        List<String> hosts = new ArrayList<>(config.dnsRebindingAllowedHosts().orElse(List.of()));
+        PublicHostname.of(config.hostname()).map(PublicHostname::authority).ifPresent(hosts::add);
+        allowed = allowedHosts(hosts);
         String root = EntryRoutes.root(rootPath);
         router.route(root).order(-1000).handler(this::check);
         router.route(root + "/*").order(-1000).handler(this::check);
@@ -62,7 +67,7 @@ public class DnsRebindingProtection {
         return switch (mode) {
             case "on", "true" -> true;
             case "off", "false" -> false;
-            default -> !oidcEnabled && !config.requireCaller();
+            default -> !oidcEnabled && !config.callerRequired();
         };
     }
 

@@ -50,9 +50,11 @@ public class RealmManagerTestResource implements QuarkusTestResourceLifecycleMan
         catch (IOException | InterruptedException e) {
             throw new IllegalStateException("Keycloak bootstrap failed", e);
         }
-        return Map.of("kc-mcp.url", base, "kc-mcp.grant-type", "client_credentials", "kc-mcp.auth-realm", "demo",
-                "kc-mcp.client-id", "mcp-mgr", "kc-mcp.client-secret", "mgr-secret", "kc-mcp.allowed-realms", "demo",
-                "kc-mcp.default-realm", "demo", "kc-mcp.tool-exposure", "direct", "kc-mcp.startup-check", "fail");
+        return Map.of("kc-mcp.systems.default.url", base, "kc-mcp.systems.default.grant-type", "client_credentials",
+                "kc-mcp.systems.default.auth-realm", "demo", "kc-mcp.systems.default.client-id", "mcp-mgr",
+                "kc-mcp.systems.default.client-secret", "mgr-secret", "kc-mcp.systems.default.allowed-realms", "demo",
+                "kc-mcp.systems.default.default-realm", "demo", "kc-mcp.tool-exposure", "direct",
+                "kc-mcp.startup-check", "fail");
     }
 
     private void bootstrap() throws IOException, InterruptedException {

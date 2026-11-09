@@ -45,7 +45,7 @@ public final class FileKeyVault implements KeyVault {
 
     @Override
     public String id() {
-        return "file-key-vault";
+        return "file";
     }
 
     @Override

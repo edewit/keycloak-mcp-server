@@ -4,7 +4,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.Test;
 
@@ -106,8 +108,8 @@ class StorageCryptoTest {
             }
 
             @Override
-            protected javax.crypto.SecretKey derive(String secret) {
-                return new javax.crypto.spec.SecretKeySpec(new byte[32], "AES");
+            protected SecretKey derive(String secret) {
+                return new SecretKeySpec(new byte[32], "AES");
             }
         }
         String stored = new Fixed().protect("z");

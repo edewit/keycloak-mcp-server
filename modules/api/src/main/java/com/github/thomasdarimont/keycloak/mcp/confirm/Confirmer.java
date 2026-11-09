@@ -13,6 +13,27 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  */
 public interface Confirmer extends Extension {
 
+    /**
+     * This extension point's name in configuration keys:
+     * {@code kc-mcp.spi.confirmer.<id>.*}.
+     */
+    String SPI = "confirmer";
+
+    @Override
+    default String spiName() {
+        return SPI;
+    }
+
     Decision confirm(ConfirmationRequest request);
+
+    /**
+     * Whether this confirmer obtains the human's decision itself (an approval on their
+     * device, a push notification, a four-eyes workflow), so that the model need not ask
+     * the user beforehand; {@code false} for checks that decide from data (a ticket, an
+     * allow-list). Shapes the guidance the model gets, not the decision.
+     */
+    default boolean asksTheHuman() {
+        return false;
+    }
 
 }

@@ -11,10 +11,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.http.EntryRoutes;
+import com.github.thomasdarimont.keycloak.mcp.backend.http.HttpPaths;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.FileSystemKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.Jwks;
@@ -59,8 +59,8 @@ public class AdminSystems {
     DefaultKeycloakSystems systems;
     @Inject
     SigningKeys keys;
-    @ConfigProperty(name = "quarkus.mcp.server.root-path", defaultValue = "/mcp")
-    String rootPath;
+    @Inject
+    HttpPaths paths;
 
     void onStart(@Observes StartupEvent event) {
         if (!config.admin().enabled()) {
@@ -131,6 +131,9 @@ public class AdminSystems {
             throw new AdminException(400, "host_not_allowed", "The url " + system.url()
                     + " is not covered by kc-mcp.allowed-hosts " + systems.allowedHosts().patterns() + ".");
         }
+        systems.dynamicHostProblem(system.url()).ifPresent(why -> {
+            throw new AdminException(400, "private_host", why);
+        });
         Optional<KeycloakSystemRepository> owner = systems.repositoryOf(system.name());
         if (owner.isEmpty() && !config.admin().allowNewSystems()) {
             throw new AdminException(403, "registration_closed", "The admin API registers no new systems"
@@ -251,6 +254,9 @@ public class AdminSystems {
         s.password().ifPresent(v -> out.put("password", KeycloakSystem.isVaultRef(v) ? v : "***"));
         s.defaultRealm().ifPresent(v -> out.put("defaultRealm", v));
         out.put("allowedRealms", s.allowedRealms().stream().sorted().toList());
+        if (!s.trustedIssuers().isEmpty()) {
+            out.put("trustedIssuers", s.trustedIssuers().stream().sorted().toList());
+        }
         s.version().ifPresent(v -> out.put("version", v));
         systems.repositoryOf(s.name()).ifPresent(r -> {
             out.put("source", r.id());
@@ -273,11 +279,11 @@ public class AdminSystems {
                 });
                 key.put("vault", keys.vault().id());
             }
-            key.put("jwksPath", path);
-            key.put("jwksUrl", publicBase + path);
+            key.put("jwksPath", paths.absolute(path));
+            key.put("jwksUrl", publicBase + paths.absolute(path));
             out.put("signingKey", key);
         }
-        String root = EntryRoutes.root(rootPath) + "/" + EntryRoutes.SEGMENT + "/" + s.name();
+        String root = paths.absoluteMcpRoot() + "/" + EntryRoutes.SEGMENT + "/" + s.name();
         List<String> entries = new ArrayList<>();
         entries.add(root);
         s.defaultRealm().ifPresent(r -> entries.add(root + "/" + r));

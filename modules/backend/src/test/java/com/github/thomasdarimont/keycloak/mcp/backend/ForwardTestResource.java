@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.testcontainers.containers.GenericContainer;
@@ -44,19 +45,42 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
             .withExtraHost("host.docker.internal", "host-gateway")
             .waitingFor(
                     Wait.forLogMessage(".*Keycloak .* started in .*\\n", 1).withStartupTimeout(Duration.ofMinutes(3)));
+        customize(keycloak);
         keycloak.start();
         base = "http://" + keycloak.getHost() + ":" + keycloak.getMappedPort(8080);
         try {
             bootstrap();
+            bootstrapMore();
         }
         catch (IOException | InterruptedException e) {
             throw new IllegalStateException("Keycloak bootstrap failed", e);
         }
-        return Map.ofEntries(Map.entry("kc-mcp.url", base), Map.entry("kc-mcp.auth-realm", "demo"),
-                Map.entry("kc-mcp.delegation", "forward"), Map.entry("kc-mcp.default-realm", "demo"),
-                Map.entry("kc-mcp.allowed-realms", "demo"), Map.entry("kc-mcp.tool-exposure", "direct"),
-                Map.entry("kc-mcp.grant-type", "client_credentials"), Map.entry("kc-mcp.username", ""),
-                Map.entry("kc-mcp.password", ""), Map.entry("quarkus.oidc.tenant-enabled", "true"),
+        Map<String, String> config = new HashMap<>(baseConfig());
+        config.putAll(extraConfig());
+        return config;
+    }
+
+    /** Hook for subclasses: more container settings before it starts. */
+    protected void customize(GenericContainer<?> container) {
+    }
+
+    /** Hook for subclasses: more realm content after the demo realm exists. */
+    protected void bootstrapMore() throws IOException, InterruptedException {
+    }
+
+    /** Hook for subclasses: server settings added to (or replacing) the forward ones. */
+    protected Map<String, String> extraConfig() {
+        return Map.of();
+    }
+
+    Map<String, String> baseConfig() {
+        return Map.ofEntries(Map.entry("kc-mcp.systems.default.url", base),
+                Map.entry("kc-mcp.systems.default.auth-realm", "demo"), Map.entry("kc-mcp.delegation", "forward"),
+                Map.entry("kc-mcp.systems.default.default-realm", "demo"),
+                Map.entry("kc-mcp.systems.default.allowed-realms", "demo"), Map.entry("kc-mcp.tool-exposure", "direct"),
+                Map.entry("kc-mcp.systems.default.grant-type", "client_credentials"),
+                Map.entry("kc-mcp.systems.default.username", ""), Map.entry("kc-mcp.systems.default.password", ""),
+                Map.entry("quarkus.oidc.tenant-enabled", "true"),
                 Map.entry("quarkus.oidc.auth-server-url", base + "/realms/demo"),
                 Map.entry("quarkus.oidc.token.audience", "mcp-admin"),
                 // the admin API trusts the demo realm's tokens: realm admins may use it,
@@ -167,7 +191,7 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
         return r.body();
     }
 
-    private String get(String path) throws IOException, InterruptedException {
+    String get(String path) throws IOException, InterruptedException {
         HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(base + path))
             .header("Authorization", "Bearer " + adminToken)
             .GET()
@@ -211,7 +235,7 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
         check(r, path);
     }
 
-    private String post(String path, Object json) throws IOException, InterruptedException {
+    String post(String path, Object json) throws IOException, InterruptedException {
         HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(base + path))
             .header("Authorization", "Bearer " + adminToken)
             .header("Content-Type", "application/json")

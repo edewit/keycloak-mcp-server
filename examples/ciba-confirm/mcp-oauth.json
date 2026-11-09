@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "keycloak-ciba": {
+      "url": "http://localhost:8099/mcp",
+      "auth": {
+        "CLIENT_ID": "mcp-consumer"
+      }
+    }
+  }
+}

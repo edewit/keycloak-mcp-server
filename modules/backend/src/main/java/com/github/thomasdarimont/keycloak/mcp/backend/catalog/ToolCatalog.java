@@ -3,6 +3,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.catalog;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -48,7 +49,7 @@ public class ToolCatalog {
      * it if they agree.
      */
     private static String commonDefaultRealm(KeycloakSystems systems) {
-        Set<String> defaults = new java.util.HashSet<>();
+        Set<String> defaults = new HashSet<>();
         for (var admin : systems.all()) {
             if (admin.system().defaultRealm().isEmpty()) {
                 return null;
@@ -78,7 +79,7 @@ public class ToolCatalog {
         this.prefix = prefix == null ? "" : prefix.trim();
         this.systems = List.copyOf(systems == null ? List.of() : systems);
         this.defaultSystem = defaultSystem;
-        Set<String> hot = new java.util.HashSet<>();
+        Set<String> hot = new HashSet<>();
         for (String h : hotTools == null ? List.<String>of() : hotTools) {
             hot.add(shortName(stripPrefix(normalize(h))));
         }

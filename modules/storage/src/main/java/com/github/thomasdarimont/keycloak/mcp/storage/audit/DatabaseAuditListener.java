@@ -6,7 +6,7 @@ import jakarta.transaction.Transactional;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
-import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfigSourceFactory;
+import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
 import io.quarkus.panache.common.Sort;
@@ -17,14 +17,15 @@ import io.vertx.core.json.JsonObject;
  * handler's thread so the record exists before the result leaves the server; a database
  * failure is logged by the server and does not change the tool result. Arguments arrive
  * redacted; personal data is the {@link PiiAuditScrubber}'s business. Rows are kept until
- * {@link AuditRetention} removes them ({@code kc-mcp.spi.db-audit.retention-days}, off by
- * default). Switch it off alone with {@code kc-mcp.spi.db-audit.enabled=false}.
+ * {@link AuditRetention} removes them
+ * ({@code kc-mcp.spi.audit-listener.db.retention-days}, off by default). Switch it off
+ * alone with {@code kc-mcp.spi.audit-listener.db.enabled=false}.
  */
 @ApplicationScoped
-@LookupIfProperty(name = StorageConfigSourceFactory.ENABLED, stringValue = "true")
+@LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabaseAuditListener implements AuditListener {
 
-    public static final String ID = "db-audit";
+    public static final String ID = "db";
 
     @Override
     public String id() {

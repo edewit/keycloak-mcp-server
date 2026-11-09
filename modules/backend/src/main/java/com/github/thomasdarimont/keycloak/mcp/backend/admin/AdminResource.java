@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.admin;
 
 import java.util.Map;
+import java.util.Optional;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -15,6 +16,9 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
+
+import com.github.thomasdarimont.keycloak.mcp.backend.config.PublicHostname;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 
 /**
  * The admin API over HTTP; {@link AdminAccessFilter} lets requests through,
@@ -43,6 +47,9 @@ public class AdminResource {
     public static final String PATH = "/admin";
 
     @Inject
+    McpServerConfig config;
+
+    @Inject
     AdminSystems admin;
 
     @Inject
@@ -54,14 +61,14 @@ public class AdminResource {
     @GET
     @Path("systems")
     public Map<String, Object> list(@Context UriInfo uri, @Context HttpHeaders headers) {
-        return admin.list(publicBase(uri, headers));
+        return admin.list(publicBase(config.hostname(), uri, headers));
     }
 
     @GET
     @Path("systems/{alias}")
     public Map<String, Object> get(@PathParam("alias") String alias, @Context UriInfo uri,
             @Context HttpHeaders headers) {
-        return admin.get(alias, publicBase(uri, headers));
+        return admin.get(alias, publicBase(config.hostname(), uri, headers));
     }
 
     @PUT
@@ -69,14 +76,14 @@ public class AdminResource {
     @Consumes(MediaType.APPLICATION_JSON)
     public Response put(@PathParam("alias") String alias, Map<String, Object> body, @Context UriInfo uri,
             @Context HttpHeaders headers) {
-        return saved(admin.save(body, alias, publicBase(uri, headers)));
+        return saved(admin.save(body, alias, publicBase(config.hostname(), uri, headers)));
     }
 
     @POST
     @Path("systems")
     @Consumes(MediaType.APPLICATION_JSON)
     public Response post(Map<String, Object> body, @Context UriInfo uri, @Context HttpHeaders headers) {
-        return saved(admin.save(body, null, publicBase(uri, headers)));
+        return saved(admin.save(body, null, publicBase(config.hostname(), uri, headers)));
     }
 
     @DELETE
@@ -90,7 +97,7 @@ public class AdminResource {
     @Path("systems/{alias}/signing-key")
     public Map<String, Object> rotate(@PathParam("alias") String alias, @Context UriInfo uri,
             @Context HttpHeaders headers) {
-        return admin.rotate(alias, publicBase(uri, headers));
+        return admin.rotate(alias, publicBase(config.hostname(), uri, headers));
     }
 
     @GET
@@ -136,11 +143,16 @@ public class AdminResource {
     }
 
     /**
-     * Scheme and host the caller used, the base of the JWKS URL: {@code X-Forwarded-*}
-     * first (or let {@code quarkus.http.proxy.proxy-address-forwarding} fold them into
-     * the request), else the request's own.
+     * The base of the JWKS URL: {@code kc-mcp.hostname}; else scheme and host the caller
+     * used, {@code X-Forwarded-*} first (or let
+     * {@code quarkus.http.proxy.proxy-address-forwarding} fold them into the request),
+     * else the request's own.
      */
-    public static String publicBase(UriInfo uri, HttpHeaders headers) {
+    public static String publicBase(Optional<String> hostname, UriInfo uri, HttpHeaders headers) {
+        Optional<String> configured = PublicHostname.of(hostname);
+        if (configured.isPresent()) {
+            return configured.get();
+        }
         String proto = headers.getHeaderString("X-Forwarded-Proto");
         String host = headers.getHeaderString("X-Forwarded-Host");
         if (proto == null || proto.isBlank()) {

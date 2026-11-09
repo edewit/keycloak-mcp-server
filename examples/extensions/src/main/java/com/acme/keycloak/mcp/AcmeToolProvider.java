@@ -1,6 +1,7 @@
 package com.acme.keycloak.mcp;
 
 import java.util.List;
+import java.util.Map;
 
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -19,8 +20,8 @@ import com.google.auto.service.AutoService;
 /**
  * Extension point {@link ToolProvider}: two company tools next to the built-in catalog.
  * They get search, exposure modes, argument validation, realm and role checks,
- * confirmation and the audit log for free. Settings: {@code kc-mcp.spi.acme.*} /
- * {@code KC_MCP_SPI_ACME_*}.
+ * confirmation and the audit log for free. Settings: {@code kc-mcp.spi.tools.acme.*} /
+ * {@code KC_MCP_SPI_TOOLS_ACME_*}.
  */
 @AutoService(ToolProvider.class)
 public class AcmeToolProvider extends AbstractToolProvider {
@@ -42,7 +43,7 @@ public class AcmeToolProvider extends AbstractToolProvider {
 
     @Override
     public List<ToolSpec> tools(ToolProviderContext ctx) {
-        String company = ctx.config().get("company", "ACME"); // kc-mcp.spi.acme.company
+        String company = ctx.config().get("company", "ACME"); // kc-mcp.spi.tools.acme.company
         return List.of(
                 // READ: needs view-users in the realm, visible to everyone who has it
                 tool("keycloak_acme_user_summary").title(company + ": user summary")
@@ -60,7 +61,7 @@ public class AcmeToolProvider extends AbstractToolProvider {
                             .stream()
                             .map(GroupRepresentation::getPath)
                             .toList();
-                        return ToolResult.ok(java.util.Map.of("user", Views.user(u), "groups", groups, "summary",
+                        return ToolResult.ok(Map.of("user", Views.user(u), "groups", groups, "summary",
                                 u.getUsername() + " is " + (Boolean.TRUE.equals(u.isEnabled()) ? "enabled" : "disabled")
                                         + ", " + groups.size() + " group(s)"));
                     })

@@ -44,12 +44,12 @@ An existing stack keeps its old realm: after changes to `realms/demo-realm.json`
 | users | `alice` (admins, team-a, mcp-admins, `group-manager`, R&D), `bob` (devs/backend, `demo-app` app-user), `carol` (team-b, mcp-support, `support`), `dave` (disabled). Password = `<username>-demo`. |
 | groups | `/admins` (→ editor), `/devs` (→ viewer) with `backend`, `frontend`, `/team-a` with `ops`, `/team-b`; `/mcp-admins` (→ realm-management `realm-admin`) and `/mcp-support` (→ `view-users`, `view-events`) for the user login demo |
 | realm roles | `viewer`, `editor` (composite of viewer), `group-manager`, `support` |
-| clients | `demo-app` (confidential, PKCE, client roles `app-user`/`app-admin`), `mcp-consumer` (public PKCE client MCP clients log the user in with; an audience mapper adds `aud=mcp-admin`, redirect URIs are LM Studio's `http://127.0.0.1:33389/mcp-oauth-callback`, access tokens live 30 min) |
+| clients | `demo-app` (confidential, PKCE, client roles `app-user`/`app-admin`), `mcp-consumer` (public PKCE client MCP clients log the user in with; an audience mapper adds `aud=mcp-admin`, redirect URIs are LM Studio's `http://127.0.0.1:33389/mcp-oauth-callback` and the loopback callbacks of Claude Code, Cursor and Codex (`http://localhost/callback`, `http://localhost/oauth/callback`, any port), access tokens live 30 min) |
 | MCP service accounts | `mcp-admin` → `realm-admin`; `mcp-manager` → view-users, manage-users, view-clients, view-events; `mcp-readonly` → view-* only. Secrets: `<clientId>-secret`. `mcp-jwt` → `realm-admin`, authenticates with `private_key_jwt` (JWKS URL → the MCP server) |
 | identity provider | `corp-oidc` (disabled stub, hidden on login) |
 | organization | `ACME Corp` (`acme`, domain acme.com) |
 | realm settings | login + admin events on, organizations on, SMTP → Mailpit, password policy `length(8)`, unmanaged user attributes enabled (`department`) |
-| second realm | `other` with user `zed`, deliberately outside `KC_MCP_ALLOWED_REALMS` |
+| second realm | `other` with user `zed`, deliberately outside `KC_MCP_SYSTEMS_DEFAULT_ALLOWED_REALMS` |
 
 ## Access levels to demonstrate
 
@@ -102,6 +102,12 @@ LM Studio: copy `mcp-oauth.json` (`"auth": {"CLIENT_ID": "mcp-consumer"}`), conn
 | `alice / alice-demo` | `/mcp-admins` → `realm-admin` | everything works; audit: `caller=alice(…) delegated` |
 | `carol / carol-demo` | `/mcp-support` → `view-users`, `view-events` | "list users" works, "disable dave" → `forbidden`, missing `manage-users`; `search_tools` already marks such tools `allowed: false` |
 | `bob / bob-demo` | none | every tool → `forbidden` ("no admin roles in realm 'demo'") |
+
+`env/shared.env` is the same stack under `KC_MCP_PROFILE=shared`, the settings a server other people reach needs:
+authenticated callers with an audience, the Keycloak host listed, `confirm: true` no longer accepted (destructive tools
+need a client with elicitation, LM Studio has none, so "delete dave" is refused with `confirmation_required`), and
+destructive tools must pass `realm` although a default realm is set. Remove `KC_MCP_ALLOWED_HOSTS` from the file to
+see the startup check list what is missing.
 
 "What am I allowed to do?" (or "Was darf ich?") calls `whoami`, which lists the user's roles with readable labels
 (`language: de` gives German ones) and a per-area summary such as `users: view, clients: none`.

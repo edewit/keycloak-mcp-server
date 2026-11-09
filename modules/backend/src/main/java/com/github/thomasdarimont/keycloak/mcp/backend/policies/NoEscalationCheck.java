@@ -1,7 +1,9 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.policies;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 
@@ -15,28 +17,22 @@ public final class NoEscalationCheck implements AccessCheck {
     static final Set<String> GRANT_TOOLS = Set.of("keycloak_user_role_assign", "keycloak_user_client_role_assign",
             "keycloak_group_role_assign", "keycloak_group_member_add");
     /** tools that act on a target user: the target must not outrank the caller */
-    static final java.util.Map<String, String> USER_ARG = java.util.Map.ofEntries(
-            java.util.Map.entry("keycloak_user_set_enabled", "id"), java.util.Map.entry("keycloak_user_update", "id"),
-            java.util.Map.entry("keycloak_user_delete", "id"),
-            java.util.Map.entry("keycloak_user_reset_password", "id"),
-            java.util.Map.entry("keycloak_user_send_action_email", "id"),
-            java.util.Map.entry("keycloak_user_logout", "id"),
-            java.util.Map.entry("keycloak_user_role_assign", "userId"),
-            java.util.Map.entry("keycloak_user_role_unassign", "userId"),
-            java.util.Map.entry("keycloak_user_client_role_assign", "userId"),
-            java.util.Map.entry("keycloak_user_client_role_unassign", "userId"),
-            java.util.Map.entry("keycloak_group_member_add", "userId"),
-            java.util.Map.entry("keycloak_group_member_remove", "userId"));
+    static final Map<String, String> USER_ARG = Map.ofEntries(Map.entry("keycloak_user_set_enabled", "id"),
+            Map.entry("keycloak_user_update", "id"), Map.entry("keycloak_user_delete", "id"),
+            Map.entry("keycloak_user_reset_password", "id"), Map.entry("keycloak_user_send_action_email", "id"),
+            Map.entry("keycloak_user_logout", "id"), Map.entry("keycloak_user_role_assign", "userId"),
+            Map.entry("keycloak_user_role_unassign", "userId"), Map.entry("keycloak_user_client_role_assign", "userId"),
+            Map.entry("keycloak_user_client_role_unassign", "userId"), Map.entry("keycloak_group_member_add", "userId"),
+            Map.entry("keycloak_group_member_remove", "userId"));
 
-    private final java.util.function.Function<Context, RealmDirectory> directories;
+    private final Function<Context, RealmDirectory> directories;
     private final PolicySettings settings;
 
     public NoEscalationCheck(RealmDirectory directory, PolicySettings settings) {
         this(ctx -> directory, settings);
     }
 
-    public NoEscalationCheck(java.util.function.Function<Context, RealmDirectory> directories,
-            PolicySettings settings) {
+    public NoEscalationCheck(Function<Context, RealmDirectory> directories, PolicySettings settings) {
         this.directories = directories;
         this.settings = settings;
     }

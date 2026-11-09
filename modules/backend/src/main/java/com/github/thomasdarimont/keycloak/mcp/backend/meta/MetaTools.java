@@ -1,12 +1,15 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.meta;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -16,9 +19,11 @@ import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.backend.exposure.ProgressiveState;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.AccessPolicy;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.CapabilityDiscovery;
+import com.github.thomasdarimont.keycloak.mcp.backend.guard.ConfirmationGuidance;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.EntryBinding;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.InvocationContext;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.ToolInvoker;
+import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.backend.search.SearchHit;
 import com.github.thomasdarimont.keycloak.mcp.backend.search.ToolIndex;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
@@ -78,14 +83,33 @@ public class MetaTools {
      * rephrasing. Lock-free; past {@link #MAX_MISSES_TRACKED} entries the map is cleared,
      * which only resets the brake for abandoned connections.
      */
-    private final java.util.concurrent.ConcurrentMap<String, Integer> misses = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Integer> misses = new ConcurrentHashMap<>();
     private final int defaultLimit;
     private final DelegationMode delegation;
+    private ConfirmationGuidance guidance = ConfirmationGuidance.standalone();
+    private KcMcpMetrics metrics = KcMcpMetrics.noop();
 
     @Inject
     public MetaTools(ToolCatalog catalog, AccessPolicy policy, ToolInvoker invoker, ProgressiveState progressive,
-            McpServerConfig config) {
+            McpServerConfig config, ConfirmationGuidance guidance, KcMcpMetrics metrics) {
         this(catalog, policy, invoker, progressive, config.searchLimitDefault(), config.delegation());
+        this.guidance = guidance;
+        this.metrics = metrics;
+    }
+
+    /** Where the discovery metrics go (tests). */
+    public MetaTools metrics(KcMcpMetrics metrics) {
+        this.metrics = metrics == null ? KcMcpMetrics.noop() : metrics;
+        return this;
+    }
+
+    /**
+     * What search hits of destructive tools and {@code whoami} tell the model about
+     * confirmation.
+     */
+    public MetaTools guidance(ConfirmationGuidance guidance) {
+        this.guidance = guidance == null ? ConfirmationGuidance.standalone() : guidance;
+        return this;
     }
 
     public MetaTools(ToolCatalog catalog, AccessPolicy policy, ToolInvoker invoker, ProgressiveState progressive,
@@ -152,7 +176,7 @@ public class MetaTools {
         return InputSchema.builder()
             .string("query", "What you want to do, e.g. \"disable user\", \"list clients\", \"ldap sync\"")
             .enumeration("category", "Restrict to one area",
-                    java.util.Arrays.stream(Category.values()).map(Category::id).toArray(String[]::new))
+                    Arrays.stream(Category.values()).map(Category::id).toArray(String[]::new))
             .integer("limit", "Max tools to return")
             .min(1)
             .max(SEARCH_LIMIT_MAX)
@@ -203,19 +227,27 @@ public class MetaTools {
         List<String> names = new ArrayList<>();
         boolean anyForbidden = false;
         boolean anyUnsupported = false;
+        int forbiddenHits = 0;
+        int unsupportedHits = 0;
+        String confirmation = hits.stream().anyMatch(h -> h.spec().isDestructive()) ? guidance.howTo(ctx) : null;
         for (SearchHit hit : hits) {
             JsonObject tool = toolJson(hit.spec());
+            if (hit.spec().isDestructive() && confirmation != null) {
+                tool.put("confirmation", confirmation);
+            }
             if (judge) {
                 Set<String> missing = granted.missingAnyRealm(hit.spec().requiredRoles());
                 if (!missing.isEmpty()) {
                     tool.put("allowed", false).put("missingRoles", new JsonArray(List.copyOf(missing)));
                     anyForbidden = true;
+                    forbiddenHits++;
                 }
             }
             Optional<String> unsupported = AccessPolicy.unsupported(hit.spec(), caps, explanations);
             if (unsupported.isPresent()) {
                 tool.put("allowed", false).put("unsupported", unsupported.get());
                 anyUnsupported = true;
+                unsupportedHits++;
             }
             tools.add(tool);
             names.add(hit.spec().name());
@@ -226,9 +258,11 @@ public class MetaTools {
             int consecutive = misses(connectionId, true);
             out.put("categories", categoriesJson().getList());
             out.put("hint", consecutive <= 1 ? NO_MATCH_HINT : String.format(NO_MATCH_STOP_HINT, consecutive));
+            metrics.search(consecutive <= 1 ? "miss" : "stopped", modeName(mode), categoryName(category), 0, 0, 0);
         }
         else {
             misses(connectionId, false);
+            metrics.search("hit", modeName(mode), categoryName(category), hits.size(), forbiddenHits, unsupportedHits);
             String hint = HINT;
             if (anyForbidden) {
                 hint += " " + FORBIDDEN_HINT;
@@ -278,6 +312,14 @@ public class MetaTools {
             arr.add(new JsonObject().put("category", c.id()).put("tools", n).put("about", c.blurb()));
         }
         return arr;
+    }
+
+    private static String modeName(ExposureMode mode) {
+        return mode == null ? "-" : mode.name().toLowerCase();
+    }
+
+    private static String categoryName(Category category) {
+        return category == null ? "-" : category.id();
     }
 
     public static JsonObject toolJson(ToolSpec spec) {
@@ -401,6 +443,7 @@ public class MetaTools {
         }
         out.put("labelLanguage", language);
         out.put("tools", toolCounts(granted, caps));
+        out.put("confirmation", guidance.json(ctx));
         out.put("hint", "search_tools marks tools the caller may not use with allowed=false.");
         return ToolResult.ok(out);
     }
@@ -499,6 +542,7 @@ public class MetaTools {
             for (SearchHit hit : similar) {
                 didYouMean.add(toolJson(hit.spec()));
             }
+            metrics.unknownTool(!similar.isEmpty());
             return ToolResult.error("unknown_tool", "No tool named '" + name + "'.", "didYouMean", didYouMean.getList(),
                     "hint", "Use search_tools to find the right tool name.");
         }

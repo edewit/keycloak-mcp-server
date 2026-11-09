@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.policies;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
@@ -59,7 +60,7 @@ final class CallerContext {
     }
 
     static Set<String> missing(Set<String> required, Set<String> granted) {
-        Set<String> missing = new java.util.TreeSet<>(required);
+        Set<String> missing = new TreeSet<>(required);
         missing.removeAll(granted);
         return missing;
     }

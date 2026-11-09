@@ -13,6 +13,8 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.AuthorizationResource;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.representations.idm.PartialImportRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.authorization.ResourcePermissionRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceRepresentation;
 import org.keycloak.representations.idm.authorization.ScopeRepresentation;
@@ -51,7 +53,9 @@ class KeycloakIT {
         }
     }
 
-    @ConfigProperty(name = "kc-mcp.url")
+    // a default: the field is validated for every test of the shared profile, not only
+    // this one
+    @ConfigProperty(name = "kc-mcp.systems.primary.url", defaultValue = "http://127.0.0.1:1")
     String keycloakUrl;
 
     /**
@@ -683,5 +687,54 @@ class KeycloakIT {
         JsonObject notAllowed = McpClient
             .text(mcp.callTool("keycloak_user_search", new JsonObject().put("system", "mirror").put("realm", "other")));
         assertEquals("realm_not_allowed", notAllowed.getString("error"));
+    }
+
+    /**
+     * Imported and federated users carry ids that are not UUIDs; such an id resolves as
+     * an id, even when another user's username looks exactly like it.
+     */
+    @Test
+    @Order(13)
+    void idsThatAreNotUuidsStillResolveAsIds() {
+        try (Keycloak admin = KeycloakBuilder.builder()
+            .serverUrl(keycloakUrl)
+            .realm("master")
+            .clientId("admin-cli")
+            .username("admin")
+            .password("admin")
+            .build()) {
+            RealmResource realm = admin.realm(REALM);
+            UserRepresentation legacy = new UserRepresentation();
+            legacy.setId("legacy@example.com");
+            legacy.setUsername("legacy-user");
+            legacy.setEnabled(true);
+            UserRepresentation decoy = new UserRepresentation();
+            decoy.setUsername("legacy@example.com");
+            decoy.setEnabled(true);
+            PartialImportRepresentation imported = new PartialImportRepresentation();
+            imported.setIfResourceExists("OVERWRITE");
+            imported.setUsers(List.of(legacy, decoy));
+            realm.partialImport(imported).close();
+            try {
+                JsonObject byId = call("keycloak_user_get", new JsonObject().put("id", "legacy@example.com"));
+                assertEquals("legacy-user", byId.getString("username"),
+                        "the id wins over a look-alike username, even one shaped like an email");
+                JsonObject byName = call("keycloak_user_get", new JsonObject().put("id", "legacy-user"));
+                assertEquals("legacy@example.com", byName.getString("id"));
+                JsonObject disabled = call("keycloak_user_set_enabled",
+                        new JsonObject().put("id", "legacy@example.com").put("enabled", false));
+                assertEquals(false, disabled.getBoolean("enabled"), disabled.encode());
+                assertEquals(false, realm.users().get("legacy@example.com").toRepresentation().isEnabled(),
+                        "the write reached the user with that id");
+                assertEquals(true, realm.users().searchByUsername("legacy@example.com", true).get(0).isEnabled(),
+                        "not the look-alike");
+            }
+            finally {
+                realm.users().get("legacy@example.com").remove();
+                realm.users()
+                    .searchByUsername("legacy@example.com", true)
+                    .forEach(u -> realm.users().get(u.getId()).remove());
+            }
+        }
     }
 }

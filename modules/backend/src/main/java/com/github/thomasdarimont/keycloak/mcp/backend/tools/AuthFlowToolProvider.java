@@ -5,6 +5,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.function.Predicate;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.NotFoundException;
 
 import org.keycloak.admin.client.resource.AuthenticationManagementResource;
 import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
@@ -323,7 +327,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
             flowsOf(call).getExecutions(alias);
             return alias;
         }
-        catch (jakarta.ws.rs.NotFoundException | jakarta.ws.rs.BadRequestException e) {
+        catch (NotFoundException | BadRequestException e) {
             throw ToolException.notFound("Authentication flow", alias);
         }
     }
@@ -460,7 +464,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
     }
 
     private AuthenticationExecutionInfoRepresentation lastExecution(ToolCall call, String flowAlias,
-            java.util.function.Predicate<AuthenticationExecutionInfoRepresentation> match) {
+            Predicate<AuthenticationExecutionInfoRepresentation> match) {
         AuthenticationExecutionInfoRepresentation found = null;
         for (AuthenticationExecutionInfoRepresentation e : flowsOf(call).getExecutions(flowAlias)) {
             if (match.test(e)) {
@@ -542,7 +546,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
             AuthenticatorConfigRepresentation c = flows.getAuthenticatorConfig(e.getAuthenticatorConfig());
             out.put("configId", c.getId());
             Views.put(out, "alias", c.getAlias());
-            out.put("config", c.getConfig() == null ? Map.of() : new java.util.TreeMap<>(c.getConfig()));
+            out.put("config", c.getConfig() == null ? Map.of() : new TreeMap<>(c.getConfig()));
         }
         else {
             out.put("config", Map.of());
@@ -597,7 +601,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
             }
             flows.updateAuthenticatorConfig(c.getId(), c);
             return ToolResult.done("Config updated", "executionId", e.getId(), "configId", c.getId(), "alias",
-                    c.getAlias(), "config", new java.util.TreeMap<>(merged));
+                    c.getAlias(), "config", new TreeMap<>(merged));
         }
         AuthenticatorConfigRepresentation c = new AuthenticatorConfigRepresentation();
         String alias = call.str("alias", e.getAuthenticator() + "-" + e.getId().substring(0, 8));
@@ -611,7 +615,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         c.setConfig(config);
         String id = KeycloakAdmin.created(flows.newExecutionConfig(e.getId(), c));
         return ToolResult.done("Config created", "executionId", e.getId(), "configId", id, "alias", alias, "config",
-                new java.util.TreeMap<>(config));
+                new TreeMap<>(config));
     }
 
     ToolResult raise(ToolCall call) {
@@ -649,7 +653,7 @@ public class AuthFlowToolProvider extends AbstractToolProvider {
         try {
             a = flows.getRequiredAction(call.str("alias"));
         }
-        catch (jakarta.ws.rs.NotFoundException e) {
+        catch (NotFoundException e) {
             throw ToolException.notFound("Required action", call.str("alias"));
         }
         a.setEnabled(Boolean.TRUE.equals(call.bool("enabled")));

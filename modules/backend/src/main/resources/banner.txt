@@ -1,0 +1,9 @@
+ _  __               _             _      __  __  ____ ____  
+| |/ /___ _   _  ___| | ___   __ _| | __ |  \/  |/ ___|  _ \ 
+| ' // _ \ | | |/ __| |/ _ \ / _` | |/ / | |\/| | |   | |_) |
+| . \  __/ |_| | (__| | (_) | (_| |   <  | |  | | |___|  __/ 
+|_|\_\___|\__, |\___|_|\___/ \__,_|_|\_\ |_|  |_|\____|_|    
+          |___/                                              
+  Keycloak MCP Server  -  Keycloak administration for AI assistants
+  https://github.com/thomasdarimont/keycloak-mcp-server
+

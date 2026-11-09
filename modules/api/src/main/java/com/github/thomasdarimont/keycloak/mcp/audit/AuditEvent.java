@@ -29,14 +29,23 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
  * @param clientName the MCP client's name from {@code initialize}, or {@code -}
  * @param connectionId the MCP connection id, or {@code -}
  * @param duration wall time of the call
+ * @param sensitiveResult the tool's result carried a secret the caller asked for (a
+ * client secret, a generated password); the event never contains it
  */
 public record AuditEvent(Instant at, String tool, ToolLevel level, String system, String realm,
         Map<String, Object> args, String outcome, String message, String via, Caller caller, String clientName,
-        String connectionId, Duration duration) {
+        String connectionId, Duration duration, boolean sensitiveResult) {
 
     public AuditEvent {
         args = Map.copyOf(args == null ? Map.of() : args);
         caller = caller == null ? Caller.NONE : caller;
+    }
+
+    public AuditEvent(Instant at, String tool, ToolLevel level, String system, String realm, Map<String, Object> args,
+            String outcome, String message, String via, Caller caller, String clientName, String connectionId,
+            Duration duration) {
+        this(at, tool, level, system, realm, args, outcome, message, via, caller, clientName, connectionId, duration,
+                false);
     }
 
     public boolean succeeded() {
@@ -46,7 +55,7 @@ public record AuditEvent(Instant at, String tool, ToolLevel level, String system
     /** The same event with other arguments. */
     public AuditEvent withArgs(Map<String, Object> newArgs) {
         return new AuditEvent(at, tool, level, system, realm, newArgs, outcome, message, via, caller, clientName,
-                connectionId, duration);
+                connectionId, duration, sensitiveResult);
     }
 
     /**
@@ -68,12 +77,12 @@ public record AuditEvent(Instant at, String tool, ToolLevel level, String system
     /** The same event with another message ({@code null} for none). */
     public AuditEvent withMessage(String newMessage) {
         return new AuditEvent(at, tool, level, system, realm, args, outcome, newMessage, via, caller, clientName,
-                connectionId, duration);
+                connectionId, duration, sensitiveResult);
     }
 
     /** The same event with another caller ({@code null} for {@link Caller#NONE}). */
     public AuditEvent withCaller(Caller newCaller) {
         return new AuditEvent(at, tool, level, system, realm, args, outcome, message, via, newCaller, clientName,
-                connectionId, duration);
+                connectionId, duration, sensitiveResult);
     }
 }

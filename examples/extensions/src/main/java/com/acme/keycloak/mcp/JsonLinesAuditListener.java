@@ -5,7 +5,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
@@ -17,19 +16,19 @@ import io.vertx.core.json.JsonObject;
 
 /**
  * Extension point {@link AuditListener}: one JSON line per finished tool call, appended
- * to a file ({@code KC_MCP_SPI_ACME_AUDIT_FILE}, default {@code acme-audit.jsonl}).
- * Listeners run on the handler's thread; a slow sink would hand off to its own executor.
- * Arguments arrive with secrets redacted; {@link NoEmailScrubber} removes e-mail
- * addresses before.
+ * to a file ({@code KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE}, default
+ * {@code acme-audit.jsonl}). Listeners run on the handler's thread; a slow sink would
+ * hand off to its own executor. Arguments arrive with secrets redacted;
+ * {@link NoEmailScrubber} removes e-mail addresses before.
  */
 @AutoService(AuditListener.class)
 public class JsonLinesAuditListener implements AuditListener {
 
-    private final Path file;
+    private Path file;
     private final ReentrantLock lock = new ReentrantLock();
 
     public JsonLinesAuditListener() {
-        this(Path.of(ProviderConfig.forExtension("acme-audit", Map.of()).get("file", "acme-audit.jsonl")));
+        this(Path.of("acme-audit.jsonl"));
     }
 
     JsonLinesAuditListener(Path file) {
@@ -38,7 +37,12 @@ public class JsonLinesAuditListener implements AuditListener {
 
     @Override
     public String id() {
-        return "acme-audit";
+        return "acme";
+    }
+
+    @Override
+    public void configure(ProviderConfig config) {
+        file = Path.of(config.get("file", file.toString()));
     }
 
     @Override

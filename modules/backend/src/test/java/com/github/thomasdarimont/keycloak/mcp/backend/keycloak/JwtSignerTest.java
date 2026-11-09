@@ -9,6 +9,8 @@ import java.util.Base64;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
+
 import io.vertx.core.json.JsonObject;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,7 +67,7 @@ class JwtSignerTest {
         JwtSigner signer = new JwtSigner(gen.generateKeyPair().getPrivate(), "RS256", null);
         for (String base : new String[] { "https://sso.example.com/auth", "https://sso.example.com/auth/" }) {
             ClientAssertionTokenManager tm = new ClientAssertionTokenManager(null, base, "master", "c", signer, 60,
-                    com.github.thomasdarimont.keycloak.mcp.config.GrantType.CLIENT_CREDENTIALS, null, null);
+                    GrantType.CLIENT_CREDENTIALS, null, null);
             assertEquals("https://sso.example.com/auth/realms/master/protocol/openid-connect/token",
                     tm.tokenEndpoint());
             assertEquals("https://sso.example.com/auth/realms/master", tm.audience());

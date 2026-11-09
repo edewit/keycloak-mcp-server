@@ -5,6 +5,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 
 /**
@@ -36,11 +39,16 @@ public class UserSessionEntity extends PanacheEntityBase {
     public String sid;
 
     /** Encrypted when {@code kc-mcp.storage.secret-key} is set, like the two below. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "id_token", nullable = false)
     public String idToken;
 
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+
     @Column(name = "access_token")
     public String accessToken;
+
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
 
     @Column(name = "refresh_token")
     public String refreshToken;

@@ -67,7 +67,7 @@ public class McpPromptRegistrar {
 
     void onStart(@Observes StartupEvent event) {
         for (PromptProvider p : registry.extensions(PromptProvider.class)) {
-            ExtensionContext ctx = registry.context(p.id());
+            ExtensionContext ctx = registry.context(p);
             for (PromptSpec spec : p.prompts(ctx)) {
                 register(spec);
             }

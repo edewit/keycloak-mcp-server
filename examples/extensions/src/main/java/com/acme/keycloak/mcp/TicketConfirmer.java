@@ -12,7 +12,7 @@ import com.google.auto.service.AutoService;
  * tools. A valid change ticket confirms the offboarding without a prompt, a missing or
  * malformed one declines it; other tools are left to the next confirmer
  * ({@link Decision#abstain()}). Ticket pattern:
- * {@code kc-mcp.spi.acme-ticket-confirmer.pattern}.
+ * {@code kc-mcp.spi.confirmer.acme-ticket.pattern}.
  */
 @AutoService(Confirmer.class)
 public class TicketConfirmer implements Confirmer {
@@ -32,7 +32,7 @@ public class TicketConfirmer implements Confirmer {
 
     @Override
     public String id() {
-        return "acme-ticket-confirmer";
+        return "acme-ticket";
     }
 
     @Override

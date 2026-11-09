@@ -1,0 +1,29 @@
+# Spell checker configuration (https://github.com/crate-ci/typos), run by the typos job of ci.yml over the whole
+# repository. typos only flags known misspellings, so this file names what it would otherwise read as one.
+
+[files]
+extend-exclude = [
+    "target/", "node_modules/", ".certs/", "data/", "sketch/", "conformance/results/", "conformance/providers/",
+    # upstream documents and preference keys, kept as they are
+    "modules/backend/src/test/resources/openapi/", "etc/eclipse-formatter.prefs",
+    # German and French words: the search's translation tables, umlaut folding, the admin console labels, the French search test
+    "modules/backend/src/main/java/com/github/thomasdarimont/keycloak/mcp/backend/search/QueryTranslations.java",
+    "modules/backend/src/main/java/com/github/thomasdarimont/keycloak/mcp/backend/search/Tokenizer.java",
+    "modules/backend/src/main/java/com/github/thomasdarimont/keycloak/mcp/backend/meta/RoleLabels.java",
+    "modules/backend/src/test/java/com/github/thomasdarimont/keycloak/mcp/backend/search/FrenchSearchTest.java",
+]
+
+[default]
+# hex identifiers (key ids, fingerprints, session ids)
+extend-ignore-re = ["\\b[0-9a-f]{8,}\\b"]
+
+[default.extend-words]
+# Vert.x, also inside identifiers such as VertxHttpRequest
+vertx = "vertx"
+# the German query of the index test
+alle = "alle"
+# misspellings the fuzzy search tests type on purpose
+serach = "serach"
+delte = "delte"
+delet = "delet"
+disabl = "disabl"

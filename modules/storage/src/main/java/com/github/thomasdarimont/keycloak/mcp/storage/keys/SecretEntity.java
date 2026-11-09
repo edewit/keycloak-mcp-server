@@ -5,6 +5,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 
 /** A row of {@code kc_mcp_secret}: a raw secret by name ({@code KeyVault.findSecret}). */
@@ -17,6 +20,7 @@ public class SecretEntity extends PanacheEntityBase {
     public String name;
 
     /** Encrypted when {@code kc-mcp.storage.secret-key} is set. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
     @Column(name = "secret_value", nullable = false)
     public String value;
 

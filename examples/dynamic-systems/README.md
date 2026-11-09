@@ -50,7 +50,7 @@ curl -s -X PUT localhost:8091/admin/systems/acme \
 - `url` must match `KC_MCP_ALLOWED_HOSTS`
 - `GET /admin/systems` lists, `POST /admin/systems/acme/signing-key` rotates, `DELETE /admin/systems/acme` removes
 - `client_secret` systems reference a vault secret (`"clientSecret": "vault:acme/client-secret"`, stored with
-  `PUT /admin/secrets/acme/client-secret`); see the main README
+  `PUT /admin/secrets/acme/client-secret`); see [Several Keycloak systems](../../docs/systems.md)
 
 Bearer: the static `KC_MCP_ADMIN_TOKEN`, or an access token of a master realm admin:
 
@@ -113,7 +113,7 @@ LLM clients (LM Studio, Claude): `mcp.json` (service account), `mcp-oauth.json` 
 - Two servers, one database: a system registered on `mcp` is known to `mcp-users`; both write audit rows
 - PII scrubbing on `mcp-users`: console lines pseudonymized (`targets: console`), database rows complete
 - Role-based outcomes: same tools, three users, three results
-- Audit retention: `KC_MCP_SPI_DB_AUDIT_RETENTION_DAYS=30` on `mcp`
+- Audit retention: `KC_MCP_SPI_AUDIT_LISTENER_DB_RETENTION_DAYS=30` on `mcp`
 
 Inspect: `psql -h localhost -p 5490 -U kcmcp kcmcp` (tables `kc_mcp_system`, `kc_mcp_signing_key`, `kc_mcp_secret`,
 `kc_mcp_audit_event`).

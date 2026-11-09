@@ -1,8 +1,10 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.policies;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 
@@ -14,19 +16,18 @@ import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 public final class GroupScopeCheck implements AccessCheck {
 
     /** tool name -> argument naming the target group */
-    static final java.util.Map<String, String> GROUP_ARG = java.util.Map.of("keycloak_group_delete", "id",
-            "keycloak_group_members_list", "groupId", "keycloak_group_member_add", "groupId",
-            "keycloak_group_member_remove", "groupId", "keycloak_group_role_assign", "groupId", "keycloak_group_create",
-            "parentId");
+    static final Map<String, String> GROUP_ARG = Map.of("keycloak_group_delete", "id", "keycloak_group_members_list",
+            "groupId", "keycloak_group_member_add", "groupId", "keycloak_group_member_remove", "groupId",
+            "keycloak_group_role_assign", "groupId", "keycloak_group_create", "parentId");
 
-    private final java.util.function.Function<Context, RealmDirectory> directories;
+    private final Function<Context, RealmDirectory> directories;
     private final PolicySettings settings;
 
     public GroupScopeCheck(RealmDirectory directory, PolicySettings settings) {
         this(ctx -> directory, settings);
     }
 
-    public GroupScopeCheck(java.util.function.Function<Context, RealmDirectory> directories, PolicySettings settings) {
+    public GroupScopeCheck(Function<Context, RealmDirectory> directories, PolicySettings settings) {
         this.directories = directories;
         this.settings = settings;
     }

@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
@@ -39,9 +40,9 @@ import io.vertx.core.json.JsonObject;
  * ({@code private_key_jwt}, default, {@code client_secret} or {@code none});
  * {@code authRealm} (default {@code master}); {@code clientId} (default
  * {@code keycloak-mcp-server}); {@code clientSecret}, {@code username}, {@code password},
- * {@code defaultRealm}, {@code allowedRealms}, {@code version}, {@code issuer} (the
- * realm's public issuer URL when {@code url} is an internal address), {@code displayName}
- * (optional).
+ * {@code defaultRealm}, {@code trustedIssuers}, {@code allowedRealms}, {@code version},
+ * {@code issuer} (the realm's public issuer URL when {@code url} is an internal address),
+ * {@code displayName} (optional).
  */
 @AutoService(KeycloakSystemRepository.class)
 public class FileSystemKeycloakSystemRepository implements KeycloakSystemRepository {
@@ -52,6 +53,7 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
     public static final String DEFAULT_CLIENT_ID = "keycloak-mcp-server";
 
     private final Path file;
+    private final ReentrantLock reload = new ReentrantLock();
     private volatile FileTime loadedAt;
     private volatile Map<String, KeycloakSystem> systems = Map.of();
 
@@ -101,12 +103,19 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
         try {
             FileTime modified = Files.getLastModifiedTime(file);
             if (!modified.equals(loadedAt)) {
-                synchronized (this) {
+                // a lock, not synchronized: the file is read while holding it, which
+                // would pin a virtual
+                // thread's carrier on JDK 21
+                reload.lock();
+                try {
                     if (!modified.equals(loadedAt)) {
                         systems = parse(new JsonObject(Files.readString(file)));
                         loadedAt = modified;
                         LOG.infof("Keycloak systems file %s: %s", file, systems.keySet());
                     }
+                }
+                finally {
+                    reload.unlock();
                 }
             }
         }
@@ -159,6 +168,10 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
             .description(s.getString("description"));
         for (int j = 0; j < realms.size(); j++) {
             system.allowedRealm(realms.getString(j));
+        }
+        JsonArray issuers = s.getJsonArray("trustedIssuers", new JsonArray());
+        for (int j = 0; j < issuers.size(); j++) {
+            system.trustedIssuer(issuers.getString(j));
         }
         return system.build();
     }

@@ -1,8 +1,10 @@
 package com.github.thomasdarimont.keycloak.mcp.keycloak;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 
 import org.keycloak.admin.client.CreatedResponseUtil;
@@ -65,15 +67,27 @@ public interface KeycloakAdmin extends AccessTokenSource {
 
     // ---- users -----------------------------------------------------------------------
 
-    /** Resolves a user by id, username or (unique) email. */
+    /**
+     * Resolves a user by id, username or (unique) email. The value is tried as an id
+     * first, whatever it looks like: Keycloak's own ids are UUIDs, but federated and
+     * imported users carry whatever id their source gave them, an email address included,
+     * and an id is the more specific name, so a username that happens to look like
+     * another user's id never wins. One lookup more for a username, nothing else.
+     */
     default UserRepresentation findUser(String realm, String idOrUsername) {
         RealmResource r = realm(realm);
-        if (isUuid(idOrUsername)) {
-            try {
-                return r.users().get(idOrUsername).toRepresentation();
-            }
-            catch (NotFoundException e) {
-                // fall through to username lookup
+        if (idOrUsername == null || idOrUsername.isBlank()) {
+            throw ToolException.notFound("User", idOrUsername);
+        }
+        try {
+            return r.users().get(idOrUsername).toRepresentation();
+        }
+        catch (WebApplicationException e) {
+            // the Quarkus REST client answers a 404 with the plain exception, not
+            // NotFoundException: not an id, a username or email then
+            int status = e.getResponse() == null ? 0 : e.getResponse().getStatus();
+            if (status != 404 && status != 400) {
+                throw e;
             }
         }
         List<UserRepresentation> byName = r.users().searchByUsername(idOrUsername, true);
@@ -140,7 +154,7 @@ public interface KeycloakAdmin extends AccessTokenSource {
         }
         // search returns the top-level ancestors with matching subgroups nested
         // underneath: flatten first
-        List<GroupRepresentation> found = new java.util.ArrayList<>();
+        List<GroupRepresentation> found = new ArrayList<>();
         flattenGroups(r.groups().groups(idOrPathOrName, true, 0, 20, false), found);
         List<GroupRepresentation> exact = found.stream().filter(g -> idOrPathOrName.equals(g.getName())).toList();
         if (exact.size() == 1) {

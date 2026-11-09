@@ -1,5 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.keycloak;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,7 +23,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 public record KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
         Optional<String> clientId, Optional<String> clientSecret, Optional<String> username, Optional<String> password,
         Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version, Optional<String> issuer,
-        Optional<String> displayName, Optional<String> description) {
+        Optional<String> displayName, Optional<String> description, Set<String> trustedIssuers) {
 
     public static final String DEFAULT_NAME = "default";
 
@@ -34,6 +36,20 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
     public KeycloakSystem {
         displayName = displayName == null ? Optional.empty() : displayName.map(String::trim).filter(v -> !v.isEmpty());
         description = description == null ? Optional.empty() : description.map(String::trim).filter(v -> !v.isEmpty());
+        trustedIssuers = trustedIssuers == null ? Set.of() : Set.copyOf(trustedIssuers);
+    }
+
+    /**
+     * Without trusted issuers: a caller's token may be used here only when this Keycloak
+     * issued it.
+     */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version, Optional<String> issuer, Optional<String> displayName,
+            Optional<String> description) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, issuer, displayName, description, Set.of());
     }
 
     /** Without a description. */
@@ -64,12 +80,6 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
     }
 
     /**
-     * The issuer of the auth realm as Keycloak states it, the {@code aud} of
-     * {@code private_key_jwt} client assertions: the configured {@code issuer} when the
-     * server is reached through an internal URL that differs from its public hostname,
-     * else {@code <url>/realms/<auth realm>}.
-     */
-    /**
      * The base URL users and browsers reach this Keycloak at: derived from the configured
      * issuer when it names the auth realm ({@code https://sso.example.com/realms/master}
      * -> {@code https://sso.example.com}), else the {@link #url()} the server itself
@@ -83,6 +93,12 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             .orElseGet(() -> url.endsWith("/") ? url.substring(0, url.length() - 1) : url);
     }
 
+    /**
+     * The issuer of the auth realm as Keycloak states it, the {@code aud} of
+     * {@code private_key_jwt} client assertions: the configured {@code issuer} when the
+     * server is reached through an internal URL that differs from its public hostname,
+     * else {@code <url>/realms/<auth realm>}.
+     */
     public String assertionAudience() {
         return issuer.filter(v -> !v.isBlank()).orElseGet(() -> {
             String base = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
@@ -90,13 +106,21 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
         });
     }
 
-    public static KeycloakSystem fromTopLevel(McpServerConfig c) {
-        return resolve(DEFAULT_NAME, c, null);
-    }
-
+    /**
+     * The system {@code name} from its block and the shared defaults: every value the
+     * block leaves out comes from {@code kc-mcp.system-defaults.*}, then from the
+     * built-in default ({@code client_credentials}, auth realm {@code master}, client
+     * auth inferred from a secret or the configured JWT key). The block must name a
+     * {@code url}.
+     */
     public static KeycloakSystem resolve(String name, McpServerConfig c, McpServerConfig.SystemSettings s) {
-        Optional<String> clientSecret = pick(s == null ? Optional.empty() : s.clientSecret(), c.clientSecret());
-        ClientAuth auth = pick(s == null ? Optional.empty() : s.clientAuth(), c.clientAuth()).orElseGet(() -> {
+        McpServerConfig.SystemSettings d = c.systemDefaults();
+        String url = s.url()
+            .map(String::trim)
+            .filter(v -> !v.isEmpty())
+            .orElseThrow(() -> new IllegalStateException("kc-mcp.systems." + name + ".url is not set"));
+        Optional<String> clientSecret = pick(s.clientSecret(), d.clientSecret());
+        ClientAuth auth = pick(s.clientAuth(), d.clientAuth()).orElseGet(() -> {
             if (clientSecret.filter(v -> !v.isBlank()).isPresent()) {
                 return ClientAuth.CLIENT_SECRET;
             }
@@ -105,20 +129,20 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             }
             return ClientAuth.NONE;
         });
-        List<String> realms = pick(s == null ? Optional.empty() : s.allowedRealms(), c.allowedRealms())
-            .orElse(List.of());
-        return new KeycloakSystem(name, s == null ? c.url() : s.url().orElse(c.url()),
-                s == null ? c.grantType() : s.grantType().orElse(c.grantType()), auth,
-                s == null ? c.authRealm() : s.authRealm().orElse(c.authRealm()),
-                pick(s == null ? Optional.empty() : s.clientId(), c.clientId()), clientSecret,
-                pick(s == null ? Optional.empty() : s.username(), c.username()),
-                pick(s == null ? Optional.empty() : s.password(), c.password()),
-                pick(s == null ? Optional.empty() : s.defaultRealm(), c.defaultRealm()),
+        List<String> realms = pick(s.allowedRealms(), d.allowedRealms()).orElse(List.of());
+        return new KeycloakSystem(name, url, pick(s.grantType(), d.grantType()).orElse(GrantType.CLIENT_CREDENTIALS),
+                auth, pick(s.authRealm(), d.authRealm()).orElse("master"), pick(s.clientId(), d.clientId()),
+                clientSecret, pick(s.username(), d.username()), pick(s.password(), d.password()),
+                pick(s.defaultRealm(), d.defaultRealm()),
                 Set.copyOf(realms.stream().map(String::trim).filter(v -> !v.isEmpty()).toList()),
-                pick(s == null ? Optional.empty() : s.version(), c.version()).map(String::trim)
-                    .filter(v -> !v.isEmpty()),
-                pick(s == null ? Optional.empty() : s.issuer(), c.issuer()).map(String::trim)
-                    .filter(v -> !v.isEmpty()));
+                pick(s.version(), d.version()).map(String::trim).filter(v -> !v.isEmpty()),
+                pick(s.issuer(), d.issuer()).map(String::trim).filter(v -> !v.isEmpty()), Optional.empty(),
+                Optional.empty(),
+                Set.copyOf(pick(s.trustedIssuers(), d.trustedIssuers()).orElse(List.of())
+                    .stream()
+                    .map(String::trim)
+                    .filter(v -> !v.isEmpty())
+                    .toList()));
     }
 
     public KeycloakSystem withDisplayName(String label) {
@@ -154,7 +178,8 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             .version(version.orElse(null))
             .issuer(issuer.orElse(null))
             .displayName(displayName.orElse(null))
-            .description(description.orElse(null));
+            .description(description.orElse(null))
+            .trustedIssuers(trustedIssuers);
     }
 
     /**
@@ -184,6 +209,7 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
         private String password;
         private String defaultRealm;
         private final Set<String> allowedRealms = new LinkedHashSet<>();
+        private final Set<String> trustedIssuers = new LinkedHashSet<>();
         private String version;
         private String issuer;
         private String displayName;
@@ -261,6 +287,26 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             return this;
         }
 
+        /**
+         * Issuers besides this Keycloak whose caller tokens the server may hand to it;
+         * what Keycloak then does with such a token is Keycloak's configuration.
+         * {@code null} or blank entries are ignored, an empty collection means none.
+         */
+        public Builder trustedIssuers(Collection<String> issuers) {
+            trustedIssuers.clear();
+            if (issuers != null) {
+                issuers.stream().filter(v -> v != null && !v.isBlank()).map(String::trim).forEach(trustedIssuers::add);
+            }
+            return this;
+        }
+
+        public Builder trustedIssuer(String issuer) {
+            if (issuer != null && !issuer.isBlank()) {
+                trustedIssuers.add(issuer.trim());
+            }
+            return this;
+        }
+
         public Builder version(String version) {
             this.version = version;
             return this;
@@ -285,7 +331,11 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             return this;
         }
 
-        /** @throws IllegalArgumentException without a name or url */
+        /**
+         * @throws IllegalArgumentException without a name or url, or with a trusted
+         * issuer that is not an absolute http(s) URL (such an entry would silently never
+         * match)
+         */
         public KeycloakSystem build() {
             if (name == null || name.isBlank()) {
                 throw new IllegalArgumentException("A system needs a name");
@@ -293,9 +343,26 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             if (url == null || url.isBlank()) {
                 throw new IllegalArgumentException("The system '" + name + "' needs a url");
             }
+            for (String trusted : trustedIssuers) {
+                if (!isHttpUrl(trusted)) {
+                    throw new IllegalArgumentException("The system '" + name + "' trusts the issuer '" + trusted
+                            + "', which is not an absolute http(s) URL (a realm URL or a Keycloak's base URL)");
+                }
+            }
             return new KeycloakSystem(name.trim(), url.trim(), grantType, clientAuth, authRealm, text(clientId),
                     text(clientSecret), text(username), text(password), text(defaultRealm), Set.copyOf(allowedRealms),
-                    text(version), text(issuer), text(displayName), text(description));
+                    text(version), text(issuer), text(displayName), text(description), Set.copyOf(trustedIssuers));
+        }
+
+        private static boolean isHttpUrl(String value) {
+            try {
+                URI u = new URI(value);
+                return (("https".equals(u.getScheme()) || "http".equals(u.getScheme())) && u.getHost() != null
+                        && u.getRawUserInfo() == null && u.getQuery() == null && u.getFragment() == null);
+            }
+            catch (URISyntaxException e) {
+                return false;
+            }
         }
 
         private static Optional<String> text(String value) {

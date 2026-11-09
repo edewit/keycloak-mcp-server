@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 
 import java.util.List;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -65,7 +66,7 @@ class DynamicSystemsEndpointTest {
         String body = given().get("/auth/keys/lab/jwks.json")
             .then()
             .statusCode(200)
-            .header("Cache-Control", org.hamcrest.Matchers.containsString("max-age"))
+            .header("Cache-Control", Matchers.containsString("max-age"))
             .extract()
             .asString();
         JsonObject key = new JsonObject(body).getJsonArray("keys").getJsonObject(0);

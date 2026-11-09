@@ -37,7 +37,7 @@ services:
       KC_FEATURES_DISABLED: twitter-broker
       KC_LOG_LEVEL: info
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
       - "9000:9000"
     volumes:
       - ./realms:/opt/keycloak/data/import:ro
@@ -72,7 +72,7 @@ services:
     env_file:
       - ${KC_MCP_ENV_FILE:-env/realm-admin.env}
     environment:
-      KC_MCP_URL: http://keycloak:8080
+      KC_MCP_SYSTEMS_DEFAULT_URL: http://keycloak:8080
       KC_MCP_JWT_KEY_FILE: /keys/mcp-jwt.pem
       QUARKUS_HTTP_PORT: "8081"
       QUARKUS_HTTP_HOST: 0.0.0.0

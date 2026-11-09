@@ -3,9 +3,12 @@ package com.github.thomasdarimont.keycloak.mcp.backend.catalog;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.Fixtures;
+import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 
 import io.vertx.core.json.JsonObject;
@@ -112,5 +115,17 @@ class ToolCatalogTest {
         assertEquals("prod_keycloak_user_search", prefixed.resolve("prod_keycloak_user_search").orElseThrow().name());
         assertTrue(prefixed.get("prod_keycloak_user_search").orElseThrow().hot(), "hot list matches without prefix");
         assertFalse(prefixed.get("prod_keycloak_user_delete").orElseThrow().hot());
+    }
+
+    @Test
+    void builderRefusesAToolWithoutALevel() {
+        ToolSpec.Builder b = ToolSpec.builder("keycloak_nolevel")
+            .title("n")
+            .description("d")
+            .category(Category.USERS)
+            .handler(call -> null);
+        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, b::build);
+        Assertions.assertTrue(e.getMessage().contains("keycloak_nolevel"), e.getMessage());
+        Assertions.assertEquals(ToolLevel.READ, b.read().build().level());
     }
 }

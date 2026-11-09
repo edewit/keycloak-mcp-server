@@ -1,8 +1,10 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.tools;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -15,6 +17,7 @@ import com.github.thomasdarimont.keycloak.mcp.access.Delegation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ApiOperation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolCall;
+import com.github.thomasdarimont.keycloak.mcp.catalog.ToolException;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.FeatureGuidance;
@@ -127,6 +130,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                         .stringMap("smtpServer",
                                 "SMTP settings: host, port, from, fromDisplayName, auth, user, "
                                         + "password, starttls, ssl, replyTo")
+                        .sensitiveKeys("password")
                         .anyMap("webAuthnPasswordlessPolicy",
                                 "Keys: rpEntityName, rpId, signatureAlgorithms "
                                         + "(list), userVerificationRequirement, requireResidentKey, "
@@ -269,7 +273,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                     r.setWebAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister(Boolean.parseBoolean(s));
                 case "acceptableAaguids" -> r.setWebAuthnPolicyPasswordlessAcceptableAaguids(toList(v));
                 case "passkeysEnabled" -> r.setWebAuthnPolicyPasswordlessPasskeysEnabled(Boolean.parseBoolean(s));
-                default -> throw new com.github.thomasdarimont.keycloak.mcp.catalog.ToolException("invalid_arguments",
+                default -> throw new ToolException("invalid_arguments",
                         "Unknown webAuthnPasswordlessPolicy key '" + e.getKey() + "'");
             }
         }
@@ -333,7 +337,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                 List<FeatureRepresentation> similar = all.stream()
                     .filter(x -> normalizeFeature(x.getName()).contains(wanted)
                             || wanted.contains(normalizeFeature(x.getName())))
-                    .sorted(java.util.Comparator.comparing(FeatureRepresentation::getName))
+                    .sorted(Comparator.comparing(FeatureRepresentation::getName))
                     .toList();
                 if (similar.size() != 1) {
                     return ToolResult.error("not_found", "No feature named '" + name + "'.", "didYouMean",
@@ -361,7 +365,7 @@ public class RealmToolProvider extends AbstractToolProvider {
         List<Map<String, Object>> items = new ArrayList<>();
         int enabledCount = 0;
         for (FeatureRepresentation f : all.stream()
-            .sorted(java.util.Comparator.comparing(FeatureRepresentation::getName))
+            .sorted(Comparator.comparing(FeatureRepresentation::getName))
             .toList()) {
             if (f.isEnabled()) {
                 enabledCount++;
@@ -398,7 +402,7 @@ public class RealmToolProvider extends AbstractToolProvider {
      * {@code token-exchange}.
      */
     private static String cliName(FeatureRepresentation f) {
-        return f.getName().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+        return f.getName().toLowerCase(Locale.ROOT).replace('_', '-');
     }
 
     /**
@@ -406,7 +410,7 @@ public class RealmToolProvider extends AbstractToolProvider {
      * {@code passkeys-v2} compare alike.
      */
     private static String normalizeFeature(String s) {
-        return s.toLowerCase(java.util.Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return s.toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
     }
 
     ToolResult realmConfig(ToolCall call) {

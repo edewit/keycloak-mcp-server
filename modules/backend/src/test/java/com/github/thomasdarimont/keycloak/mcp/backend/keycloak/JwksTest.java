@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -36,7 +37,7 @@ class JwksTest {
         assertEquals("AQAB", jwk.getString("e"));
         byte[] n = Base64.getUrlDecoder().decode(jwk.getString("n"));
         assertEquals(256, n.length, "modulus without sign byte");
-        assertEquals(((RSAPublicKey) kp.getPublic()).getModulus(), new java.math.BigInteger(1, n));
+        assertEquals(((RSAPublicKey) kp.getPublic()).getModulus(), new BigInteger(1, n));
         assertEquals(Jwks.thumbprint(jwk), jwk.getString("kid"));
         assertEquals(43, jwk.getString("kid").length(), "base64url sha-256");
         assertEquals("my-kid", Jwks.jwk(kp.getPublic(), "RS256", "my-kid").getString("kid"));

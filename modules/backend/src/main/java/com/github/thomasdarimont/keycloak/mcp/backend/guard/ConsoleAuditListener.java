@@ -33,9 +33,9 @@ public final class ConsoleAuditListener implements AuditListener {
 
     @Override
     public void onToolCall(AuditEvent e) {
-        AUDIT.infof("tool=%s level=%s system=%s realm=%s outcome=%s via=%s caller=%s%s client=%s conn=%s ms=%d",
+        AUDIT.infof("tool=%s level=%s system=%s realm=%s outcome=%s%s via=%s caller=%s%s client=%s conn=%s ms=%d",
                 e.tool(), e.level(), e.system() == null ? "-" : e.system(), e.realm() == null ? "-" : e.realm(),
-                e.outcome(), e.via(),
+                e.outcome(), e.sensitiveResult() && e.succeeded() ? " result=sensitive" : "", e.via(),
                 e.caller().isAnonymous() ? "-" : e.caller().name() + "(" + e.caller().subject() + ")",
                 e.caller().delegated() ? " delegated" : "", e.clientName(), e.connectionId(), e.duration().toMillis());
     }

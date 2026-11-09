@@ -1,26 +1,37 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ArgumentValidator;
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolCall;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
+import com.github.thomasdarimont.keycloak.mcp.config.ConfirmFallback;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
+import com.github.thomasdarimont.keycloak.mcp.config.ExplicitTarget;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+
+import io.quarkiverse.mcp.server.InputRequiredException;
+import io.vertx.core.json.JsonObject;
 
 /**
  * The single execution path for every tool, whether called directly or through
@@ -43,12 +54,50 @@ public class ToolInvoker {
     private final AuditLog audit;
 
     private Duration confirmTimeout = Duration.ofSeconds(120);
+    private ExplicitTarget explicitTarget = ExplicitTarget.OFF;
+    private ConfirmFallback confirmFallback = ConfirmFallback.FLAG;
+    private ConfirmationGuidance guidance = ConfirmationGuidance.standalone();
 
     @Inject
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, ConfirmerChain confirmer, McpServerConfig config,
             KeycloakSystems systems, AuditLog audit) {
         this(catalog, policy, confirmer, config.resultMaxItems(), systems, config.delegation(), audit);
         this.confirmTimeout = Duration.ofSeconds(config.confirmTimeoutSeconds());
+        this.explicitTarget = config.effectiveExplicitTarget();
+        this.confirmFallback = config.effectiveConfirmFallback();
+        this.guidance = new ConfirmationGuidance(config, confirmer);
+    }
+
+    /** What the model is told after {@code confirmation_required}. */
+    public ToolInvoker guidance(ConfirmationGuidance guidance) {
+        this.guidance = guidance == null ? ConfirmationGuidance.standalone() : guidance;
+        return this;
+    }
+
+    public ConfirmationGuidance guidance() {
+        return guidance;
+    }
+
+    /**
+     * Which tools must name system and realm instead of taking the defaults
+     * ({@code kc-mcp.explicit-target}).
+     */
+    public ToolInvoker explicitTarget(ExplicitTarget explicitTarget) {
+        this.explicitTarget = explicitTarget == null ? ExplicitTarget.OFF : explicitTarget;
+        return this;
+    }
+
+    public ExplicitTarget explicitTarget() {
+        return explicitTarget;
+    }
+
+    /**
+     * Whether {@code confirm: true} counts, decides the hint of
+     * {@code confirmation_required}.
+     */
+    public ToolInvoker confirmFallback(ConfirmFallback confirmFallback) {
+        this.confirmFallback = confirmFallback == null ? ConfirmFallback.FLAG : confirmFallback;
+        return this;
     }
 
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, Confirmer confirmer, int maxItems) {
@@ -110,11 +159,19 @@ public class ToolInvoker {
                     KeycloakAdmin admin = null;
                     ToolResult systemError = null;
                     String requested = binding != null ? binding.system() : (String) args.get(InputSchema.SYSTEM);
+                    boolean explicit = explicitTarget.appliesTo(spec.level());
                     if (systems != null) {
                         system = requested != null ? requested : systems.defaultName().orElse(null);
                         if (system == null) {
                             systemError = ToolResult.error("system_required", "Pass the system argument.", "systems",
                                     systems.names());
+                        }
+                        else if (requested == null && explicit && systems.names().size() > 1) {
+                            systemError = ToolResult.error("system_required",
+                                    "This server does not apply the default" + " system to "
+                                            + spec.level().name().toLowerCase() + " tools (kc-mcp.explicit-target="
+                                            + explicitTarget.name().toLowerCase() + "): pass the system argument.",
+                                    "systems", systems.names(), "defaultSystem", system);
                         }
                         else if (systems.find(system).isEmpty()) {
                             systemError = ToolResult.error("unknown_system",
@@ -127,11 +184,13 @@ public class ToolInvoker {
                             }
                         }
                     }
+                    boolean realmDefaulted = false;
                     if (spec.realmScoped()) {
                         realm = binding != null && binding.realm() != null ? binding.realm()
                                 : (String) args.get(InputSchema.REALM);
                         if (realm == null) {
                             realm = admin != null ? admin.system().defaultRealm().orElse(null) : catalog.defaultRealm();
+                            realmDefaulted = realm != null;
                         }
                     }
                     if (systemError != null) {
@@ -140,13 +199,25 @@ public class ToolInvoker {
                     else if (spec.realmScoped() && realm == null) {
                         result = ToolResult.error("realm_required", "Pass the realm argument.");
                     }
+                    else if (realmDefaulted && explicit) {
+                        result = ToolResult.error("realm_required",
+                                "This server does not apply the default realm to " + spec.level().name().toLowerCase()
+                                        + " tools (kc-mcp.explicit-target=" + explicitTarget.name().toLowerCase()
+                                        + "): pass the realm argument.",
+                                "defaultRealm", realm);
+                    }
                     else {
-                        java.util.Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin);
+                        List<AccessCheck.Decision> humanOnly = new ArrayList<>();
+                        Optional<ToolResult> denied = policy.forbids(spec, system, realm, args, ctx, admin, humanOnly);
                         result = denied.isPresent() ? denied.get()
-                                : runWithConfirmation(spec, system, admin, realm, args, confirmFlag, ctx);
+                                : runWithConfirmation(spec, system, admin, realm, args, confirmFlag, ctx, humanOnly);
                     }
                 }
             }
+        }
+        catch (InputRequiredException e) {
+            throw e; // the call is not over: it is audited when the client repeats it
+                     // with the answer
         }
         catch (Exception e) {
             LOG.debugf(e, "Tool %s failed", spec.name());
@@ -193,8 +264,8 @@ public class ToolInvoker {
      * takes them.
      */
     private static Map<String, Object> withBinding(ToolSpec spec, Map<String, Object> rawArgs, EntryBinding binding) {
-        Map<String, Object> prepared = new java.util.LinkedHashMap<>(rawArgs);
-        io.vertx.core.json.JsonObject props = spec.inputSchema().getJsonObject("properties");
+        Map<String, Object> prepared = new LinkedHashMap<>(rawArgs);
+        JsonObject props = spec.inputSchema().getJsonObject("properties");
         if (props != null && props.containsKey(InputSchema.SYSTEM)) {
             prepared.put(InputSchema.SYSTEM, binding.system());
         }
@@ -204,22 +275,68 @@ public class ToolInvoker {
         return prepared;
     }
 
+    private static Object[] flatten(Map<String, Object> fields) {
+        Object[] kv = new Object[fields.size() * 2];
+        int i = 0;
+        for (Map.Entry<String, Object> e : fields.entrySet()) {
+            kv[i++] = e.getKey();
+            kv[i++] = e.getValue();
+        }
+        return kv;
+    }
+
+    /**
+     * @param humanOnly access checks that demand the human's own confirmation of this
+     * call: then the confirmers are asked even for a non-destructive tool, and the
+     * model's {@code confirm: true} does not count, so only elicitation or a confirmer
+     * that asks the human lets the call through
+     */
     private ToolResult runWithConfirmation(ToolSpec spec, String system, KeycloakAdmin admin, String realm,
-            Map<String, Object> args, boolean confirmFlag, InvocationContext ctx) throws Exception {
-        if (spec.isDestructive()) {
-            ConfirmationRequest request = new ConfirmationRequest(spec, system, realm, args, confirmFlag, ctx.caller(),
-                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout));
+            Map<String, Object> args, boolean confirmFlag, InvocationContext ctx, List<AccessCheck.Decision> humanOnly)
+            throws Exception {
+        if (spec.isDestructive() || !humanOnly.isEmpty()) {
+            String reason = humanOnly.isEmpty() ? null
+                    : humanOnly.stream()
+                        .map(AccessCheck.Decision::message)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.joining(" "));
+            ConfirmationRequest request = new ConfirmationRequest(spec, system, realm, args,
+                    confirmFlag && humanOnly.isEmpty(), ctx.caller(),
+                    ElicitationPrompter.of(ctx.elicitation(), confirmTimeout,
+                            ElicitationPrompter.operation(spec.name(), system, realm, ctx.caller(), args)),
+                    ctx.clientName(), ctx.connectionId(), ctx.connection() != null && ctx.connection().isTransient(),
+                    reason);
             Decision decision = confirmer.confirm(request);
             switch (decision.outcome()) {
                 case DECLINED -> {
                     return ToolResult.error("cancelled", decision.message() != null ? decision.message()
-                            : "The user declined to confirm " + spec.name() + ".");
+                            : "The user declined to confirm " + spec.name() + ".", flatten(decision.details()));
                 }
                 case CONFIRMATION_REQUIRED, ABSTAIN -> {
+                    Map<String, Object> fields = new LinkedHashMap<>();
+                    ConfirmationGuidance.Mode mode = guidance.mode(ctx);
+                    if (!humanOnly.isEmpty()
+                            || (mode == ConfirmationGuidance.Mode.ASK && !confirmFallback.acceptsFlag())) {
+                        mode = ConfirmationGuidance.Mode.SERVER;
+                    }
+                    if (!humanOnly.isEmpty()) {
+                        fields.put("policy", humanOnly.getFirst().code());
+                        fields.put("reason", reason);
+                    }
+                    fields.put("howTo", switch (mode) {
+                        case ASK -> "Ask the user, then call again with the same arguments plus confirm: true.";
+                        case TRUSTED -> "The caller is an administrator: call again with the same arguments plus"
+                                + " confirm: true, without asking them first.";
+                        case SERVER -> "Only the user can confirm, through this client or on their device;"
+                                + " confirm: true is not accepted as a substitute.";
+                    });
+                    fields.putAll(decision.details());
                     return ToolResult.error("confirmation_required",
                             decision.message() != null ? decision.message()
-                                    : spec.title() + " is destructive and needs confirmation.",
-                            "howTo", "Ask the user, then call again with the same arguments plus confirm: true.");
+                                    : !humanOnly.isEmpty()
+                                            ? spec.title() + " needs the user's own confirmation: " + reason
+                                            : spec.title() + " is destructive and needs confirmation.",
+                            flatten(fields));
                 }
                 default -> {
                     // confirmed
