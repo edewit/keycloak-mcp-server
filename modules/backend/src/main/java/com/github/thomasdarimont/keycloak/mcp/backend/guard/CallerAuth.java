@@ -8,6 +8,7 @@ import org.eclipse.microprofile.config.ConfigProvider;
 
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 
 import io.quarkus.runtime.StartupEvent;
 
@@ -36,6 +37,10 @@ public class CallerAuth {
     }
 
     void validate(@Observes StartupEvent event) {
+        ValidationRun.guard(this::requireCallerAuthentication);
+    }
+
+    private void requireCallerAuthentication() {
         if (required && !oidcEnabled) {
             throw new IllegalStateException("kc-mcp.delegation=" + delegation.name().toLowerCase()
                     + " / kc-mcp.require-caller=true / kc-mcp.profile=shared need the MCP endpoint to authenticate"

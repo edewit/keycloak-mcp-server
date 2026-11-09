@@ -36,6 +36,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
@@ -220,6 +221,10 @@ public class CibaConfirmer implements Confirmer {
     }
 
     void onStart(@Observes StartupEvent event) {
+        ValidationRun.guard(this::runStartupChecks);
+    }
+
+    private void runStartupChecks() {
         if (!settings.enabled()) {
             return;
         }

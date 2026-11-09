@@ -78,6 +78,19 @@ grep -q 'build --db=h2' mismatch.log || { echo "the failed start does not name t
 "$DIST/bin/kcmcp.sh" build --db=h2
 echo "build for postgresql, refused H2 URL, back to h2: ok"
 
+echo "== 1d. show-config and validate"
+SMOKE_SYSTEM="--kc-mcp.systems.default.url=http://127.0.0.1:1 --kc-mcp.systems.default.client-id=smoke --kc-mcp.systems.default.client-secret=hidden-value"
+# shellcheck disable=SC2086
+"$DIST/bin/kcmcp.sh" show-config --clean-env $SMOKE_SYSTEM > show.out 2>&1
+grep -q "kc-mcp.systems.default.url = http://127.0.0.1:1 (command line)" show.out || { cat show.out; exit 1; }
+if grep -q hidden-value show.out; then echo "show-config printed a secret"; exit 1; fi
+# shellcheck disable=SC2086
+"$DIST/bin/kcmcp.sh" validate --clean-env --offline $SMOKE_SYSTEM > validate.out 2>&1 || { cat validate.out; exit 1; }
+# shellcheck disable=SC2086
+if "$DIST/bin/kcmcp.sh" validate --clean-env $SMOKE_SYSTEM > validate.out 2>&1; then echo "validate passed with Keycloak down"; cat validate.out; exit 1; fi
+grep -q "cannot obtain an admin token" validate.out || { cat validate.out; exit 1; }
+echo "show-config masks, validate reports: ok"
+
 if [ -z "$REALM" ]; then exit 0; fi
 
 echo "== 2. Keycloak $KC_IMAGE with the realm $REALM"

@@ -10,7 +10,9 @@
 #   bin/kcmcp.sh start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
 #   bin/kcmcp.sh start --debug 5005
 #   bin/kcmcp.sh start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
-#   bin/kcmcp.sh build --db=postgresql                     build for a database, h2 or postgresql; stop the server first
+#   bin/kcmcp.sh show-config [all]                         the settings in effect and their sources, secrets masked
+#   bin/kcmcp.sh validate [--offline]                      run the startup checks and print every problem; starts no server
+#   bin/kcmcp.sh build --db=postgresql                    build for a database, h2 or postgresql; stop the server first
 #   bin/kcmcp.sh --version | --help
 #
 # Any --kc-mcp.name=value or --quarkus.name=value sets that configuration property; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
@@ -46,7 +48,7 @@ conf_file() {
 }
 
 usage() {
-    sed -n '2,18p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
+    sed -n '2,20p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
 }
 
 version() {
@@ -71,6 +73,9 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         start) COMMAND=start ;;
         start-dev) COMMAND=start-dev ;;
+        show-config) COMMAND=show-config ;;
+        validate) COMMAND=validate ;;
+        all|--offline) SERVER_ARGS="$SERVER_ARGS $1" ;;
         build) COMMAND=build ;;
         --db=*) DB="${1#--db=}" ;;
         --db) DB="$2"; [ "$#" -lt 2 ] || shift ;;
@@ -148,7 +153,7 @@ if [ "$COMMAND" = "build" ]; then
         -Dquarkus.datasource.db-kind="$DB" -jar "$(abs_path "$KCMCP_HOME/lib/quarkus-run.jar")"
     STATUS=$?
     rm -rf "$KCMCP_HOME/quarkus-app" "$KCMCP_HOME/quarkus-artifact.properties"
-    if [ "$STATUS" -eq 0 ]; then echo "Built for $DB." >&2; else echo "The build failed; the previous build is unchanged." >&2; fi
+    if [ "$STATUS" -eq 0 ]; then echo "$DB" > "$KCMCP_HOME/lib/quarkus/db-kind"; echo "Built for $DB." >&2; else echo "The build failed; the previous build is unchanged." >&2; fi
     exit "$STATUS"
 fi
 

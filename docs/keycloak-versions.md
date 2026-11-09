@@ -8,7 +8,7 @@ Baseline **Keycloak 26.8** (OpenAPI alignment, integration tests). Newer expecte
 26.8.2 the Admin API requires the `kc-admin-api` client scope on the calling client ([Access levels](security.md#access-levels)).
 
 - At startup and every ten minutes: version and enabled features per system from the admin server info (server
-  credentials), kept as a capability snapshot. `kc-mcp.version` / `kc-mcp.systems.<name>.version` override and fill in;
+  credentials), kept as a capability snapshot. `kc-mcp.system-defaults.version` / `kc-mcp.systems.<name>.version` override and fill in;
   mismatch logged.
 - Tool requirements: `requiresFeatures("organization", ...)` (CLI feature names), `minVersion("26.9")`,
   `maxVersion("26")` (inclusive at the given precision; above it the refusal says "removed"). Organization tools carry

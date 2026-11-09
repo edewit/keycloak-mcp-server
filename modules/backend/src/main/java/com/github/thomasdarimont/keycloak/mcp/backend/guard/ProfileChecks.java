@@ -17,6 +17,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.Profile;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
@@ -45,6 +46,10 @@ public class ProfileChecks {
     ExtensionRegistry extensions;
 
     void onStart(@Observes StartupEvent event) {
+        ValidationRun.guard(this::runStartupChecks);
+    }
+
+    private void runStartupChecks() {
         Optional<String> audience = ConfigProvider.getConfig()
             .getOptionalValue("quarkus.oidc.token.audience", String.class)
             .filter(v -> !v.isBlank());

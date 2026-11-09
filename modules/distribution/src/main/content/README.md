@@ -25,6 +25,7 @@ Needs Java 21 or newer.
 
 Any setting can go on the command line (`--kc-mcp.systems.default.url=https://sso.example.com`, `--quarkus.http.port=8082`)
 or into the environment (`KC_MCP_SYSTEMS_DEFAULT_URL`). `bin/kcmcp.sh --help` lists the options, `--debug [port]` opens a debugger port.
+`bin/kcmcp.sh show-config` prints the settings in effect, `bin/kcmcp.sh validate` checks them without starting the server.
 
 The distribution is built for H2. To keep the server's data in PostgreSQL, stop the server and run
 `bin/kcmcp.sh build --db=postgresql` once (`docs/storage.md`).

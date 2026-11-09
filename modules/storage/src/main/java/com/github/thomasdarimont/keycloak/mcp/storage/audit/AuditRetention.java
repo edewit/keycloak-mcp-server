@@ -10,6 +10,7 @@ import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig;
 
@@ -41,7 +42,7 @@ public class AuditRetention {
     Instance<DatabaseAuditListener> audit;
 
     void onStart(@Observes StartupEvent event) {
-        if (!active()) {
+        if (ValidationRun.active() || !active()) {
             return;
         }
         LOG.infof("Audit events are kept for %d days (kc-mcp.spi.audit-listener.db.retention-days)", retentionDays());

@@ -20,6 +20,7 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
@@ -172,6 +173,10 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
      * call.
      */
     void onStart(@Observes StartupEvent event) {
+        ValidationRun.guard(this::runStartupChecks);
+    }
+
+    private void runStartupChecks() {
         List<String> misplaced = Extensions.misplacedProviders(serverConfig, System.getenv());
         if (!misplaced.isEmpty()) {
             throw new IllegalStateException(misplaced + " select nothing: every extension of these extension points"

@@ -18,6 +18,16 @@ better kept in a file or the environment, since a command line is visible in the
 Run the server with a command, `start` or `start-dev`, also with `java -jar quarkus-run.jar start`; without one it prints
 the help. The launch scripts add `build`, which fixes the database kind ([Storage](storage.md)).
 
+A setting that does not exist stops the start, whether from a file or the command line, which also suggests the closest
+name; in the environment it is a warning, and `kc-mcp.spi.*` is not checked, since extensions define those keys.
+
+`bin/kcmcp.sh show-config` prints each `kc-mcp.*` setting in effect and where it comes from, without starting the server;
+`show-config all` adds the `quarkus.*` ones. Secrets are masked by name, and every `kc-mcp.spi.*` value.
+
+`bin/kcmcp.sh validate` runs the startup checks, reports every problem and exits non-zero if there is one. It opens no
+port, runs no migration and changes no data; `--offline` leaves out the checks that contact Keycloak. It does not test
+the database connection.
+
 | property                        | default                     | meaning |
 |---------------------------------|-----------------------------|---------|
 | `kc-mcp.systems.<name>.url`     |                             | a Keycloak system: base URL, context path included (`https://sso.example.com/auth`); a system exists when its url is set, one Keycloak is usually named `default` ([Several Keycloak systems](systems.md)) |

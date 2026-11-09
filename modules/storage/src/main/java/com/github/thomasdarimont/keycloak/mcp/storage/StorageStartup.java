@@ -8,6 +8,7 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 
 import io.quarkus.runtime.StartupEvent;
@@ -31,6 +32,10 @@ public class StorageStartup {
     McpServerConfig server;
 
     void onStart(@Observes StartupEvent event) {
+        ValidationRun.guard(this::runStartupChecks);
+    }
+
+    private void runStartupChecks() {
         if (!config.enabled()) {
             LOG.debug("Database storage off: no quarkus.datasource.jdbc.url (static configuration only)");
             return;

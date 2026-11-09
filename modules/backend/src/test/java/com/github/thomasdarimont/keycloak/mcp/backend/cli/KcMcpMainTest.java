@@ -48,12 +48,12 @@ class KcMcpMainTest {
 
     @Test
     void anEmptyValueIsAValue() {
-        assertEquals(Map.of("kc-mcp.x", ""), ConfigArguments.parse(List.of("--kc-mcp.x=")));
+        assertEquals(Map.of("kc-mcp.tool-prefix", ""), ConfigArguments.parse(List.of("--kc-mcp.tool-prefix=")));
     }
 
     @Test
     void aSettingWithoutValueOrAnotherNamespaceIsRefused() {
-        assertThrows(IllegalArgumentException.class, () -> ConfigArguments.parse(List.of("--kc-mcp.x")));
+        assertThrows(IllegalArgumentException.class, () -> ConfigArguments.parse(List.of("--kc-mcp.tool-prefix")));
         assertThrows(IllegalArgumentException.class, () -> ConfigArguments.parse(List.of("--foo.bar=1")));
         assertThrows(IllegalArgumentException.class, () -> ConfigArguments.parse(List.of("stray")));
     }

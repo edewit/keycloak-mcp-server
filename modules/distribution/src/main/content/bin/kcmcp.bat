@@ -11,7 +11,9 @@ rem   bin\kcmcp.bat start --config conf\systems\              every *.conf file 
 rem   bin\kcmcp.bat start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
 rem   bin\kcmcp.bat start --debug 5005
 rem   bin\kcmcp.bat start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
-rem   bin\kcmcp.bat build --db=postgresql                     build for a database, h2 or postgresql; stop the server first
+rem   bin\kcmcp.bat show-config [all]                         the settings in effect and their sources, secrets masked
+rem   bin\kcmcp.bat validate [--offline]                      run the startup checks and print every problem; starts no server
+rem   bin\kcmcp.bat build --db=postgresql                    build for a database, h2 or postgresql; stop the server first
 rem   bin\kcmcp.bat --version | --help
 rem
 rem Any --kc-mcp.name=value or --quarkus.name=value sets that configuration property; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
@@ -52,6 +54,26 @@ if "%KEY%" == "start" (
 )
 if "%KEY%" == "start-dev" (
     set COMMAND=start-dev
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "show-config" (
+    set COMMAND=show-config
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "validate" (
+    set COMMAND=validate
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "all" (
+    set "SERVER_ARGS=!SERVER_ARGS! all"
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "--offline" (
+    set "SERVER_ARGS=!SERVER_ARGS! --offline"
     shift
     goto READ_ARGS
 )
@@ -209,5 +231,5 @@ cd /d "%KCMCP_HOME%"
 set STATUS=%ERRORLEVEL%
 if exist "%KCMCP_HOME%\quarkus-app" rmdir /s /q "%KCMCP_HOME%\quarkus-app"
 if exist "%KCMCP_HOME%\quarkus-artifact.properties" del "%KCMCP_HOME%\quarkus-artifact.properties"
-if "%STATUS%" == "0" (echo Built for %DB%. 1>&2) else (echo The build failed; the previous build is unchanged. 1>&2)
+if "%STATUS%" == "0" (echo %DB%> "%KCMCP_HOME%\lib\quarkus\db-kind" & echo Built for %DB%. 1>&2) else (echo The build failed; the previous build is unchanged. 1>&2)
 exit /b %STATUS%

@@ -30,7 +30,11 @@ final class ConfigArguments {
             if (equals < 0) {
                 throw new IllegalArgumentException(name + " needs a value, as " + name + "=<value>");
             }
-            properties.put(name.substring(2), argument.substring(equals + 1));
+            String property = name.substring(2);
+            if (!OptionCatalogue.known(property)) {
+                throw new IllegalArgumentException(OptionCatalogue.describe(property));
+            }
+            properties.put(property, argument.substring(equals + 1));
         }
         return properties;
     }

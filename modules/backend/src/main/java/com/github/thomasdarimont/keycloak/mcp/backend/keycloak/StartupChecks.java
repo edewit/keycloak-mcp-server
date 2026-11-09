@@ -97,6 +97,9 @@ public class StartupChecks {
         }
         GrantedRoles granted;
         try {
+            // asked directly: role discovery keeps its failure to itself and answers
+            // "unknown"
+            admin.accessToken();
             granted = roles.get(sys);
         }
         catch (RuntimeException e) {

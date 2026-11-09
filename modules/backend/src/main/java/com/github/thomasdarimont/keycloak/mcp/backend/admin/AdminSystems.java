@@ -23,6 +23,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.SigningKeys;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
@@ -63,6 +64,10 @@ public class AdminSystems {
     HttpPaths paths;
 
     void onStart(@Observes StartupEvent event) {
+        ValidationRun.guard(this::runStartupChecks);
+    }
+
+    private void runStartupChecks() {
         if (!config.admin().enabled()) {
             return;
         }

@@ -12,6 +12,7 @@ import jakarta.transaction.Transactional;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.SecretEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.SigningKeyEntity;
@@ -60,7 +61,7 @@ public class StorageRekey {
     StorageCrypto crypto;
 
     void onStart(@Observes StartupEvent event) {
-        if (!enabled() || !crypto.enabled() || !crypto.hasPreviousKeys()) {
+        if (ValidationRun.active() || !enabled() || !crypto.enabled() || !crypto.hasPreviousKeys()) {
             return;
         }
         Result result = rekey();
