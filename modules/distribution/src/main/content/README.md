@@ -45,6 +45,7 @@ Templates in `conf/scenarios/`, each a complete configuration to copy and adjust
 | `several-systems.conf.example` | several Keycloak installations from one server, each tool with a `system` argument |
 | `user-login.conf.example` | users log in through their MCP client; every call runs with their own roles |
 | `shared-server.conf.example` | a server for a team or environment: user login plus the `shared` security profile |
+| `https.conf.example` | HTTPS for the server and a Keycloak behind a private CA, on top of another scenario |
 | `dynamic-systems.conf.example` | no Keycloak configured; systems are registered at runtime through the admin API or a systems file and kept in the database, each with a generated key and its own JWKS |
 
 ## Layout
@@ -52,7 +53,7 @@ Templates in `conf/scenarios/`, each a complete configuration to copy and adjust
 | directory | holds |
 |---|---|
 | `bin/` | `kcmcp.sh`, `kcmcp.bat` |
-| `conf/` | `kcmcp.conf`, `scenarios/` (templates), `systems/` (one file per Keycloak system), your keys and certificates |
+| `conf/` | `kcmcp.conf`, `scenarios/` (templates), `systems/` (one file per Keycloak system), `truststores/` (additional trusted certificates), your keys and certificates |
 | `lib/` | the server (Quarkus fast-jar layout); nothing to edit |
 | `providers/` | extension jars, loaded at startup |
 | `data/` | the embedded database, per-system keys, logs |

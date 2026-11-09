@@ -82,6 +82,8 @@ Every property, its default and meaning. Property → environment variable: `kc-
 | `quarkus.otel.sdk.disabled`     | `true`                      | `false` exports metrics and traces to `quarkus.otel.exporter.otlp.endpoint` ([Metrics](metrics.md)) |
 | `kc-mcp.metrics.include-realm` | `false`                    | tool call metrics carry the realm |
 | `kc-mcp.ui.tls-configuration-name` |                        | named `quarkus.tls` configuration (trust store) for the server's own calls to the UI's identity providers: discovery, keys, session checks |
+| `kc-mcp.truststore-paths`       |                             | additional trusted certificates for outbound TLS: PEM or unencrypted PKCS12 files, directories ([HTTPS and trusted certificates](tls.md)) |
+| `kc-mcp.https-*`, `kc-mcp.http-enabled` |                     | HTTPS for the server, Keycloak's option names ([HTTPS and trusted certificates](tls.md)) |
 | `kc-mcp.http.connect-timeout` / `read-timeout` | `10s` / `60s` | outbound HTTP of the server's own clients (`10s`, `500ms`, `2m`, `PT1M`): CIBA, the UI's provider calls, and the read timeout of the Keycloak admin client (its connect timeout is the client's built-in 15 s); the read default leaves room for long admin calls such as a directory sync |
 | `kc-mcp.ui.connect-timeout` / `read-timeout` | `kc-mcp.http.*` | the same for the UI's calls to its identity providers |
 

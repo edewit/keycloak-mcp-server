@@ -108,6 +108,7 @@ for a complete stack.
 | [Integrations](docs/integrations.md) | adding the server to LM Studio, Claude Code, Claude Desktop, VS Code and Copilot, Cursor, Codex; the login's Keycloak side |
 | [Security](docs/security.md) | guardrails, profiles `local` and `shared`, access levels, per-tool checks, policies, callers and delegation |
 | [Configuration](docs/configuration.md) | every property with default and meaning |
+| [HTTPS and trusted certificates](docs/tls.md) | HTTPS for the server, a Keycloak behind a private CA |
 | [Several Keycloak systems](docs/systems.md) | static and dynamic systems, per-system keys, the admin API, one MCP entry per system or realm |
 | [Database storage](docs/storage.md) | H2 or PostgreSQL for systems, keys, secrets, audit and sessions; encryption and key rotation |
 | [Management UI](docs/management-ui.md) | the browser UI and its backend-for-frontend; work in progress, a login skeleton today |

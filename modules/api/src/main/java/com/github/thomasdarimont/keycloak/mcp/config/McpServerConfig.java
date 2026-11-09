@@ -376,6 +376,46 @@ public interface McpServerConfig {
     Metrics metrics();
 
     /**
+     * Additional trusted certificates for outbound TLS: PEM files, unencrypted PKCS12
+     * files, directories of them. Read by the truststore interceptor before the server
+     * starts; declared here so the option is known.
+     */
+    Optional<List<String>> truststorePaths();
+
+    /** PEM server certificate or chain; see {@code HttpsInterceptorFactory}. */
+    Optional<String> httpsCertificateFile();
+
+    /** PEM private key of the server certificate. */
+    Optional<String> httpsCertificateKeyFile();
+
+    /** Password of an encrypted PEM (PKCS#8) key. */
+    Optional<String> httpsCertificateKeyFilePassword();
+
+    /** PKCS12 or JKS key store with the server certificate. */
+    Optional<String> httpsKeyStoreFile();
+
+    /** Password of the key store. */
+    Optional<String> httpsKeyStorePassword();
+
+    /** Type of the key store; by default from the file's extension. */
+    Optional<String> httpsKeyStoreType();
+
+    /** The HTTPS port. */
+    Optional<Integer> httpsPort();
+
+    /** TLS protocols to enable. */
+    Optional<List<String>> httpsProtocols();
+
+    /** TLS cipher suites to enable. */
+    Optional<List<String>> httpsCipherSuites();
+
+    /** How often certificate files are reloaded, {@code -1} never. */
+    Optional<String> httpsCertificatesReloadPeriod();
+
+    /** Whether the plain HTTP listener stays on. */
+    Optional<Boolean> httpEnabled();
+
+    /**
      * Outbound HTTP of the server's own clients ({@code kc-mcp.http.*}): the Keycloak
      * admin client (read timeout; its connect timeout is the client's built-in 15 s), the
      * CIBA confirmer and the UI's calls to its identity providers, each overridable.
