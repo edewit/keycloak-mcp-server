@@ -57,7 +57,7 @@ public class ProfileChecks {
         }
         Findings findings = run(s, checks,
                 id -> new ProfileCheckContext(config.profile(), callers.required(), config,
-                        ProviderConfig.forExtension(id, config.spi()),
+                        ProviderConfig.forExtension(ProfileCheck.SPI, id, config.spi()),
                         name -> ConfigProvider.getConfig().getOptionalValue(name, String.class)));
         if (!findings.problems().isEmpty()) {
             throw new IllegalStateException("Startup checks of profile " + config.profile().name().toLowerCase()

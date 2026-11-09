@@ -21,6 +21,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SystemTimestamps;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
@@ -42,11 +43,12 @@ import io.vertx.core.json.JsonArray;
  * when {@code kc-mcp.storage.secret-key} is set.
  * <p>
  * Reads serve a snapshot of the enabled rows that is reloaded when older than
- * {@code kc-mcp.spi.db-systems.cache-seconds} (10 by default; a write through this
- * instance reloads at once), so a tool call costs no query, and a system registered on
- * another replica shows up within that time. The server asks repositories from event loop
- * threads too (the {@code tools/list} filter), where no database call is allowed: there
- * the current snapshot is served as is and a refresh is left to a worker thread.
+ * {@code kc-mcp.spi.system-repository.db-systems.cache-seconds} (10 by default; a write
+ * through this instance reloads at once), so a tool call costs no query, and a system
+ * registered on another replica shows up within that time. The server asks repositories
+ * from event loop threads too (the {@code tools/list} filter), where no database call is
+ * allowed: there the current snapshot is served as is and a refresh is left to a worker
+ * thread.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
@@ -54,7 +56,7 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
 
     public static final String ID = "db-systems";
 
-    /** Default of {@code kc-mcp.spi.db-systems.cache-seconds}. */
+    /** Default of {@code kc-mcp.spi.system-repository.db-systems.cache-seconds}. */
     public static final int DEFAULT_CACHE_SECONDS = 10;
 
     private static final String ENABLED_IN_ORDER = "enabled = true order by createdAt, alias";
@@ -73,8 +75,8 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
 
     @Inject
     public DatabaseKeycloakSystemRepository(StorageCrypto crypto, McpServerConfig serverConfig) {
-        this(crypto,
-                ProviderConfig.forExtension(ID, serverConfig.spi()).getInt("cache-seconds", DEFAULT_CACHE_SECONDS));
+        this(crypto, ProviderConfig.forExtension(KeycloakSystemRepository.SPI, ID, serverConfig.spi())
+            .getInt("cache-seconds", DEFAULT_CACHE_SECONDS));
     }
 
     /**

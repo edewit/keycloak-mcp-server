@@ -93,7 +93,7 @@ class ExtensionLifecycleTest {
     @Test
     void anExtensionThatDidNotTakePartIsNotClosed() {
         assertFalse(extensions.admit(new Recording("off", false), "AuditListener",
-                config(Map.of("kc-mcp.spi.off.enabled", "false"))));
+                config(Map.of("kc-mcp.spi.audit-listener.off.enabled", "false"))));
         extensions.closeExtensions();
         assertEquals(List.of(), calls);
     }

@@ -7,7 +7,10 @@ import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 import com.google.auto.service.AutoService;
 
-/** Disabled through kc-mcp.spi.disabled-demo.enabled=false; must never be initialised. */
+/**
+ * Disabled through kc-mcp.spi.tools.disabled-demo.enabled=false; must never be
+ * initialised.
+ */
 @AutoService(ToolProvider.class)
 public class DisabledDemoToolProvider implements ToolProvider {
 

@@ -16,8 +16,8 @@ this repository's build for convenience; as a project of your own, replace the p
 | `AuditFileProfileCheck` | `ProfileCheck` | a shared server does not start while the audit file is unset or in `/tmp`; a local one warns |
 | `AcmeExtensionsTest` | | all of it tested without a server |
 
-Settings follow the id and arrive through `configure(ProviderConfig)`: `kc-mcp.spi.<id>.<key>` in a configuration file or `KC_MCP_SPI_<ID>_<KEY>` (`acme-audit` → `KC_MCP_SPI_ACME_AUDIT_FILE`);
-`KC_MCP_SPI_<ID>_ENABLED=false` switches one extension off.
+Settings follow the id and arrive through `configure(ProviderConfig)`: `kc-mcp.spi.<spi>.<id>.<key>` in a configuration file or `KC_MCP_SPI_<SPI>_<ID>_<KEY>` (`acme-audit` → `KC_MCP_SPI_AUDIT_LISTENER_ACME_AUDIT_FILE`);
+`KC_MCP_SPI_<SPI>_<ID>_ENABLED=false` switches one extension off.
 
 ## Docker
 
@@ -38,7 +38,7 @@ and sets the extensions' `KC_MCP_SPI_*` variables; the server acts as the realm-
 ./mvnw package                                               # repository root: server and extension jar, with the tests
 cp examples/extensions/target/acme-keycloak-mcp-extensions-1.0-SNAPSHOT.jar modules/backend/target/quarkus-app/providers/
 set -a; source examples/run-modes/env/full-admin.env; set +a  # any run mode; Keycloak from examples/run-modes
-KC_MCP_SPI_ACME_AUDIT_FILE=/tmp/acme-audit.jsonl java -jar modules/backend/target/quarkus-app/quarkus-run.jar
+KC_MCP_SPI_AUDIT_LISTENER_ACME_AUDIT_FILE=/tmp/acme-audit.jsonl java -jar modules/backend/target/quarkus-app/quarkus-run.jar
 ```
 
 Startup log: `Extensions directory .../providers: [acme-keycloak-mcp-extensions-1.0-SNAPSHOT.jar]` and the two tools in

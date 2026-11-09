@@ -75,7 +75,7 @@ public interface McpServerConfig {
      * Off by default: a repository found on the class path is then listed in the log but
      * not asked, so an extension cannot point the server at a Keycloak it was not
      * configured for. Each repository can additionally be switched with
-     * {@code kc-mcp.spi.<id>.enabled}.
+     * {@code kc-mcp.spi.<spi>.<id>.enabled}.
      */
     @WithDefault("false")
     boolean dynamicSystems();
@@ -301,10 +301,11 @@ public interface McpServerConfig {
     boolean structuredContent();
 
     /**
-     * Per tool-provider settings: {@code kc-mcp.spi.<provider-id>.<key>=value} (env
-     * {@code KC_MCP_SPI_<ID>_<KEY>}). {@code enabled=false} switches a provider off.
+     * Per tool-provider settings: {@code kc-mcp.spi.<spi>.<id>.<key>=value} (env
+     * {@code KC_MCP_SPI_<SPI>_<ID>_<KEY>}). {@code enabled=false} switches a provider
+     * off.
      */
-    Map<String, Map<String, String>> spi();
+    Map<String, Map<String, Map<String, String>>> spi();
 
     /** Elicitation / confirmation prompt timeout in seconds. */
     @WithDefault("120")

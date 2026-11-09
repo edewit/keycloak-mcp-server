@@ -113,7 +113,7 @@ LLM clients (LM Studio, Claude): `mcp.json` (service account), `mcp-oauth.json` 
 - Two servers, one database: a system registered on `mcp` is known to `mcp-users`; both write audit rows
 - PII scrubbing on `mcp-users`: console lines pseudonymized (`targets: console`), database rows complete
 - Role-based outcomes: same tools, three users, three results
-- Audit retention: `KC_MCP_SPI_DB_AUDIT_RETENTION_DAYS=30` on `mcp`
+- Audit retention: `KC_MCP_SPI_AUDIT_LISTENER_DB_AUDIT_RETENTION_DAYS=30` on `mcp`
 
 Inspect: `psql -h localhost -p 5490 -U kcmcp kcmcp` (tables `kc_mcp_system`, `kc_mcp_signing_key`, `kc_mcp_secret`,
 `kc_mcp_audit_event`).

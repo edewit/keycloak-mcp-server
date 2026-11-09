@@ -8,6 +8,7 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProviderConfigTest {
 
@@ -26,28 +27,45 @@ class ProviderConfigTest {
 
     @Test
     void lookupUsesTheKebabCaseKeyAndFallsBackToTheRawId() {
-        Map<String, Map<String, String>> spi = Map.of("acme-ticket-checker", Map.of("enabled", "false"), "rawId",
-                Map.of("mode", "strict"));
-        ProviderConfig c = ProviderConfig.forExtension("acmeTicketChecker", spi);
+        Map<String, Map<String, Map<String, String>>> spi = Map.of("access-check",
+                Map.of("acme-ticket-checker", Map.of("enabled", "false"), "rawId", Map.of("mode", "strict")));
+        ProviderConfig c = ProviderConfig.forExtension("access-check", "acmeTicketChecker", spi);
         assertFalse(c.getBoolean("enabled", true));
-        assertEquals("kc-mcp.spi.acme-ticket-checker.", c.providerPrefix());
-        assertEquals("KC_MCP_SPI_ACME_TICKET_CHECKER_", c.envPrefix());
-        assertEquals("strict", ProviderConfig.forExtension("rawId", spi).get("mode", "none"));
-        assertEquals("none", ProviderConfig.forExtension("unknown", spi).get("mode", "none"));
-        assertEquals("none", ProviderConfig.forExtension("unknown", null).get("mode", "none"));
+        assertEquals("kc-mcp.spi.access-check.acme-ticket-checker.", c.providerPrefix());
+        assertEquals("KC_MCP_SPI_ACCESS_CHECK_ACME_TICKET_CHECKER_", c.envPrefix());
+        assertEquals("strict", ProviderConfig.forExtension("access-check", "rawId", spi).get("mode", "none"));
+        assertEquals("none", ProviderConfig.forExtension("access-check", "unknown", spi).get("mode", "none"));
+        assertEquals("none", ProviderConfig.forExtension("access-check", "unknown", null).get("mode", "none"));
     }
 
     @Test
     void environmentVariablesAreResolvedWithTheIdKnown() {
-        Map<String, Map<String, String>> spi = Map.of("auth-flows", Map.of("enabled", "true", "page-size", "20"));
-        Map<String, String> env = Map.of("KC_MCP_SPI_AUTH_FLOWS_ENABLED", "false", "KC_MCP_SPI_AUTH_FLOWS_MAX_DEPTH",
-                "3", "KC_MCP_SPI_AUTH_FLOWS_", "ignored", "KC_MCP_SPI_AUTH_FLOWSX_ENABLED", "other id",
-                "KC_MCP_SPI_AUTH_ENABLED", "other id too");
-        ProviderConfig c = ProviderConfig.forExtension("auth-flows", spi, env);
+        Map<String, Map<String, Map<String, String>>> spi = Map.of("tools",
+                Map.of("auth-flows", Map.of("enabled", "true", "page-size", "20")));
+        Map<String, String> env = Map.of("KC_MCP_SPI_TOOLS_AUTH_FLOWS_ENABLED", "false",
+                "KC_MCP_SPI_TOOLS_AUTH_FLOWS_MAX_DEPTH", "3", "KC_MCP_SPI_TOOLS_AUTH_FLOWS_", "ignored",
+                "KC_MCP_SPI_TOOLS_AUTH_FLOWSX_ENABLED", "other id", "KC_MCP_SPI_TOOLS_AUTH_ENABLED", "other id too");
+        ProviderConfig c = ProviderConfig.forExtension("tools", "auth-flows", spi, env);
         assertFalse(c.getBoolean("enabled", true), "env overrides the properties entry");
         assertEquals("20", c.get("page-size", "none"), "properties entries without an env override stay");
         assertEquals(3, c.getInt("max-depth", 0));
         assertEquals(Map.of("enabled", "false", "page-size", "20", "max-depth", "3"), c.asMap());
-        assertEquals("true", ProviderConfig.forExtension("auth-flows", spi, Map.of()).get("enabled", "none"));
+        assertEquals("true", ProviderConfig.forExtension("tools", "auth-flows", spi, Map.of()).get("enabled", "none"));
+    }
+
+    @Test
+    void theSameIdUnderTwoExtensionPointsHasSeparateSettings() {
+        Map<String, Map<String, Map<String, String>>> spi = Map.of("tools", Map.of("acme", Map.of("enabled", "false")),
+                "prompts", Map.of("acme", Map.of("language", "de")));
+        assertFalse(ProviderConfig.forExtension("tools", "acme", spi, Map.of()).getBoolean("enabled", true));
+        assertTrue(ProviderConfig.forExtension("prompts", "acme", spi, Map.of()).getBoolean("enabled", true));
+        assertEquals("de", ProviderConfig.forExtension("prompts", "acme", spi, Map.of()).get("language", "en"));
+        assertEquals(Map.of(),
+                ProviderConfig.forExtension("tools", "acme", spi, Map.of("KC_MCP_SPI_PROMPTS_ACME_LANGUAGE", "fr"))
+                    .asMap()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getKey().equals("language"))
+                    .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 }

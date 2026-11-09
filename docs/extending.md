@@ -27,7 +27,7 @@ public class AcmeToolProvider implements ToolProvider {
 
     public List<ToolSpec> tools(ToolProviderContext ctx) {
         KeycloakAdmin kc = ctx.keycloak();                 // shared admin client + lookup helpers
-        String greeting = ctx.config().get("greeting", "hi"); // kc-mcp.spi.acme.greeting
+        String greeting = ctx.config().get("greeting", "hi"); // kc-mcp.spi.tools.acme.greeting
         return List.of(ToolSpec.builder("keycloak_acme_ping")
                 .title("ACME ping").description("Says hello.")
                 .category(Category.REALM).read().global()
@@ -49,22 +49,26 @@ public class AcmeToolProvider implements ToolProvider {
   (`level`) and in the MCP tool annotations (`readOnlyHint`, `destructiveHint`).
 - Provider tools get search, exposure modes, validation, realm checks, confirmation, audit.
 - Built-in areas (`users`, `groups`, `roles`, `clients`, `idp`, `orgs`, `federation`, `auth-flows`, `events`, `realm`)
-  use the same SPI; `kc-mcp.spi.<id>.enabled=false` switches one off.
+  use the same SPI; `kc-mcp.spi.<spi>.<id>.enabled=false` switches one off.
+- Settings: `kc-mcp.spi.<spi>.<id>.<key>`, environment `KC_MCP_SPI_<SPI>_<ID>_<KEY>`. An id is unique within its
+  extension point, so the same id under two extension points has separate settings. `<spi>` is `tools`, `prompts`,
+  `access-check`, `confirmer`, `issuer-policy`, `profile-check`, `audit-listener`, `audit-scrubber`, `approval-store`,
+  `system-repository`, `key-vault`, `key-generator` or `session-store`.
 - `Extension` base: `id()` (config key, kebab-case; default from class name, `com.acme.TicketChecker` →
   `com-acme-ticket-checker`), `displayName()`, `description()`, `order()` (lower first).
-- `configure(config)` (default nothing): hands every extension its `kc-mcp.spi.<id>.*` settings, from files,
+- `configure(config)` (default nothing): hands every extension its `kc-mcp.spi.<spi>.<id>.*` settings, from files,
   environment and command line, at startup after the `enabled` switch and before `isSupported`. Keep them in fields;
   a constructor cannot see them. Only the settings are passed, the Keycloak systems do not exist yet; tool providers
   also get `init(ctx)` with the full context. A failing `configure` counts like a failing `isSupported`.
-- `isSupported(serverConfig, config)` (default `true`): asked once at startup after `kc-mcp.spi.<id>.enabled`; an
+- `isSupported(serverConfig, config)` (default `true`): asked once at startup after `kc-mcp.spi.<spi>.<id>.enabled`; an
   extension that needs a setting, a feature or a capability answers `false` when it is missing and is left out as if
   it were not installed (logged, not fatal; an exception counts as `false`). Applies to every extension point: tools,
   prompts, access checks, confirmers, audit listeners and scrubbers, profile checks, system repositories, key vaults,
-  key generators, session and approval stores. Fail closed: `kc-mcp.spi.<id>.required=true` makes a missing,
+  key generators, session and approval stores. Fail closed: `kc-mcp.spi.<spi>.<id>.required=true` makes a missing,
   switched-off or unsupported extension stop the start (mark security controls such as an `AccessCheck` or a `Confirmer` this way),
   and an `isSupported` that throws stops a server in profile `shared`. Extension points are resolved at startup, so
   these rules apply before the first call. To refuse the start for other reasons, contribute a `ProfileCheck`. Built in:
-  the CIBA confirmer is supported only with `kc-mcp.spi.ciba-confirmer.enabled=true`, the metrics audit listener only
+  the CIBA confirmer is supported only with `kc-mcp.spi.confirmer.ciba-confirmer.enabled=true`, the metrics audit listener only
   with the OpenTelemetry SDK on.
 - `close()` (default nothing): once at shutdown for every extension that took part, last admitted first; a failure is
   logged and the others still close. Release connections, file handles and threads here.
@@ -146,7 +150,7 @@ a local one, as the standard replacement for the external-to-internal token exch
 its own feature needs to be safe (an audit file outside `/tmp`, a ticket system over HTTPS, a setting that must not keep
 its default on a shared server). `problems(ctx)` stop the start, reported together with the built-in ones and tagged
 `[id]`; `warnings(ctx)` are logged. The check decides per profile (`ctx.shared()`), and gets its own settings
-(`ctx.config()`, `kc-mcp.spi.<id>.*`), any property (`ctx.property("quarkus.http.host")`) and whether callers are
+(`ctx.config()`, `kc-mcp.spi.<spi>.<id>.*`), any property (`ctx.property("quarkus.http.host")`) and whether callers are
 required. A check that throws stops a shared server and is logged on a local one. Example:
 `examples/extensions/.../AuditFileProfileCheck.java`.
 

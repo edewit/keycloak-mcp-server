@@ -36,7 +36,7 @@ kc-mcp.default-system=prod
 
 `KeycloakSystemRepository` extensions (`@AutoService` or CDI bean) supply systems at runtime: `names()`, `find(name)`.
 
-- Off by default: `kc-mcp.dynamic-systems=true` enables repositories, `kc-mcp.spi.<id>.enabled` one of them. Found
+- Off by default: `kc-mcp.dynamic-systems=true` enables repositories, `kc-mcp.spi.<spi>.<id>.enabled` one of them. Found
   while off: only logged.
 - The server creates nothing in Keycloak; the tenant registers the client, the server keeps its key.
 - `CompositeKeycloakSystemRepository` asks repositories by `order()`. Static configuration sits at
@@ -158,7 +158,7 @@ the public key from a JWKS the server publishes per system. `examples/dynamic-sy
    not reachable from Keycloak or the `kid` is unknown, `Invalid token audience` that `issuer` must be set because
    the server reaches Keycloak at an internal URL.
 5. **Rotate** with `POST /admin/systems/acme/signing-key`: the JWKS lists the new key first and keeps the retired one
-   for `kc-mcp.spi.db-key-vault.retired-key-grace-seconds`, so Keycloak switches without a gap.
+   for `kc-mcp.spi.key-vault.db-key-vault.retired-key-grace-seconds`, so Keycloak switches without a gap.
 
 Without the database, the systems file does the same with a provisioned key: the entry in `kc-mcp.systems-file`
 names `"clientAuth": "private_key_jwt"`, the private key lies in `kc-mcp.keys-dir` as `<alias>.pem` (PKCS#8 PEM), and

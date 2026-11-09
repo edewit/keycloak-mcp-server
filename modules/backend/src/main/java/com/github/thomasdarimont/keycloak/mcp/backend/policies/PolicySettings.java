@@ -10,7 +10,7 @@ import java.util.Set;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
- * Settings of the built-in policy provider ({@code kc-mcp.spi.policies.*}).
+ * Settings of the built-in policy provider ({@code kc-mcp.spi.tools.policies.*}).
  *
  * @param groupScope {@code off}, {@code group} (caller must be in the target group or an
  * ancestor) or {@code organization} (caller and group share an organization)
@@ -53,7 +53,7 @@ public record PolicySettings(GroupScope groupScope, String managerRole, boolean 
                 case "reject", "true" -> REJECT;
                 case "confirm" -> CONFIRM;
                 default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.policies.self-protection: 'reject', 'confirm' or 'off', not '" + value + "'");
+                        "kc-mcp.spi.tools.policies.self-protection: 'reject', 'confirm' or 'off', not '" + value + "'");
             };
         }
     }
@@ -79,7 +79,7 @@ public record PolicySettings(GroupScope groupScope, String managerRole, boolean 
                 }
                 int eq = entry.indexOf('=');
                 if (eq <= 0) {
-                    throw new IllegalArgumentException("kc-mcp.spi.policies.self-protection-tools: entries are"
+                    throw new IllegalArgumentException("kc-mcp.spi.tools.policies.self-protection-tools: entries are"
                             + " <tool>=<user argument> (an empty argument removes a built-in tool), not '"
                             + entry.trim() + "'");
                 }

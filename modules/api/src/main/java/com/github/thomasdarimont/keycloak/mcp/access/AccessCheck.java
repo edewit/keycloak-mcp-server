@@ -21,6 +21,17 @@ import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 @FunctionalInterface
 public interface AccessCheck extends Extension {
 
+    /**
+     * This extension point's name in configuration keys:
+     * {@code kc-mcp.spi.access-check.<id>.*}.
+     */
+    String SPI = "access-check";
+
+    @Override
+    default String spiName() {
+        return SPI;
+    }
+
     Decision check(Context context);
 
     /**

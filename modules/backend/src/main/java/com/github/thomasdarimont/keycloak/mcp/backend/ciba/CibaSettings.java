@@ -6,14 +6,16 @@ import java.util.Optional;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
- * {@code kc-mcp.spi.ciba-confirmer.*}: the OpenID Connect CIBA client the server asks the
- * OpenID provider to authenticate the caller with before a destructive tool runs. Only
- * the standard flow is used (discovery, {@code backchannel_authentication_endpoint},
- * {@code login_hint}, {@code binding_message}, poll mode at the token endpoint), so any
- * CIBA-capable provider works; Keycloak is the one the tests run against.
+ * {@code kc-mcp.spi.confirmer.ciba-confirmer.*}: the OpenID Connect CIBA client the
+ * server asks the OpenID provider to authenticate the caller with before a destructive
+ * tool runs. Only the standard flow is used (discovery,
+ * {@code backchannel_authentication_endpoint}, {@code login_hint},
+ * {@code binding_message}, poll mode at the token endpoint), so any CIBA-capable provider
+ * works; Keycloak is the one the tests run against.
  *
  * @param enabled off by default
  * @param issuer issuer URL of the CIBA client, or {@code caller} for the issuer of the
@@ -75,7 +77,7 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
                 case "two-step", "2-step", "async" -> TWO_STEP;
                 case "blocking", "wait", "sync" -> BLOCKING;
                 default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.ciba-confirmer.flow must be two-step or blocking, not '" + v + "'");
+                        "kc-mcp.spi.confirmer.ciba-confirmer.flow must be two-step or blocking, not '" + v + "'");
             };
         }
     }
@@ -87,7 +89,7 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
             return switch (v.trim().toLowerCase(Locale.ROOT).replace('-', '_')) {
                 case "basic", "client_secret_basic" -> BASIC;
                 case "post", "client_secret_post" -> POST;
-                default -> throw new IllegalArgumentException("kc-mcp.spi.ciba-confirmer.client-auth must be"
+                default -> throw new IllegalArgumentException("kc-mcp.spi.confirmer.ciba-confirmer.client-auth must be"
                         + " client_secret_basic or client_secret_post, not '" + v + "'");
             };
         }
@@ -102,14 +104,15 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
             return switch (v.trim().toLowerCase(Locale.ROOT).replace('_', '-')) {
                 case "always" -> ALWAYS;
                 case "without-elicitation", "no-elicitation", "fallback" -> WITHOUT_ELICITATION;
-                default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.ciba-confirmer.when must be always or" + " without-elicitation, not '" + v + "'");
+                default ->
+                    throw new IllegalArgumentException("kc-mcp.spi.confirmer.ciba-confirmer.when must be always or"
+                            + " without-elicitation, not '" + v + "'");
             };
         }
     }
 
     public static CibaSettings from(McpServerConfig server) {
-        return from(ProviderConfig.forExtension(ID, server.spi()), server.confirmTimeoutSeconds());
+        return from(ProviderConfig.forExtension(Confirmer.SPI, ID, server.spi()), server.confirmTimeoutSeconds());
     }
 
     public static CibaSettings from(ProviderConfig config, int defaultTimeout) {
@@ -117,8 +120,8 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
         Optional<String> clientId = config.get("client-id").filter(v -> !v.isBlank());
         Optional<String> secret = config.get("client-secret").filter(v -> !v.isBlank());
         if (enabled && (clientId.isEmpty() || secret.isEmpty())) {
-            throw new IllegalStateException("kc-mcp.spi.ciba-confirmer.enabled=true needs"
-                    + " kc-mcp.spi.ciba-confirmer.client-id and client-secret (a confidential Keycloak client with"
+            throw new IllegalStateException("kc-mcp.spi.confirmer.ciba-confirmer.enabled=true needs"
+                    + " kc-mcp.spi.confirmer.ciba-confirmer.client-id and client-secret (a confidential Keycloak client with"
                     + " the CIBA grant enabled)");
         }
         return new CibaSettings(enabled, config.get("issuer", "caller"),
@@ -131,9 +134,10 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
                 Flow.parse(config.get("flow", "two-step")), config.getBoolean("number-matching", true),
                 config.getBoolean("extra-parameters", true), config.getInt("poll-wait-seconds", 5),
                 config.get("tls-configuration-name").filter(v -> !v.isBlank()).orElse(null),
-                OutboundClients.duration(config.get("connect-timeout"), "kc-mcp.spi.ciba-confirmer.connect-timeout")
+                OutboundClients
+                    .duration(config.get("connect-timeout"), "kc-mcp.spi.confirmer.ciba-confirmer.connect-timeout")
                     .orElse(null),
-                OutboundClients.duration(config.get("read-timeout"), "kc-mcp.spi.ciba-confirmer.read-timeout")
+                OutboundClients.duration(config.get("read-timeout"), "kc-mcp.spi.confirmer.ciba-confirmer.read-timeout")
                     .orElse(null));
     }
 

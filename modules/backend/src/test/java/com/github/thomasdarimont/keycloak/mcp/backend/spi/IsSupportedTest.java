@@ -62,12 +62,11 @@ class IsSupportedTest {
     void enabledSwitchFirstThenIsSupported() {
         Picky p = new Picky("picky");
         assertFalse(Extensions.usable(p, "AuditListener", config(Map.of())), "the setting is missing");
-        assertTrue(Extensions.usable(p, "AuditListener", config(Map.of("kc-mcp.spi.picky.needs", "x"))));
+        assertTrue(Extensions.usable(p, "AuditListener", config(Map.of("kc-mcp.spi.audit-listener.picky.needs", "x"))));
+        assertFalse(Extensions.usable(p, "AuditListener", config(Map.of("kc-mcp.spi.audit-listener.picky.needs", "x",
+                "kc-mcp.spi.audit-listener.picky.enabled", "false"))), "switched off wins");
         assertFalse(
-                Extensions.usable(p, "AuditListener",
-                        config(Map.of("kc-mcp.spi.picky.needs", "x", "kc-mcp.spi.picky.enabled", "false"))),
-                "switched off wins");
-        assertFalse(Extensions.usable(p, "AuditListener", config(Map.of("kc-mcp.spi.picky.boom", "true"))),
+                Extensions.usable(p, "AuditListener", config(Map.of("kc-mcp.spi.audit-listener.picky.boom", "true"))),
                 "a failing check leaves it out");
     }
 
@@ -89,7 +88,7 @@ class IsSupportedTest {
             }
         };
         DefaultExtensionRegistry registry = new DefaultExtensionRegistry(discovery, null,
-                config(Map.of("kc-mcp.spi.with.needs", "yes")));
+                config(Map.of("kc-mcp.spi.audit-listener.with.needs", "yes")));
         assertEquals(List.of("with"), registry.extensions(AuditListener.class).stream().map(l -> l.id()).toList());
     }
 
@@ -97,34 +96,37 @@ class IsSupportedTest {
     void requiredExtensionsFailClosed() {
         Picky p = new Picky("picky");
         IllegalStateException off = Assertions.assertThrows(IllegalStateException.class,
-                () -> Extensions.usable(p, "AccessCheck", config(Map.of("kc-mcp.spi.picky.required", "true",
-                        "kc-mcp.spi.picky.enabled", "false", "kc-mcp.spi.picky.needs", "x"))));
+                () -> Extensions.usable(p, "AccessCheck",
+                        config(Map.of("kc-mcp.spi.audit-listener.picky.required", "true",
+                                "kc-mcp.spi.audit-listener.picky.enabled", "false",
+                                "kc-mcp.spi.audit-listener.picky.needs", "x"))));
         assertTrue(off.getMessage().contains("switched off"), off.getMessage());
-        IllegalStateException unsupported = Assertions.assertThrows(IllegalStateException.class,
-                () -> Extensions.usable(p, "AccessCheck", config(Map.of("kc-mcp.spi.picky.required", "true"))));
+        IllegalStateException unsupported = Assertions.assertThrows(IllegalStateException.class, () -> Extensions
+            .usable(p, "AccessCheck", config(Map.of("kc-mcp.spi.audit-listener.picky.required", "true"))));
         assertTrue(unsupported.getMessage().contains("not supported"), unsupported.getMessage());
-        assertTrue(Extensions.usable(p, "AccessCheck",
-                config(Map.of("kc-mcp.spi.picky.required", "true", "kc-mcp.spi.picky.needs", "x"))));
+        assertTrue(Extensions.usable(p, "AccessCheck", config(Map.of("kc-mcp.spi.audit-listener.picky.required", "true",
+                "kc-mcp.spi.audit-listener.picky.needs", "x"))));
     }
 
     @Test
     void aFailingIsSupportedStopsASharedServer() {
         Picky p = new Picky("picky");
-        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, () -> Extensions.usable(p,
-                "Confirmer", config(Map.of("kc-mcp.spi.picky.boom", "true", "kc-mcp.profile", "shared"))));
+        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
+                () -> Extensions.usable(p, "Confirmer",
+                        config(Map.of("kc-mcp.spi.audit-listener.picky.boom", "true", "kc-mcp.profile", "shared"))));
         assertTrue(e.getMessage().contains("profile shared"), e.getMessage());
-        assertFalse(Extensions.usable(p, "Confirmer", config(Map.of("kc-mcp.spi.picky.boom", "true"))),
+        assertFalse(Extensions.usable(p, "Confirmer", config(Map.of("kc-mcp.spi.audit-listener.picky.boom", "true"))),
                 "local: logged and left out");
     }
 
     @Test
     void aRequiredExtensionThatIsNotInstalledStopsTheStart() {
-        assertEquals(List.of("acme-policy"),
-                Extensions.missingRequired(
-                        config(Map.of("kc-mcp.spi.acme-policy.required", "true", "kc-mcp.spi.other.required", "false")),
-                        Set.of()));
+        assertEquals(List.of("issuer-policy.acme-policy"),
+                Extensions.missingRequired(config(Map.of("kc-mcp.spi.issuer-policy.acme-policy.required", "true",
+                        "kc-mcp.spi.audit-listener.other.required", "false")), Set.of()));
         assertTrue(Extensions
-            .missingRequired(config(Map.of("kc-mcp.spi.acme-policy.required", "true")), Set.of("acme-policy"))
+            .missingRequired(config(Map.of("kc-mcp.spi.issuer-policy.acme-policy.required", "true")),
+                    Set.of("issuer-policy.acme-policy"))
             .isEmpty(), "installed");
 
         Extensions empty = new Extensions(null, getClass().getClassLoader(), null) {
@@ -134,7 +136,7 @@ class IsSupportedTest {
             }
         };
         DefaultExtensionRegistry registry = new DefaultExtensionRegistry(empty, null,
-                config(Map.of("kc-mcp.spi.acme-policy.required", "true")));
+                config(Map.of("kc-mcp.spi.issuer-policy.acme-policy.required", "true")));
         IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, () -> registry.onStart(null));
         assertTrue(e.getMessage().contains("acme-policy"), e.getMessage());
     }
@@ -169,24 +171,27 @@ class IsSupportedTest {
     @Test
     void configureGetsTheExtensionsSettingsBeforeIsSupported() {
         Configured e = new Configured();
-        assertTrue(Extensions.usable(e, "AuditListener", config(Map.of("kc-mcp.spi.acme-configured.company", "ACME"))));
+        assertTrue(Extensions.usable(e, "AuditListener",
+                config(Map.of("kc-mcp.spi.audit-listener.acme-configured.company", "ACME"))));
         assertEquals("ACME", e.company);
     }
 
     @Test
     void aSwitchedOffExtensionIsNotConfigured() {
         Configured e = new Configured();
-        assertFalse(Extensions.usable(e, "AuditListener", config(
-                Map.of("kc-mcp.spi.acme-configured.enabled", "false", "kc-mcp.spi.acme-configured.company", "ACME"))));
+        assertFalse(
+                Extensions.usable(e, "AuditListener", config(Map.of("kc-mcp.spi.audit-listener.acme-configured.enabled",
+                        "false", "kc-mcp.spi.audit-listener.acme-configured.company", "ACME"))));
         assertEquals(null, e.company);
     }
 
     @Test
     void aFailingConfigureLeavesTheExtensionOutUnlessItIsRequired() {
         assertFalse(Extensions.usable(new Configured(), "AuditListener",
-                config(Map.of("kc-mcp.spi.acme-configured.boom", "true"))));
-        Assertions.assertThrows(IllegalStateException.class, () -> Extensions
-            .usable(new Configured(), "AuditListener", config(
-                    Map.of("kc-mcp.spi.acme-configured.boom", "true", "kc-mcp.spi.acme-configured.required", "true"))));
+                config(Map.of("kc-mcp.spi.audit-listener.acme-configured.boom", "true"))));
+        Assertions.assertThrows(IllegalStateException.class,
+                () -> Extensions.usable(new Configured(), "AuditListener",
+                        config(Map.of("kc-mcp.spi.audit-listener.acme-configured.boom", "true",
+                                "kc-mcp.spi.audit-listener.acme-configured.required", "true"))));
     }
 }

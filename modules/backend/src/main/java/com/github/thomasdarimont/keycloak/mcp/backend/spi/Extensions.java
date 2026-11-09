@@ -123,35 +123,38 @@ public class Extensions {
         }
         for (T t : byClass.values()) {
             if (t instanceof Extension e) {
-                seen.add(ProviderConfig.configId(e.id()));
+                seen.add(key(e.spiName(), e.id()));
             }
         }
         return List.copyOf(byClass.values());
     }
 
     /**
-     * The ids ({@code kc-mcp.spi.<id>} form) of every extension discovered so far, of any
-     * extension point.
+     * The ids ({@code kc-mcp.spi.<spi>.<id>} form) of every extension discovered so far,
+     * of any extension point.
      */
     public Set<String> seen() {
         return Set.copyOf(seen);
     }
 
     /**
-     * The ids that {@code kc-mcp.spi.<id>.required=true} names but no discovered
+     * The ids that {@code kc-mcp.spi.<spi>.<id>.required=true} names but no discovered
      * extension has: a required security control whose jar is missing must stop the
      * start, not be skipped because there is nothing to check.
      */
     public static List<String> missingRequired(McpServerConfig config, Set<String> seen) {
         List<String> missing = new ArrayList<>();
-        config.spi().forEach((id, settings) -> {
-            if (Boolean.parseBoolean(String.valueOf(settings.get("required")).trim())
-                    && !seen.contains(ProviderConfig.configId(id))) {
-                missing.add(id);
+        config.spi().forEach((spi, extensions) -> extensions.forEach((id, settings) -> {
+            if (Boolean.parseBoolean(String.valueOf(settings.get("required")).trim()) && !seen.contains(key(spi, id))) {
+                missing.add(spi + "." + id);
             }
-        });
+        }));
         Collections.sort(missing);
         return missing;
+    }
+
+    private static String key(String spi, String id) {
+        return spi + "." + ProviderConfig.configId(id);
     }
 
     /** The providers directory, {@code null} when none is configured. */
@@ -271,27 +274,27 @@ public class Extensions {
 
     /**
      * Whether a found extension takes part: not switched off with
-     * {@code kc-mcp.spi.<id>.enabled=false}, then {@link Extension#configure} with its
-     * settings, and {@link Extension#isSupported} with the current configuration. Every
-     * place that picks extensions asks here, so the rules and the log lines are the same
-     * for all extension points.
+     * {@code kc-mcp.spi.<spi>.<id>.enabled=false}, then {@link Extension#configure} with
+     * its settings, and {@link Extension#isSupported} with the current configuration.
+     * Every place that picks extensions asks here, so the rules and the log lines are the
+     * same for all extension points.
      * <p>
      * Fail closed where it matters: an extension marked
-     * {@code kc-mcp.spi.<id>.required=true} that is switched off or unsupported stops the
-     * start, and so does an {@code isSupported} that throws in profile {@code shared};
-     * elsewhere both are logged and the extension is left out.
+     * {@code kc-mcp.spi.<spi>.<id>.required=true} that is switched off or unsupported
+     * stops the start, and so does an {@code isSupported} that throws in profile
+     * {@code shared}; elsewhere both are logged and the extension is left out.
      *
      * @param kind the extension point, for the log ({@code Confirmer}, {@code KeyVault},
      * ...)
      * @throws IllegalStateException when a required extension cannot take part
      */
     public static boolean usable(Extension e, String kind, McpServerConfig config) {
-        ProviderConfig settings = ProviderConfig.forExtension(e.id(), config.spi());
+        ProviderConfig settings = ProviderConfig.forExtension(e, config.spi());
         boolean required = settings.getBoolean("required", false);
         if (!settings.getBoolean("enabled", true)) {
             if (required) {
-                throw new IllegalStateException(kind + " '" + e.id() + "' is required (kc-mcp.spi." + e.id()
-                        + ".required=true) but switched off (kc-mcp.spi." + e.id() + ".enabled=false)");
+                throw new IllegalStateException(kind + " '" + e.id() + "' is required (" + settings.providerPrefix()
+                        + "required=true) but switched off (" + settings.providerPrefix() + "enabled=false)");
             }
             LOG.infof("%s '%s' disabled by configuration", kind, e.id());
             return false;
@@ -313,8 +316,8 @@ public class Extensions {
         }
         if (!supported) {
             if (required) {
-                throw new IllegalStateException(kind + " '" + e.id() + "' is required (kc-mcp.spi." + e.id()
-                        + ".required=true) but not supported with the current configuration");
+                throw new IllegalStateException(kind + " '" + e.id() + "' is required (" + settings.providerPrefix()
+                        + "required=true) but not supported with the current configuration");
             }
             LOG.infof("%s '%s' left out: not supported with the current configuration", kind, e.id());
         }

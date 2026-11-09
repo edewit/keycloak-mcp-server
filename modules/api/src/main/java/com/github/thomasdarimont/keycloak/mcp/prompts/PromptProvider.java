@@ -10,11 +10,22 @@ import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 /**
  * Contributes {@link PromptSpec}s, the task recipes a user can pick in their MCP client.
  * Discovered like {@link ToolProvider}s: {@code @AutoService(PromptProvider.class)} (jars
- * in {@code providers/} included) or a CDI bean; {@code kc-mcp.spi.<id>.enabled=false}
- * switches a provider off. Prompts whose tools are all disabled on this server are not
- * registered.
+ * in {@code providers/} included) or a CDI bean;
+ * {@code kc-mcp.spi.<spi>.<id>.enabled=false} switches a provider off. Prompts whose
+ * tools are all disabled on this server are not registered.
  */
 public interface PromptProvider extends Extension {
+
+    /**
+     * This extension point's name in configuration keys:
+     * {@code kc-mcp.spi.prompts.<id>.*}.
+     */
+    String SPI = "prompts";
+
+    @Override
+    default String spiName() {
+        return SPI;
+    }
 
     /** Unique, stable id such as {@code prompts} or {@code acme-recipes}. */
     @Override

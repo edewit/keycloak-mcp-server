@@ -12,7 +12,7 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
  * @param callersRequired whether the MCP endpoint refuses anonymous requests
  * @param serverConfig the server's configuration; {@code null} in tests that do not need
  * it
- * @param config the check's own settings, {@code kc-mcp.spi.<id>.*}
+ * @param config the check's own settings, {@code kc-mcp.spi.<spi>.<id>.*}
  * @param properties any configuration property by name ({@code quarkus.http.host}, ...),
  * blank values as absent
  */

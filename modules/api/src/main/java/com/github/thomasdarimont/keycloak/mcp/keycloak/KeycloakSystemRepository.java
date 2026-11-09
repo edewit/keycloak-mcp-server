@@ -19,6 +19,17 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  */
 public interface KeycloakSystemRepository extends Extension {
 
+    /**
+     * This extension point's name in configuration keys:
+     * {@code kc-mcp.spi.system-repository.<id>.*}.
+     */
+    String SPI = "system-repository";
+
+    @Override
+    default String spiName() {
+        return SPI;
+    }
+
     /** The names of the systems this repository currently knows. */
     List<String> names();
 

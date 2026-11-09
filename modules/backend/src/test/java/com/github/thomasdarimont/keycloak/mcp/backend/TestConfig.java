@@ -39,7 +39,8 @@ public class TestConfig implements ConfigSource {
             Map.entry("kc-mcp.static-systems", "true"),
             // provider settings are a map of plain strings, so they take real values
             // rather than blanks
-            Map.entry("kc-mcp.spi.policies.group-scope", "off"), Map.entry("kc-mcp.spi.policies.no-escalation", "true"),
+            Map.entry("kc-mcp.spi.tools.policies.group-scope", "off"),
+            Map.entry("kc-mcp.spi.tools.policies.no-escalation", "true"),
             Map.entry("quarkus.oidc.tenant-enabled", "false"), Map.entry("quarkus.oidc.token.audience", ""));
 
     @Override

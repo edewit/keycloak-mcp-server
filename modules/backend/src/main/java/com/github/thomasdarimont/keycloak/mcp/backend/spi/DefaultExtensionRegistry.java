@@ -39,8 +39,9 @@ import io.quarkus.runtime.StartupEvent;
 
 /**
  * The extensions found by {@link Extensions}, per type: deduplicated by id, minus the
- * ones switched off with {@code kc-mcp.spi.<id>.enabled=false}, ordered. Tool providers
- * are also initialised here, in order, and their tools and access checks collected.
+ * ones switched off with {@code kc-mcp.spi.<spi>.<id>.enabled=false}, ordered. Tool
+ * providers are also initialised here, in order, and their tools and access checks
+ * collected.
  */
 @ApplicationScoped
 public class DefaultExtensionRegistry implements ExtensionRegistry {
@@ -82,7 +83,7 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
         List<ToolSpec> all = new ArrayList<>();
         List<AccessCheck> checks = new ArrayList<>();
         for (ToolProvider p : extensions(ToolProvider.class)) {
-            ToolProviderContext ctx = context(p.id());
+            ToolProviderContext ctx = context(p.spiName(), p.id());
             p.init(ctx);
             List<ToolSpec> tools = p.tools(ctx);
             LOG.infof("Tool provider '%s' (%s): %d tools", p.id(), p.displayName(), tools.size());
@@ -126,12 +127,12 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
     }
 
     /**
-     * The context of an extension: its configuration ({@code kc-mcp.spi.<id>.*}), the
-     * systems.
+     * The context of an extension: its configuration ({@code kc-mcp.spi.<spi>.<id>.*}),
+     * the systems.
      */
     @Override
-    public ToolProviderContext context(String extensionId) {
-        return new Context(systems, serverConfig, ProviderConfig.forExtension(extensionId, serverConfig.spi()));
+    public ToolProviderContext context(String spi, String extensionId) {
+        return new Context(systems, serverConfig, ProviderConfig.forExtension(spi, extensionId, serverConfig.spi()));
     }
 
     public List<ToolProvider> providers() {
@@ -176,7 +177,7 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
         List<String> missing = Extensions.missingRequired(serverConfig, discovery.seen());
         if (!missing.isEmpty()) {
             throw new IllegalStateException("Required extensions are not installed: " + missing
-                    + " (kc-mcp.spi.<id>.required=true; is the jar in the providers directory?)");
+                    + " (kc-mcp.spi.<spi>.<id>.required=true; is the jar in the providers directory?)");
         }
     }
 

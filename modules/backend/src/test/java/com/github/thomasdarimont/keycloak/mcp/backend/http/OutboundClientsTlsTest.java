@@ -150,9 +150,10 @@ class OutboundClientsTlsTest {
 
     @Test
     void anUnknownNameIsAConfigurationError() {
-        IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> OutboundClients.create("nope", registry, "kc-mcp.spi.ciba-confirmer.tls-configuration-name"));
-        assertTrue(e.getMessage().contains("kc-mcp.spi.ciba-confirmer.tls-configuration-name=nope"), e.getMessage());
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> OutboundClients.create("nope",
+                registry, "kc-mcp.spi.confirmer.ciba-confirmer.tls-configuration-name"));
+        assertTrue(e.getMessage().contains("kc-mcp.spi.confirmer.ciba-confirmer.tls-configuration-name=nope"),
+                e.getMessage());
         assertTrue(e.getMessage().contains("quarkus.tls.nope"), e.getMessage());
     }
 }

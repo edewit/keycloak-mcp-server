@@ -86,13 +86,13 @@ page, enter the number the chat shows and approve. "Sign out" ends the session h
 With LM Studio or another OAuth-capable MCP client: add `mcp-oauth.json`, log in as `alice / alice-demo`, ask it to
 delete a user, then approve or decline on the device page, signed in as alice. The model's answer names the binding
 message and the number the page asks for, so you can tell which request belongs to which operation. The model then
-calls the tool again at once, and that call waits up to 25 s (`KC_MCP_SPI_CIBA_CONFIRMER_POLL_WAIT_SECONDS`) for your
+calls the tool again at once, and that call waits up to 25 s (`KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_POLL_WAIT_SECONDS`) for your
 decision, so it notices the approval without you writing in the chat. A small model may still stop and ask; then
 say "done".
 
 ## What to look at
 
-- `env/ciba.env`: `KC_MCP_SPI_CIBA_CONFIRMER_*` (client, timeout, `when`, `login-hint`, `client-auth`, `flow`,
+- `env/ciba.env`: `KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_*` (client, timeout, `when`, `login-hint`, `client-auth`, `flow`,
   `number-matching`) and `KC_MCP_CONFIRM_FALLBACK=deny`, so a client without elicitation cannot fall back to
   `confirm: true`.
 - `realms/demo-realm.json`: the realm's CIBA policy (`cibaInterval`, `cibaExpiresIn`, `login_hint` as the user
@@ -114,18 +114,18 @@ say "done".
 
 ## Beyond the demo
 
-- Other providers: point `KC_MCP_SPI_CIBA_CONFIRMER_ISSUER` at the provider (or leave `caller` to follow the issuer
+- Other providers: point `KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_ISSUER` at the provider (or leave `caller` to follow the issuer
   of the caller's token; in a container that reaches the provider at an internal URL set the URL as the issuer and
   the public one as `TOKEN_ISSUER`, as `docker-compose.yml` does), register a confidential CIBA client there, pick `client-auth=client_secret_post` if it does
   not take HTTP Basic, and set `login-hint` to the claim the provider resolves users by (`email`, `sub`, ...).
   `requested-expiry=true` asks the provider to keep the request as long as the server waits; `binding-message=false`
   drops the message for providers that reject it.
-- `KC_MCP_SPI_CIBA_CONFIRMER_WHEN=without-elicitation` keeps CIBA for clients that cannot ask the human and lets
+- `KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_WHEN=without-elicitation` keeps CIBA for clients that cannot ask the human and lets
   clients with elicitation (Claude Desktop, ...) ask in the chat instead.
 - Several MCP server instances: turn the database storage on (`QUARKUS_DATASOURCE_JDBC_URL`, PostgreSQL build), the
   pending approvals then live in `kc_mcp_pending_approval` and the second call may reach any instance. This example
   runs one instance with the in-memory store.
-- `KC_MCP_SPI_CIBA_CONFIRMER_FLOW=blocking` makes the tool call wait for the device instead of answering twice;
+- `KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_FLOW=blocking` makes the tool call wait for the device instead of answering twice;
   simpler for scripts, but the chat shows nothing while waiting, so there is no number to match
   (`number-matching` only applies to the two-step flow). Devices that cannot show additional parameters still get
   the binding message; `extra-parameters=false` stops sending them.

@@ -57,11 +57,11 @@ class ExtensionRegistryTest {
         assertEquals(ticket.id(), ticket.displayName());
         assertEquals("", ticket.description());
         assertSame(registry.extensions(Confirmer.class), registry.extensions(Confirmer.class), "cached");
-        assertEquals("kc-mcp.spi.ticket.", registry.context("ticket").config().providerPrefix());
+        assertEquals("kc-mcp.spi.tools.ticket.", registry.context("tools", "ticket").config().providerPrefix());
         // camelCase ids are configured in kebab-case, as Keycloak does with provider ids
-        ProviderConfig camel = registry.context("acmeTicketChecker").config();
-        assertEquals("kc-mcp.spi.acme-ticket-checker.", camel.providerPrefix());
-        assertEquals("KC_MCP_SPI_ACME_TICKET_CHECKER_", camel.envPrefix());
+        ProviderConfig camel = registry.context("access-check", "acmeTicketChecker").config();
+        assertEquals("kc-mcp.spi.access-check.acme-ticket-checker.", camel.providerPrefix());
+        assertEquals("KC_MCP_SPI_ACCESS_CHECK_ACME_TICKET_CHECKER_", camel.envPrefix());
         assertEquals("CHG-", camel.get("ticket-prefix", "none"));
     }
 }

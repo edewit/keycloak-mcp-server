@@ -323,7 +323,8 @@ class DatabaseStorageIT {
     @Test
     void retentionRemovesOldEventsOnly() {
         DatabaseAuditListener audit = listeners.select(DatabaseAuditListener.class).get();
-        assertEquals(30, retention.retentionDays(), "kc-mcp.spi.db-audit.retention-days of the test configuration");
+        assertEquals(30, retention.retentionDays(),
+                "kc-mcp.spi.audit-listener.db-audit.retention-days of the test configuration");
         String subject = UUID.randomUUID().toString();
         Caller caller = Caller.of(subject, "old-timer", "tenant", Set.of());
         Instant now = Instant.now();

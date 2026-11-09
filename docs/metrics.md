@@ -42,4 +42,4 @@ No user, subject, argument or client-supplied value becomes an attribute; who di
 are cut to short tokens, so an extension's odd error code cannot create unbounded series.
 `kc-mcp.metrics.include-realm=true` adds the realm to the tool calls (one series per realm: think before turning
 it on for a server with thousands). The tool and refusal metrics come from the audit hook (`AuditListener` id
-`metrics`, `kc-mcp.spi.metrics.enabled=false` switches it off), so they count exactly what the audit log records.
+`metrics`, `kc-mcp.spi.audit-listener.metrics.enabled=false` switches it off), so they count exactly what the audit log records.

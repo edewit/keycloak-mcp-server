@@ -68,8 +68,8 @@ import io.vertx.core.json.JsonObject;
  * approval against the provider's keys and the identity it names against the caller, and
  * consumes the approval once. Blocking flow: the call waits for the device. Works with
  * any CIBA-capable provider (tested against Keycloak). Configuration
- * {@code kc-mcp.spi.ciba-confirmer.*} ({@link CibaSettings}); off by default, needs
- * authenticated callers, never leaves a decision to the model.
+ * {@code kc-mcp.spi.confirmer.ciba-confirmer.*} ({@link CibaSettings}); off by default,
+ * needs authenticated callers, never leaves a decision to the model.
  */
 @ApplicationScoped
 public class CibaConfirmer implements Confirmer {
@@ -192,7 +192,8 @@ public class CibaConfirmer implements Confirmer {
         Client http = clients == null && settings.enabled() ? OutboundClients.create(
                 timeouts.with(Optional.ofNullable(settings.connectTimeout()),
                         Optional.ofNullable(settings.readTimeout())),
-                settings.tlsConfigurationName(), tls, "kc-mcp.spi.ciba-confirmer.tls-configuration-name") : null;
+                settings.tlsConfigurationName(), tls, "kc-mcp.spi.confirmer.ciba-confirmer.tls-configuration-name")
+                : null;
         this.http = http;
         this.clients = clients != null ? clients : issuer -> new CibaClient(http, issuer, settings.clientId(),
                 settings.clientSecret(), settings.clientAuth(), settings.scope(), settings.acrValues());
@@ -214,10 +215,11 @@ public class CibaConfirmer implements Confirmer {
             return;
         }
         if (!callersRequired) {
-            throw new IllegalStateException("kc-mcp.spi.ciba-confirmer.enabled=true needs authenticated callers, or"
-                    + " there is nobody whose device could be asked: set kc-mcp.require-caller=true (with"
-                    + " quarkus.oidc.tenant-enabled=true), kc-mcp.delegation=forward|exchange, or"
-                    + " kc-mcp.profile=shared");
+            throw new IllegalStateException(
+                    "kc-mcp.spi.confirmer.ciba-confirmer.enabled=true needs authenticated callers, or"
+                            + " there is nobody whose device could be asked: set kc-mcp.require-caller=true (with"
+                            + " quarkus.oidc.tenant-enabled=true), kc-mcp.delegation=forward|exchange, or"
+                            + " kc-mcp.profile=shared");
         }
         metrics.pendingApprovals(() -> store.countLive(System.currentTimeMillis()));
         LOG.infof(
@@ -251,8 +253,8 @@ public class CibaConfirmer implements Confirmer {
     }
 
     /**
-     * Off unless {@code kc-mcp.spi.ciba-confirmer.enabled=true}: then not in the
-     * confirmer chain at all.
+     * Off unless {@code kc-mcp.spi.confirmer.ciba-confirmer.enabled=true}: then not in
+     * the confirmer chain at all.
      */
     @Override
     public boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {

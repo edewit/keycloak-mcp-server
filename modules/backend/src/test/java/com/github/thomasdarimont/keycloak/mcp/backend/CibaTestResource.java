@@ -127,9 +127,11 @@ public class CibaTestResource extends ForwardTestResource {
 
     @Override
     protected Map<String, String> extraConfig() {
-        return Map.of("kc-mcp.spi.ciba-confirmer.enabled", "true", "kc-mcp.spi.ciba-confirmer.client-id", "mcp-ciba",
-                "kc-mcp.spi.ciba-confirmer.client-secret", CLIENT_SECRET, "kc-mcp.spi.ciba-confirmer.timeout-seconds",
-                "6", "kc-mcp.spi.ciba-confirmer.poll-wait-seconds", "3", "kc-mcp.confirm-fallback", "deny");
+        return Map.of("kc-mcp.spi.confirmer.ciba-confirmer.enabled", "true",
+                "kc-mcp.spi.confirmer.ciba-confirmer.client-id", "mcp-ciba",
+                "kc-mcp.spi.confirmer.ciba-confirmer.client-secret", CLIENT_SECRET,
+                "kc-mcp.spi.confirmer.ciba-confirmer.timeout-seconds", "6",
+                "kc-mcp.spi.confirmer.ciba-confirmer.poll-wait-seconds", "3", "kc-mcp.confirm-fallback", "deny");
     }
 
     @Override

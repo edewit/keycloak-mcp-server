@@ -98,9 +98,9 @@ shell "demo stack: reset (down -v, re-imports the realm)" "demo-stack-reset" "ex
 {
   grep -v '^#' examples/run-modes/env/realm-admin.env
   echo "KC_MCP_PROVIDERS_DIR=examples/extensions/target"
-  echo "KC_MCP_SPI_ACME_AUDIT_FILE=target/acme-audit.jsonl"
+  echo "KC_MCP_SPI_AUDIT_LISTENER_ACME_AUDIT_FILE=target/acme-audit.jsonl"
   echo "KC_MCP_DYNAMIC_SYSTEMS=true"
-  echo "KC_MCP_SPI_ACME_TENANTS_SYSTEMS=globex=https://sso.globex.example|globex-prod"
+  echo "KC_MCP_SPI_SYSTEM_REPOSITORY_ACME_TENANTS_SYSTEMS=globex=https://sso.globex.example|globex-prod"
 } | maven_dev "quarkus:dev (extensions: realm-admin + examples/extensions/target as providers)" "dev-extensions"
 shell "extensions: build jar + stack up (Keycloak :8093, MCP :8094)" "extensions-up" "examples/extensions" \
   "../../mvnw -f ../../pom.xml package -DskipTests && docker compose up -d --build && docker compose logs -f mcp"

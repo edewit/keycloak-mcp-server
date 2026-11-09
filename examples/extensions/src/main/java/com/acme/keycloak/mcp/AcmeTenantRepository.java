@@ -13,9 +13,9 @@ import com.google.auto.service.AutoService;
 
 /**
  * Extension point {@link KeycloakSystemRepository}: Keycloak systems from a tenant
- * registry, here a setting ({@code KC_MCP_SPI_ACME_TENANTS_SYSTEMS}) of the form
- * {@code alias=https://sso.tenant.example[|realm];...}. Each tenant registers the
- * confidential client {@code keycloak-mcp-server} with Signed JWT and the JWKS URL
+ * registry, here a setting ({@code KC_MCP_SPI_SYSTEM_REPOSITORY_ACME_TENANTS_SYSTEMS}) of
+ * the form {@code alias=https://sso.tenant.example[|realm];...}. Each tenant registers
+ * the confidential client {@code keycloak-mcp-server} with Signed JWT and the JWKS URL
  * {@code <server>/auth/keys/<alias>/jwks.json}; the server signs with its own key per
  * tenant, so no secret appears here. Active only with
  * {@code kc-mcp.dynamic-systems=true}.
@@ -44,8 +44,8 @@ public class AcmeTenantRepository implements KeycloakSystemRepository {
     }
 
     /**
-     * Without tenants in {@code kc-mcp.spi.acme-tenants.systems} there is nothing to
-     * serve: left out.
+     * Without tenants in {@code kc-mcp.spi.system-repository.acme-tenants.systems} there
+     * is nothing to serve: left out.
      */
     @Override
     public boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {

@@ -93,11 +93,11 @@ On the Keycloak side, as in `examples/ciba-confirm/realms/demo-realm.json`:
 On the server side, the example's `env/ciba.env` is a template:
 
 ```shell
-KC_MCP_SPI_CIBA_CONFIRMER_ENABLED=true
-KC_MCP_SPI_CIBA_CONFIRMER_CLIENT_ID=mcp-ciba
-KC_MCP_SPI_CIBA_CONFIRMER_CLIENT_SECRET=...
-KC_MCP_SPI_CIBA_CONFIRMER_TIMEOUT_SECONDS=90
-KC_MCP_SPI_CIBA_CONFIRMER_POLL_WAIT_SECONDS=25     # the second call waits this long, so the model notices the decision itself
+KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_ENABLED=true
+KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_ID=mcp-ciba
+KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_SECRET=...
+KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_TIMEOUT_SECONDS=90
+KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_POLL_WAIT_SECONDS=25     # the second call waits this long, so the model notices the decision itself
 KC_MCP_CONFIRM_FALLBACK=deny                       # no confirm: true for clients without elicitation
 ```
 
@@ -111,7 +111,7 @@ asks the human itself, so the model calls right away and relays the answer inste
 
 ## Settings
 
-`kc-mcp.spi.ciba-confirmer.*`, environment `KC_MCP_SPI_CIBA_CONFIRMER_*`.
+`kc-mcp.spi.confirmer.ciba-confirmer.*`, environment `KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_*`.
 
 | setting | default | meaning |
 |---|---|---|

@@ -6,7 +6,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 
 /**
  * Everything an extension gets from the server: the Keycloak systems, the server
- * configuration and its own settings ({@code kc-mcp.spi.<id>.*}).
+ * configuration and its own settings ({@code kc-mcp.spi.<spi>.<id>.*}).
  */
 public interface ExtensionContext {
 
@@ -26,6 +26,6 @@ public interface ExtensionContext {
     /** Global server configuration. */
     McpServerConfig serverConfig();
 
-    /** Configuration scoped to this extension: {@code kc-mcp.spi.<id>.*}. */
+    /** Configuration scoped to this extension: {@code kc-mcp.spi.<spi>.<id>.*}. */
     ProviderConfig config();
 }

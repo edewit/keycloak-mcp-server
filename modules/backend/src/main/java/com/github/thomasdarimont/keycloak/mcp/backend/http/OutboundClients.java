@@ -127,8 +127,8 @@ public final class OutboundClients {
     }
 
     /**
-     * A duration setting of an extension ({@code kc-mcp.spi.<id>.*}, plain strings):
-     * {@code 10s}, {@code 500ms}, {@code PT10S}, or a number of seconds.
+     * A duration setting of an extension ({@code kc-mcp.spi.<spi>.<id>.*}, plain
+     * strings): {@code 10s}, {@code 500ms}, {@code PT10S}, or a number of seconds.
      */
     public static Optional<Duration> duration(Optional<String> value, String setting) {
         return value.filter(v -> !v.isBlank()).map(v -> {

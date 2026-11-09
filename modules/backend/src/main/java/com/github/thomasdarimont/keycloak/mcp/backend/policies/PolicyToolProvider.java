@@ -14,7 +14,7 @@ import com.google.auto.service.AutoService;
 
 /**
  * Built-in policies: no tools, only access checks. Configure with
- * {@code kc-mcp.spi.policies.*}: {@code group-scope=off|group|organization},
+ * {@code kc-mcp.spi.tools.policies.*}: {@code group-scope=off|group|organization},
  * {@code manager-role=realm:group-manager}, {@code no-escalation=true},
  * {@code self-protection=reject|confirm|off},
  * {@code self-protection-tools=<tool>=<arg>,...}, {@code anonymous=allow|deny},

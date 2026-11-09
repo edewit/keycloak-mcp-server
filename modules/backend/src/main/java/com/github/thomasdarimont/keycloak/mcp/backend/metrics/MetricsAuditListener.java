@@ -13,7 +13,7 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 /**
  * Turns every audited tool call into the tool and refusal metrics: the audit log is the
  * one place that sees every call with its outcome, so metrics and audit cannot drift
- * apart. Switch off alone with {@code kc-mcp.spi.metrics.enabled=false}.
+ * apart. Switch off alone with {@code kc-mcp.spi.audit-listener.metrics.enabled=false}.
  */
 @ApplicationScoped
 public class MetricsAuditListener implements AuditListener {

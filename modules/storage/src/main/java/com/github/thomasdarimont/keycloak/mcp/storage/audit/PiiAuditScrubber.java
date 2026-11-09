@@ -21,14 +21,14 @@ import io.quarkus.arc.lookup.LookupIfProperty;
 
 /**
  * The {@link AuditScrubber} of the storage module, configured under
- * {@code kc-mcp.spi.pii-audit-scrubber.*}: {@code pii} is {@code keep} (default, nothing
- * happens), {@code pseudonymize} or {@code drop}; {@code pii-args} names the personal
- * arguments (default {@value #DEFAULT_PII_ARGS}; {@code id} counts too on user tools,
- * whose ids may be usernames); {@code targets} lists the listener ids it applies to
- * (default {@code db-audit}, the rows that persist; {@code console} for the opposite, a
- * console without names while the database keeps the full record; {@code *} for every
- * listener). Pseudonymizing replaces the caller's name and the personal argument values
- * by a keyed hash ({@link StorageCrypto#pseudonym}, under
+ * {@code kc-mcp.spi.audit-scrubber.pii-audit-scrubber.*}: {@code pii} is {@code keep}
+ * (default, nothing happens), {@code pseudonymize} or {@code drop}; {@code pii-args}
+ * names the personal arguments (default {@value #DEFAULT_PII_ARGS}; {@code id} counts too
+ * on user tools, whose ids may be usernames); {@code targets} lists the listener ids it
+ * applies to (default {@code db-audit}, the rows that persist; {@code console} for the
+ * opposite, a console without names while the database keeps the full record; {@code *}
+ * for every listener). Pseudonymizing replaces the caller's name and the personal
+ * argument values by a keyed hash ({@link StorageCrypto#pseudonym}, under
  * {@code kc-mcp.storage.secret-key}), so one person stays recognisable across records,
  * and drops the message, which may echo usernames; dropping removes them. The caller's
  * subject (an opaque id), realm and roles and the outcome stay in every mode.
@@ -54,7 +54,8 @@ public class PiiAuditScrubber implements AuditScrubber {
                 case "pseudonymize", "pseudonymise", "hash" -> PSEUDONYMIZE;
                 case "drop", "remove" -> DROP;
                 default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.pii-audit-scrubber.pii must be keep, pseudonymize or drop, not '" + value + "'");
+                        "kc-mcp.spi.audit-scrubber.pii-audit-scrubber.pii must be keep, pseudonymize or drop, not '"
+                                + value + "'");
             };
         }
     }
@@ -66,7 +67,7 @@ public class PiiAuditScrubber implements AuditScrubber {
 
     @Inject
     public PiiAuditScrubber(McpServerConfig serverConfig, StorageCrypto crypto) {
-        this(ProviderConfig.forExtension(ID, serverConfig.spi()), crypto);
+        this(ProviderConfig.forExtension(AuditScrubber.SPI, ID, serverConfig.spi()), crypto);
     }
 
     /**

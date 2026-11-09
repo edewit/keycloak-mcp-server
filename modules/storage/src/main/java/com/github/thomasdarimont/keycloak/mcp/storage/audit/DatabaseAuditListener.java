@@ -17,8 +17,9 @@ import io.vertx.core.json.JsonObject;
  * handler's thread so the record exists before the result leaves the server; a database
  * failure is logged by the server and does not change the tool result. Arguments arrive
  * redacted; personal data is the {@link PiiAuditScrubber}'s business. Rows are kept until
- * {@link AuditRetention} removes them ({@code kc-mcp.spi.db-audit.retention-days}, off by
- * default). Switch it off alone with {@code kc-mcp.spi.db-audit.enabled=false}.
+ * {@link AuditRetention} removes them
+ * ({@code kc-mcp.spi.audit-listener.db-audit.retention-days}, off by default). Switch it
+ * off alone with {@code kc-mcp.spi.audit-listener.db-audit.enabled=false}.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")

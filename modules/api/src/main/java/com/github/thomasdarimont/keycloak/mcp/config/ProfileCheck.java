@@ -9,7 +9,7 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  * an extension states what its own feature needs to be safe, say an audit file outside
  * {@code /tmp}, a ticket system URL over HTTPS, or a setting that must not be left at its
  * default on a shared server. Register with {@code @AutoService(ProfileCheck.class)} or
- * as a CDI bean; {@code kc-mcp.spi.<id>.enabled=false} switches one off.
+ * as a CDI bean; {@code kc-mcp.spi.<spi>.<id>.enabled=false} switches one off.
  * <p>
  * The server runs every check at startup, after its own. All {@link #problems} of all
  * checks are reported together, each tagged with the check's id, and stop the start; a
@@ -18,6 +18,17 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
  * stops the start in profile {@code shared} and is logged in {@code local}.
  */
 public interface ProfileCheck extends Extension {
+
+    /**
+     * This extension point's name in configuration keys:
+     * {@code kc-mcp.spi.profile-check.<id>.*}.
+     */
+    String SPI = "profile-check";
+
+    @Override
+    default String spiName() {
+        return SPI;
+    }
 
     /** What prevents a safe start; empty when nothing does. */
     List<String> problems(ProfileCheckContext context);

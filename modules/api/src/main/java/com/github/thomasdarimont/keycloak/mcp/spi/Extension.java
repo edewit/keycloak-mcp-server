@@ -9,10 +9,10 @@ import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 
 /**
  * What every extension point shares: {@link ToolProvider}, {@link PromptProvider},
- * {@link AccessCheck}, {@link Confirmer} and {@link AuditListener} are extensions. The id
- * keys the configuration ({@code kc-mcp.spi.<id>.*}, {@code enabled=false} switches the
- * extension off) and must be unique per type; the order decides the sequence in which
- * extensions of one type run or are initialised.
+ * {@link AccessCheck}, {@link Confirmer} and {@link AuditListener} are extensions. Its
+ * type and id key the configuration ({@code kc-mcp.spi.<spi>.<id>.*},
+ * {@code enabled=false} switches the extension off) and must be unique per type; the
+ * order decides the sequence in which extensions of one type run or are initialised.
  * <p>
  * Lifecycle: one instance per server, shared by all requests, so implementations must be
  * thread-safe. At startup, once: {@link #configure}, then {@link #isSupported}. At
@@ -22,9 +22,16 @@ import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 public interface Extension {
 
     /**
+     * The extension point's name in configuration keys, set by each extension point:
+     * {@code confirmer} in {@code kc-mcp.spi.confirmer.<id>.*}.
+     */
+    String spiName();
+
+    /**
      * Unique, stable id such as {@code users} or {@code acme-tickets}. Configuration keys
-     * use it in kebab-case ({@code acmeTickets} -> {@code kc-mcp.spi.acme-tickets.*}, see
-     * {@link ProviderConfig#configId}). Defaults to the class name.
+     * use it in kebab-case ({@code acmeTickets} ->
+     * {@code kc-mcp.spi.tools.acme-tickets.*}, see {@link ProviderConfig#configId}).
+     * Defaults to the class name.
      */
     default String id() {
         return getClass().getName();
@@ -46,7 +53,7 @@ public interface Extension {
     }
 
     /**
-     * Hands the extension its own settings, {@code kc-mcp.spi.<id>.*} from the
+     * Hands the extension its own settings, {@code kc-mcp.spi.<spi>.<id>.*} from the
      * configuration files, the environment and the command line, once at startup after
      * the {@code enabled} switch and before {@link #isSupported}. Every extension point
      * gets this call. Only the settings: the Keycloak systems depend on some extensions
@@ -67,7 +74,7 @@ public interface Extension {
      * counts as {@code false}.
      *
      * @param serverConfig the server's configuration
-     * @param config this extension's own settings, {@code kc-mcp.spi.<id>.*}
+     * @param config this extension's own settings, {@code kc-mcp.spi.<spi>.<id>.*}
      */
     default boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {
         return true;

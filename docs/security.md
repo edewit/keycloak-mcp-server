@@ -75,7 +75,7 @@ matching `username`, so an id alone cannot delete.
   `confirm: true`; `deny` (the `shared` default) refuses with `confirmation_required` and does not offer the flag,
   since the model would write it.
 - **Own confirmers** run first ([Extending](extending.md)), so a ticket check can still confirm under `deny`.
-- **CIBA** (`kc-mcp.spi.ciba-confirmer.enabled=true`, off by default) moves the decision to the caller's own device,
+- **CIBA** (`kc-mcp.spi.confirmer.ciba-confirmer.enabled=true`, off by default) moves the decision to the caller's own device,
   with number matching ([CIBA confirmation](ciba-confirmation.md)). Neither the model nor the MCP client is in that channel.
 - **Explicit targets.** `kc-mcp.explicit-target=off|destructive|write` makes tools of that level answer
   `system_required` or `realm_required` instead of using the default system or realm, so an ambiguous request cannot
@@ -156,7 +156,7 @@ tool("keycloak_user_delete")
 
 The provider `policies` adds caller-relative checks once callers are authenticated ([Callers](#callers)).
 
-| `kc-mcp.spi.policies.*` | default | meaning |
+| `kc-mcp.spi.tools.policies.*` | default | meaning |
 |---|---|---|
 | `group-scope` | `off` | `group`: callers manage only groups they belong to, or subgroups of them; `organization`: the groups of their organizations |
 | `manager-role` | | the role needed for group management, e.g. `realm:group-manager` |
