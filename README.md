@@ -132,6 +132,6 @@ with [run-modes](examples/run-modes/).
 conformance/run.sh                              # MCP conformance suite against the packaged server
 ```
 
-Modules: `api` (extension SPI, no Quarkus), `storage` (database), `frontend` (management UI), `backend` (the Quarkus
-application), `distribution` (the downloadable archives). More in [Development](docs/development.md), including the
+Modules: `api` (extension SPI, no Quarkus), `storage` (database), `backend` (the Quarkus application and Lit
+management UI), `distribution` (the downloadable archives). More in [Development](docs/development.md), including the
 roadmap.

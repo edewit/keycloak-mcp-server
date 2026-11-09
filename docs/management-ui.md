@@ -8,12 +8,13 @@ A browser UI for the server at `/ui`, with its backend-for-frontend (BFF) under 
 (the list of systems), sign out. The pages for managing systems, secrets and the audit trail are not built yet. The
 plumbing underneath is complete and covered by integration tests: the login, sessions in the database, several identity
 providers, session checks and back-channel logout. New pages add methods to the BFF and call the admin services; see
-`modules/frontend/README.md` for the contract and the development loop.
+`modules/backend/src/main/resources/frontend/README.md` for the contract and the development loop.
 
 ## How it works
 
-The UI is a [Lit](https://lit.dev) single-page app (module `frontend`), packaged as static files and served by the
-backend. The server is the OpenID Connect relying party: it runs the authorization code flow with PKCE at Keycloak, the
+The UI is a [Lit](https://lit.dev) single-page app under `modules/backend/src/main/resources/frontend`, bundled by
+[Quarkus Web Bundler](https://docs.quarkiverse.io/quarkus-web-bundler/dev/) (mvnpm, no Node) and served by the backend.
+The server is the OpenID Connect relying party: it runs the authorization code flow with PKCE at Keycloak, the
 browser gets an HttpOnly, Secure, `SameSite=Lax` cookie holding an opaque session id, and the tokens stay on the server,
 in the database (`kc_mcp_user_session`, encrypted like the other secrets). The browser never sees a token.
 
@@ -30,7 +31,8 @@ It needs the [database storage](storage.md) and HTTPS.
 | `kc-mcp.ui.tls-configuration-name` | a named trust store for the server's own calls to the identity providers (private CA) |
 | `kc-mcp.ui.connect-timeout` / `read-timeout` | timeouts of those calls, default `kc-mcp.http.*` |
 
-`./mvnw package` builds the UI (Node is downloaded once into `modules/frontend/node/`); `-Dui.skip=true` leaves it out.
+`./mvnw package` bundles the UI with Quarkus Web Bundler; turn it off at runtime with `kc-mcp.ui.enabled=false`.
+Edit files under `modules/backend/src/main/resources/frontend` while `quarkus:dev` is running for live reload.
 A working setup with one or two identity providers: `examples/management-ui/`.
 
 ## Several identity providers

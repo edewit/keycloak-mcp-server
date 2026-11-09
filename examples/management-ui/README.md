@@ -2,7 +2,8 @@
 
 The server as OIDC relying party for a browser: authorization code flow with PKCE at Keycloak, the tokens in the
 database (`kc_mcp_user_session`, encrypted like the other secrets), the browser holding an HttpOnly, Secure cookie with
-an opaque id. The UI (`modules/frontend`, Lit) is served at `/ui/`, its API under `/bff`. Runs on the run-modes stack.
+an opaque id. The Lit UI (`modules/backend/src/main/resources/frontend`, Quarkus Web Bundler) is served at `/ui/`, its
+API under `/bff`. Runs on the run-modes stack.
 
 ```shell
 etc/mkcert.sh                                         # once; mkcert's CA into the trust stores, .certs/localhost*.pem
@@ -21,15 +22,16 @@ open https://localhost:8443/ui/
   the mkcert certificate, admin API over bearer tokens too
 - `env/ui-two-idps.env`: two providers (`KC_MCP_UI_IDPS_DEMO_*`, `KC_MCP_UI_IDPS_MASTER_*`), one button each;
   `master-client.sh` registers the client in the master realm first
-- IntelliJ: `.run/management-ui-mkcert`, `.run/dev-ui`, `.run/dev-ui-two-idps`, `.run/management-ui-vite`
+- IntelliJ: `.run/management-ui-mkcert`, `.run/dev-ui`, `.run/dev-ui-two-idps`
+- Live-reload: edit files under `modules/backend/src/main/resources/frontend` while `quarkus:dev` is running
 - A stack that was up before the UI client changed keeps its old realm (`docker compose down -v` re-imports it); the
   client needs its *Backchannel logout URL* for the back-channel logout to reach the server
 
 ## What to look at
 
-- Keycloak client `keycloak-mcp-ui` (`examples/run-modes/realms/demo-realm.json`): public, PKCE S256, redirect URIs
-  `https://localhost:8443/bff/login` and `https://localhost:5173/bff/login` (the Vite dev server), post logout redirect
-  URIs `https://localhost:{8443,5173}/ui/*`, audience mapper `aud=mcp-admin` like `mcp-consumer`
+- Keycloak client `keycloak-mcp-ui` (`examples/run-modes/realms/demo-realm.json`): public, PKCE S256, redirect URI
+  `https://localhost:8443/bff/login`, post logout redirect URI `https://localhost:8443/ui/*`, audience mapper
+  `aud=mcp-admin` like `mcp-consumer`
 - The cookie: `q_session_kc-mcp-ui-<alias>` with a 43 character id, `Secure; HttpOnly; SameSite=Lax`, no token in it
 - The row: `select id, idp, subject, substr(id_token, 1, 12), expires_at from kc_mcp_user_session` in `data/kc-mcp-ui`
   (H2) shows `enc:v2:...`; `GET /admin/storage` counts the table's key ids; logout deletes the row

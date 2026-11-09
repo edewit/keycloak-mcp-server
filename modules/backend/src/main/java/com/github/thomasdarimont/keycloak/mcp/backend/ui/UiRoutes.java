@@ -22,21 +22,26 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 
 /**
- * Serves the management UI, a single-page application from the
- * {@code keycloak-mcp-server-frontend} jar ({@code META-INF/resources/ui}): {@code /ui}
- * goes to {@code /ui/}, and a path without a file extension ({@code /ui/systems}) gets
- * {@code index.html}, served from the jar with {@code Cache-Control: no-cache} because it
- * names the hashed bundles of its build, so the browser can reload any route of the app
- * and never keeps a page of an earlier build. Files keep their paths and the static
- * handler's caching. With the UI off everything under {@code /ui} is 404. At startup the
- * UI's prerequisites are checked: a {@link UserSessionStore} must be registered, else the
- * server does not start, and a missing frontend jar is reported.
+ * Serves the management UI SPA under {@code /ui}: Quarkus Web Bundler renders
+ * {@code frontend/index.html} (with {@code {#bundle /}}) into
+ * {@code META-INF/resources/index.html}. {@code /ui} goes to {@code /ui/}, and
+ * extension-less paths ({@code /ui/systems}) get that index with
+ * {@code Cache-Control: no-cache} so the browser picks up hashed bundles after a rebuild.
+ * Bundle assets under {@code /static/bundle/} keep the static handler's caching. Web
+ * Bundler also publishes the index at {@code /}; this class redirects that to
+ * {@code /ui/} when the UI is on and answers 404 when it is off, so the product entry
+ * stays {@code /ui}. At startup a {@link UserSessionStore} must be registered, else the
+ * server does not start; a missing index is reported.
  */
 @ApplicationScoped
 public class UiRoutes {
 
     private static final Logger LOG = Logger.getLogger(UiRoutes.class);
-    static final String INDEX = "META-INF/resources" + UiTenant.UI_PATH + "/index.html";
+    /**
+     * Web Bundler output of {@code frontend/index.html}; served for every SPA route under
+     * {@code /ui}.
+     */
+    static final String INDEX = "META-INF/resources/index.html";
 
     @Inject
     McpServerConfig config;
@@ -63,8 +68,8 @@ public class UiRoutes {
                     + " sessions: configure the database storage (quarkus.datasource.jdbc.url) or register one.");
         }
         if (index() == null) {
-            LOG.warnf("Management UI: no frontend on the class path (%s); the BFF under %s works, %s/ answers 404",
-                    INDEX, UiTenant.BFF_PATH, UiTenant.UI_PATH);
+            LOG.warnf("Management UI: no index on the class path (%s); the BFF under %s works, %s/ answers 404", INDEX,
+                    UiTenant.BFF_PATH, UiTenant.UI_PATH);
         }
         List<UiTenant.Idp> idps = tenant.idps();
         if (idps.isEmpty()) {
@@ -78,10 +83,29 @@ public class UiRoutes {
     }
 
     void register(@Observes Router router) {
+        // Ahead of the static handler: Web Bundler puts the SPA index at / as well as
+        // under /ui.
+        router.route(HttpMethod.GET, "/").order(-2000).handler(this::root);
+        router.route(HttpMethod.GET, "/index.html").order(-2000).handler(this::root);
         // Vert.x lets the exact path /ui match /ui/ as well, so one handler sorts both
         // out
         router.route(HttpMethod.GET, UiTenant.UI_PATH).handler(this::serve);
         router.route(HttpMethod.GET, UiTenant.UI_PATH + "/*").handler(this::serve);
+    }
+
+    /**
+     * Web Bundler's default index is at {@code /}; keep the product entry at {@code /ui}.
+     */
+    private void root(RoutingContext ctx) {
+        if (index() == null) {
+            ctx.next();
+            return;
+        }
+        if (!config.ui().enabled()) {
+            off(ctx);
+            return;
+        }
+        ctx.response().setStatusCode(302).putHeader("Location", UiTenant.UI_PATH + "/").end();
     }
 
     /**
@@ -104,7 +128,7 @@ public class UiRoutes {
                 ctx.response()
                     .setStatusCode(404)
                     .putHeader("Content-Type", "application/json")
-                    .end("{\"error\":\"ui_missing\",\"message\":\"The frontend is not on the class path.\"}");
+                    .end("{\"error\":\"ui_missing\",\"message\":\"The management UI index is not on the class path.\"}");
                 return;
             }
             ctx.response()
@@ -126,7 +150,10 @@ public class UiRoutes {
         return !last.contains(".");
     }
 
-    /** The app's page from the frontend jar, read once; {@code null} without the jar. */
+    /**
+     * The Web Bundler–rendered SPA page, read once; {@code null} if bundling did not
+     * produce it.
+     */
     private byte[] index() {
         byte[] page = indexPage;
         if (page == null) {

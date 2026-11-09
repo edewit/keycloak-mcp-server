@@ -12,9 +12,7 @@
         <module>modules/api</module>
         <!-- optional database storage: systems, key material and audit events in PostgreSQL -->
         <module>modules/storage</module>
-        <!-- the management UI: a Lit single-page app built with npm, packaged as static resources -->
-        <module>modules/frontend</module>
-        <!-- the Quarkus application -->
+        <!-- the Quarkus application (includes the Lit management UI via Quarkus Web Bundler) -->
         <module>modules/backend</module>
         <!-- test_* tools and prompts for the MCP conformance suite, an extension jar; see conformance/README.md -->
         <module>conformance/fixtures</module>
@@ -39,11 +37,8 @@
         <jackson.version>2.21.8</jackson.version>
         <auto-service.version>1.1.1</auto-service.version>
         <jandex-maven-plugin.version>3.4.0</jandex-maven-plugin.version>
-        <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
-        <!-- Node the frontend module is built with (downloaded once into modules/frontend/node, git-ignored) -->
-        <frontend.node.version>v22.12.0</frontend.node.version>
-        <!-- -Dui.skip=true builds the frontend jar without running npm (no UI files inside) -->
-        <ui.skip>false</ui.skip>
+        <quarkus-web-bundler.version>3.0.0</quarkus-web-bundler.version>
+        <mvnpm.lit.version>3.3.3</mvnpm.lit.version>
         <!-- database kind of the storage module, baked into the backend at build time: h2 or postgresql (-Ppostgresql) -->
         <storage.db-kind>h2</storage.db-kind>
     </properties>
@@ -83,9 +78,14 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.github.thomasdarimont.keycloak</groupId>
-                <artifactId>keycloak-mcp-server-frontend</artifactId>
-                <version>${project.version}</version>
+                <groupId>io.quarkiverse.web-bundler</groupId>
+                <artifactId>quarkus-web-bundler</artifactId>
+                <version>${quarkus-web-bundler.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mvnpm</groupId>
+                <artifactId>lit</artifactId>
+                <version>${mvnpm.lit.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.google.auto.service</groupId>

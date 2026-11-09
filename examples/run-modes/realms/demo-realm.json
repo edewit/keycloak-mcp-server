@@ -490,8 +490,7 @@
       "directAccessGrantsEnabled": false,
       "implicitFlowEnabled": false,
       "redirectUris": [
-        "https://localhost:8443/bff/login",
-        "https://localhost:5173/bff/login"
+        "https://localhost:8443/bff/login"
       ],
       "webOrigins": [
         "+"
@@ -508,7 +507,7 @@
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://localhost:8443/ui/*##https://localhost:5173/ui/*",
+        "post.logout.redirect.uris": "https://localhost:8443/ui/*",
         "backchannel.logout.url": "http://host.docker.internal:8081/bff/backchannel-logout",
         "backchannel.logout.session.required": "true"
       },

@@ -53,14 +53,6 @@ jobs:
           java-version: 21
           cache: maven
 
-      - name: Cache the frontend's Node and npm packages
-        uses: actions/cache@v6
-        with:
-          path: |
-            modules/frontend/node
-            modules/frontend/node_modules
-          key: frontend-${{ runner.os }}-${{ hashFiles('modules/frontend/package-lock.json', 'modules/frontend/pom.xml', 'pom.xml') }}
-
       - name: Build, check the formatting, run unit and integration tests, package the distribution
         run: ./mvnw verify -DskipITs=false -Pdist
 

@@ -3,7 +3,7 @@
 
 [files]
 extend-exclude = [
-    "target/", "node_modules/", "modules/frontend/node/", ".certs/", "data/", "sketch/", "conformance/results/", "conformance/providers/",
+    "target/", "node_modules/", ".certs/", "data/", "sketch/", "conformance/results/", "conformance/providers/",
     # upstream documents and preference keys, kept as they are
     "modules/backend/src/test/resources/openapi/", "etc/eclipse-formatter.prefs",
     # German and French words: the search's translation tables, umlaut folding, the admin console labels, the French search test
