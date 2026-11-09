@@ -13,7 +13,7 @@
 #   bin/kcmcp.sh build --db=postgresql                     build for a database, h2 or postgresql; stop the server first
 #   bin/kcmcp.sh --version | --help
 #
-# Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
+# Any --kc-mcp.name=value or --quarkus.name=value sets that configuration property; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
 # override the configuration files, so the script lists the ones it inherits from the shell.
 # JAVA_HOME or JAVA pick the JVM (Java 21 or newer); JAVA_OPTS replaces the default JVM options, JAVA_OPTS_APPEND
 # adds to them. KCMCP_DEBUG=true, KCMCP_DEBUG_PORT and KCMCP_DEBUG_SUSPEND enable remote debugging.
@@ -62,6 +62,7 @@ DEBUG_ADDRESS="${KCMCP_DEBUG_PORT:-5005}"
 DEBUG_SUSPEND="${KCMCP_DEBUG_SUSPEND:-n}"
 CONFIG_FILES="$KCMCP_HOME/conf/kcmcp.conf"
 SERVER_OPTS=""
+SERVER_ARGS=""
 COMMAND=""
 CLEAN_ENV=false
 DB=""
@@ -88,10 +89,7 @@ $(conf_file "${1#--config=}")" ;;
 $(conf_file "$2")"; shift
             ;;
         -D*) SERVER_OPTS="$SERVER_OPTS $(esceval "$1")" ;;
-        --*=*)
-            NAME="${1#--}"; NAME="${NAME%%=*}"; VALUE="${1#*=}"
-            SERVER_OPTS="$SERVER_OPTS $(esceval "-D$NAME=$VALUE")"
-            ;;
+        --*=*) SERVER_ARGS="$SERVER_ARGS $(esceval "$1")" ;;
         *) echo "unknown argument: $1 (try --help)" >&2; exit 2 ;;
     esac
     shift
@@ -164,14 +162,6 @@ if [ "$DEBUG_MODE" = "true" ]; then
     JAVA_OPTS="$JAVA_OPTS -agentlib:jdwp=transport=dt_socket,address=$DEBUG_ADDRESS,server=y,suspend=$DEBUG_SUSPEND"
 fi
 
-if [ "$COMMAND" = "start-dev" ]; then
-    # development mode: the local profile's lenient defaults whatever the files say, startup problems with Keycloak
-    # are warnings, and without a configured system the Keycloak of the examples at http://localhost:8080 is assumed;
-    # nothing for a server other people reach
-    echo "development mode (start-dev): profile local, startup checks warn, Keycloak at http://localhost:8080 unless a system is configured; use 'start' for a shared server" >&2
-    SERVER_OPTS="$SERVER_OPTS -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn -Dkc-mcp.dev-mode=true"
-fi
-
 # where this distribution keeps things; the configuration may refer to ${kcmcp.home.dir}
 HOME_OPTS="-Dkcmcp.home.dir=$(esceval "$(abs_path "$KCMCP_HOME")")"
 HOME_OPTS="$HOME_OPTS -Dkc-mcp.config-files=$(esceval "$CONFIG_LIST")"
@@ -188,4 +178,4 @@ if [ "$KCMCP_PRINT_ENV" = "true" ]; then
 fi
 
 cd "$KCMCP_HOME" || exit 1
-eval exec "'$JAVA'" $JAVA_OPTS $HOME_OPTS $SERVER_OPTS -jar "$JAR"
+eval exec "'$JAVA'" $JAVA_OPTS $HOME_OPTS $SERVER_OPTS -jar "$JAR" "$COMMAND" $SERVER_ARGS

@@ -33,7 +33,7 @@ if [ -z "$URL" ]; then
   KC_MCP_PROVIDERS_DIR="$PWD/conformance/providers" KC_MCP_STARTUP_CHECK=off KC_MCP_SYSTEMS_DEFAULT_URL=http://127.0.0.1:1 \
   KC_MCP_SYSTEMS_DEFAULT_CLIENT_ID=conformance KC_MCP_SYSTEMS_DEFAULT_CLIENT_SECRET=conformance KC_MCP_TOOL_EXPOSURE=direct \
   QUARKUS_HTTP_PORT=$PORT QUARKUS_LOG_LEVEL=WARN \
-    java -jar "$JAR" > conformance/results-server.log 2>&1 &
+    java -jar "$JAR" start > conformance/results-server.log 2>&1 &
   SERVER_PID=$!
   for i in $(seq 1 60); do
     curl -s -o /dev/null "http://localhost:$PORT/" && break

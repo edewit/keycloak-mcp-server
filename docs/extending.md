@@ -97,7 +97,7 @@ public class AcmeToolProvider implements ToolProvider {
 ```shell
 ./mvnw package -DskipTests
 cp acme-tools.jar modules/backend/target/quarkus-app/providers/
-java -jar modules/backend/target/quarkus-app/quarkus-run.jar      # log: Extensions directory .../providers: [acme-tools.jar]
+java -jar modules/backend/target/quarkus-app/quarkus-run.jar start      # log: Extensions directory .../providers: [acme-tools.jar]
 ```
 
 ## Confirmers

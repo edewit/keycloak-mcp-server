@@ -16,7 +16,7 @@ docker compose up -d --wait         # Keycloak 26.8.2 on https://localhost:8100 
 ./setup.sh                          # the client scopes
 ../../mvnw -f ../../pom.xml package -DskipTests
 set -a; . env/cimd.env; set +a
-java -jar ../../modules/backend/target/quarkus-app/quarkus-run.jar     # the MCP server on http://localhost:8101
+java -jar ../../modules/backend/target/quarkus-app/quarkus-run.jar start     # the MCP server on http://localhost:8101
 ```
 
 `.vscode/mcp.json`, with no client ID or secret:

@@ -28,7 +28,7 @@ start. Each store has its own switch: `kc-mcp.spi.system-repository.db.enabled`,
 
 ```shell
 QUARKUS_DATASOURCE_JDBC_URL=jdbc:h2:file:./data/kc-mcp KC_MCP_DYNAMIC_SYSTEMS=true \
-KC_MCP_STORAGE_SECRET_KEY=$(openssl rand -base64 32) java -jar modules/backend/target/quarkus-app/quarkus-run.jar
+KC_MCP_STORAGE_SECRET_KEY=$(openssl rand -base64 32) java -jar modules/backend/target/quarkus-app/quarkus-run.jar start
 ```
 
 - **The database kind is fixed at build time.** The distribution comes built for H2 (`jdbc:h2:file:...`, a single

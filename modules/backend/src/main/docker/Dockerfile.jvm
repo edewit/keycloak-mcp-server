@@ -103,4 +103,6 @@ ENV JAVA_APP_JAR="/deployments/quarkus-run.jar"
 ENV KC_MCP_PROVIDERS_DIR="/deployments/providers"
 
 ENTRYPOINT [ "/opt/jboss/container/java/run/run-java.sh" ]
+# the arguments of the server: `docker run <image> start-dev` replaces this
+CMD [ "start" ]
 

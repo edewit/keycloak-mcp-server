@@ -14,7 +14,7 @@ rem   bin\kcmcp.bat start --clean-env                         ignore KC_MCP_* an
 rem   bin\kcmcp.bat build --db=postgresql                     build for a database, h2 or postgresql; stop the server first
 rem   bin\kcmcp.bat --version | --help
 rem
-rem Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
+rem Any --kc-mcp.name=value or --quarkus.name=value sets that configuration property; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
 rem override the configuration files, so the script lists the ones it inherits from the shell.
 rem JAVA_HOME or JAVA pick the JVM (Java 21 or newer); JAVA_OPTS replaces the default JVM options, JAVA_OPTS_APPEND
 rem adds to them. KCMCP_DEBUG=true, KCMCP_DEBUG_PORT and KCMCP_DEBUG_SUSPEND enable remote debugging.
@@ -36,6 +36,7 @@ if not "%KCMCP_DEBUG_SUSPEND%" == "" set DEBUG_SUSPEND_VAR=%KCMCP_DEBUG_SUSPEND%
 rem the configuration files, read by the server from kc-mcp.config-files (plain paths, comma separated)
 set "CONFIG_FILES=%KCMCP_HOME%\conf\kcmcp.conf"
 set SERVER_OPTS=
+set SERVER_ARGS=
 set COMMAND=
 set CLEAN_ENV=false
 set DB=
@@ -118,7 +119,7 @@ if "%KEY:~0,2%" == "--" (
         echo --!NAME! needs a value, as --!NAME!=value 1>&2
         exit /b 2
     )
-    set "SERVER_OPTS=!SERVER_OPTS! "-D!NAME!=!VALUE!""
+    set "SERVER_ARGS=!SERVER_ARGS! "--!NAME!=!VALUE!""
     shift
     shift
     goto READ_ARGS
@@ -150,10 +151,6 @@ if not "%COMMAND%" == "build" if not "%DB%" == "" (
 if "%COMMAND%" == "build" if not "%DB%" == "h2" if not "%DB%" == "postgresql" (
     echo build needs --db=h2 or --db=postgresql 1>&2
     exit /b 2
-)
-if "%COMMAND%" == "start-dev" (
-    echo development mode ^(start-dev^): profile local, startup checks warn, Keycloak at http://localhost:8080 unless a system is configured; use 'start' for a shared server 1>&2
-    set "SERVER_OPTS=%SERVER_OPTS% -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn -Dkc-mcp.dev-mode=true"
 )
 
 rem configuration inherited from the shell overrides the files; list it, or drop it with --clean-env
@@ -199,7 +196,7 @@ if "%KCMCP_PRINT_ENV%" == "true" (
 )
 
 cd /d "%KCMCP_HOME%"
-"%JAVA%" %JAVA_OPTS% %HOME_OPTS% %SERVER_OPTS% -jar "%KCMCP_HOME%\lib\quarkus-run.jar"
+"%JAVA%" %JAVA_OPTS% %HOME_OPTS% %SERVER_OPTS% -jar "%KCMCP_HOME%\lib\quarkus-run.jar" %COMMAND% %SERVER_ARGS%
 exit /b %ERRORLEVEL%
 
 rem Quarkus re-augments the package from lib\lib\deployment: no Maven or network. It expects lib\providers to exist,

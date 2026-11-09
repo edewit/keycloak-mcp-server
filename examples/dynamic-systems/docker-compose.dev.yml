@@ -14,6 +14,7 @@ services:
       JAVA_OPTS_APPEND: -Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager
       KC_MCP_PROVIDERS_DIR: /deployments/providers
     entrypoint: ["/opt/jboss/container/java/run/run-java.sh"]
+    command: ["start"]
   mcp-users:
     build: !reset null
     image: registry.access.redhat.com/ubi9/openjdk-21-runtime:1.24
@@ -24,3 +25,4 @@ services:
       JAVA_OPTS_APPEND: -Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager
       KC_MCP_PROVIDERS_DIR: /deployments/providers
     entrypoint: ["/opt/jboss/container/java/run/run-java.sh"]
+    command: ["start"]

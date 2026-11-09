@@ -38,7 +38,7 @@ and sets the extensions' `KC_MCP_SPI_*` variables; the server acts as the realm-
 ./mvnw package                                               # repository root: server and extension jar, with the tests
 cp examples/extensions/target/acme-keycloak-mcp-extensions-1.0-SNAPSHOT.jar modules/backend/target/quarkus-app/providers/
 set -a; source examples/run-modes/env/full-admin.env; set +a  # any run mode; Keycloak from examples/run-modes
-KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE=/tmp/acme-audit.jsonl java -jar modules/backend/target/quarkus-app/quarkus-run.jar
+KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE=/tmp/acme-audit.jsonl java -jar modules/backend/target/quarkus-app/quarkus-run.jar start
 ```
 
 Startup log: `Extensions directory .../providers: [acme-keycloak-mcp-extensions-1.0-SNAPSHOT.jar]` and the two tools in

@@ -5,6 +5,19 @@
 Every property, its default and meaning. Property → environment variable: `kc-mcp.systems.default.url` →
 `KC_MCP_SYSTEMS_DEFAULT_URL` (a system name from the environment is lower-case letters and digits).
 
+Where a setting comes from, the first one found wins:
+
+1. the command line: `bin/kcmcp.sh start --kc-mcp.tool-exposure=lazy`, or `java -Dkc-mcp.tool-exposure=lazy -jar ...`
+2. the environment: `KC_MCP_TOOL_EXPOSURE=lazy`, also from a `.env` file in the working directory, which ranks just below it
+3. the configuration files, `conf/kcmcp.conf` and those given with `--config`, a later file over an earlier one
+4. the server's defaults
+
+An option other than `--kc-mcp.*` and `--quarkus.*` is refused; other Java system properties take `-D`. Secrets are
+better kept in a file or the environment, since a command line is visible in the process list and the shell history.
+
+Run the server with a command, `start` or `start-dev`, also with `java -jar quarkus-run.jar start`; without one it prints
+the help. The launch scripts add `build`, which fixes the database kind ([Storage](storage.md)).
+
 | property                        | default                     | meaning |
 |---------------------------------|-----------------------------|---------|
 | `kc-mcp.systems.<name>.url`     |                             | a Keycloak system: base URL, context path included (`https://sso.example.com/auth`); a system exists when its url is set, one Keycloak is usually named `default` ([Several Keycloak systems](systems.md)) |

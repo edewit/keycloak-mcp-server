@@ -15,9 +15,15 @@
     <properties>
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm'Z'</maven.build.timestamp.format>
         <build.timestamp>${maven.build.timestamp}</build.timestamp>
+        <!-- what quarkus:dev passes to the command line; not start-dev, which would override the profile of a run -->
+        <quarkus.args>start</quarkus.args>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.github.thomasdarimont.keycloak</groupId>
             <artifactId>keycloak-mcp-server-api</artifactId>
