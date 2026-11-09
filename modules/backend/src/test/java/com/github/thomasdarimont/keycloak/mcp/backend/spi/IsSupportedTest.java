@@ -138,4 +138,55 @@ class IsSupportedTest {
         IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, () -> registry.onStart(null));
         assertTrue(e.getMessage().contains("acme-policy"), e.getMessage());
     }
+
+    /** Keeps what {@code configure} is given; {@code isSupported} depends on it. */
+    static final class Configured implements AuditListener {
+        String company;
+
+        @Override
+        public String id() {
+            return "acme-configured";
+        }
+
+        @Override
+        public void configure(ProviderConfig config) {
+            if (config.getBoolean("boom", false)) {
+                throw new IllegalArgumentException("bad setting");
+            }
+            company = config.get("company", null);
+        }
+
+        @Override
+        public boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {
+            return company != null;
+        }
+
+        @Override
+        public void onToolCall(AuditEvent event) {
+        }
+    }
+
+    @Test
+    void configureGetsTheExtensionsSettingsBeforeIsSupported() {
+        Configured e = new Configured();
+        assertTrue(Extensions.usable(e, "AuditListener", config(Map.of("kc-mcp.spi.acme-configured.company", "ACME"))));
+        assertEquals("ACME", e.company);
+    }
+
+    @Test
+    void aSwitchedOffExtensionIsNotConfigured() {
+        Configured e = new Configured();
+        assertFalse(Extensions.usable(e, "AuditListener", config(
+                Map.of("kc-mcp.spi.acme-configured.enabled", "false", "kc-mcp.spi.acme-configured.company", "ACME"))));
+        assertEquals(null, e.company);
+    }
+
+    @Test
+    void aFailingConfigureLeavesTheExtensionOutUnlessItIsRequired() {
+        assertFalse(Extensions.usable(new Configured(), "AuditListener",
+                config(Map.of("kc-mcp.spi.acme-configured.boom", "true"))));
+        Assertions.assertThrows(IllegalStateException.class, () -> Extensions
+            .usable(new Configured(), "AuditListener", config(
+                    Map.of("kc-mcp.spi.acme-configured.boom", "true", "kc-mcp.spi.acme-configured.required", "true"))));
+    }
 }

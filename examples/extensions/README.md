@@ -16,7 +16,7 @@ this repository's build for convenience; as a project of your own, replace the p
 | `AuditFileProfileCheck` | `ProfileCheck` | a shared server does not start while the audit file is unset or in `/tmp`; a local one warns |
 | `AcmeExtensionsTest` | | all of it tested without a server |
 
-Settings follow the id: `kc-mcp.spi.<id>.<key>` or `KC_MCP_SPI_<ID>_<KEY>` (`acme-audit` → `KC_MCP_SPI_ACME_AUDIT_FILE`);
+Settings follow the id and arrive through `configure(ProviderConfig)`: `kc-mcp.spi.<id>.<key>` in a configuration file or `KC_MCP_SPI_<ID>_<KEY>` (`acme-audit` → `KC_MCP_SPI_ACME_AUDIT_FILE`);
 `KC_MCP_SPI_<ID>_ENABLED=false` switches one extension off.
 
 ## Docker

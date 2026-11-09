@@ -19,7 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
@@ -203,8 +202,8 @@ public class CibaConfirmer implements Confirmer {
         this.callersRequired = callersRequired;
     }
 
-    @PreDestroy
-    void close() {
+    @Override
+    public void close() {
         if (http != null) {
             http.close();
         }

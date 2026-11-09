@@ -115,7 +115,9 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
         }
         List<T> enabled = new ArrayList<>();
         for (T e : byId.values()) {
-            if (Extensions.usable(e, type.getSimpleName(), serverConfig)) {
+            boolean usable = discovery != null ? discovery.admit(e, type.getSimpleName(), serverConfig)
+                    : Extensions.usable(e, type.getSimpleName(), serverConfig);
+            if (usable) {
                 enabled.add(e);
             }
         }
@@ -178,8 +180,12 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
         }
     }
 
+    /** Discovered extensions are closed by {@link Extensions}; these were handed in. */
     @PreDestroy
     void shutdown() {
+        if (discovery != null) {
+            return;
+        }
         for (ToolProvider p : providers) {
             try {
                 p.close();

@@ -143,7 +143,7 @@ public class UserSessionTokenStateManager implements TokenStateManager {
     public Optional<UserSessionStore> resolve() {
         List<UserSessionStore> found = new ArrayList<>();
         for (UserSessionStore candidate : extensions.discover(UserSessionStore.class)) {
-            if (Extensions.usable(candidate, "UserSessionStore", config)) {
+            if (extensions.admit(candidate, "UserSessionStore", config)) {
                 found.add(candidate);
             }
         }

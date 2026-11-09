@@ -1,7 +1,5 @@
 package com.acme.keycloak.mcp;
 
-import java.util.Map;
-
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
@@ -17,10 +15,10 @@ import com.google.auto.service.AutoService;
 @AutoService(AccessCheck.class)
 public class ProtectedUsersCheck implements AccessCheck {
 
-    private final String prefix;
+    private String prefix;
 
     public ProtectedUsersCheck() {
-        this(ProviderConfig.forExtension("acme-protected-users", Map.of()).get("prefix", "svc-"));
+        this("svc-");
     }
 
     ProtectedUsersCheck(String prefix) {
@@ -30,6 +28,11 @@ public class ProtectedUsersCheck implements AccessCheck {
     @Override
     public String id() {
         return "acme-protected-users";
+    }
+
+    @Override
+    public void configure(ProviderConfig config) {
+        prefix = config.get("prefix", prefix);
     }
 
     @Override

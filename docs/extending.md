@@ -52,6 +52,10 @@ public class AcmeToolProvider implements ToolProvider {
   use the same SPI; `kc-mcp.spi.<id>.enabled=false` switches one off.
 - `Extension` base: `id()` (config key, kebab-case; default from class name, `com.acme.TicketChecker` →
   `com-acme-ticket-checker`), `displayName()`, `description()`, `order()` (lower first).
+- `configure(config)` (default nothing): hands every extension its `kc-mcp.spi.<id>.*` settings, from files,
+  environment and command line, at startup after the `enabled` switch and before `isSupported`. Keep them in fields;
+  a constructor cannot see them. Only the settings are passed, the Keycloak systems do not exist yet; tool providers
+  also get `init(ctx)` with the full context. A failing `configure` counts like a failing `isSupported`.
 - `isSupported(serverConfig, config)` (default `true`): asked once at startup after `kc-mcp.spi.<id>.enabled`; an
   extension that needs a setting, a feature or a capability answers `false` when it is missing and is left out as if
   it were not installed (logged, not fatal; an exception counts as `false`). Applies to every extension point: tools,
@@ -62,6 +66,10 @@ public class AcmeToolProvider implements ToolProvider {
   these rules apply before the first call. To refuse the start for other reasons, contribute a `ProfileCheck`. Built in:
   the CIBA confirmer is supported only with `kc-mcp.spi.ciba-confirmer.enabled=true`, the metrics audit listener only
   with the OpenTelemetry SDK on.
+- `close()` (default nothing): once at shutdown for every extension that took part, last admitted first; a failure is
+  logged and the others still close. Release connections, file handles and threads here.
+- Lifecycle: one instance per server, shared by all requests, so an extension must be thread-safe. Each extension
+  point is discovered once. `configure` and `isSupported` run once at startup, and settings need a restart to change.
 - `ExtensionRegistry` (`extensions(Confirmer.class)`, `extension(ToolProvider.class, "users")`, `context(id)`):
   discovery, dedup by id, enabled switch, order. CDI bean, injectable.
 - Global `AccessCheck`: `@AutoService(AccessCheck.class)`, CDI bean, or `ToolProvider.accessChecks(...)`.

@@ -82,7 +82,7 @@ public class SigningKeys {
     static KeyVault vault(McpServerConfig config, Extensions extensions) {
         List<KeyVault> found = new ArrayList<>();
         for (KeyVault v : extensions.discover(KeyVault.class)) {
-            if (Extensions.usable(v, "KeyVault", config)) {
+            if (extensions.admit(v, "KeyVault", config)) {
                 found.add(v);
             }
         }
@@ -101,7 +101,7 @@ public class SigningKeys {
     static SigningKeyGenerator generator(McpServerConfig config, Extensions extensions) {
         List<SigningKeyGenerator> found = new ArrayList<>();
         for (SigningKeyGenerator g : extensions.discover(SigningKeyGenerator.class)) {
-            if (Extensions.usable(g, "SigningKeyGenerator", config)) {
+            if (extensions.admit(g, "SigningKeyGenerator", config)) {
                 found.add(g);
             }
         }

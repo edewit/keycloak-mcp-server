@@ -5,7 +5,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
@@ -25,11 +24,11 @@ import io.vertx.core.json.JsonObject;
 @AutoService(AuditListener.class)
 public class JsonLinesAuditListener implements AuditListener {
 
-    private final Path file;
+    private Path file;
     private final ReentrantLock lock = new ReentrantLock();
 
     public JsonLinesAuditListener() {
-        this(Path.of(ProviderConfig.forExtension("acme-audit", Map.of()).get("file", "acme-audit.jsonl")));
+        this(Path.of("acme-audit.jsonl"));
     }
 
     JsonLinesAuditListener(Path file) {
@@ -39,6 +38,11 @@ public class JsonLinesAuditListener implements AuditListener {
     @Override
     public String id() {
         return "acme-audit";
+    }
+
+    @Override
+    public void configure(ProviderConfig config) {
+        file = Path.of(config.get("file", file.toString()));
     }
 
     @Override

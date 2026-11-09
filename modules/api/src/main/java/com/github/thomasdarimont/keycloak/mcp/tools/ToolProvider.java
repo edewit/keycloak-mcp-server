@@ -43,8 +43,4 @@ public interface ToolProvider extends Extension {
     default List<AccessCheck> accessChecks(ToolProviderContext context) {
         return List.of();
     }
-
-    /** Called on shutdown. */
-    default void close() {
-    }
 }

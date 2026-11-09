@@ -23,10 +23,10 @@ import com.google.auto.service.AutoService;
 @AutoService(KeycloakSystemRepository.class)
 public class AcmeTenantRepository implements KeycloakSystemRepository {
 
-    private final Map<String, KeycloakSystem> tenants;
+    private Map<String, KeycloakSystem> tenants;
 
     public AcmeTenantRepository() {
-        this(ProviderConfig.forExtension("acme-tenants", Map.of()).get("systems", ""));
+        this("");
     }
 
     AcmeTenantRepository(String setting) {
@@ -36,6 +36,11 @@ public class AcmeTenantRepository implements KeycloakSystemRepository {
     @Override
     public String id() {
         return "acme-tenants";
+    }
+
+    @Override
+    public void configure(ProviderConfig config) {
+        tenants = parse(config.get("systems", ""));
     }
 
     /**

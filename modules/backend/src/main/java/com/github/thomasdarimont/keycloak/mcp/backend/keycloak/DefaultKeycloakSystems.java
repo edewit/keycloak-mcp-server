@@ -226,7 +226,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     static List<CallerIssuerPolicy> issuerPolicies(McpServerConfig config, Extensions extensions) {
         List<CallerIssuerPolicy> found = new ArrayList<>();
         for (CallerIssuerPolicy p : extensions.discover(CallerIssuerPolicy.class)) {
-            if (Extensions.usable(p, "CallerIssuerPolicy", config)) {
+            if (extensions.admit(p, "CallerIssuerPolicy", config)) {
                 found.add(p);
                 LOG.infof("Caller issuer policy '%s' registered (%s)", p.id(), p.getClass().getName());
             }
@@ -246,7 +246,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
                         + " let repositories add systems at runtime", r.id());
                 continue;
             }
-            if (Extensions.usable(r, "KeycloakSystemRepository", config)) {
+            if (extensions.admit(r, "KeycloakSystemRepository", config)) {
                 found.add(r);
             }
         }

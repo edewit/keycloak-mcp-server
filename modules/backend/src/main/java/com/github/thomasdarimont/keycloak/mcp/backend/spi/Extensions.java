@@ -15,9 +15,11 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
@@ -27,6 +29,8 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
+
+import io.quarkus.runtime.ShutdownEvent;
 
 /**
  * Finds the implementations of an extension point ({@code ToolProvider},
@@ -48,6 +52,9 @@ public class Extensions {
     private static final Logger LOG = Logger.getLogger(Extensions.class);
 
     private final Set<String> seen = ConcurrentHashMap.newKeySet();
+    private final Map<Class<?>, List<?>> discovered = new ConcurrentHashMap<>();
+    private final Map<Extension, Boolean> admitted = new ConcurrentHashMap<>();
+    private final List<Extension> toClose = new CopyOnWriteArrayList<>();
     private final Path dir;
     private final List<Path> jars;
     private final ClassLoader loader;
@@ -89,9 +96,22 @@ public class Extensions {
 
     /**
      * The implementations of {@code spi}, ServiceLoader entries first (class path, then
-     * providers directory), then CDI beans; each class once.
+     * providers directory), then CDI beans; each class once. Found once per extension
+     * point, so every caller gets the same instances.
      */
+    @SuppressWarnings("unchecked")
     public <T> List<T> discover(Class<T> spi) {
+        List<?> known = discovered.get(spi);
+        if (known != null) {
+            return (List<T>) known;
+        }
+        // not computeIfAbsent: creating a CDI bean may discover another extension point
+        List<T> found = find(spi);
+        List<?> raced = discovered.putIfAbsent(spi, found);
+        return raced != null ? (List<T>) raced : found;
+    }
+
+    private <T> List<T> find(Class<T> spi) {
         Map<String, T> byClass = new LinkedHashMap<>();
         for (T t : ServiceLoader.load(spi, loader)) {
             byClass.putIfAbsent(t.getClass().getName(), t);
@@ -142,6 +162,42 @@ public class Extensions {
     /** The extension jars loaded from the providers directory. */
     public List<Path> jars() {
         return jars;
+    }
+
+    /**
+     * {@link #usable}, decided once per extension; one that takes part is closed at
+     * shutdown.
+     */
+    public boolean admit(Extension e, String kind, McpServerConfig config) {
+        Boolean decided = admitted.get(e);
+        if (decided != null) {
+            return decided;
+        }
+        boolean usable = usable(e, kind, config);
+        if (admitted.putIfAbsent(e, usable) == null && usable) {
+            toClose.add(e);
+        }
+        return usable;
+    }
+
+    /** On the shutdown event, while the extensions' CDI beans are still alive. */
+    void onShutdown(@Observes ShutdownEvent event) {
+        closeExtensions();
+    }
+
+    /** Closes what was admitted, last admitted first; each once. */
+    void closeExtensions() {
+        List<Extension> closing = new ArrayList<>(toClose);
+        toClose.clear();
+        Collections.reverse(closing);
+        for (Extension e : closing) {
+            try {
+                e.close();
+            }
+            catch (RuntimeException ex) {
+                LOG.warnf(ex, "Extension '%s' failed to close", e.id());
+            }
+        }
     }
 
     @PreDestroy
@@ -215,9 +271,10 @@ public class Extensions {
 
     /**
      * Whether a found extension takes part: not switched off with
-     * {@code kc-mcp.spi.<id>.enabled=false}, and {@link Extension#isSupported} with the
-     * current configuration. Every place that picks extensions asks here, so the rules
-     * and the log lines are the same for all extension points.
+     * {@code kc-mcp.spi.<id>.enabled=false}, then {@link Extension#configure} with its
+     * settings, and {@link Extension#isSupported} with the current configuration. Every
+     * place that picks extensions asks here, so the rules and the log lines are the same
+     * for all extension points.
      * <p>
      * Fail closed where it matters: an extension marked
      * {@code kc-mcp.spi.<id>.required=true} that is switched off or unsupported stops the
@@ -241,15 +298,17 @@ public class Extensions {
         }
         boolean supported;
         try {
+            e.configure(settings);
             supported = e.isSupported(config, settings);
         }
         catch (RuntimeException ex) {
             if (required || config.profile().shared()) {
-                throw new IllegalStateException(kind + " '" + e.id() + "' cannot tell whether it works with this"
-                        + " configuration (" + ex + "); " + (required ? "it is required" : "profile shared")
-                        + " does not start without it", ex);
+                throw new IllegalStateException(kind + " '" + e.id()
+                        + "' could not be configured or cannot tell whether it works with this" + " configuration ("
+                        + ex + "); " + (required ? "it is required" : "profile shared") + " does not start without it",
+                        ex);
             }
-            LOG.warnf(ex, "%s '%s' left out: isSupported failed: %s", kind, e.id(), ex.getMessage());
+            LOG.warnf(ex, "%s '%s' left out: configure or isSupported failed: %s", kind, e.id(), ex.getMessage());
             return false;
         }
         if (!supported) {

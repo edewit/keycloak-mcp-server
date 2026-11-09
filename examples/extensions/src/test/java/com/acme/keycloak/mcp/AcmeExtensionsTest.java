@@ -166,4 +166,14 @@ class AcmeExtensionsTest {
         assertTrue(repo.isSupported(null, new ProviderConfig("acme-tenants",
                 Map.of("systems", "globex=https://sso.globex.example|globex-prod"))));
     }
+
+    @Test
+    void settingsArriveThroughConfigure() {
+        JsonLinesAuditListener audit = new JsonLinesAuditListener();
+        audit.configure(new ProviderConfig("acme-audit", Map.of("file", "custom.jsonl")));
+        assertEquals("JSON lines in custom.jsonl", audit.description());
+        AcmeTenantRepository tenants = new AcmeTenantRepository();
+        tenants.configure(new ProviderConfig("acme-tenants", Map.of("systems", "globex=https://sso.globex.example")));
+        assertEquals(List.of("globex"), tenants.names());
+    }
 }
