@@ -8,11 +8,11 @@ A browser UI for the server at `/ui`, with its backend-for-frontend (BFF) under 
 (the list of systems), sign out. The pages for managing systems, secrets and the audit trail are not built yet. The
 plumbing underneath is complete and covered by integration tests: the login, sessions in the database, several identity
 providers, session checks and back-channel logout. New pages add methods to the BFF and call the admin services; see
-`modules/backend/src/main/resources/web/README.md` for the contract and the development loop.
+`modules/backend/src/main/resources/frontend/README.md` for the contract and the development loop.
 
 ## How it works
 
-The UI is a [Lit](https://lit.dev) single-page app under `modules/backend/src/main/resources/web`, bundled by
+The UI is a [Lit](https://lit.dev) single-page app under `modules/backend/src/main/resources/frontend`, bundled by
 [Quarkus Web Bundler](https://docs.quarkiverse.io/quarkus-web-bundler/dev/) (mvnpm, no Node) and served by the backend.
 The server is the OpenID Connect relying party: it runs the authorization code flow with PKCE at Keycloak, the
 browser gets an HttpOnly, Secure, `SameSite=Lax` cookie holding an opaque session id, and the tokens stay on the server,
@@ -32,7 +32,7 @@ It needs the [database storage](storage.md) and HTTPS.
 | `kc-mcp.ui.connect-timeout` / `read-timeout` | timeouts of those calls, default `kc-mcp.http.*` |
 
 `./mvnw package` bundles the UI with Quarkus Web Bundler; turn it off at runtime with `kc-mcp.ui.enabled=false`.
-Edit files under `modules/backend/src/main/resources/web` while `quarkus:dev` is running for live reload.
+Edit files under `modules/backend/src/main/resources/frontend` while `quarkus:dev` is running for live reload.
 A working setup with one or two identity providers: `examples/management-ui/`.
 
 ## Several identity providers

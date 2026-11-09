@@ -23,7 +23,7 @@ import io.vertx.ext.web.RoutingContext;
 
 /**
  * Serves the management UI SPA under {@code /ui}: Quarkus Web Bundler renders
- * {@code web/index.html} (with {@code {#bundle /}}) into
+ * {@code frontend/index.html} (with {@code {#bundle /}}) into
  * {@code META-INF/resources/index.html}. {@code /ui} goes to {@code /ui/}, and
  * extension-less paths ({@code /ui/systems}) get that index with
  * {@code Cache-Control: no-cache} so the browser picks up hashed bundles after a rebuild.
@@ -38,7 +38,7 @@ public class UiRoutes {
 
     private static final Logger LOG = Logger.getLogger(UiRoutes.class);
     /**
-     * Web Bundler output of {@code web/index.html}; served for every SPA route under
+     * Web Bundler output of {@code frontend/index.html}; served for every SPA route under
      * {@code /ui}.
      */
     static final String INDEX = "META-INF/resources/index.html";

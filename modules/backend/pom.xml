@@ -29,7 +29,7 @@
             <artifactId>keycloak-mcp-server-storage</artifactId>
         </dependency>
         <dependency>
-            <!-- Lit management UI under src/main/resources/web, bundled by Quarkus Web Bundler (no Node/npm) -->
+            <!-- Lit management UI under src/main/resources/frontend, bundled by Quarkus Web Bundler (no Node/npm) -->
             <groupId>io.quarkiverse.web-bundler</groupId>
             <artifactId>quarkus-web-bundler</artifactId>
         </dependency>

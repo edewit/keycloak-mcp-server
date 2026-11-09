@@ -2,8 +2,8 @@
 
 The server as OIDC relying party for a browser: authorization code flow with PKCE at Keycloak, the tokens in the
 database (`kc_mcp_user_session`, encrypted like the other secrets), the browser holding an HttpOnly, Secure cookie with
-an opaque id. The Lit UI (`modules/backend/src/main/resources/web`, Quarkus Web Bundler) is served at `/ui/`, its API
-under `/bff`. Runs on the run-modes stack.
+an opaque id. The Lit UI (`modules/backend/src/main/resources/frontend`, Quarkus Web Bundler) is served at `/ui/`, its
+API under `/bff`. Runs on the run-modes stack.
 
 ```shell
 etc/mkcert.sh                                         # once; mkcert's CA into the trust stores, .certs/localhost*.pem
@@ -23,7 +23,7 @@ open https://localhost:8443/ui/
 - `env/ui-two-idps.env`: two providers (`KC_MCP_UI_IDPS_DEMO_*`, `KC_MCP_UI_IDPS_MASTER_*`), one button each;
   `master-client.sh` registers the client in the master realm first
 - IntelliJ: `.run/management-ui-mkcert`, `.run/dev-ui`, `.run/dev-ui-two-idps`
-- Live-reload: edit files under `modules/backend/src/main/resources/web` while `quarkus:dev` is running
+- Live-reload: edit files under `modules/backend/src/main/resources/frontend` while `quarkus:dev` is running
 - A stack that was up before the UI client changed keeps its old realm (`docker compose down -v` re-imports it); the
   client needs its *Backchannel logout URL* for the back-channel logout to reach the server
 
