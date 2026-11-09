@@ -32,6 +32,8 @@ It needs the [database storage](storage.md) and HTTPS.
 | `kc-mcp.ui.connect-timeout` / `read-timeout` | timeouts of those calls, default `kc-mcp.http.*` |
 
 `./mvnw package` bundles the UI with Quarkus Web Bundler; turn it off at runtime with `kc-mcp.ui.enabled=false`.
+A `-Pdist` build ships the same bundle as a static jar (`modules/ui-bundle`) without the extension, which cannot run
+when `bin/kcmcp.sh build` re-augments an unpacked distribution.
 Edit files under `modules/backend/src/main/resources/frontend` while `quarkus:dev` is running for live reload.
 A working setup with one or two identity providers: `examples/management-ui/`.
 

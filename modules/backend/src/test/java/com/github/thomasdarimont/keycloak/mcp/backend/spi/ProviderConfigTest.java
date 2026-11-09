@@ -55,6 +55,25 @@ class ProviderConfigTest {
     }
 
     @Test
+    void theCommandLineBeatsTheEnvironment() {
+        String property = "kc-mcp.spi.tools.precedence-check.enabled";
+        Map<String, String> env = Map.of("KC_MCP_SPI_TOOLS_PRECEDENCE_CHECK_ENABLED", "false");
+        System.setProperty(property, "true");
+        try {
+            assertTrue(ProviderConfig.forExtension("tools", "precedence-check", Map.of(), env)
+                .getBoolean("enabled", false));
+            assertTrue(
+                    ProviderConfig.forExtension("tools", "precedenceCheck", Map.of(), env).getBoolean("enabled", false),
+                    "the id is matched in kebab-case");
+        }
+        finally {
+            System.clearProperty(property);
+        }
+        assertFalse(
+                ProviderConfig.forExtension("tools", "precedence-check", Map.of(), env).getBoolean("enabled", true));
+    }
+
+    @Test
     void theSameIdUnderTwoExtensionPointsHasSeparateSettings() {
         Map<String, Map<String, Map<String, String>>> spi = Map.of("tools", Map.of("acme", Map.of("enabled", "false")),
                 "prompts", Map.of("acme", Map.of("language", "de")));

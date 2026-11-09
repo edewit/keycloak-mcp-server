@@ -373,6 +373,7 @@
                  tar.gz and zip): `./mvnw package -Pdist`. Not part of the default build, which stays at the jars. -->
             <id>dist</id>
             <modules>
+                <module>modules/ui-bundle</module>
                 <module>modules/distribution</module>
             </modules>
         </profile>

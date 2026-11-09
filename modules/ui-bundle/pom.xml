@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.github.thomasdarimont.keycloak</groupId>
+        <artifactId>keycloak-mcp-server</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+    <artifactId>keycloak-mcp-server-ui-bundle</artifactId>
+    <name>Keycloak MCP Server UI Bundle</name>
+    <description>
+        The management UI already bundled, as a jar of static resources, for the distribution (-Pdist). Web Bundler
+        cannot run when `bin/kcmcp.sh build` re-augments an unpacked distribution, so the distribution's server has
+        this jar instead of the extension. Same sources and bundler as dev mode: the backend's src/main/resources/frontend.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.quarkiverse.web-bundler</groupId>
+            <artifactId>quarkus-web-bundler</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mvnpm</groupId>
+            <artifactId>lit</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>../backend/src/main/resources/frontend</directory>
+                <targetPath>frontend</targetPath>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <!-- bundles into generated-bytecode.jar; ahead of the unpacking below, which runs in the same phase -->
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>unpack-bundle</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <unzip src="${project.build.directory}/quarkus-app/quarkus/generated-bytecode.jar"
+                                       dest="${project.build.outputDirectory}">
+                                    <patternset>
+                                        <include name="META-INF/resources/index.html"/>
+                                        <include name="META-INF/resources/static/bundle/**"/>
+                                    </patternset>
+                                </unzip>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>META-INF/resources/**</include>
+                    </includes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

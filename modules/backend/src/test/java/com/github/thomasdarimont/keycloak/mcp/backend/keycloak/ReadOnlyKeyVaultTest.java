@@ -10,6 +10,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.DefaultSigningKeyGenerator;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
@@ -29,6 +30,38 @@ class ReadOnlyKeyVaultTest {
         gen.initialize(2048);
         KeyPair pair = gen.generateKeyPair();
         return new SigningKey(pair.getPrivate(), pair.getPublic(), "RS256", "ops-key-1");
+    }
+
+    @Test
+    void aValidationCreatesNoKey() {
+        KeyVault creating = new KeyVault() {
+            @Override
+            public String id() {
+                return "creating";
+            }
+
+            @Override
+            public Optional<SigningKey> findSigningKey(String system) {
+                return Optional.empty();
+            }
+
+            @Override
+            public boolean supportsKeyCreation() {
+                return true;
+            }
+
+            @Override
+            public SigningKey createSigningKey(String system) {
+                throw new AssertionError("a validation changes no data");
+            }
+        };
+        System.setProperty(ValidationRun.PROPERTY, "true");
+        try {
+            assertTrue(SigningKeys.resolve(creating, "tenant-a").isEmpty());
+        }
+        finally {
+            System.clearProperty(ValidationRun.PROPERTY);
+        }
     }
 
     @Test

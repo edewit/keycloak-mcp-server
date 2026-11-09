@@ -28,6 +28,16 @@ class ShownConfigTest {
     }
 
     @Test
+    void headersCarryingCredentialsAreMasked() {
+        assertMasked("quarkus.otel.exporter.otlp.headers");
+        assertMasked("quarkus.otel.exporter.otlp.traces.headers");
+        assertMasked("quarkus.rest-client.acme.headers.Authorization");
+        assertMasked("quarkus.rest-client.acme.headers.\"Authorization\"");
+        assertShown("quarkus.http.proxy.forwarded-host-header");
+        assertShown("quarkus.oidc.authorization-path");
+    }
+
+    @Test
     void everyExtensionSettingIsMasked() {
         assertMasked("kc-mcp.spi.tools.acme.greeting");
     }

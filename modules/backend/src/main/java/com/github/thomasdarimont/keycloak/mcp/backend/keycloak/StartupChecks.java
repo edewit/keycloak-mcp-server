@@ -24,6 +24,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
@@ -52,6 +53,8 @@ public class StartupChecks {
     CapabilityDiscovery capabilities;
     @Inject
     ToolCatalog catalog;
+    @Inject
+    SigningKeys signingKeys;
 
     void onStart(@Observes StartupEvent event) {
         String mode = config.startupCheck().trim().toLowerCase(Locale.ROOT);
@@ -87,6 +90,16 @@ public class StartupChecks {
     List<String> run(KeycloakAdmin admin) {
         String sys = admin.name();
         List<String> problems = new ArrayList<>();
+        try {
+            if (ValidationRun.active() && signingKeys.awaitsFirstKey(admin.system())) {
+                LOG.infof("[%s] no private_key_jwt key yet, the first use creates it: Keycloak check skipped", sys);
+                return problems;
+            }
+        }
+        catch (RuntimeException e) {
+            problems.add("[" + sys + "] cannot read its signing key: " + root(e));
+            return problems;
+        }
         if (config.delegation() == DelegationMode.FORWARD && !admin.system().hasCredentials()) {
             LOG.infof("[%s] delegation=forward without server credentials: every admin call uses the caller's token,"
                     + " startup check skipped", sys);

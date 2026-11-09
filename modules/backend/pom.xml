@@ -17,6 +17,8 @@
         <build.timestamp>${maven.build.timestamp}</build.timestamp>
         <!-- what quarkus:dev passes to the command line; not start-dev, which would override the profile of a run -->
         <quarkus.args>start</quarkus.args>
+        <!-- emptied by the dist profile below -->
+        <web-bundler.web-root.setting>quarkus.web-bundler.web-root=frontend</web-bundler.web-root.setting>
     </properties>
 
     <dependencies>
@@ -33,11 +35,6 @@
                  Drop it to build a server without JDBC drivers. -->
             <groupId>com.github.thomasdarimont.keycloak</groupId>
             <artifactId>keycloak-mcp-server-storage</artifactId>
-        </dependency>
-        <dependency>
-            <!-- Lit management UI under src/main/resources/frontend, bundled by Quarkus Web Bundler (no Node/npm) -->
-            <groupId>io.quarkiverse.web-bundler</groupId>
-            <artifactId>quarkus-web-bundler</artifactId>
         </dependency>
         <dependency>
             <groupId>org.mvnpm</groupId>
@@ -161,4 +158,43 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <!-- Lit management UI under src/main/resources/frontend, bundled by Quarkus Web Bundler (no Node/npm), with
+                 hot reload in quarkus:dev. Maven switches this off when the dist profile below is active. -->
+            <id>web-bundler</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.quarkiverse.web-bundler</groupId>
+                    <artifactId>quarkus-web-bundler</artifactId>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <!-- Web Bundler cannot run when `bin/kcmcp.sh build` re-augments an unpacked distribution, so the distribution
+                 has the bundle as a static jar instead of the extension. -->
+            <id>dist</id>
+            <properties>
+                <web-bundler.web-root.setting></web-bundler.web-root.setting>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>com.github.thomasdarimont.keycloak</groupId>
+                    <artifactId>keycloak-mcp-server-ui-bundle</artifactId>
+                    <version>${project.version}</version>
+                    <!-- static files only: the extension that made them must not come along -->
+                    <exclusions>
+                        <exclusion>
+                            <groupId>*</groupId>
+                            <artifactId>*</artifactId>
+                        </exclusion>
+                    </exclusions>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

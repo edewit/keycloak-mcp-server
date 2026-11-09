@@ -20,7 +20,9 @@ final class ShownConfig {
     static final String MASK = "*******";
     private static final String QUARKUS_PREFIX = "quarkus.";
     private static final String SPI_PREFIX = "kc-mcp.spi.";
-    private static final Pattern SECRET = Pattern.compile("password|secret|token|credential|(^|-)key$|private");
+    // header lists carry credentials in their value, as Authorization=Bearer ...
+    private static final Pattern SECRET = Pattern
+        .compile("password|secret|token|credential|(^|-)key$|private|(^|-)headers$|^\"?authorization\"?$");
     private static final Pattern URL_PASSWORD = Pattern.compile("(?i)(password=)[^;&]*");
 
     private ShownConfig() {

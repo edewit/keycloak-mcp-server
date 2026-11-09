@@ -79,10 +79,12 @@ public final class ProviderConfig {
 
     /**
      * The id named by {@code kc-mcp.spi.<spi>.provider} /
-     * {@code KC_MCP_SPI_<SPI>_PROVIDER}.
+     * {@code KC_MCP_SPI_<SPI>_PROVIDER}; a system property (the command line) comes
+     * first, as everywhere in the configuration.
      */
     public static Optional<String> selectedProvider(String spi, McpServerConfig config, Map<String, String> env) {
-        return Optional.ofNullable(env.get(providerVariable(spi)))
+        return Optional.ofNullable(System.getProperty(PREFIX + spi + ".provider"))
+            .or(() -> Optional.ofNullable(env.get(providerVariable(spi))))
             .or(() -> Optional.ofNullable(config.spi().get(spi)).flatMap(McpServerConfig.Spi::provider))
             .filter(v -> !v.isBlank())
             .map(String::trim);
@@ -99,7 +101,8 @@ public final class ProviderConfig {
      * {@code KC_MCP_SPI_<SPI>_<ID>_<KEY>} on top. The variables are read here because the
      * config mapping cannot tell {@code AUTH_FLOWS} from {@code AUTH.FLOWS} in a map key;
      * with extension point and id known, the remainder is the key ({@code _} ->
-     * {@code -}, lowercase).
+     * {@code -}, lowercase). System properties, which is what the command line sets, go
+     * above the variables, as everywhere in the configuration.
      * @param env the environment to read the variables from
      */
     public static ProviderConfig forExtension(String spi, String extensionId,
@@ -124,7 +127,17 @@ public final class ProviderConfig {
                 }
             }
         }
+        putSystemProperties(values, PREFIX + spi + "." + extensionId + ".");
+        putSystemProperties(values, PREFIX + spi + "." + configId(extensionId) + ".");
         return new ProviderConfig(spi, extensionId, values);
+    }
+
+    private static void putSystemProperties(Map<String, String> values, String prefix) {
+        for (String name : System.getProperties().stringPropertyNames()) {
+            if (name.startsWith(prefix) && name.length() > prefix.length()) {
+                values.put(name.substring(prefix.length()), System.getProperty(name));
+            }
+        }
     }
 
     /**

@@ -13,7 +13,9 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
+import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.DefaultSigningKeyGenerator;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
@@ -196,14 +198,24 @@ public class SigningKeys {
 
     /**
      * The key of a system from a vault: the stored one, else a new one when the vault can
-     * create keys, else empty (read-only vault without a provisioned key).
+     * create keys, else empty (read-only vault without a provisioned key). A validation
+     * changes no data, so it never creates one.
      */
     static Optional<SigningKey> resolve(KeyVault vault, String system) {
         Optional<SigningKey> found = vault.findSigningKey(system);
-        if (found.isPresent() || !vault.supportsKeyCreation()) {
+        if (found.isPresent() || !vault.supportsKeyCreation() || ValidationRun.active()) {
             return found;
         }
         return Optional.of(vault.createSigningKey(system));
+    }
+
+    /**
+     * Whether a system signs with its own key and the vault will create that key on first
+     * use. Until then Keycloak knows no key of it, so no token can be requested.
+     */
+    public boolean awaitsFirstKey(KeycloakSystem system) {
+        return system.clientAuth() == ClientAuth.PRIVATE_KEY_JWT && !configuredKey() && vault.supportsKeyCreation()
+                && vault.findSigningKey(system.name()).isEmpty();
     }
 
     /**
