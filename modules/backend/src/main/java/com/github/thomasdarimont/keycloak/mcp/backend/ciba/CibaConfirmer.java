@@ -7,7 +7,6 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,7 +42,6 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
-import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
@@ -153,10 +151,7 @@ public class CibaConfirmer implements Confirmer {
     public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry, KcMcpMetrics metrics,
             Instance<TlsConfigurationRegistry> tls, Instance<KeycloakSystems> systems) {
         this(CibaSettings.from(config), DefaultTenant.authServerUrl(), null, null,
-                registry.extensions(PendingApprovalStore.class)
-                    .stream()
-                    .min(Comparator.comparingInt(Extension::order))
-                    .orElseGet(InMemoryPendingApprovalStore::new),
+                approvalStore(CibaSettings.from(config).enabled(), registry),
                 config.callerRequired() || config.delegation().delegating(), tls.isResolvable() ? tls.get() : null,
                 OutboundClients.Timeouts.of(config));
         this.metrics = metrics;
@@ -164,6 +159,21 @@ public class CibaConfirmer implements Confirmer {
             KeycloakSystems all = systems.get();
             this.severalSystems = all::multiple;
         }
+    }
+
+    /**
+     * The store the registry selected. While CIBA is on there must be one: an operator
+     * who switched off {@code memory-approvals} wants persistent approvals, not a new
+     * memory store. While it is off the store is never used.
+     */
+    static PendingApprovalStore approvalStore(boolean cibaEnabled, ExtensionRegistry registry) {
+        Optional<PendingApprovalStore> selected = registry.extensions(PendingApprovalStore.class).stream().findFirst();
+        if (selected.isEmpty() && cibaEnabled) {
+            throw new IllegalStateException("kc-mcp.spi.confirmer.ciba.enabled=true needs a PendingApprovalStore, and"
+                    + " every candidate is switched off or not supported: configure the database storage or enable"
+                    + " kc-mcp.spi.approval-store." + InMemoryPendingApprovalStore.ID);
+        }
+        return selected.orElse(null);
     }
 
     public CibaConfirmer(CibaSettings settings, String defaultIssuer, Function<String, CibaClient> clients,

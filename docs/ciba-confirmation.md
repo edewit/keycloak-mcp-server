@@ -73,7 +73,7 @@ device. Keycloak allows 50 characters without spaces in the binding message.
   `when=without-elicitation`, which leaves the question to clients that can ask the human themselves.
 - **Several instances.** With the [database storage](storage.md) on, pending approvals live in
   `kc_mcp_pending_approval` (approval store `db`, the `auth_req_id` encrypted under the storage key, purged hourly),
-  so the collecting call may reach any instance. Without the storage an in-memory store serves a single instance.
+  so the collecting call may reach any instance. Without the storage the in-memory store `memory-approvals` serves a single instance.
 
 ## Setup
 

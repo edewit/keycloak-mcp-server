@@ -43,6 +43,7 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
+import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Prompter;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.sun.net.httpserver.HttpExchange;
@@ -55,6 +56,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -732,5 +735,30 @@ class CibaConfirmerTest {
         assertEquals(CibaConfirmer.MAX_OPERATION, text.length());
         assertTrue(text.startsWith(DELETE.title() + ": uuu"), text);
         assertTrue(text.endsWith("u… (system prod, realm demo)"), text);
+    }
+
+    private static com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry stores(PendingApprovalStore... stores) {
+        return new com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T extends com.github.thomasdarimont.keycloak.mcp.spi.Extension> List<T> extensions(Class<T> type) {
+                return (List<T>) List.of(stores);
+            }
+
+            @Override
+            public com.github.thomasdarimont.keycloak.mcp.spi.ExtensionContext context(String spi, String id) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    @Test
+    void aSwitchedOffStoreIsNotRecreatedWhileCibaIsOn() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> CibaConfirmer.approvalStore(true, stores()));
+        assertTrue(e.getMessage().contains("memory-approvals"), e.getMessage());
+        assertNull(CibaConfirmer.approvalStore(false, stores()), "off: nothing is asked of the store");
+        PendingApprovalStore selected = new InMemoryPendingApprovalStore();
+        assertSame(selected, CibaConfirmer.approvalStore(true, stores(selected)));
     }
 }

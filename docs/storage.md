@@ -23,7 +23,8 @@ one file per schema version, `0.1.0-changelog.xml` first). Timestamps are `bigin
 
 A `quarkus.datasource.jdbc.url` switches the storage on (`kc-mcp.storage.enabled` forces it on or off). Then
 `kc-mcp.dynamic-systems=true` exposes the stored systems, the database vault replaces the file vault, and audit rows
-start. Each store has its own switch: `kc-mcp.spi.system-repository.db.enabled`, `db.enabled`, `db.enabled`.
+start. Each store has its own switch: `kc-mcp.spi.system-repository.db.enabled`, `kc-mcp.spi.key-vault.db.enabled`,
+`kc-mcp.spi.audit-listener.db.enabled`.
 
 ```shell
 QUARKUS_DATASOURCE_JDBC_URL=jdbc:h2:file:./data/kc-mcp KC_MCP_DYNAMIC_SYSTEMS=true \
