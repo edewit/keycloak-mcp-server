@@ -27,11 +27,11 @@ import io.vertx.ext.web.RoutingContext;
  * {@code META-INF/resources/index.html}. {@code /ui} goes to {@code /ui/}, and
  * extension-less paths ({@code /ui/systems}) get that index with
  * {@code Cache-Control: no-cache} so the browser picks up hashed bundles after a rebuild.
- * Bundle assets under {@code /static/bundle/} keep the static handler's caching. Web Bundler
- * also publishes the index at {@code /}; this class redirects that to {@code /ui/} when the UI
- * is on and answers 404 when it is off, so the product entry stays {@code /ui}. At startup a
- * {@link UserSessionStore} must be registered, else the server does not start; a missing index
- * is reported.
+ * Bundle assets under {@code /static/bundle/} keep the static handler's caching. Web
+ * Bundler also publishes the index at {@code /}; this class redirects that to
+ * {@code /ui/} when the UI is on and answers 404 when it is off, so the product entry
+ * stays {@code /ui}. At startup a {@link UserSessionStore} must be registered, else the
+ * server does not start; a missing index is reported.
  */
 @ApplicationScoped
 public class UiRoutes {
@@ -83,7 +83,8 @@ public class UiRoutes {
     }
 
     void register(@Observes Router router) {
-        // Ahead of the static handler: Web Bundler puts the SPA index at / as well as under /ui.
+        // Ahead of the static handler: Web Bundler puts the SPA index at / as well as
+        // under /ui.
         router.route(HttpMethod.GET, "/").order(-2000).handler(this::root);
         router.route(HttpMethod.GET, "/index.html").order(-2000).handler(this::root);
         // Vert.x lets the exact path /ui match /ui/ as well, so one handler sorts both
