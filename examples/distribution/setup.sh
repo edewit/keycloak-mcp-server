@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Completes the setup of this example after `docker compose up -d`:
 #   1. the server's private_key_jwt key pair (conf/keycloak-mcp-server.pem in the distribution)
-#   2. the master realm, which --import-realm cannot touch: the clients mcp-consumer and keycloak-mcp-server, the user
+#   2. the master realm, which --import-realm cannot touch: the clients mcp-consumer, keycloak-mcp-server and
+#      keycloak-mcp-ui (the management UI), the user
 #      root (password root-demo) with the master admin role, the service account with the admin role
 #   3. the admin API's token (conf/kcmcp.conf in the distribution, read on every start), printed for curl and Swagger UI
 # The server configuration stays here in conf/; the start command points at it.
@@ -58,6 +59,14 @@ else
   echo "client mcp-consumer exists"
 fi
 
+ID=$(client_id keycloak-mcp-ui || true)
+if [ -z "$ID" ]; then
+  $KCADM create clients -r master -f - < clients/master-keycloak-mcp-ui.json > /dev/null
+  echo "created client keycloak-mcp-ui (public, PKCE, for the management UI)"
+else
+  echo "client keycloak-mcp-ui exists"
+fi
+
 if ! $KCADM get users -r master -q username=root --fields username --format csv --noquotes | grep -qx root; then
   $KCADM create users -r master -s username=root -s enabled=true -s firstName=Root -s lastName=Admin -s email=root@example.com -s emailVerified=true > /dev/null
   $KCADM set-password -r master --username root --new-password root-demo
@@ -96,3 +105,4 @@ if [ "$(uname -s)" = Linux ] && ! grep -q '^quarkus.http.host=' conf/server.conf
 fi
 echo
 echo "Next: cd $DIST && bin/kcmcp.sh start --config ../conf/server.conf --config ../conf/systems/"
+echo "With the management UI (H2 database, no certificates): start-dev instead of start, then http://localhost:9080/ui/ as root / root-demo"

@@ -2,17 +2,22 @@ package com.github.thomasdarimont.keycloak.mcp.backend.ui;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.config.PublicHostname;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
@@ -42,6 +47,9 @@ import io.vertx.ext.web.RoutingContext;
 public class UiRoutes {
 
     private static final Logger LOG = Logger.getLogger(UiRoutes.class);
+    private static final Pattern CERTIFICATE = Pattern
+        .compile("quarkus\\.tls\\.key\\.store\\.(pem\\.[^.]+\\.cert|p12\\.path|jks\\.path)"
+                + "|quarkus\\.http\\.ssl\\.certificate\\.(files?|key\\.store\\.file)");
     /**
      * Web Bundler output of {@code frontend/index.html}; served for every SPA route under
      * {@code /ui}.
@@ -58,6 +66,10 @@ public class UiRoutes {
     int sslPort;
     @ConfigProperty(name = "quarkus.http.port", defaultValue = "8080")
     int httpPort;
+    @ConfigProperty(name = "quarkus.http.host", defaultValue = "0.0.0.0")
+    String httpHost;
+    @ConfigProperty(name = "quarkus.http.insecure-requests", defaultValue = "enabled")
+    String insecureRequests;
 
     private volatile byte[] indexPage;
     private final Map<String, byte[]> bundleFiles = new ConcurrentHashMap<>();
@@ -86,10 +98,52 @@ public class UiRoutes {
         }
         UserSessionStore kept = store.get();
         metrics.uiSessions(() -> kept.countLive(System.currentTimeMillis()));
-        String location = config.devMode() ? "http://<host>:%d%s/ (https port %d with a certificate)".formatted(
-                httpPort, UiTenant.UI_PATH, sslPort) : "https://<host>:%d%s/".formatted(sslPort, UiTenant.UI_PATH);
-        LOG.infof("Management UI at %s, sessions kept by %s; identity providers: %s", location, store.get().id(),
+        // each URL with spaces around it, so that terminals can link it
+        LOG.infof("Management UI: %s", String.join("  ", urls(config.hostname(), httpHost,
+                !"disabled".equalsIgnoreCase(insecureRequests), httpPort, serverCertificate(), sslPort)));
+        LOG.infof("Management UI sessions kept by %s; identity providers: %s", store.get().id(),
                 idps.stream().map(UiTenant.Idp::describe).toList());
+    }
+
+    /**
+     * Where the UI is reached: the configured public address, else each listener.
+     */
+    static List<String> urls(Optional<String> hostname, String host, boolean http, int httpPort, boolean https,
+            int sslPort) {
+        if (hostname.filter(h -> !h.isBlank()).isPresent()) {
+            return List.of(PublicHostname.normalize(hostname.get()) + UiTenant.UI_PATH + "/");
+        }
+        String shown = switch (host) {
+            case "0.0.0.0", "::", "[::]", "127.0.0.1" -> "localhost";
+            default -> host;
+        };
+        List<String> urls = new ArrayList<>();
+        if (http) {
+            urls.add("http://%s:%d%s/".formatted(shown, httpPort, UiTenant.UI_PATH));
+        }
+        if (https) {
+            urls.add("https://%s:%d%s/".formatted(shown, sslPort, UiTenant.UI_PATH));
+        }
+        return urls;
+    }
+
+    /**
+     * Whether HTTPS listens: a default TLS key store, a named one or the older options.
+     */
+    private static boolean serverCertificate() {
+        Config c = ConfigProvider.getConfig();
+        if (c.getOptionalValue("quarkus.http.tls-configuration-name", String.class).isPresent()) {
+            return true;
+        }
+        for (String name : c.getPropertyNames()) {
+            // an environment variable may be listed with dots for its dashes; defaults
+            // of other settings live under the same prefixes, so only these count
+            String n = name.replace('-', '.');
+            if (CERTIFICATE.matcher(n).matches() && !c.getConfigValue(name).getValue().isBlank()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     void register(@Observes Router router) {

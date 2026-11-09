@@ -23,7 +23,7 @@ MCP client logs the user in at the right realm.
 |---|---|
 | `docker-compose.yml` | Keycloak 26.8.2 on :8080, imports `realms/` on the first start, reaches the host as `host.docker.internal` |
 | `realms/demo-realm.json` | the demo realm: clients `mcp-consumer` and `keycloak-mcp-server`, groups `/mcp-admins` and `/mcp-support`, the users |
-| `clients/*.json` | the same two clients for the master realm, created by `setup.sh` with the `admin` role in their scope (an import cannot touch `master`) |
+| `clients/*.json` | the same two clients and the management UI's `keycloak-mcp-ui` for the master realm, created by `setup.sh` with the `admin` role in their scope (an import cannot touch `master`) |
 | `setup.sh` | the server's key pair, the master realm's clients and the user `root`, the admin API's token |
 | `conf/server.conf` | the server: port 9080, user login (forward delegation), `private_key_jwt`, the audience, the admin API on; read in place by `--config` |
 | `conf/systems/sso.conf` | the one system: login realm `master`, default realm `master`; read in place by `--config` |
@@ -72,6 +72,9 @@ MCP client logs the user in at the right realm.
    cd keycloak-mcp-server-1.0-SNAPSHOT
    bin/kcmcp.sh start --config ../conf/server.conf --config ../conf/systems/
    ```
+
+   With `start-dev` instead of `start`, the management UI is on as well, with an H2 database under `data/` and no
+   certificates: <http://localhost:9080/ui/>, sign in as `root` / `root-demo`.
 
    The log shows the system connecting with `clientAuth=PRIVATE_KEY_JWT` and `Listening on: http://127.0.0.1:9080`.
    If the script prints a note about `KC_MCP_*` or `QUARKUS_*` variables inherited from the shell, they override the
