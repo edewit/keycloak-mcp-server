@@ -13,6 +13,7 @@ rem   bin\kcmcp.bat start --debug 5005
 rem   bin\kcmcp.bat start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
 rem   bin\kcmcp.bat show-config [all]                         the settings in effect and their sources, secrets masked
 rem   bin\kcmcp.bat validate [--offline]                      run the startup checks and print every problem; starts no server
+rem   bin\kcmcp.bat providers                                 the installed extensions and whether each takes part
 rem   bin\kcmcp.bat build --db=postgresql                    build for a database, h2 or postgresql; stop the server first
 rem   bin\kcmcp.bat --version | --help
 rem
@@ -59,6 +60,11 @@ if "%KEY%" == "start-dev" (
 )
 if "%KEY%" == "show-config" (
     set COMMAND=show-config
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "providers" (
+    set COMMAND=providers
     shift
     goto READ_ARGS
 )

@@ -89,6 +89,9 @@ if grep -q hidden-value show.out; then echo "show-config printed a secret"; exit
 # shellcheck disable=SC2086
 if "$DIST/bin/kcmcp.sh" validate --clean-env $SMOKE_SYSTEM > validate.out 2>&1; then echo "validate passed with Keycloak down"; cat validate.out; exit 1; fi
 grep -q "cannot obtain an admin token" validate.out || { cat validate.out; exit 1; }
+# shellcheck disable=SC2086
+"$DIST/bin/kcmcp.sh" providers --clean-env $SMOKE_SYSTEM > providers.out 2>&1 || { cat providers.out; exit 1; }
+grep -Eq "^key-vault +[a-z-]+ +selected" providers.out || { echo "no selected key vault:"; cat providers.out; exit 1; }
 echo "show-config masks, validate reports: ok"
 
 if [ -z "$REALM" ]; then exit 0; fi

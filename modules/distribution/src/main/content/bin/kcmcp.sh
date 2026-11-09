@@ -12,6 +12,7 @@
 #   bin/kcmcp.sh start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
 #   bin/kcmcp.sh show-config [all]                         the settings in effect and their sources, secrets masked
 #   bin/kcmcp.sh validate [--offline]                      run the startup checks and print every problem; starts no server
+#   bin/kcmcp.sh providers                                 the installed extensions and whether each takes part
 #   bin/kcmcp.sh build --db=postgresql                    build for a database, h2 or postgresql; stop the server first
 #   bin/kcmcp.sh --version | --help
 #
@@ -48,7 +49,7 @@ conf_file() {
 }
 
 usage() {
-    sed -n '2,20p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
+    sed -n '2,21p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
 }
 
 version() {
@@ -75,6 +76,7 @@ while [ "$#" -gt 0 ]; do
         start-dev) COMMAND=start-dev ;;
         show-config) COMMAND=show-config ;;
         validate) COMMAND=validate ;;
+        providers) COMMAND=providers ;;
         all|--offline) SERVER_ARGS="$SERVER_ARGS $1" ;;
         build) COMMAND=build ;;
         --db=*) DB="${1#--db=}" ;;

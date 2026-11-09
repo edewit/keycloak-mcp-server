@@ -62,6 +62,8 @@ public class Extensions {
     private final Map<Class<?>, List<?>> discovered = new ConcurrentHashMap<>();
     private final Map<Extension, Boolean> admitted = new ConcurrentHashMap<>();
     private final List<Extension> toClose = new CopyOnWriteArrayList<>();
+    private final Map<String, Extension> selected = new ConcurrentHashMap<>();
+    private final List<Extension> madeByServer = new CopyOnWriteArrayList<>();
     private final Path dir;
     private final List<Path> jars;
     private final ClassLoader loader;
@@ -244,10 +246,15 @@ public class Extensions {
         List<T> candidates = new ArrayList<>(discoveredCandidates);
         candidates.sort(Comparator.comparingInt(Extension::order).thenComparing(Extension::id));
         candidates.addAll(builtIns);
-        builtIns.forEach(b -> seen.add(key(b.spiName(), b.id())));
+        builtIns.forEach(b -> {
+            seen.add(key(b.spiName(), b.id()));
+            madeByServer.add(b);
+        });
         Optional<String> wanted = ProviderConfig.selectedProvider(spi, config, System.getenv());
         if (wanted.isEmpty()) {
-            return candidates.stream().filter(c -> admit(c, kind, config)).findFirst();
+            Optional<T> first = candidates.stream().filter(c -> admit(c, kind, config)).findFirst();
+            first.ifPresent(c -> selected.put(spi, c));
+            return first;
         }
         String id = ProviderConfig.configId(wanted.get());
         T chosen = candidates.stream()
@@ -260,7 +267,67 @@ public class Extensions {
             throw new IllegalStateException(ProviderConfig.PREFIX + spi + ".provider names '" + wanted.get()
                     + "', which is switched off or not supported with the current configuration");
         }
+        selected.put(spi, chosen);
         return Optional.of(chosen);
+    }
+
+    /**
+     * One extension as the {@code providers} command shows it.
+     *
+     * @param status {@code active} or {@code selected} when it takes part;
+     * {@code disabled}, {@code not supported} or {@code not selected} when it does not;
+     * {@code available} when nothing has asked for it yet, which happens where an
+     * extension is picked on first use
+     * @param origin {@code built-in}, or the jar of the providers directory
+     */
+    public record ProviderStatus(String spi, String id, String status, String origin, String className) {
+    }
+
+    /** Every extension found so far, by extension point, then order and id. */
+    public List<ProviderStatus> report(McpServerConfig config) {
+        Map<String, Extension> all = new LinkedHashMap<>();
+        Stream.concat(discovered.values().stream().flatMap(List::stream), madeByServer.stream())
+            .filter(Extension.class::isInstance)
+            .map(Extension.class::cast)
+            .forEach(e -> all.putIfAbsent(key(e.spiName(), e.id()), e));
+        return all.values()
+            .stream()
+            .sorted(Comparator.comparing(Extension::spiName)
+                .thenComparingInt(Extension::order)
+                .thenComparing(Extension::id))
+            .map(e -> new ProviderStatus(e.spiName(), ProviderConfig.configId(e.id()), status(e, config), origin(e),
+                    e.getClass().getName()))
+            .toList();
+    }
+
+    private String status(Extension e, McpServerConfig config) {
+        if (!ProviderConfig.forExtension(e, config).getBoolean("enabled", true)) {
+            return "disabled";
+        }
+        Boolean decided = admitted.get(e);
+        if (ProviderConfig.SINGLE_PROVIDER_SPIS.contains(e.spiName())) {
+            Extension chosen = selected.get(e.spiName());
+            if (chosen == e) {
+                return "selected";
+            }
+            if (Boolean.FALSE.equals(decided)) {
+                return "not supported";
+            }
+            return chosen != null ? "not selected" : "available";
+        }
+        if (decided == null) {
+            return "available";
+        }
+        return decided ? "active" : "not supported";
+    }
+
+    private String origin(Extension e) {
+        if (owned == null || e.getClass().getClassLoader() != owned) {
+            return "built-in";
+        }
+        return Path.of(e.getClass().getProtectionDomain().getCodeSource().getLocation().getPath())
+            .getFileName()
+            .toString();
     }
 
     /**

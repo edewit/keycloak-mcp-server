@@ -8,6 +8,7 @@ import java.util.concurrent.Callable;
 import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 
 import io.quarkus.runtime.Quarkus;
+import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -29,7 +30,7 @@ import picocli.CommandLine.Unmatched;
  */
 @QuarkusMain
 @Command(name = "kcmcp", description = "Keycloak MCP Server", subcommands = { KcMcpMain.Start.class,
-        KcMcpMain.StartDev.class, KcMcpMain.ShowConfig.class, KcMcpMain.Validate.class })
+        KcMcpMain.StartDev.class, KcMcpMain.ShowConfig.class, KcMcpMain.Validate.class, KcMcpMain.Providers.class })
 public class KcMcpMain implements Callable<Integer> {
 
     static final int USAGE_ERROR = CommandLine.ExitCode.USAGE;
@@ -147,29 +148,47 @@ public class KcMcpMain implements Callable<Integer> {
         @Override
         public Integer call() {
             applySettings();
-            System.setProperty(ValidationRun.PROPERTY, "true");
             System.setProperty(ValidateApplication.OFFLINE, String.valueOf(offline));
-            // the listeners, migrations and timers of a real start must not happen here
-            System.setProperty("quarkus.http.host-enabled", "false");
-            System.setProperty("quarkus.liquibase.migrate-at-start", "false");
-            System.setProperty("quarkus.scheduler.enabled", "false");
-            // the checks run once, from ValidateApplication
-            System.setProperty("kc-mcp.startup-check", "off");
-            // unknown settings are reported with the other problems instead of ending the
-            // boot
-            System.setProperty("smallrye.config.mapping.validate-unknown", "false");
-            System.setProperty("quarkus.banner.enabled", "false");
-            System.setProperty("quarkus.log.level", "WARN");
-            // a failed boot is reported below, not as a stack trace
-            System.setProperty("quarkus.log.category.\"io.quarkus.runtime.Application\".level", "OFF");
-            Quarkus.run(ValidateApplication.class, (exitCode, failure) -> {
-                if (failure != null) {
-                    ValidationRun.add(ValidationRun.message(failure));
-                    System.exit(ValidateApplication.report());
-                }
-                System.exit(exitCode);
-            });
+            bootWithoutServing(ValidateApplication.class);
             return CommandLine.ExitCode.OK;
         }
+    }
+
+    @Command(name = "providers",
+            description = "List the installed extensions and whether each takes part. Opens no port, migrates nothing "
+                    + "and changes no data.")
+    static class Providers extends ConfigCommand {
+
+        @Override
+        public Integer call() {
+            applySettings();
+            bootWithoutServing(ProvidersApplication.class);
+            return CommandLine.ExitCode.OK;
+        }
+    }
+
+    /** Boots the application for a command that inspects it and then exits. */
+    private static void bootWithoutServing(Class<? extends QuarkusApplication> application) {
+        System.setProperty(ValidationRun.PROPERTY, "true");
+        // the listeners, migrations and timers of a real start must not happen here
+        System.setProperty("quarkus.http.host-enabled", "false");
+        System.setProperty("quarkus.liquibase.migrate-at-start", "false");
+        System.setProperty("quarkus.scheduler.enabled", "false");
+        // the Keycloak checks run only when ValidateApplication asks for them
+        System.setProperty("kc-mcp.startup-check", "off");
+        // unknown settings are reported with the other problems instead of ending the
+        // boot
+        System.setProperty("smallrye.config.mapping.validate-unknown", "false");
+        System.setProperty("quarkus.banner.enabled", "false");
+        System.setProperty("quarkus.log.level", "WARN");
+        // a failed boot is reported below, not as a stack trace
+        System.setProperty("quarkus.log.category.\"io.quarkus.runtime.Application\".level", "OFF");
+        Quarkus.run(application, (exitCode, failure) -> {
+            if (failure != null) {
+                ValidationRun.add(ValidationRun.message(failure));
+                System.exit(ValidateApplication.report());
+            }
+            System.exit(exitCode);
+        });
     }
 }

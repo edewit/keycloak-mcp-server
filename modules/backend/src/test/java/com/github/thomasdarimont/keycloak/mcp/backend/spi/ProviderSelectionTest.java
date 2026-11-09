@@ -144,4 +144,31 @@ class ProviderSelectionTest {
                 select(List.of(), new Candidate("file", 0, true), Map.of("kc-mcp.spi.key-vault.file.enabled", "false"))
                     .isEmpty());
     }
+
+    @Test
+    void theReportTellsSelectedFromNotSelected() {
+        Candidate chosen = new Candidate("first", 1, true);
+        Candidate other = new Candidate("second", 2, true);
+        Candidate unsupported = new Candidate("zero", 0, false);
+        McpServerConfig config = config(Map.of());
+        extensions.select(List.of(chosen, other, unsupported), List.of(), SPI, "KeyVault", config);
+
+        Map<String, String> statusById = new java.util.TreeMap<>();
+        // only the built-in list and what was discovered are reported
+        assertTrue(extensions.report(config).isEmpty());
+        extensions.select(List.of(), List.of(chosen, other, unsupported), SPI, "KeyVault", config);
+        extensions.report(config).forEach(p -> statusById.put(p.id(), p.status()));
+        assertEquals(Map.of("first", "selected", "second", "not selected", "zero", "not supported"), statusById);
+    }
+
+    @Test
+    void theReportShowsADisabledExtensionAndItsOrigin() {
+        Candidate off = new Candidate("off", 1, true);
+        McpServerConfig config = config(Map.of("kc-mcp.spi.key-vault.off.enabled", "false"));
+        extensions.select(List.of(), List.of(off), SPI, "KeyVault", config);
+
+        Extensions.ProviderStatus status = extensions.report(config).get(0);
+        assertEquals("disabled", status.status());
+        assertEquals("built-in", status.origin());
+    }
 }

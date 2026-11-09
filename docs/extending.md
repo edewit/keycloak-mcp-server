@@ -100,6 +100,9 @@ cp acme-tools.jar modules/backend/target/quarkus-app/providers/
 java -jar modules/backend/target/quarkus-app/quarkus-run.jar start      # log: Extensions directory .../providers: [acme-tools.jar]
 ```
 
+In a distribution, `bin/kcmcp.sh providers` lists every extension with its status (`active`, `selected`, `disabled`,
+`not supported`, `not selected`, or `available` where one is picked on first use) and the jar it came from.
+
 ## Confirmers
 
 - `Confirmer` (`@AutoService` or CDI bean, by `order()`) gets tool, realm, arguments, `confirm` flag, caller, a
