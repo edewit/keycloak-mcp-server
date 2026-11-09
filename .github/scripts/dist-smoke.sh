@@ -64,6 +64,20 @@ echo "prod and staging configured from conf/systems/: ok"
 stop_server
 rm -f "$DIST/conf/systems/prod.conf" "$DIST/conf/systems/staging.conf"
 
+echo "== 1c. build: the database kind of the unpacked distribution"
+if "$DIST/bin/kcmcp.sh" build --db=mysql 2> build.err; then echo "an unsupported database was accepted"; exit 1; fi
+grep -q 'build needs --db' build.err || { cat build.err; exit 1; }
+"$DIST/bin/kcmcp.sh" build --db=postgresql
+[ ! -e "$DIST/quarkus-app" ] || { echo "the build left quarkus-app/ behind"; exit 1; }
+if "$DIST/bin/kcmcp.sh" start --clean-env --quarkus.http.port="$PORT" --kc-mcp.startup-check=off \
+    --kc-mcp.systems.default.url=http://127.0.0.1:1 --kc-mcp.systems.default.client-id=smoke \
+    --kc-mcp.systems.default.client-secret=smoke --quarkus.datasource.jdbc.url=jdbc:h2:mem:smoke > mismatch.log 2>&1; then
+  echo "an H2 URL started on a PostgreSQL build"; exit 1
+fi
+grep -q 'build --db=h2' mismatch.log || { echo "the failed start does not name the build command:"; cat mismatch.log; exit 1; }
+"$DIST/bin/kcmcp.sh" build --db=h2
+echo "build for postgresql, refused H2 URL, back to h2: ok"
+
 if [ -z "$REALM" ]; then exit 0; fi
 
 echo "== 2. Keycloak $KC_IMAGE with the realm $REALM"

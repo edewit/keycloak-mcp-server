@@ -11,6 +11,7 @@ rem   bin\kcmcp.bat start --config conf\systems\              every *.conf file 
 rem   bin\kcmcp.bat start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
 rem   bin\kcmcp.bat start --debug 5005
 rem   bin\kcmcp.bat start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
+rem   bin\kcmcp.bat build --db=postgresql                     build for a database, h2 or postgresql; stop the server first
 rem   bin\kcmcp.bat --version | --help
 rem
 rem Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
@@ -37,6 +38,7 @@ set "CONFIG_FILES=%KCMCP_HOME%\conf\kcmcp.conf"
 set SERVER_OPTS=
 set COMMAND=
 set CLEAN_ENV=false
+set DB=
 
 rem cmd splits "--name=value" and "-Dname=value" at the "=": KEY is the part before it, VALUE the part after
 :READ_ARGS
@@ -49,6 +51,17 @@ if "%KEY%" == "start" (
 )
 if "%KEY%" == "start-dev" (
     set COMMAND=start-dev
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "build" (
+    set COMMAND=build
+    shift
+    goto READ_ARGS
+)
+if "%KEY%" == "--db" (
+    set "DB=%~2"
+    shift
     shift
     goto READ_ARGS
 )
@@ -130,6 +143,14 @@ goto :EOF
 
 :MAIN
 if "%COMMAND%" == "" goto USAGE
+if not "%COMMAND%" == "build" if not "%DB%" == "" (
+    echo --db belongs to the build command 1>&2
+    exit /b 2
+)
+if "%COMMAND%" == "build" if not "%DB%" == "h2" if not "%DB%" == "postgresql" (
+    echo build needs --db=h2 or --db=postgresql 1>&2
+    exit /b 2
+)
 if "%COMMAND%" == "start-dev" (
     echo development mode ^(start-dev^): profile local, startup checks warn, Keycloak at http://localhost:8080 unless a system is configured; use 'start' for a shared server 1>&2
     set "SERVER_OPTS=%SERVER_OPTS% -Dkc-mcp.profile=local -Dkc-mcp.startup-check=warn -Dkc-mcp.dev-mode=true"
@@ -156,6 +177,8 @@ if "%JAVA%" == "" (
     )
 )
 
+if "%COMMAND%" == "build" goto BUILD
+
 if "%JAVA_OPTS%" == "" (
     set "JAVA_OPTS=-Xms64m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8"
 )
@@ -178,3 +201,16 @@ if "%KCMCP_PRINT_ENV%" == "true" (
 cd /d "%KCMCP_HOME%"
 "%JAVA%" %JAVA_OPTS% %HOME_OPTS% %SERVER_OPTS% -jar "%KCMCP_HOME%\lib\quarkus-run.jar"
 exit /b %ERRORLEVEL%
+
+rem Quarkus re-augments the package from lib\lib\deployment: no Maven or network. It expects lib\providers to exist,
+rem and leaves a partial copy of the package in quarkus-app\ next to the output directory.
+:BUILD
+echo Building for %DB%. Please wait. 1>&2
+if not exist "%KCMCP_HOME%\lib\providers" mkdir "%KCMCP_HOME%\lib\providers"
+cd /d "%KCMCP_HOME%"
+"%JAVA%" -Dquarkus.launch.rebuild=true -Dquarkus.package.output-directory=lib -Dquarkus.datasource.db-kind=%DB% -jar "%KCMCP_HOME%\lib\quarkus-run.jar"
+set STATUS=%ERRORLEVEL%
+if exist "%KCMCP_HOME%\quarkus-app" rmdir /s /q "%KCMCP_HOME%\quarkus-app"
+if exist "%KCMCP_HOME%\quarkus-artifact.properties" del "%KCMCP_HOME%\quarkus-artifact.properties"
+if "%STATUS%" == "0" (echo Built for %DB%. 1>&2) else (echo The build failed; the previous build is unchanged. 1>&2)
+exit /b %STATUS%

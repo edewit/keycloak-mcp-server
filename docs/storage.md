@@ -31,9 +31,12 @@ QUARKUS_DATASOURCE_JDBC_URL=jdbc:h2:file:./data/kc-mcp KC_MCP_DYNAMIC_SYSTEMS=tr
 KC_MCP_STORAGE_SECRET_KEY=$(openssl rand -base64 32) java -jar modules/backend/target/quarkus-app/quarkus-run.jar
 ```
 
-- **The database kind is fixed at build time.** The default build embeds H2 (`jdbc:h2:file:...`, a single instance);
-  `./mvnw package -Ppostgresql` builds for PostgreSQL (`jdbc:postgresql://host:5432/kcmcp` with
-  `quarkus.datasource.username` and `password`). Both drivers ship, but the dialect does not switch at runtime.
+- **The database kind is fixed at build time.** The distribution comes built for H2 (`jdbc:h2:file:...`, a single
+  instance). For PostgreSQL (`jdbc:postgresql://host:5432/kcmcp` with `quarkus.datasource.username` and `password`), stop
+  the server and run `bin/kcmcp.sh build --db=postgresql` once, in the unpacked distribution or while building an image;
+  it needs neither Maven nor network access, and `--db=h2` goes back. From source: `./mvnw package -Ppostgresql`. Both
+  drivers ship, but the dialect does not switch at runtime: a JDBC URL for the other database stops the start and names
+  this command.
 - **Share a database server with Keycloak, never its schema.** The tables are prefixed `kc_mcp_`.
 
 ## Encryption and key rotation

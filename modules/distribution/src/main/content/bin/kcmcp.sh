@@ -10,6 +10,7 @@
 #   bin/kcmcp.sh start --kc-mcp.systems.default.url=https://sso.example.com --quarkus.http.port=8082
 #   bin/kcmcp.sh start --debug 5005
 #   bin/kcmcp.sh start --clean-env                         ignore KC_MCP_* and QUARKUS_* variables of the shell
+#   bin/kcmcp.sh build --db=postgresql                     build for a database, h2 or postgresql; stop the server first
 #   bin/kcmcp.sh --version | --help
 #
 # Any --name=value becomes the configuration property "name"; environment variables (KC_MCP_SYSTEMS_DEFAULT_URL=...) work as well and
@@ -45,7 +46,7 @@ conf_file() {
 }
 
 usage() {
-    sed -n '2,17p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
+    sed -n '2,18p' "$RESOLVED_NAME" | sed 's/^# \{0,1\}//'
 }
 
 version() {
@@ -63,11 +64,15 @@ CONFIG_FILES="$KCMCP_HOME/conf/kcmcp.conf"
 SERVER_OPTS=""
 COMMAND=""
 CLEAN_ENV=false
+DB=""
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         start) COMMAND=start ;;
         start-dev) COMMAND=start-dev ;;
+        build) COMMAND=build ;;
+        --db=*) DB="${1#--db=}" ;;
+        --db) DB="$2"; [ "$#" -lt 2 ] || shift ;;
         -h|--help) usage; exit 0 ;;
         -v|--version) version; exit 0 ;;
         --debug)
@@ -94,6 +99,14 @@ done
 
 if [ -z "$COMMAND" ]; then
     usage; exit 2
+fi
+if [ "$COMMAND" = "build" ]; then
+    case "$DB" in
+        h2|postgresql) ;;
+        *) echo "build needs --db=h2 or --db=postgresql" >&2; exit 2 ;;
+    esac
+elif [ -n "$DB" ]; then
+    echo "--db belongs to the build command" >&2; exit 2
 fi
 
 # configuration inherited from the shell: it overrides the files, which surprises after `source examples/.../x.env`
@@ -125,6 +138,20 @@ fi
 JAVA_MAJOR="$("$JAVA" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)"
 if [ -n "$JAVA_MAJOR" ] && [ "$JAVA_MAJOR" -lt 21 ]; then
     echo "keycloak-mcp-server needs Java 21 or newer; $JAVA is $JAVA_MAJOR. Set JAVA_HOME." >&2; exit 1
+fi
+
+if [ "$COMMAND" = "build" ]; then
+    # Quarkus re-augments the package from lib/lib/deployment: no Maven or network. It expects lib/providers to exist,
+    # and leaves a partial copy of the package in quarkus-app/ next to the output directory.
+    echo "Building for $DB. Please wait." >&2
+    mkdir -p "$KCMCP_HOME/lib/providers"
+    cd "$KCMCP_HOME" || exit 1
+    "$JAVA" -Dquarkus.launch.rebuild=true -Dquarkus.package.output-directory=lib \
+        -Dquarkus.datasource.db-kind="$DB" -jar "$(abs_path "$KCMCP_HOME/lib/quarkus-run.jar")"
+    STATUS=$?
+    rm -rf "$KCMCP_HOME/quarkus-app" "$KCMCP_HOME/quarkus-artifact.properties"
+    if [ "$STATUS" -eq 0 ]; then echo "Built for $DB." >&2; else echo "The build failed; the previous build is unchanged." >&2; fi
+    exit "$STATUS"
 fi
 
 if [ -z "$JAVA_OPTS" ]; then

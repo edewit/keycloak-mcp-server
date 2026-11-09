@@ -26,6 +26,9 @@ Needs Java 21 or newer.
 Any setting can go on the command line (`--kc-mcp.systems.default.url=https://sso.example.com`, `--quarkus.http.port=8082`)
 or into the environment (`KC_MCP_SYSTEMS_DEFAULT_URL`). `bin/kcmcp.sh --help` lists the options, `--debug [port]` opens a debugger port.
 
+The distribution is built for H2. To keep the server's data in PostgreSQL, stop the server and run
+`bin/kcmcp.sh build --db=postgresql` once (`docs/storage.md`).
+
 `bin/kcmcp.sh start-dev` runs the same configuration in development mode: the `local` security profile applies whatever
 the files say, so a missing setting that the `shared` profile would refuse to start on is only warned about, a
 Keycloak that is down at startup is a warning too, and without any configured system the Keycloak of the examples at
