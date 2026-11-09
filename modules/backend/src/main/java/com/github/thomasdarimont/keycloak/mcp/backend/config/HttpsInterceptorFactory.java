@@ -19,10 +19,10 @@ import io.smallrye.config.ConfigValue;
  * {@code https-certificate-key-file} (PEM, preferred when both a PEM pair and a key store
  * are set), {@code https-key-store-file}, {@code https-port}, {@code https-protocols},
  * {@code https-cipher-suites}, {@code https-certificates-reload-period},
- * {@code http-enabled}. They become the {@code quarkus.tls.*} and {@code quarkus.http.*}
- * properties that do the work; a {@code quarkus.*} value an operator set directly wins
- * over them, the defaults in the jar do not. An interceptor, so the files from
- * {@code kc-mcp.config-files} count.
+ * {@code http-enabled}, and {@code hostname} for the protected resource. They become the
+ * {@code quarkus.tls.*} and {@code quarkus.http.*} properties that do the work; a
+ * {@code quarkus.*} value an operator set directly wins over them, the defaults in the
+ * jar do not. An interceptor, so the files from {@code kc-mcp.config-files} count.
  */
 @AutoService(ConfigSourceInterceptorFactory.class)
 public class HttpsInterceptorFactory implements ConfigSourceInterceptorFactory {
@@ -98,6 +98,10 @@ public class HttpsInterceptorFactory implements ConfigSourceInterceptorFactory {
             else if (!"-1".equals(reload)) {
                 target.put("quarkus.tls.reload-period", reload);
             }
+        }
+        String hostname = option(ctx, "hostname");
+        if (hostname != null) {
+            target.put("quarkus.oidc.resource-metadata.resource", PublicHostname.normalize(hostname));
         }
         putIfSet(target, "quarkus.http.ssl-port", option(ctx, "https-port"));
         String http = option(ctx, "http-enabled");

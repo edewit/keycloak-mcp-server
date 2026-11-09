@@ -16,6 +16,8 @@ kc-mcp.tool-exposure=hybrid
 quarkus.oidc.tenant-enabled=true
 quarkus.oidc.token.audience=mcp-admin
 kc-mcp.model-confirmation-trusted-roles=realm-management.realm-admin
+# The address clients use, so the links the server hands out do not depend on request headers (docs/tls.md).
+#kc-mcp.hostname=https://mcp.example.com
 # Listen on all interfaces (behind a TLS terminating proxy: also quarkus.http.proxy.proxy-address-forwarding=true).
 quarkus.http.host=0.0.0.0
 # Database storage, required for several instances; the key encrypts stored keys, secrets and session tokens.

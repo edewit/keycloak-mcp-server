@@ -14,6 +14,7 @@ import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminAccessFilter;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminResource;
+import com.github.thomasdarimont.keycloak.mcp.backend.config.PublicHostname;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.EntryBinding;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.TokenExchange;
 import com.github.thomasdarimont.keycloak.mcp.backend.ui.UiTenant;
@@ -183,6 +184,7 @@ public class EntryTenantResolver implements TenantConfigResolver {
         }
         String entryPath = EntryRoutes.root(rootPath) + "/" + EntryRoutes.SEGMENT + "/" + system.name()
                 + (binding.realm() != null ? "/" + realm : "");
+        String resource = PublicHostname.of(config.hostname()).orElse("") + entryPath;
         OidcTenantConfig config = OidcTenantConfig.builder(defaults)
             .tenantId(tenantId)
             .authServerUrl(authServerUrl)
@@ -190,7 +192,7 @@ public class EntryTenantResolver implements TenantConfigResolver {
             // realm's public URL,
             // which is what the MCP client's browser must reach
             .resourceMetadata()
-            .resource(entryPath)
+            .resource(resource)
             .authorizationServer(system.publicUrl() + "/realms/" + realm)
             .scopes(scopes)
             .end()

@@ -382,6 +382,12 @@ public interface McpServerConfig {
      */
     Optional<List<String>> truststorePaths();
 
+    /**
+     * The address clients use, {@code scheme://host[:port]}: fixes the links the server
+     * hands out instead of taking them from each request's headers.
+     */
+    Optional<String> hostname();
+
     /** PEM server certificate or chain; see {@code HttpsInterceptorFactory}. */
     Optional<String> httpsCertificateFile();
 

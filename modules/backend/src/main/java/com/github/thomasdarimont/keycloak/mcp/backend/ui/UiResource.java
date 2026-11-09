@@ -190,6 +190,6 @@ public class UiResource {
     @GET
     @Path("api/systems")
     public Map<String, Object> systems(@Context UriInfo uri, @Context HttpHeaders headers) {
-        return systems.list(AdminResource.publicBase(uri, headers));
+        return systems.list(AdminResource.publicBase(config.hostname(), uri, headers));
     }
 }

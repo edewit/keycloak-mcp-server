@@ -44,6 +44,29 @@ The `quarkus.tls.*` and `quarkus.http.*` properties these become still work, and
 
 The HTTPS listener binds to the same address as HTTP: `127.0.0.1` unless `quarkus.http.host` says otherwise.
 
+## The public address
+
+```properties
+kc-mcp.hostname=https://mcp.example.com
+```
+
+`kc-mcp.hostname` is the address clients use, `scheme://host[:port]` without a path. It is optional but recommended for
+a server other people reach, behind a proxy or not, with HTTPS at the proxy or inside as well. With it, these no longer
+depend on the headers of each request:
+
+- the `resource` of the protected resource metadata, for the server and for each `/mcp/systems/...` entry
+- the `resource_metadata` link of the 401 challenge, which tells MCP clients where to start their login
+- the JWKS URLs the admin API reports
+
+Its host is also accepted by the DNS rebinding check, so an anonymous server behind a proxy needs no
+`kc-mcp.dns-rebinding-allowed-hosts` entry for it.
+
+Without it these links come from the request, so behind a proxy set
+`quarkus.http.proxy.proxy-address-forwarding=true` and `quarkus.http.proxy.trusted-proxies`. The browser login of the
+[Management UI](management-ui.md) builds its redirects from the request either way and still needs those two settings.
+`kc-mcp.hostname` takes no path, and `quarkus.http.root-path` is fixed when the server is built, so the packaged
+distribution always serves at the root. Give the server its own host name rather than a path prefix at the proxy.
+
 ## Trusting a private CA
 
 By default the server trusts what the JVM trusts. For a Keycloak behind a private CA, put the CA certificate into

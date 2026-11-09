@@ -47,7 +47,7 @@ be set on its own in either profile.
   403 `forbidden_host`, so a web page cannot reach the local server through a name rebound to 127.0.0.1
   (`kc-mcp.dns-rebinding-protection`, default `auto`). It is off once callers authenticate.
   `kc-mcp.dns-rebinding-allowed-hosts` adds `host[:port]` values for an anonymous server reached by name or through a
-  proxy. JWKS and admin routes are not covered.
+  proxy. The host of `kc-mcp.hostname` counts too. JWKS and admin routes are not covered.
 
 ### Roles decide what the model sees
 
