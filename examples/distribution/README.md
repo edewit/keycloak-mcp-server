@@ -70,7 +70,7 @@ MCP client logs the user in at the right realm.
 
    ```shell
    cd keycloak-mcp-server-1.0-SNAPSHOT
-   bin/kcmcp.sh start --config ../conf/server.conf --config ../conf/systems/
+   bin/kcmcp.sh start-dev --config ../conf/server.conf --config ../conf/systems/
    ```
 
    With `start-dev` instead of `start`, the management UI is on as well, with an H2 database under `data/` and no
