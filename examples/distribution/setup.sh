@@ -64,8 +64,11 @@ if [ -z "$ID" ]; then
   $KCADM create clients -r master -f - < clients/master-keycloak-mcp-ui.json > /dev/null
   echo "created client keycloak-mcp-ui (public, PKCE, for the management UI)"
 else
+  $KCADM update "clients/$ID" -r master -s fullScopeAllowed=false > /dev/null # one created before full scope went off
   echo "client keycloak-mcp-ui exists"
 fi
+# the only role the UI's API needs (kc-mcp.admin.role); full scope off keeps the others, account's too, out of its tokens
+scope_admin "$(client_id keycloak-mcp-ui)"
 
 if ! $KCADM get users -r master -q username=root --fields username --format csv --noquotes | grep -qx root; then
   $KCADM create users -r master -s username=root -s enabled=true -s firstName=Root -s lastName=Admin -s email=root@example.com -s emailVerified=true > /dev/null
