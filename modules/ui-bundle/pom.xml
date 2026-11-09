@@ -43,6 +43,7 @@
                 <!-- bundles into generated-bytecode.jar; ahead of the unpacking below, which runs in the same phase -->
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>
+                <extensions>true</extensions>
                 <executions>
                     <execution>
                         <phase>prepare-package</phase>
