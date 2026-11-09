@@ -194,4 +194,34 @@ class IsSupportedTest {
                         config(Map.of("kc-mcp.spi.audit-listener.acme-configured.boom", "true",
                                 "kc-mcp.spi.audit-listener.acme-configured.required", "true"))));
     }
+
+    /** The variables as the server sees them: an environment source and the map. */
+    private static McpServerConfig envConfig(Map<String, String> env) {
+        return new SmallRyeConfigBuilder().withMapping(McpServerConfig.class)
+            .withSources(new io.smallrye.config.EnvConfigSource(env, 300))
+            .build()
+            .getConfigMapping(McpServerConfig.class);
+    }
+
+    @Test
+    void aRequiredFlagFromTheEnvironmentAloneCounts() {
+        Map<String, String> env = Map.of("KC_MCP_SPI_ACCESS_CHECK_MISSING_ONE_REQUIRED", "true",
+                "KC_MCP_SPI_AUDIT_LISTENER_OPTIONAL_REQUIRED", "false");
+        assertEquals(List.of("access-check.missing-one"), Extensions.missingRequired(envConfig(env), Set.of(), env));
+        assertEquals(List.of(), Extensions.missingRequired(envConfig(env), Set.of("access-check.missing-one"), env),
+                "installed");
+    }
+
+    @Test
+    void theEnvironmentOverridesAFilesRequiredFlag() {
+        McpServerConfig file = config(Map.of("kc-mcp.spi.access-check.other.required", "true"));
+        assertEquals(List.of(),
+                Extensions.missingRequired(file, Set.of(), Map.of("KC_MCP_SPI_ACCESS_CHECK_OTHER_REQUIRED", "false")));
+    }
+
+    @Test
+    void aRequiredFlagOfAnUnknownExtensionPointIsNotSkipped() {
+        assertEquals(List.of("typo-thing"), Extensions.missingRequired(config(Map.of()), Set.of(),
+                Map.of("KC_MCP_SPI_TYPO_THING_REQUIRED", "true")));
+    }
 }

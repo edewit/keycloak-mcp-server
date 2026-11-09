@@ -37,7 +37,7 @@ class ExtensionRegistryTest {
         assertTrue(
                 registry.extensions(AuditListener.class).stream().anyMatch(l -> l instanceof RecordingAuditListener));
         assertTrue(registry.extensions(AccessCheck.class).stream().anyMatch(c -> c instanceof StandaloneDenyCheck));
-        assertTrue(registry.extensions(PromptProvider.class).stream().anyMatch(p -> p.id().equals("prompts")));
+        assertTrue(registry.extensions(PromptProvider.class).stream().anyMatch(p -> p.id().equals("built-in")));
         assertEquals("users", registry.extension(ToolProvider.class, "users").orElseThrow().id());
         assertTrue(registry.extension(ToolProvider.class, "nope").isEmpty());
     }

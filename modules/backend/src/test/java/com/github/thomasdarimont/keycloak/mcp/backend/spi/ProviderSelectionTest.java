@@ -129,4 +129,19 @@ class ProviderSelectionTest {
         assertEquals(List.of(),
                 Extensions.misplacedProviders(config(Map.of("kc-mcp.spi.key-vault.provider", "db")), Map.of()));
     }
+
+    @Test
+    void aBuiltInCountsAsInstalledForRequired() {
+        Candidate builtIn = new Candidate("file", 0, true);
+        select(List.of(), builtIn, Map.of("kc-mcp.spi.key-vault.file.required", "true"));
+        assertEquals(List.of(), Extensions.missingRequired(config(Map.of("kc-mcp.spi.key-vault.file.required", "true")),
+                extensions.seen(), Map.of()));
+    }
+
+    @Test
+    void aSwitchedOffBuiltInLeavesNoProvider() {
+        assertTrue(
+                select(List.of(), new Candidate("file", 0, true), Map.of("kc-mcp.spi.key-vault.file.enabled", "false"))
+                    .isEmpty());
+    }
 }

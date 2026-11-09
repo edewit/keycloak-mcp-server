@@ -12,10 +12,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -55,6 +57,8 @@ public class Extensions {
     private static final Logger LOG = Logger.getLogger(Extensions.class);
 
     private final Set<String> seen = ConcurrentHashMap.newKeySet();
+    private static final String REQUIRED = "required";
+
     private final Map<Class<?>, List<?>> discovered = new ConcurrentHashMap<>();
     private final Map<Extension, Boolean> admitted = new ConcurrentHashMap<>();
     private final List<Extension> toClose = new CopyOnWriteArrayList<>();
@@ -146,14 +150,48 @@ public class Extensions {
      * start, not be skipped because there is nothing to check.
      */
     public static List<String> missingRequired(McpServerConfig config, Set<String> seen) {
-        List<String> missing = new ArrayList<>();
+        return missingRequired(config, seen, System.getenv());
+    }
+
+    /**
+     * @param env the environment: {@code KC_MCP_SPI_<SPI>_<ID>_REQUIRED} also names
+     * extensions that appear nowhere else, and overrides a file's value
+     */
+    public static List<String> missingRequired(McpServerConfig config, Set<String> seen, Map<String, String> env) {
+        Map<String, Boolean> required = new TreeMap<>();
         config.spi().forEach((spi, spiSettings) -> spiSettings.extensions().forEach((id, settings) -> {
-            if (Boolean.parseBoolean(String.valueOf(settings.get("required")).trim()) && !seen.contains(key(spi, id))) {
-                missing.add(spi + "." + id);
+            if (settings.containsKey(REQUIRED)) {
+                required.put(key(spi, id), Boolean.parseBoolean(settings.get(REQUIRED).trim()));
             }
         }));
-        Collections.sort(missing);
-        return missing;
+        env.forEach((name, value) -> requiredVariable(name)
+            .ifPresent(extension -> required.put(extension, Boolean.parseBoolean(value.trim()))));
+        return required.entrySet()
+            .stream()
+            .filter(e -> e.getValue() && !seen.contains(e.getKey()))
+            .map(Map.Entry::getKey)
+            .toList();
+    }
+
+    /**
+     * {@code <spi>.<id>} of a {@code KC_MCP_SPI_<SPI>_<ID>_REQUIRED} variable. With an
+     * unknown extension point the whole remainder is the id: it cannot be installed, and
+     * a required control must not be skipped because of a typo.
+     */
+    private static Optional<String> requiredVariable(String name) {
+        String suffix = "_REQUIRED";
+        String root = "KC_MCP_SPI_";
+        if (!name.startsWith(root) || !name.endsWith(suffix) || name.length() <= root.length() + suffix.length()) {
+            return Optional.empty();
+        }
+        String path = name.substring(root.length(), name.length() - suffix.length());
+        for (String spi : ProviderConfig.SPIS) {
+            String prefix = spi.toUpperCase(Locale.ROOT).replace('-', '_') + "_";
+            if (path.startsWith(prefix) && path.length() > prefix.length()) {
+                return Optional.of(key(spi, path.substring(prefix.length()).replace('_', '-')));
+            }
+        }
+        return Optional.of(path.toLowerCase(Locale.ROOT).replace('_', '-'));
     }
 
     private static String key(String spi, String id) {
@@ -206,6 +244,7 @@ public class Extensions {
         List<T> candidates = new ArrayList<>(discoveredCandidates);
         candidates.sort(Comparator.comparingInt(Extension::order).thenComparing(Extension::id));
         candidates.addAll(builtIns);
+        builtIns.forEach(b -> seen.add(key(b.spiName(), b.id())));
         Optional<String> wanted = ProviderConfig.selectedProvider(spi, config, System.getenv());
         if (wanted.isEmpty()) {
             return candidates.stream().filter(c -> admit(c, kind, config)).findFirst();
