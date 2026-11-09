@@ -157,7 +157,8 @@ public class Extensions {
 
     /**
      * @param env the environment: {@code KC_MCP_SPI_<SPI>_<ID>_REQUIRED} also names
-     * extensions that appear nowhere else, and overrides a file's value
+     * extensions that appear nowhere else, and overrides a file's value; a system
+     * property (the command line) overrides both
      */
     public static List<String> missingRequired(McpServerConfig config, Set<String> seen, Map<String, String> env) {
         Map<String, Boolean> required = new TreeMap<>();
@@ -168,11 +169,27 @@ public class Extensions {
         }));
         env.forEach((name, value) -> requiredVariable(name)
             .ifPresent(extension -> required.put(extension, Boolean.parseBoolean(value.trim()))));
+        System.getProperties()
+            .stringPropertyNames()
+            .forEach(name -> requiredProperty(name).ifPresent(
+                    extension -> required.put(extension, Boolean.parseBoolean(System.getProperty(name).trim()))));
         return required.entrySet()
             .stream()
             .filter(e -> e.getValue() && !seen.contains(e.getKey()))
             .map(Map.Entry::getKey)
             .toList();
+    }
+
+    /** {@code <spi>.<id>} of a {@code kc-mcp.spi.<spi>.<id>.required} system property. */
+    private static Optional<String> requiredProperty(String name) {
+        String suffix = "." + REQUIRED;
+        if (!name.startsWith(ProviderConfig.PREFIX) || !name.endsWith(suffix)) {
+            return Optional.empty();
+        }
+        String path = name.substring(ProviderConfig.PREFIX.length(), name.length() - suffix.length());
+        int dot = path.indexOf('.');
+        return dot <= 0 || dot == path.length() - 1 ? Optional.empty()
+                : Optional.of(key(path.substring(0, dot), path.substring(dot + 1)));
     }
 
     /**

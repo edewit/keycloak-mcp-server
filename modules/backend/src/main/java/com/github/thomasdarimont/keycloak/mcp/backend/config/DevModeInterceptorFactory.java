@@ -116,10 +116,8 @@ public class DevModeInterceptorFactory implements ConfigSourceInterceptorFactory
      */
     static String assumedDatabase(ConfigSourceInterceptorContext ctx) {
         String home = raw(ctx, HOME_DIR);
-        ConfigValue storage = ctx.proceed(STORAGE_ENABLED);
         if (home == null || !"true".equalsIgnoreCase(raw(ctx, DEV_MODE)) || isSet(ctx.proceed(JDBC_URL))
-                || (isSet(storage) && "false".equalsIgnoreCase(storage.getValue().trim()))
-                || !"h2".equalsIgnoreCase(builtDatabase(ctx, home))) {
+                || storageSwitchedOff(ctx) || !"h2".equalsIgnoreCase(builtDatabase(ctx, home))) {
             return null;
         }
         return "jdbc:h2:file:" + Path.of(home, "data", "kc-mcp");
@@ -136,8 +134,13 @@ public class DevModeInterceptorFactory implements ConfigSourceInterceptorFactory
     }
 
     private static boolean hasDatabase(ConfigSourceInterceptorContext ctx) {
-        return "true".equalsIgnoreCase(raw(ctx, DEV_MODE))
+        return "true".equalsIgnoreCase(raw(ctx, DEV_MODE)) && !storageSwitchedOff(ctx)
                 && (isSet(ctx.proceed(JDBC_URL)) || assumedDatabase(ctx) != null);
+    }
+
+    private static boolean storageSwitchedOff(ConfigSourceInterceptorContext ctx) {
+        ConfigValue storage = ctx.proceed(STORAGE_ENABLED);
+        return isSet(storage) && "false".equalsIgnoreCase(storage.getValue().trim());
     }
 
     private static String raw(ConfigSourceInterceptorContext ctx, String name) {

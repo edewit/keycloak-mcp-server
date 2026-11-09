@@ -224,4 +224,22 @@ class IsSupportedTest {
         assertEquals(List.of("typo-thing"), Extensions.missingRequired(config(Map.of()), Set.of(),
                 Map.of("KC_MCP_SPI_TYPO_THING_REQUIRED", "true")));
     }
+
+    @Test
+    void theCommandLineDecidesWhatIsRequired() {
+        String property = "kc-mcp.spi.access-check.cli-required.required";
+        Map<String, String> envSaysNo = Map.of("KC_MCP_SPI_ACCESS_CHECK_CLI_REQUIRED_REQUIRED", "false");
+        Map<String, String> envSaysYes = Map.of("KC_MCP_SPI_ACCESS_CHECK_CLI_REQUIRED_REQUIRED", "true");
+        try {
+            System.setProperty(property, "true");
+            assertEquals(List.of("access-check.cli-required"),
+                    Extensions.missingRequired(config(Map.of()), Set.of(), envSaysNo));
+            System.setProperty(property, "false");
+            assertEquals(List.of(), Extensions.missingRequired(config(Map.of()), Set.of(), envSaysYes));
+        }
+        finally {
+            System.clearProperty(property);
+        }
+        assertEquals(List.of(), Extensions.missingRequired(config(Map.of()), Set.of(), envSaysNo));
+    }
 }

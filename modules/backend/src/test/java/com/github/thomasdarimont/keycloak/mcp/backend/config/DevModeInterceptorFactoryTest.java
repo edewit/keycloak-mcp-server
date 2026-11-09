@@ -69,6 +69,8 @@ class DevModeInterceptorFactoryTest {
         noStorage.put("kc-mcp.storage.enabled", "false");
         assertNull(config(noStorage).getRawValue("quarkus.datasource.jdbc.url"));
         assertNull(config(noStorage).getRawValue("kc-mcp.ui.enabled"));
+        ownDatabase.put("kc-mcp.storage.enabled", "false");
+        assertNull(config(ownDatabase).getRawValue("kc-mcp.ui.enabled"), "a url alone gives no session store");
     }
 
     @Test
