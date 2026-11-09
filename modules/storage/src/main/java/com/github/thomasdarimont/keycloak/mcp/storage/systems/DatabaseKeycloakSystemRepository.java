@@ -75,7 +75,7 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
 
     @Inject
     public DatabaseKeycloakSystemRepository(StorageCrypto crypto, McpServerConfig serverConfig) {
-        this(crypto, ProviderConfig.forExtension(KeycloakSystemRepository.SPI, ID, serverConfig.spi())
+        this(crypto, ProviderConfig.forExtension(KeycloakSystemRepository.SPI, ID, serverConfig)
             .getInt("cache-seconds", DEFAULT_CACHE_SECONDS));
     }
 

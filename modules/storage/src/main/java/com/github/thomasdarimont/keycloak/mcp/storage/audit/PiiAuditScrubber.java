@@ -67,7 +67,7 @@ public class PiiAuditScrubber implements AuditScrubber {
 
     @Inject
     public PiiAuditScrubber(McpServerConfig serverConfig, StorageCrypto crypto) {
-        this(ProviderConfig.forExtension(AuditScrubber.SPI, ID, serverConfig.spi()), crypto);
+        this(ProviderConfig.forExtension(AuditScrubber.SPI, ID, serverConfig), crypto);
     }
 
     /**

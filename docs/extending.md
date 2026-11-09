@@ -54,6 +54,12 @@ public class AcmeToolProvider implements ToolProvider {
   extension point, so the same id under two extension points has separate settings. `<spi>` is `tools`, `prompts`,
   `access-check`, `confirmer`, `issuer-policy`, `profile-check`, `audit-listener`, `audit-scrubber`, `approval-store`,
   `system-repository`, `key-vault`, `key-generator` or `session-store`.
+- Choosing a provider: `key-vault`, `key-generator`, `session-store` and `approval-store` are served by exactly one
+  extension, the others run all of theirs. `kc-mcp.spi.key-vault.provider=db-key-vault`
+  (`KC_MCP_SPI_KEY_VAULT_PROVIDER`) names it; if that one is missing, switched off or unsupported the server does not
+  start. Without it the usable extension with the lowest `order()` serves, then the built-in (`file-key-vault`,
+  `default-signing-key-generator`). Candidates not chosen are neither configured nor closed. On an extension point
+  that runs all of its extensions, `provider` stops the start.
 - `Extension` base: `id()` (config key, kebab-case; default from class name, `com.acme.TicketChecker` →
   `com-acme-ticket-checker`), `displayName()`, `description()`, `order()` (lower first).
 - `configure(config)` (default nothing): hands every extension its `kc-mcp.spi.<spi>.<id>.*` settings, from files,

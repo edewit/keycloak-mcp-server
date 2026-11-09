@@ -9,11 +9,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
@@ -144,7 +147,7 @@ public class Extensions {
      */
     public static List<String> missingRequired(McpServerConfig config, Set<String> seen) {
         List<String> missing = new ArrayList<>();
-        config.spi().forEach((spi, extensions) -> extensions.forEach((id, settings) -> {
+        config.spi().forEach((spi, spiSettings) -> spiSettings.extensions().forEach((id, settings) -> {
             if (Boolean.parseBoolean(String.valueOf(settings.get("required")).trim()) && !seen.contains(key(spi, id))) {
                 missing.add(spi + "." + id);
             }
@@ -181,6 +184,61 @@ public class Extensions {
             toClose.add(e);
         }
         return usable;
+    }
+
+    /**
+     * The extension serving an extension point that has exactly one: the one
+     * {@code kc-mcp.spi.<spi>.provider} names, which must be found and usable, else the
+     * usable candidate with the lowest order, the built-ins last. The candidates not
+     * chosen are neither configured nor closed.
+     *
+     * @param builtIns candidates the server makes itself rather than discovers
+     * @throws IllegalStateException when the named provider cannot serve
+     */
+    public <T extends Extension> Optional<T> select(Class<T> type, String spi, String kind, McpServerConfig config,
+            List<? extends T> builtIns) {
+        return select(discover(type), builtIns, spi, kind, config);
+    }
+
+    /** {@link #select(Class, String, String, McpServerConfig, List)} among these. */
+    public <T extends Extension> Optional<T> select(List<T> discoveredCandidates, List<? extends T> builtIns,
+            String spi, String kind, McpServerConfig config) {
+        List<T> candidates = new ArrayList<>(discoveredCandidates);
+        candidates.sort(Comparator.comparingInt(Extension::order).thenComparing(Extension::id));
+        candidates.addAll(builtIns);
+        Optional<String> wanted = ProviderConfig.selectedProvider(spi, config, System.getenv());
+        if (wanted.isEmpty()) {
+            return candidates.stream().filter(c -> admit(c, kind, config)).findFirst();
+        }
+        String id = ProviderConfig.configId(wanted.get());
+        T chosen = candidates.stream()
+            .filter(c -> ProviderConfig.configId(c.id()).equals(id))
+            .findFirst()
+            .orElseThrow(
+                    () -> new IllegalStateException(ProviderConfig.PREFIX + spi + ".provider names '" + wanted.get()
+                            + "', which is not installed; found " + candidates.stream().map(Extension::id).toList()));
+        if (!admit(chosen, kind, config)) {
+            throw new IllegalStateException(ProviderConfig.PREFIX + spi + ".provider names '" + wanted.get()
+                    + "', which is switched off or not supported with the current configuration");
+        }
+        return Optional.of(chosen);
+    }
+
+    /**
+     * {@code kc-mcp.spi.<spi>.provider} settings that select nothing: on an extension
+     * point where every extension runs, or on one that does not exist.
+     */
+    public static List<String> misplacedProviders(McpServerConfig config, Map<String, String> env) {
+        List<String> misplaced = new ArrayList<>();
+        Set<String> spis = new TreeSet<>(ProviderConfig.SPIS);
+        spis.addAll(config.spi().keySet());
+        for (String spi : spis) {
+            if (!ProviderConfig.SINGLE_PROVIDER_SPIS.contains(spi)
+                    && ProviderConfig.selectedProvider(spi, config, env).isPresent()) {
+                misplaced.add(ProviderConfig.PREFIX + spi + ".provider");
+            }
+        }
+        return misplaced;
     }
 
     /** On the shutdown event, while the extensions' CDI beans are still alive. */
@@ -289,7 +347,7 @@ public class Extensions {
      * @throws IllegalStateException when a required extension cannot take part
      */
     public static boolean usable(Extension e, String kind, McpServerConfig config) {
-        ProviderConfig settings = ProviderConfig.forExtension(e, config.spi());
+        ProviderConfig settings = ProviderConfig.forExtension(e, config);
         boolean required = settings.getBoolean("required", false);
         if (!settings.getBoolean("enabled", true)) {
             if (required) {

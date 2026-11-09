@@ -112,7 +112,7 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
     }
 
     public static CibaSettings from(McpServerConfig server) {
-        return from(ProviderConfig.forExtension(Confirmer.SPI, ID, server.spi()), server.confirmTimeoutSeconds());
+        return from(ProviderConfig.forExtension(Confirmer.SPI, ID, server), server.confirmTimeoutSeconds());
     }
 
     public static CibaSettings from(ProviderConfig config, int defaultTimeout) {

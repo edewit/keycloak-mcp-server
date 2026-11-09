@@ -8,6 +8,7 @@ import java.util.Optional;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithConverter;
 import io.smallrye.config.WithDefault;
+import io.smallrye.config.WithParentName;
 
 /**
  * Server configuration. Every property maps to an env variable with the {@code KC_MCP_}
@@ -305,7 +306,20 @@ public interface McpServerConfig {
      * {@code KC_MCP_SPI_<SPI>_<ID>_<KEY>}). {@code enabled=false} switches a provider
      * off.
      */
-    Map<String, Map<String, Map<String, String>>> spi();
+    Map<String, Spi> spi();
+
+    /** The settings of one extension point, {@code kc-mcp.spi.<spi>.*}. */
+    interface Spi {
+        /**
+         * Which extension serves an extension point that has exactly one: its id. Without
+         * it the lowest {@code order()} wins.
+         */
+        Optional<String> provider();
+
+        /** Per extension: {@code kc-mcp.spi.<spi>.<id>.<key>}. */
+        @WithParentName
+        Map<String, Map<String, String>> extensions();
+    }
 
     /** Elicitation / confirmation prompt timeout in seconds. */
     @WithDefault("120")

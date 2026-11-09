@@ -114,6 +114,13 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
             }
             byId.put(e.id(), e);
         }
+        if (discovery != null && type == PendingApprovalStore.class) {
+            return discovery
+                .select(List.copyOf(byId.values()), List.of(), PendingApprovalStore.SPI, type.getSimpleName(),
+                        serverConfig)
+                .map(List::of)
+                .orElse(List.of());
+        }
         List<T> enabled = new ArrayList<>();
         for (T e : byId.values()) {
             boolean usable = discovery != null ? discovery.admit(e, type.getSimpleName(), serverConfig)
@@ -132,7 +139,7 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
      */
     @Override
     public ToolProviderContext context(String spi, String extensionId) {
-        return new Context(systems, serverConfig, ProviderConfig.forExtension(spi, extensionId, serverConfig.spi()));
+        return new Context(systems, serverConfig, ProviderConfig.forExtension(spi, extensionId, serverConfig));
     }
 
     public List<ToolProvider> providers() {
@@ -165,6 +172,11 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
      * call.
      */
     void onStart(@Observes StartupEvent event) {
+        List<String> misplaced = Extensions.misplacedProviders(serverConfig, System.getenv());
+        if (!misplaced.isEmpty()) {
+            throw new IllegalStateException(misplaced + " select nothing: every extension of these extension points"
+                    + " runs; switch one off with kc-mcp.spi.<spi>.<id>.enabled=false");
+        }
         for (Class<? extends Extension> type : STARTUP_TYPES) {
             extensions(type);
         }

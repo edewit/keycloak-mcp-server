@@ -29,13 +29,14 @@ class ProviderConfigTest {
     void lookupUsesTheKebabCaseKeyAndFallsBackToTheRawId() {
         Map<String, Map<String, Map<String, String>>> spi = Map.of("access-check",
                 Map.of("acme-ticket-checker", Map.of("enabled", "false"), "rawId", Map.of("mode", "strict")));
-        ProviderConfig c = ProviderConfig.forExtension("access-check", "acmeTicketChecker", spi);
+        ProviderConfig c = ProviderConfig.forExtension("access-check", "acmeTicketChecker", spi, Map.of());
         assertFalse(c.getBoolean("enabled", true));
         assertEquals("kc-mcp.spi.access-check.acme-ticket-checker.", c.providerPrefix());
         assertEquals("KC_MCP_SPI_ACCESS_CHECK_ACME_TICKET_CHECKER_", c.envPrefix());
-        assertEquals("strict", ProviderConfig.forExtension("access-check", "rawId", spi).get("mode", "none"));
-        assertEquals("none", ProviderConfig.forExtension("access-check", "unknown", spi).get("mode", "none"));
-        assertEquals("none", ProviderConfig.forExtension("access-check", "unknown", null).get("mode", "none"));
+        assertEquals("strict", ProviderConfig.forExtension("access-check", "rawId", spi, Map.of()).get("mode", "none"));
+        assertEquals("none", ProviderConfig.forExtension("access-check", "unknown", spi, Map.of()).get("mode", "none"));
+        assertEquals("none",
+                ProviderConfig.forExtension("access-check", "unknown", null, Map.of()).get("mode", "none"));
     }
 
     @Test

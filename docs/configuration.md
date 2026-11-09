@@ -77,6 +77,7 @@ Every property, its default and meaning. Property → environment variable: `kc-
 | `kc-mcp.confirm-timeout-seconds`| `120`                       | elicitation timeout |
 | `kc-mcp.config-files`           |                             | comma-separated properties files read at startup, between the built-in defaults and the environment; a directory stands for its `*.conf` and `*.properties` files in name order; a later file overrides an earlier one (the distribution's `conf/kcmcp.conf`, then its `--config` files); a missing path stops the start; a path cannot contain a comma |
 | `kc-mcp.providers-dir`          | `providers`                 | extension jars ([Extension jars](extending.md#extension-jars-providers)) |
+| `kc-mcp.spi.<spi>.provider`    | lowest `order()`            | which extension serves `key-vault`, `key-generator`, `session-store` or `approval-store` ([Extending](extending.md)) |
 | `kc-mcp.spi.<spi>.<id>.<key>`         |                             | per extension; `enabled=false` disables; id kebab-case (`acmeTicketChecker` → `acme-ticket-checker`, env `KC_MCP_SPI_ACCESS_CHECK_ACME_TICKET_CHECKER_*`, resolved by the server) |
 | `quarkus.http.cors.origins`     | local origins               | browser MCP clients; set to the client origin(s) in production |
 | `quarkus.otel.sdk.disabled`     | `true`                      | `false` exports metrics and traces to `quarkus.otel.exporter.otlp.endpoint` ([Metrics](metrics.md)) |

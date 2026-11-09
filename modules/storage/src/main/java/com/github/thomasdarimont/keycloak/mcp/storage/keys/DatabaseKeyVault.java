@@ -63,7 +63,7 @@ public class DatabaseKeyVault implements KeyVault {
 
     @Inject
     public DatabaseKeyVault(StorageCrypto crypto, McpServerConfig serverConfig) {
-        this(crypto, serverConfig, ProviderConfig.forExtension(KeyVault.SPI, ID, serverConfig.spi())
+        this(crypto, serverConfig, ProviderConfig.forExtension(KeyVault.SPI, ID, serverConfig)
             .getInt(RETIRED_KEY_GRACE_SECONDS, DEFAULT_RETIRED_KEY_GRACE_SECONDS));
     }
 

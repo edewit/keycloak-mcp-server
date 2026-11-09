@@ -57,7 +57,7 @@ public class AuditRetention {
 
     /** The configured retention in days; {@code 0} for none. */
     public int retentionDays() {
-        return Math.max(0, ProviderConfig.forExtension(AuditListener.SPI, DatabaseAuditListener.ID, serverConfig.spi())
+        return Math.max(0, ProviderConfig.forExtension(AuditListener.SPI, DatabaseAuditListener.ID, serverConfig)
             .getInt(RETENTION_DAYS, 0));
     }
 

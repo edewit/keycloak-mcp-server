@@ -12,6 +12,7 @@ import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
+import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
@@ -44,6 +45,10 @@ public final class ProviderConfig {
             CallerIssuerPolicy.SPI, AuditListener.SPI, AuditScrubber.SPI, ProfileCheck.SPI, PendingApprovalStore.SPI,
             KeycloakSystemRepository.SPI, KeyVault.SPI, SigningKeyGenerator.SPI, UserSessionStore.SPI);
 
+    /** The extension points served by exactly one extension. */
+    public static final Set<String> SINGLE_PROVIDER_SPIS = Set.of(KeyVault.SPI, SigningKeyGenerator.SPI,
+            UserSessionStore.SPI, PendingApprovalStore.SPI);
+
     private final String spi;
     private final String providerId;
     private final Map<String, String> values;
@@ -60,17 +65,32 @@ public final class ProviderConfig {
         this(null, providerId, values);
     }
 
-    /**
-     * The settings of an extension; see {@link #forExtension(String, String, Map, Map)}.
-     */
-    public static ProviderConfig forExtension(Extension extension, Map<String, Map<String, Map<String, String>>> spis) {
-        return forExtension(extension.spiName(), extension.id(), spis);
+    /** The settings of an extension. */
+    public static ProviderConfig forExtension(Extension extension, McpServerConfig config) {
+        return forExtension(extension.spiName(), extension.id(), config);
     }
 
     /** The settings of an extension, with the process environment. */
-    public static ProviderConfig forExtension(String spi, String extensionId,
-            Map<String, Map<String, Map<String, String>>> spis) {
+    public static ProviderConfig forExtension(String spi, String extensionId, McpServerConfig config) {
+        Map<String, Map<String, Map<String, String>>> spis = new LinkedHashMap<>();
+        config.spi().forEach((name, settings) -> spis.put(name, settings.extensions()));
         return forExtension(spi, extensionId, spis, System.getenv());
+    }
+
+    /**
+     * The id named by {@code kc-mcp.spi.<spi>.provider} /
+     * {@code KC_MCP_SPI_<SPI>_PROVIDER}.
+     */
+    public static Optional<String> selectedProvider(String spi, McpServerConfig config, Map<String, String> env) {
+        return Optional.ofNullable(env.get(providerVariable(spi)))
+            .or(() -> Optional.ofNullable(config.spi().get(spi)).flatMap(McpServerConfig.Spi::provider))
+            .filter(v -> !v.isBlank())
+            .map(String::trim);
+    }
+
+    /** {@code KC_MCP_SPI_<SPI>_PROVIDER} */
+    public static String providerVariable(String spi) {
+        return new ProviderConfig(null, spi, Map.of()).envPrefix() + "PROVIDER";
     }
 
     /**
