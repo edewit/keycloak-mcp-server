@@ -47,7 +47,7 @@
             <artifactId>quarkus-liquibase</artifactId>
         </dependency>
         <dependency>
-            <!-- the hourly purge of audit events older than kc-mcp.spi.audit-listener.db-audit.retention-days -->
+            <!-- the hourly purge of audit events older than kc-mcp.spi.audit-listener.db.retention-days -->
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-scheduler</artifactId>
         </dependency>

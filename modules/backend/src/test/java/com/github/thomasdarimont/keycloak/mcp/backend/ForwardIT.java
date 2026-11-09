@@ -71,7 +71,7 @@ class ForwardIT {
             .get("/admin/secrets")
             .then()
             .statusCode(200)
-            .body("vault", equalTo("file-key-vault"))
+            .body("vault", equalTo("file"))
             .body("writable", equalTo(false));
         given().header("Authorization", "Bearer " + ForwardTestResource.token("mcp-consumer", "alice", "alice"))
             .get("/admin/storage")

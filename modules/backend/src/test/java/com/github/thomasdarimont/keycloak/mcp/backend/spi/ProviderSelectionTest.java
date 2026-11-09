@@ -94,11 +94,11 @@ class ProviderSelectionTest {
 
     @Test
     void theSelectionBeatsTheOrderAndReachesBuiltIns() {
-        Candidate builtIn = new Candidate("file-key-vault", 0, true);
+        Candidate builtIn = new Candidate("file", 0, true);
         Candidate low = new Candidate("low", 1, true);
         assertSame(builtIn,
-                select(List.of(low), builtIn, Map.of("kc-mcp.spi.key-vault.provider", "file-key-vault")).orElseThrow());
-        assertEquals(List.of("file-key-vault"), configured, "the one that would have won by order stays untouched");
+                select(List.of(low), builtIn, Map.of("kc-mcp.spi.key-vault.provider", "file")).orElseThrow());
+        assertEquals(List.of("file"), configured, "the one that would have won by order stays untouched");
     }
 
     @Test

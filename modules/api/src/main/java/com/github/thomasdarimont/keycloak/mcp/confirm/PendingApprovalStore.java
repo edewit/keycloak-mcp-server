@@ -7,9 +7,9 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 /**
  * Keeps the {@link PendingApproval}s of the CIBA confirmer, so the call that collects a
  * decision finds the request the previous call filed, on this or another instance. The
- * database storage provides one ({@code db-approvals}); the server falls back to an
- * in-memory store ({@code memory-approvals}, single instance). The store with the lowest
- * {@link #order()} is used. Implementations are called concurrently from worker threads.
+ * database storage provides one ({@code db}); the server falls back to an in-memory store
+ * ({@code memory-approvals}, single instance). The store with the lowest {@link #order()}
+ * is used. Implementations are called concurrently from worker threads.
  * <p>
  * Every change after the reservation names the reservation's generation, so a caller
  * whose reservation expired and was taken over can neither overwrite nor consume the

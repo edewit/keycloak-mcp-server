@@ -18,11 +18,11 @@
               <entry key="QUARKUS_OIDC_TENANT_ENABLED" value="true" />
               <entry key="QUARKUS_OIDC_TOKEN_AUDIENCE" value="mcp-admin" />
               <entry key="QUARKUS_OIDC_RESOURCE_METADATA_SCOPES" value="openid" />
-              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_ENABLED" value="true" />
-              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_ID" value="mcp-ciba" />
-              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_SECRET" value="mcp-ciba-secret" />
-              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_TIMEOUT_SECONDS" value="90" />
-              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_POLL_WAIT_SECONDS" value="25" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_ENABLED" value="true" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_ID" value="mcp-ciba" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_SECRET" value="mcp-ciba-secret" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_TIMEOUT_SECONDS" value="90" />
+              <entry key="KC_MCP_SPI_CONFIRMER_CIBA_POLL_WAIT_SECONDS" value="25" />
             </map>
           </option>
           <option name="jreName" value="#USE_PROJECT_JDK" />

@@ -69,8 +69,8 @@ class AdminResourceTest {
             .body("updatedAt", startsWith("20"))
             .body("clientAuth", equalTo("private_key_jwt"))
             .body("clientId", equalTo("keycloak-mcp-server"))
-            .body("source", equalTo("db-systems"))
-            .body("signingKey.vault", equalTo("db-key-vault"))
+            .body("source", equalTo("db"))
+            .body("signingKey.vault", equalTo("db"))
             .body("signingKey.algorithm", equalTo("RS256"))
             .body("signingKey.jwksPath", equalTo("/auth/keys/acme/jwks.json"))
             .body("signingKey.jwksUrl", startsWith("http://localhost:"))
@@ -200,7 +200,7 @@ class AdminResourceTest {
         admin().get("/admin/secrets")
             .then()
             .statusCode(200)
-            .body("vault", equalTo("db-key-vault"))
+            .body("vault", equalTo("db"))
             .body("writable", equalTo(true))
             .body("secrets.name", not(hasItem("acme/client-secret")));
         admin().get("/admin/secrets/acme/client-secret")
@@ -226,7 +226,7 @@ class AdminResourceTest {
             .statusCode(201)
             .body("name", equalTo("acme/client-secret"))
             .body("reference", equalTo("vault:acme/client-secret"))
-            .body("vault", equalTo("db-key-vault"))
+            .body("vault", equalTo("db"))
             .body("usedBy", empty())
             .body("$", not(hasKey("value")));
         admin().body("{\"value\": \"top-secret-2\"}").put("/admin/secrets/acme/client-secret").then().statusCode(200);

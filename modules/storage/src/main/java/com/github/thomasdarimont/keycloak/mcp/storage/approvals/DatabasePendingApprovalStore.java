@@ -27,13 +27,13 @@ import io.quarkus.scheduler.Scheduled;
  * release and remove only touch the row while it carries the caller's generation.
  * {@code auth_req_id} is encrypted when {@code kc-mcp.storage.secret-key} is set. Expired
  * rows are removed every hour; switch the store off alone with
- * {@code kc-mcp.spi.approval-store.db-approvals.enabled=false}.
+ * {@code kc-mcp.spi.approval-store.db.enabled=false}.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabasePendingApprovalStore implements PendingApprovalStore {
 
-    public static final String ID = "db-approvals";
+    public static final String ID = "db";
 
     private static final Logger LOG = Logger.getLogger(DatabasePendingApprovalStore.class);
 

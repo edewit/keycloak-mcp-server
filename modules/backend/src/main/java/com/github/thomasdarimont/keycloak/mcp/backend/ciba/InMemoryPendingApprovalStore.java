@@ -12,8 +12,8 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 
 /**
  * The fallback {@link PendingApprovalStore}: this instance's memory. Fine for one server;
- * with several, the database storage's {@code db-approvals} is used instead (lower
- * order). Every operation is one atomic {@code compute} on the key.
+ * with several, the database storage's {@code db} is used instead (lower order). Every
+ * operation is one atomic {@code compute} on the key.
  */
 @ApplicationScoped
 public class InMemoryPendingApprovalStore implements PendingApprovalStore {

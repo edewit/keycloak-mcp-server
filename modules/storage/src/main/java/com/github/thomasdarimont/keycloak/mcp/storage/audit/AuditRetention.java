@@ -17,13 +17,12 @@ import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
 
 /**
- * Removes audit events older than
- * {@code kc-mcp.spi.audit-listener.db-audit.retention-days}
- * ({@code KC_MCP_SPI_AUDIT_LISTENER_DB_AUDIT_RETENTION_DAYS}): once at startup and then
- * every hour, on a worker thread, one {@code DELETE} by {@code occurred_at}. Unset or
- * {@code 0} keeps every row, as Keycloak's own event store does without an expiration.
- * Several replicas on one database may all purge; the statement is idempotent. Does
- * nothing while the storage is off or the {@code db-audit} listener is disabled.
+ * Removes audit events older than {@code kc-mcp.spi.audit-listener.db.retention-days}
+ * ({@code KC_MCP_SPI_AUDIT_LISTENER_DB_RETENTION_DAYS}): once at startup and then every
+ * hour, on a worker thread, one {@code DELETE} by {@code occurred_at}. Unset or {@code 0}
+ * keeps every row, as Keycloak's own event store does without an expiration. Several
+ * replicas on one database may all purge; the statement is idempotent. Does nothing while
+ * the storage is off or the {@code db} listener is disabled.
  */
 @ApplicationScoped
 public class AuditRetention {
@@ -45,8 +44,7 @@ public class AuditRetention {
         if (!active()) {
             return;
         }
-        LOG.infof("Audit events are kept for %d days (kc-mcp.spi.audit-listener.db-audit.retention-days)",
-                retentionDays());
+        LOG.infof("Audit events are kept for %d days (kc-mcp.spi.audit-listener.db.retention-days)", retentionDays());
         purge();
     }
 

@@ -170,7 +170,7 @@ class AcmeExtensionsTest {
     @Test
     void settingsArriveThroughConfigure() {
         JsonLinesAuditListener audit = new JsonLinesAuditListener();
-        audit.configure(new ProviderConfig("acme-audit", Map.of("file", "custom.jsonl")));
+        audit.configure(new ProviderConfig("acme", Map.of("file", "custom.jsonl")));
         assertEquals("JSON lines in custom.jsonl", audit.description());
         AcmeTenantRepository tenants = new AcmeTenantRepository();
         tenants.configure(new ProviderConfig("acme-tenants", Map.of("systems", "globex=https://sso.globex.example")));

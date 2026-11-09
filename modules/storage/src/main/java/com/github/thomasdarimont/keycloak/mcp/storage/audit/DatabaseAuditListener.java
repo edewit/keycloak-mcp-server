@@ -18,14 +18,14 @@ import io.vertx.core.json.JsonObject;
  * failure is logged by the server and does not change the tool result. Arguments arrive
  * redacted; personal data is the {@link PiiAuditScrubber}'s business. Rows are kept until
  * {@link AuditRetention} removes them
- * ({@code kc-mcp.spi.audit-listener.db-audit.retention-days}, off by default). Switch it
- * off alone with {@code kc-mcp.spi.audit-listener.db-audit.enabled=false}.
+ * ({@code kc-mcp.spi.audit-listener.db.retention-days}, off by default). Switch it off
+ * alone with {@code kc-mcp.spi.audit-listener.db.enabled=false}.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabaseAuditListener implements AuditListener {
 
-    public static final String ID = "db-audit";
+    public static final String ID = "db";
 
     @Override
     public String id() {

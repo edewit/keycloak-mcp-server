@@ -16,11 +16,11 @@ import com.google.auto.service.AutoService;
 @AutoService(ProfileCheck.class)
 public class AuditFileProfileCheck implements ProfileCheck {
 
-    static final String FILE = "kc-mcp.spi.audit-listener.acme-audit.file";
+    static final String FILE = "kc-mcp.spi.audit-listener.acme.file";
 
     @Override
     public String id() {
-        return "acme-audit-file-check";
+        return "acme-audit-file";
     }
 
     @Override
@@ -37,7 +37,7 @@ public class AuditFileProfileCheck implements ProfileCheck {
         Optional<String> file = ctx.property(FILE);
         if (file.isEmpty()) {
             return List.of("the ACME audit trail goes to ./acme-audit.jsonl next to the server; set " + FILE
-                    + " (env KC_MCP_SPI_AUDIT_LISTENER_ACME_AUDIT_FILE) to a durable location");
+                    + " (env KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE) to a durable location");
         }
         String f = file.get();
         if (f.startsWith("/tmp/") || f.startsWith("/var/tmp/")) {

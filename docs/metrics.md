@@ -19,7 +19,7 @@ The server adds its own:
 |---|---|---|---|
 | `kc_mcp.tool.call.duration` | histogram, s (count = calls) | `tool`, `level`, `outcome` (`ok` or the error code), `via`, `system`, `realm` (opt-in) | is it used, is it working, what fails how |
 | `kc_mcp.policy.refusals` | counter | `reason` (`forbidden`, `privilege_escalation`, `realm_not_allowed`, `read_only_mode`, `entry_mismatch`, ...), `tool`, `level`, `system` | misconfigured roles, or someone probing |
-| `kc_mcp.confirmation.decisions` | counter | `confirmer` (`ciba-confirmer`, `built-in`, an extension's id, `none`), `outcome`, `tool` | who confirms destructive tools, how often they are declined |
+| `kc_mcp.confirmation.decisions` | counter | `confirmer` (`ciba`, `built-in`, an extension's id, `none`), `outcome`, `tool` | who confirms destructive tools, how often they are declined |
 | `kc_mcp.ciba.requests` | counter | `system` | approvals asked for |
 | `kc_mcp.ciba.decisions`, `kc_mcp.ciba.decision.duration` | counter, histogram s | `outcome` (`approved`, `declined`, `expired`, `timeout`, `rejected`), `system` | how fast people answer; `rejected` = the approval's ID token was invalid or named someone else: alert on it |
 | `kc_mcp.ciba.pending` | gauge | | approvals waiting for a device |

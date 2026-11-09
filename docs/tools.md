@@ -70,7 +70,7 @@ How the server presents its tools to a model, which tools exist, and the prompts
 ```java
 @AutoService(PromptProvider.class)
 public class AcmePrompts implements PromptProvider {
-    public String id() { return "acme-prompts"; }
+    public String id() { return "acme"; }
     public List<PromptSpec> prompts(ToolProviderContext ctx) {
         return List.of(PromptSpec.builder("acme_offboard_user")
                 .title("Offboard a user").description("Disable, log out and remove from groups.")

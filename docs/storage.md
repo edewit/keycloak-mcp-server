@@ -10,11 +10,11 @@ approvals. With it, several instances share one state. Without a JDBC URL it sta
 
 | store | SPI id | table | holds |
 |---|---|---|---|
-| systems | `db-systems` (`KeycloakSystemRepository`) | `kc_mcp_system` | Keycloak systems registered at runtime |
-| keys and secrets | `db-key-vault` (`KeyVault`) | `kc_mcp_signing_key`, `kc_mcp_secret` | per-system signing keys, client secrets |
-| audit | `db-audit` (`AuditListener`) | `kc_mcp_audit_event` | one row per call, denials and reads included |
-| UI sessions | `db-user-sessions` (`UserSessionStore`) | `kc_mcp_user_session` | the management UI's sessions, tokens encrypted, expired rows purged hourly |
-| pending approvals | `db-approvals` (`PendingApprovalStore`) | `kc_mcp_pending_approval` | CIBA requests waiting for a device ([CIBA confirmation](ciba-confirmation.md)) |
+| systems | `db` (`KeycloakSystemRepository`) | `kc_mcp_system` | Keycloak systems registered at runtime |
+| keys and secrets | `db` (`KeyVault`) | `kc_mcp_signing_key`, `kc_mcp_secret` | per-system signing keys, client secrets |
+| audit | `db` (`AuditListener`) | `kc_mcp_audit_event` | one row per call, denials and reads included |
+| UI sessions | `db` (`UserSessionStore`) | `kc_mcp_user_session` | the management UI's sessions, tokens encrypted, expired rows purged hourly |
+| pending approvals | `db` (`PendingApprovalStore`) | `kc_mcp_pending_approval` | CIBA requests waiting for a device ([CIBA confirmation](ciba-confirmation.md)) |
 
 Hibernate ORM with Panache; Liquibase creates and migrates the schema at startup (`db/kc-mcp/changelog.xml` includes
 one file per schema version, `0.1.0-changelog.xml` first). Timestamps are `bigint` epoch milliseconds, as in Keycloak.
@@ -23,7 +23,7 @@ one file per schema version, `0.1.0-changelog.xml` first). Timestamps are `bigin
 
 A `quarkus.datasource.jdbc.url` switches the storage on (`kc-mcp.storage.enabled` forces it on or off). Then
 `kc-mcp.dynamic-systems=true` exposes the stored systems, the database vault replaces the file vault, and audit rows
-start. Each store has its own switch: `kc-mcp.spi.system-repository.db-systems.enabled`, `db-key-vault.enabled`, `db-audit.enabled`.
+start. Each store has its own switch: `kc-mcp.spi.system-repository.db.enabled`, `db.enabled`, `db.enabled`.
 
 ```shell
 QUARKUS_DATASOURCE_JDBC_URL=jdbc:h2:file:./data/kc-mcp KC_MCP_DYNAMIC_SYSTEMS=true \
@@ -53,7 +53,7 @@ Rotating the key:
 
 Rows written under a key that is configured nowhere are reported as `remaining` and never touched.
 
-Audit pseudonyms are HMACs under `secret-key`, so a rotation changes them. `kc-mcp.spi.audit-scrubber.pii-audit-scrubber.pseudonym-key`
+Audit pseudonyms are HMACs under `secret-key`, so a rotation changes them. `kc-mcp.spi.audit-scrubber.pii.pseudonym-key`
 gives the scrubber a key of its own that rotates independently.
 
 ## Systems in the database
@@ -63,17 +63,17 @@ gives the scrubber a key of its own that rotates independently.
 system but stops serving it. Only service clients are stored: there are no username and password columns, and the
 repository refuses the password grant.
 
-Reads are served from a snapshot, reloaded when older than `kc-mcp.spi.system-repository.db-systems.cache-seconds` (10; a local write
+Reads are served from a snapshot, reloaded when older than `kc-mcp.spi.system-repository.db.cache-seconds` (10; a local write
 reloads at once). A tool call costs no query, and event-loop threads get the snapshot as is.
 
 ## Audit retention and personal data
 
-- **Retention.** `kc-mcp.spi.audit-listener.db-audit.retention-days` deletes older events at startup and then hourly, one statement on
+- **Retention.** `kc-mcp.spi.audit-listener.db.retention-days` deletes older events at startup and then hourly, one statement on
   the `occurred_at` index. Unset keeps everything, like Keycloak's event store without expiration.
-- **Personal data.** The `pii-audit-scrubber`, an `AuditScrubber`, decides what of it reaches the rows (`kc-mcp.spi.audit-scrubber.pii-audit-scrubber.pii`):
-  `keep` (default); `pseudonymize`, which turns the caller name and the values of the `pii-args` arguments
+- **Personal data.** The `pii` audit scrubber decides what of it reaches the rows (`kc-mcp.spi.audit-scrubber.pii.mode`):
+  `keep` (default); `pseudonymize`, which turns the caller name and the values of the `args` arguments
   (`username,email,firstName,lastName,search,userId,user,attributes`, plus `id` on user tools) into a keyed hash under
-  `secret-key` and drops the message; or `drop`. `targets` names the listeners it applies to: `db-audit` (default),
+  `secret-key` and drops the message; or `drop`. `targets` names the listeners it applies to: `db` (default),
   `console`, or `*`.
 
 ## Several instances on one database
@@ -85,7 +85,7 @@ and the same `kc-mcp.storage.secret-key` on every instance.
 |---|---|
 | a system registered, changed or removed | within `cache-seconds` |
 | a secret stored | on their next tool call |
-| a signing key rotated | on their next token request; every JWKS publishes the current key plus keys retired within `kc-mcp.spi.key-vault.db-key-vault.retired-key-grace-seconds` (3600), so Keycloak accepts a lagging instance |
+| a signing key rotated | on their next token request; every JWKS publishes the current key plus keys retired within `kc-mcp.spi.key-vault.db.retired-key-grace-seconds` (3600), so Keycloak accepts a lagging instance |
 | an audit retention purge | runs on every instance; deletes are idempotent |
 
 Two instances creating a first signing key at the same time both succeed: both keys are published, the newest signs.

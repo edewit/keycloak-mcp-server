@@ -55,10 +55,10 @@ public class AcmeToolProvider implements ToolProvider {
   `access-check`, `confirmer`, `issuer-policy`, `profile-check`, `audit-listener`, `audit-scrubber`, `approval-store`,
   `system-repository`, `key-vault`, `key-generator` or `session-store`.
 - Choosing a provider: `key-vault`, `key-generator`, `session-store` and `approval-store` are served by exactly one
-  extension, the others run all of theirs. `kc-mcp.spi.key-vault.provider=db-key-vault`
+  extension, the others run all of theirs. `kc-mcp.spi.key-vault.provider=db`
   (`KC_MCP_SPI_KEY_VAULT_PROVIDER`) names it; if that one is missing, switched off or unsupported the server does not
-  start. Without it the usable extension with the lowest `order()` serves, then the built-in (`file-key-vault`,
-  `default-signing-key-generator`). Candidates not chosen are neither configured nor closed. On an extension point
+  start. Without it the usable extension with the lowest `order()` serves, then the built-in (key vault `file`,
+  key generator `default`). Candidates not chosen are neither configured nor closed. On an extension point
   that runs all of its extensions, `provider` stops the start.
 - `Extension` base: `id()` (config key, kebab-case; default from class name, `com.acme.TicketChecker` →
   `com-acme-ticket-checker`), `displayName()`, `description()`, `order()` (lower first).
@@ -74,7 +74,7 @@ public class AcmeToolProvider implements ToolProvider {
   switched-off or unsupported extension stop the start (mark security controls such as an `AccessCheck` or a `Confirmer` this way),
   and an `isSupported` that throws stops a server in profile `shared`. Extension points are resolved at startup, so
   these rules apply before the first call. To refuse the start for other reasons, contribute a `ProfileCheck`. Built in:
-  the CIBA confirmer is supported only with `kc-mcp.spi.confirmer.ciba-confirmer.enabled=true`, the metrics audit listener only
+  the CIBA confirmer is supported only with `kc-mcp.spi.confirmer.ciba.enabled=true`, the metrics audit listener only
   with the OpenTelemetry SDK on.
 - `close()` (default nothing): once at shutdown for every extension that took part, last admitted first; a failure is
   logged and the others still close. Release connections, file handles and threads here.
@@ -176,7 +176,7 @@ public class TicketUrlCheck implements ProfileCheck {
 - `AuditListener.onToolCall` once per finished call, any outcome. Built-in: console line (`console`). Synchronous on the
   handler's virtual thread; offload slow sinks. Exceptions logged, never change the result.
 - Password-like arguments arrive as `***`. Personal data does not: that is `AuditScrubber` (`@AutoService` or CDI bean,
-  by `order()`). `scrub(event, listener)` runs per listener: treat all sinks alike, or target one by id (`db-audit`,
+  by `order()`). `scrub(event, listener)` runs per listener: treat all sinks alike, or target one by id (`db`,
   `console`). Derive with `mapArgs`, `withMessage`, `withCaller`; return `null` to skip. Default `NoOpAuditScrubber`.
 
 ```java

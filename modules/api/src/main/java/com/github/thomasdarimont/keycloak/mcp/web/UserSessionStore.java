@@ -7,11 +7,11 @@ import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 /**
  * Keeps the sessions of the management UI ({@link UserSession}) on the server, so the
  * browser cookie carries an opaque id and never a token, and a session can be revoked by
- * deleting its row. The database storage provides one ({@code db-user-sessions});
- * register your own ({@code @AutoService(UserSessionStore.class)} or a CDI bean) to keep
- * sessions elsewhere, say in Redis or Infinispan. The store with the lowest
- * {@link #order()} is used. Implementations are called from worker threads and must be
- * safe to call concurrently.
+ * deleting its row. The database storage provides one ({@code db}); register your own
+ * ({@code @AutoService(UserSessionStore.class)} or a CDI bean) to keep sessions
+ * elsewhere, say in Redis or Infinispan. The store with the lowest {@link #order()} is
+ * used. Implementations are called from worker threads and must be safe to call
+ * concurrently.
  */
 public interface UserSessionStore extends Extension {
 

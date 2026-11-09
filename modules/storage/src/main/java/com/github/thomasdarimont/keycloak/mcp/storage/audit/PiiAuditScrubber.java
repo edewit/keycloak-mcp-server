@@ -21,23 +21,23 @@ import io.quarkus.arc.lookup.LookupIfProperty;
 
 /**
  * The {@link AuditScrubber} of the storage module, configured under
- * {@code kc-mcp.spi.audit-scrubber.pii-audit-scrubber.*}: {@code pii} is {@code keep}
- * (default, nothing happens), {@code pseudonymize} or {@code drop}; {@code pii-args}
- * names the personal arguments (default {@value #DEFAULT_PII_ARGS}; {@code id} counts too
- * on user tools, whose ids may be usernames); {@code targets} lists the listener ids it
- * applies to (default {@code db-audit}, the rows that persist; {@code console} for the
- * opposite, a console without names while the database keeps the full record; {@code *}
- * for every listener). Pseudonymizing replaces the caller's name and the personal
- * argument values by a keyed hash ({@link StorageCrypto#pseudonym}, under
- * {@code kc-mcp.storage.secret-key}), so one person stays recognisable across records,
- * and drops the message, which may echo usernames; dropping removes them. The caller's
- * subject (an opaque id), realm and roles and the outcome stay in every mode.
+ * {@code kc-mcp.spi.audit-scrubber.pii.*}: {@code mode} is {@code keep} (default, nothing
+ * happens), {@code pseudonymize} or {@code drop}; {@code args} names the personal
+ * arguments (default {@value #DEFAULT_PII_ARGS}; {@code id} counts too on user tools,
+ * whose ids may be usernames); {@code targets} lists the listener ids it applies to
+ * (default {@code db}, the rows that persist; {@code console} for the opposite, a console
+ * without names while the database keeps the full record; {@code *} for every listener).
+ * Pseudonymizing replaces the caller's name and the personal argument values by a keyed
+ * hash ({@link StorageCrypto#pseudonym}, under {@code kc-mcp.storage.secret-key}), so one
+ * person stays recognisable across records, and drops the message, which may echo
+ * usernames; dropping removes them. The caller's subject (an opaque id), realm and roles
+ * and the outcome stay in every mode.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class PiiAuditScrubber implements AuditScrubber {
 
-    public static final String ID = "pii-audit-scrubber";
+    public static final String ID = "pii";
 
     /** Argument names treated as personal data by default. */
     public static final String DEFAULT_PII_ARGS = "username,email,firstName,lastName,search,userId,user,attributes";
@@ -54,8 +54,7 @@ public class PiiAuditScrubber implements AuditScrubber {
                 case "pseudonymize", "pseudonymise", "hash" -> PSEUDONYMIZE;
                 case "drop", "remove" -> DROP;
                 default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.audit-scrubber.pii-audit-scrubber.pii must be keep, pseudonymize or drop, not '"
-                                + value + "'");
+                        "kc-mcp.spi.audit-scrubber.pii.mode must be keep, pseudonymize or drop, not '" + value + "'");
             };
         }
     }
@@ -77,7 +76,7 @@ public class PiiAuditScrubber implements AuditScrubber {
     public static final String PSEUDONYM_KEY = "pseudonym-key";
 
     PiiAuditScrubber(ProviderConfig config, StorageCrypto crypto) {
-        this(Policy.parse(config.get("pii", "keep")), config.get("pii-args", DEFAULT_PII_ARGS),
+        this(Policy.parse(config.get("mode", "keep")), config.get("args", DEFAULT_PII_ARGS),
                 config.get("targets", DatabaseAuditListener.ID),
                 config.get(PSEUDONYM_KEY).map(StorageCrypto::new).orElse(crypto));
     }

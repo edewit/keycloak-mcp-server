@@ -46,7 +46,7 @@ services:
       KC_MCP_TOOL_EXPOSURE: hybrid
       # the extensions (kc-mcp.spi.<spi>.<id>.<key>)
       KC_MCP_SPI_TOOLS_ACME_COMPANY: ACME
-      KC_MCP_SPI_AUDIT_LISTENER_ACME_AUDIT_FILE: /deployments/data/acme-audit.jsonl
+      KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE: /deployments/data/acme-audit.jsonl
       KC_MCP_SPI_ACCESS_CHECK_ACME_PROTECTED_USERS_PREFIX: svc-
       # the tenant repository needs kc-mcp.dynamic-systems; globex is a placeholder that is never reached
       KC_MCP_DYNAMIC_SYSTEMS: "true"

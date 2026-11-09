@@ -224,7 +224,7 @@ sequenceDiagram
 
 ## 7. Approval on the user's device (CIBA)
 
-The built-in `ciba-confirmer` (`examples/ciba-confirm/`) takes the decision on a destructive tool out of the channel the
+The built-in `ciba` confirmer (`examples/ciba-confirm/`) takes the decision on a destructive tool out of the channel the
 model controls: the server files a backchannel authentication request for the signed-in user, the chat shows a number,
 the device shows what is asked and has the user enter that number, and the tool runs once the user approved there.
 

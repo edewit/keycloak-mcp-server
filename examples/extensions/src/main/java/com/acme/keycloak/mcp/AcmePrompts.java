@@ -16,7 +16,7 @@ public class AcmePrompts implements PromptProvider {
 
     @Override
     public String id() {
-        return "acme-prompts";
+        return "acme";
     }
 
     @Override

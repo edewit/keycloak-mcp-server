@@ -16,7 +16,7 @@ import io.vertx.core.json.JsonObject;
 
 /**
  * Extension point {@link AuditListener}: one JSON line per finished tool call, appended
- * to a file ({@code KC_MCP_SPI_AUDIT_LISTENER_ACME_AUDIT_FILE}, default
+ * to a file ({@code KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE}, default
  * {@code acme-audit.jsonl}). Listeners run on the handler's thread; a slow sink would
  * hand off to its own executor. Arguments arrive with secrets redacted;
  * {@link NoEmailScrubber} removes e-mail addresses before.
@@ -37,7 +37,7 @@ public class JsonLinesAuditListener implements AuditListener {
 
     @Override
     public String id() {
-        return "acme-audit";
+        return "acme";
     }
 
     @Override

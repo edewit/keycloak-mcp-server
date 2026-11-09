@@ -37,16 +37,16 @@ Every property, its default and meaning. Property → environment variable: `kc-
 | `kc-mcp.storage.enabled`        | `true` with a jdbc url      | force storage on or off |
 | `kc-mcp.storage.secret-key`     |                             | AES-256-GCM key for stored private keys, client secrets, passwords; base64 of 32 bytes or passphrase (Argon2id) |
 | `kc-mcp.storage.previous-secret-keys` |                       | rotated-away keys (csv) that still decrypt; rows are rewritten under `secret-key` at startup and by `POST /admin/storage/rekey` |
-| `kc-mcp.spi.audit-scrubber.pii-audit-scrubber.pseudonym-key` | `secret-key`   | HMAC key of the audit pseudonyms, independent of storage key rotation |
+| `kc-mcp.spi.audit-scrubber.pii.pseudonym-key` | `secret-key`   | HMAC key of the audit pseudonyms, independent of storage key rotation |
 | `kc-mcp.mcp.enabled`            | `true`                      | `false`: the MCP endpoint and its entries answer a plain 404 (no hint at what else the instance serves); for an instance that serves only the admin API or the UI ([Several instances](storage.md#several-instances-on-one-database)) |
 | `kc-mcp.admin.enabled` / `token` / `issuer` / `audience` / `role` | `false` / / / / `realm:admin` | admin API at `/admin`: static token and/or trusted issuer with role |
 | `kc-mcp.admin.allow-new-systems` | `true`                     | `false`: the admin API changes known systems only, new aliases answer 403 `registration_closed` |
 | `quarkus.mcp.server.http.root-path` | `/mcp`                  | where the MCP endpoint lives (build time); the entries, the caller authentication and the DNS rebinding protection follow it, as they do `quarkus.http.root-path` in front of everything. Known gap behind such a prefix: Quarkus writes the `resource` of an entry's protected resource metadata without the prefix, which a client that compares it with the URL it connected to may reject |
 | `kc-mcp.admin.openapi`          | `true`                      | `false`: the admin API's OpenAPI document (`/q/openapi`) and Swagger UI (`/q/swagger-ui`) answer 404 ([Several Keycloak systems](systems.md)) |
-| `kc-mcp.spi.system-repository.db-systems.cache-seconds` | `10`                  | snapshot age of stored systems |
-| `kc-mcp.spi.audit-listener.db-audit.retention-days` |                        | delete audit rows older than this (startup, then hourly); unset keeps all |
-| `kc-mcp.spi.key-vault.db-key-vault.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the JWKS |
-| `kc-mcp.spi.audit-scrubber.pii-audit-scrubber.pii` | `keep`                  | `keep`, `pseudonymize`, `drop`; `pii-args` argument names, `targets` listeners (default `db-audit`) |
+| `kc-mcp.spi.system-repository.db.cache-seconds` | `10`                  | snapshot age of stored systems |
+| `kc-mcp.spi.audit-listener.db.retention-days` |                        | delete audit rows older than this (startup, then hourly); unset keeps all |
+| `kc-mcp.spi.key-vault.db.retired-key-grace-seconds` | `3600`    | how long a rotated-away key stays in the JWKS |
+| `kc-mcp.spi.audit-scrubber.pii.mode` | `keep`                  | `keep`, `pseudonymize`, `drop`; `args` argument names, `targets` listeners (default `db`) |
 | `kc-mcp.delegation`             | `off`                       | `forward`: calls run with the caller's token; `exchange`: with a delegated token Keycloak issues for caller + server client (26.8 token exchange delegation); both need `quarkus.oidc.tenant-enabled=true` |
 | `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
 | `kc-mcp.dns-rebinding-protection` | `auto`                    | `auto` (on while anonymous), `on`, `off`: `Host`/`Origin` of MCP requests must be localhost or in `kc-mcp.dns-rebinding-allowed-hosts` |

@@ -130,7 +130,7 @@ public class UserSessionTokenStateManager implements TokenStateManager {
         if (s == null) {
             s = resolve().orElseThrow(() -> new IllegalStateException(
                     "The management UI needs a UserSessionStore: configure the database storage"
-                            + " (quarkus.datasource.jdbc.url) or register one (kc-mcp.spi.session-store.db-user-sessions)"));
+                            + " (quarkus.datasource.jdbc.url) or register one (kc-mcp.spi.session-store.db)"));
             store = s;
         }
         return s;

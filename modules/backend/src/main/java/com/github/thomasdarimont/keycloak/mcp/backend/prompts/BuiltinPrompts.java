@@ -17,7 +17,7 @@ public class BuiltinPrompts implements PromptProvider {
 
     @Override
     public String id() {
-        return "prompts";
+        return "built-in";
     }
 
     @Override

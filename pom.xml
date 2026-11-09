@@ -171,20 +171,20 @@
                             <excludedEnvironmentVariable>KC_MCP_PROFILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_PROVIDERS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_READ_ONLY</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_ACME_AUDIT_FILE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_ACME_COMPANY</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_ACME_PROTECTED_USERS_PREFIX</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_SYSTEM_REPOSITORY_ACME_TENANTS_SYSTEMS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_ID</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_SECRET</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_ENABLED</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_ISSUER</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_POLL_WAIT_SECONDS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_TIMEOUT_SECONDS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_TOKEN_ISSUER</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_DB_AUDIT_RETENTION_DAYS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_AUDIT_SCRUBBER_PII</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_AUDIT_SCRUBBER_TARGETS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_ID</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_SECRET</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_ENABLED</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_ISSUER</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_POLL_WAIT_SECONDS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_TIMEOUT_SECONDS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_TOKEN_ISSUER</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_DB_RETENTION_DAYS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_MODE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_TARGETS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_GROUP_SCOPE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_MANAGER_ROLE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_NO_ESCALATION</excludedEnvironmentVariable>
@@ -264,20 +264,20 @@
                             <excludedEnvironmentVariable>KC_MCP_PROFILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_PROVIDERS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_READ_ONLY</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_ACME_AUDIT_FILE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_ACME_COMPANY</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_ACME_PROTECTED_USERS_PREFIX</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_SYSTEM_REPOSITORY_ACME_TENANTS_SYSTEMS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_ID</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_SECRET</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_ENABLED</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_ISSUER</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_POLL_WAIT_SECONDS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_TIMEOUT_SECONDS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_TOKEN_ISSUER</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_DB_AUDIT_RETENTION_DAYS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_AUDIT_SCRUBBER_PII</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_AUDIT_SCRUBBER_TARGETS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_ID</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_SECRET</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_ENABLED</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_ISSUER</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_POLL_WAIT_SECONDS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_TIMEOUT_SECONDS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_CONFIRMER_CIBA_TOKEN_ISSUER</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_DB_RETENTION_DAYS</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_MODE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_TARGETS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_GROUP_SCOPE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_MANAGER_ROLE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_NO_ESCALATION</excludedEnvironmentVariable>

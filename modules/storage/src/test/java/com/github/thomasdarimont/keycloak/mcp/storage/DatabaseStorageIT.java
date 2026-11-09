@@ -96,7 +96,7 @@ class DatabaseStorageIT {
     @Test
     void systemsAreStoredByAliasWithALabelAndEncryptedSecrets() {
         DatabaseKeycloakSystemRepository repo = repositories.select(DatabaseKeycloakSystemRepository.class).get();
-        assertEquals("db-systems", repo.id());
+        assertEquals("db", repo.id());
         String alias = "tenant-" + UUID.randomUUID();
         KeycloakSystem tenant = system(alias, "https://sso.example.com", Optional.of("top-secret"),
                 Set.of("tenant", "tenant-2"));
@@ -190,7 +190,7 @@ class DatabaseStorageIT {
     @Test
     void theVaultCreatesRotatesAndEncryptsKeysAndKeepsSecrets() {
         DatabaseKeyVault vault = vaults.select(DatabaseKeyVault.class).get();
-        assertEquals("db-key-vault", vault.id());
+        assertEquals("db", vault.id());
         assertTrue(vault.supportsKeyCreation());
         String alias = "tenant-" + UUID.randomUUID();
 
@@ -246,7 +246,7 @@ class DatabaseStorageIT {
     @Test
     void auditEventsBecomeRows() {
         DatabaseAuditListener audit = listeners.select(DatabaseAuditListener.class).get();
-        assertEquals("db-audit", audit.id());
+        assertEquals("db", audit.id());
         String subject = UUID.randomUUID().toString();
         Caller alice = Caller.of(subject, "alice", "tenant", Set.of("realm:admin"));
         Instant at = Instant.now();
@@ -324,7 +324,7 @@ class DatabaseStorageIT {
     void retentionRemovesOldEventsOnly() {
         DatabaseAuditListener audit = listeners.select(DatabaseAuditListener.class).get();
         assertEquals(30, retention.retentionDays(),
-                "kc-mcp.spi.audit-listener.db-audit.retention-days of the test configuration");
+                "kc-mcp.spi.audit-listener.db.retention-days of the test configuration");
         String subject = UUID.randomUUID().toString();
         Caller caller = Caller.of(subject, "old-timer", "tenant", Set.of());
         Instant now = Instant.now();
@@ -346,7 +346,7 @@ class DatabaseStorageIT {
     @Test
     void userSessionsAreStoredEncryptedAndExpire() {
         UserSessionStore store = sessionStores.get();
-        assertEquals("db-user-sessions", store.id());
+        assertEquals("db", store.id());
         long now = System.currentTimeMillis();
         String id = UUID.randomUUID().toString();
         String issuer = "https://sso.example.com/realms/corp";
@@ -387,7 +387,7 @@ class DatabaseStorageIT {
     @Test
     void pendingApprovalsAreFencedByGenerationAndClaimedByOneCollector() {
         var store = approvalStores.select(DatabasePendingApprovalStore.class).get();
-        assertEquals("db-approvals", store.id());
+        assertEquals("db", store.id());
         String key = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
         long now = System.currentTimeMillis();
         String gen = store.reserve(key, now + 30_000).orElseThrow(() -> new AssertionError("first reservation wins"));

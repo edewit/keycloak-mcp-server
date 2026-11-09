@@ -35,7 +35,7 @@ class FileKeyVaultTest {
                 "public key derived from the provisioned private key");
         assertEquals("RS256", loaded.algorithm());
         assertTrue(vault.findSigningKey("Tenant/B").isPresent(), "Tenant/B -> tenant_b.pem");
-        assertEquals("file-key-vault", vault.id());
+        assertEquals("file", vault.id());
 
         // raw secrets: files under <dir>/secrets, by file-safe name
         assertTrue(vault.findSecret("tenant-a/client-secret").isEmpty());

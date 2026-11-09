@@ -20,14 +20,13 @@ import io.quarkus.scheduler.Scheduled;
  * The {@link UserSessionStore} of the database: one row of {@code kc_mcp_user_session}
  * per browser session of the management UI, tokens encrypted at rest when
  * {@code kc-mcp.storage.secret-key} is set. Expired rows are removed every hour; switch
- * the store off alone with
- * {@code kc-mcp.spi.session-store.db-user-sessions.enabled=false}.
+ * the store off alone with {@code kc-mcp.spi.session-store.db.enabled=false}.
  */
 @ApplicationScoped
 @LookupIfProperty(name = StorageEnabledInterceptorFactory.ENABLED, stringValue = "true")
 public class DatabaseUserSessionStore implements UserSessionStore {
 
-    public static final String ID = "db-user-sessions";
+    public static final String ID = "db";
 
     private static final Logger LOG = Logger.getLogger(DatabaseUserSessionStore.class);
 

@@ -152,13 +152,13 @@ the public key from a JWKS the server publishes per system. `examples/dynamic-sy
    choose *Signed JWT*, switch *Use JWKS URL* on and enter `https://mcp.example.com/auth/keys/acme/jwks.json`. On
    Keycloak 26.8.2 and later add the client scope `kc-admin-api` as a default scope. Keycloak fetches the key on the
    first token request and again whenever it meets an unknown `kid`.
-4. **Check.** `GET /admin/systems/acme` shows the system with `source: db-systems`; a call to
+4. **Check.** `GET /admin/systems/acme` shows the system with `source: db`; a call to
    `/mcp/systems/acme` (`whoami`) runs as the new service account. A failing token request answers
    `keycloak_unreachable` or `unauthorized` with the Keycloak error: `invalid_client` usually means the JWKS URL is
    not reachable from Keycloak or the `kid` is unknown, `Invalid token audience` that `issuer` must be set because
    the server reaches Keycloak at an internal URL.
 5. **Rotate** with `POST /admin/systems/acme/signing-key`: the JWKS lists the new key first and keeps the retired one
-   for `kc-mcp.spi.key-vault.db-key-vault.retired-key-grace-seconds`, so Keycloak switches without a gap.
+   for `kc-mcp.spi.key-vault.db.retired-key-grace-seconds`, so Keycloak switches without a gap.
 
 Without the database, the systems file does the same with a provisioned key: the entry in `kc-mcp.systems-file`
 names `"clientAuth": "private_key_jwt"`, the private key lies in `kc-mcp.keys-dir` as `<alias>.pem` (PKCS#8 PEM), and

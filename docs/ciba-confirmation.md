@@ -11,7 +11,7 @@ The two usual ways to confirm a destructive tool prove little. `confirm: true` i
 prompt is answered by the MCP client, and nothing says a human saw it. Both leave the decision inside the channel the
 model controls.
 
-The built-in `ciba-confirmer` moves the decision out of that channel. Before a destructive tool runs, the server files
+The built-in `ciba` confirmer moves the decision out of that channel. Before a destructive tool runs, the server files
 an authentication request for the signed-in user with the OpenID provider (OpenID Connect Client Initiated
 Backchannel Authentication, CIBA). The provider delivers it to the user's device, the device shows who asks for what,
 and the tool runs once the user approves there. Neither the model nor the MCP client takes part in that exchange.
@@ -72,7 +72,7 @@ device. Keycloak allows 50 characters without spaces in the binding message.
   `confirmation_required`, never the default confirmer's `confirm: true`. The one deliberate hand-over is
   `when=without-elicitation`, which leaves the question to clients that can ask the human themselves.
 - **Several instances.** With the [database storage](storage.md) on, pending approvals live in
-  `kc_mcp_pending_approval` (store `db-approvals`, the `auth_req_id` encrypted under the storage key, purged hourly),
+  `kc_mcp_pending_approval` (approval store `db`, the `auth_req_id` encrypted under the storage key, purged hourly),
   so the collecting call may reach any instance. Without the storage an in-memory store serves a single instance.
 
 ## Setup
@@ -93,11 +93,11 @@ On the Keycloak side, as in `examples/ciba-confirm/realms/demo-realm.json`:
 On the server side, the example's `env/ciba.env` is a template:
 
 ```shell
-KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_ENABLED=true
-KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_ID=mcp-ciba
-KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_CLIENT_SECRET=...
-KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_TIMEOUT_SECONDS=90
-KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_POLL_WAIT_SECONDS=25     # the second call waits this long, so the model notices the decision itself
+KC_MCP_SPI_CONFIRMER_CIBA_ENABLED=true
+KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_ID=mcp-ciba
+KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_SECRET=...
+KC_MCP_SPI_CONFIRMER_CIBA_TIMEOUT_SECONDS=90
+KC_MCP_SPI_CONFIRMER_CIBA_POLL_WAIT_SECONDS=25     # the second call waits this long, so the model notices the decision itself
 KC_MCP_CONFIRM_FALLBACK=deny                       # no confirm: true for clients without elicitation
 ```
 
@@ -111,7 +111,7 @@ asks the human itself, so the model calls right away and relays the answer inste
 
 ## Settings
 
-`kc-mcp.spi.confirmer.ciba-confirmer.*`, environment `KC_MCP_SPI_CONFIRMER_CIBA_CONFIRMER_*`.
+`kc-mcp.spi.confirmer.ciba.*`, environment `KC_MCP_SPI_CONFIRMER_CIBA_*`.
 
 | setting | default | meaning |
 |---|---|---|

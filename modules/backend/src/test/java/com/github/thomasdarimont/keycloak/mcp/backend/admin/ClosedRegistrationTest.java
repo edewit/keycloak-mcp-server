@@ -56,7 +56,7 @@ class ClosedRegistrationTest {
         admin().get("/admin/systems").then().statusCode(200).body("systems.alias", hasItem("frozen"));
 
         // the known system: readable, changeable, rotatable, removable
-        admin().get("/admin/systems/frozen").then().statusCode(200).body("source", equalTo("db-systems"));
+        admin().get("/admin/systems/frozen").then().statusCode(200).body("source", equalTo("db"));
         admin().body("{\"url\": \"http://127.0.0.1:1\", \"displayName\": \"Frozen Inc.\"}")
             .put("/admin/systems/frozen")
             .then()

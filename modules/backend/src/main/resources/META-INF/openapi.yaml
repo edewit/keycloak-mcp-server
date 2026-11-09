@@ -455,7 +455,7 @@ components:
         source:
           type: string
           description: Id of the repository defining the system; configured ones are read-only here
-          example: db-systems
+          example: db
         createdAt:
           type: string
           format: date-time
