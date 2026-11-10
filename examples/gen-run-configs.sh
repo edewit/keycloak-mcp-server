@@ -5,6 +5,7 @@
 #   extensions:       "quarkus:dev (extensions)" loading examples/extensions/target as providers directory, build/demo/down
 #   dynamic-systems:  PostgreSQL build + stack, mounted-jar dev stack, demo, down
 #   delegated-auth:   one quarkus:dev per env file, stack up, demo, down
+#   xaa:              one quarkus:dev per env file, stack up, demo, down
 #   ciba-confirm:     one quarkus:dev per env file, stack up, demo, down
 #   management-ui:    mkcert, one quarkus:dev per env file with the UI on
 #   multi-tenant:     keys + stack, down
@@ -127,6 +128,16 @@ shell "delegated-auth: stack up (Keycloak :8096 + delegation grant)" "delegated-
   "docker compose up -d && docker compose logs keycloak-init && docker compose logs -f keycloak"
 shell "delegated-auth: demo.sh" "delegated-auth-demo" "examples/delegated-auth" "./demo.sh"
 shell "delegated-auth: down -v" "delegated-auth-down" "examples/delegated-auth" "docker compose down -v"
+
+# --- xaa: dev mode forwarding the tokens Keycloak issues for ID-JAGs (Keycloak :8101, stand-in IdP :8102), the demo
+for f in examples/xaa/env/*.env; do
+  name=$(basename "$f" .env)
+  maven_dev "quarkus:dev ($name: xaa stack on :8101, IdP :8102, MCP :8103)" "dev-$name" < "$f"
+done
+shell "xaa: stack up (Keycloak :8101 + enterprise IdP :8102)" "xaa-up" "examples/xaa" \
+  "docker compose up -d --wait && docker compose logs -f idp"
+shell "xaa: demo.sh" "xaa-demo" "examples/xaa" "./demo.sh"
+shell "xaa: down -v" "xaa-down" "examples/xaa" "docker compose down -v"
 
 # --- ciba-confirm: dev mode against its own stack (Keycloak :8098 with the CIBA channel, approver :8095), the demo
 for f in examples/ciba-confirm/env/*.env; do

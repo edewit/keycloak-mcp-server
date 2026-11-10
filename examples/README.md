@@ -11,6 +11,7 @@ the stack of `run-modes`.
 | [multi-tenant](multi-tenant/) | two tenants as systems, keys per tenant, one MCP entry per tenant or realm, user login per realm |
 | [dynamic-systems](dynamic-systems/) | no system at startup; registration through the admin API into PostgreSQL with a generated key |
 | [delegated-auth](delegated-auth/) | the server as a delegated agent (`KC_MCP_DELEGATION=exchange`) with Keycloak's token exchange delegation |
+| [xaa](xaa/) | Cross-App Access (MCP Enterprise-Managed Authorization): an enterprise IdP's ID-JAG becomes the user's token, no login page or consent (experimental in Keycloak) |
 | [ciba-confirm](ciba-confirm/) | destructive tools approved on the user's device, with an approver app standing in for the phone |
 | [management-ui](management-ui/) | the management UI with one or two identity providers |
 | [extensions](extensions/) | an extension jar: tools, prompt, confirmer, access check, audit listener, scrubber, system repository |

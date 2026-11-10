@@ -1,0 +1,110 @@
+{
+  "realm": "acme",
+  "displayName": "ACME (Cross-App Access)",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "eventsEnabled": true,
+  "eventsExpiration": 86400,
+  "enabledEventTypes": ["JWT_AUTHORIZATION_GRANT", "JWT_AUTHORIZATION_GRANT_ERROR", "LOGIN", "LOGIN_ERROR"],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "identityProviders": [
+    {
+      "alias": "enterprise",
+      "displayName": "ACME enterprise IdP (ID-JAG issuer)",
+      "providerId": "keycloak-oidc",
+      "enabled": true,
+      "hideOnLogin": true,
+      "trustEmail": false,
+      "storeToken": false,
+      "linkOnly": true,
+      "config": {
+        "issuer": "http://localhost:8102",
+        "authorizationUrl": "http://localhost:8102/authorize",
+        "tokenUrl": "http://idp:8102/token",
+        "jwksUrl": "http://idp:8102/jwks",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "clientId": "keycloak-acme",
+        "clientSecret": "not-used-by-the-jwt-grant",
+        "clientAuthMethod": "client_secret_post",
+        "syncMode": "IMPORT",
+        "jwtAuthorizationGrantEnabled": "true",
+        "jwtAuthorizationGrantAssertionReuseAllowed": "false",
+        "jwtAuthorizationGrantMaxAllowedAssertionExpiration": "300"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "agent",
+      "name": "AI agent (MCP client), registered at the MCP authorization server",
+      "description": "Redeems ID-JAGs of the enterprise IdP (JWT authorization grant). No browser flow, no consent.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "agent-at-acme",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "attributes": {
+        "oauth2.jwt.authorization.grant.enabled": "true",
+        "oauth2.jwt.authorization.grant.idp": "enterprise"
+      },
+      "defaultClientScopes": ["basic", "acr", "roles", "profile", "email", "kc-admin-api"],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "mcp server audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "http://localhost:8103",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {"name": "keycloak-admins", "path": "/keycloak-admins", "clientRoles": {"realm-management": ["realm-admin"]}},
+    {"name": "keycloak-support", "path": "/keycloak-support", "clientRoles": {"realm-management": ["view-users", "view-events"]}},
+    {"name": "customers", "path": "/customers"}
+  ],
+  "users": [
+    {
+      "username": "alice", "enabled": true, "email": "alice@acme.test", "emailVerified": true,
+      "firstName": "Alice", "lastName": "Admin",
+      "realmRoles": ["default-roles-acme"], "groups": ["/keycloak-admins"],
+      "federatedIdentities": [{"identityProvider": "enterprise", "userId": "e-1001", "userName": "alice"}]
+    },
+    {
+      "username": "carol", "enabled": true, "email": "carol@acme.test", "emailVerified": true,
+      "firstName": "Carol", "lastName": "Support",
+      "realmRoles": ["default-roles-acme"], "groups": ["/keycloak-support"],
+      "federatedIdentities": [{"identityProvider": "enterprise", "userId": "e-1003", "userName": "carol"}]
+    },
+    {
+      "username": "bob", "enabled": true, "email": "bob@acme.test", "emailVerified": true,
+      "firstName": "Bob", "lastName": "Sales",
+      "realmRoles": ["default-roles-acme"], "groups": ["/keycloak-admins"],
+      "federatedIdentities": [{"identityProvider": "enterprise", "userId": "e-1002", "userName": "bob"}]
+    },
+    {
+      "username": "erin", "enabled": true, "email": "erin@customer.test", "emailVerified": true,
+      "firstName": "Erin", "lastName": "Customer",
+      "realmRoles": ["default-roles-acme"], "groups": ["/customers"]
+    },
+    {
+      "username": "frank", "enabled": false, "email": "frank@customer.test", "emailVerified": true,
+      "firstName": "Frank", "lastName": "Customer",
+      "realmRoles": ["default-roles-acme"], "groups": ["/customers"]
+    }
+  ]
+}

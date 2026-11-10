@@ -1,0 +1,22 @@
+{
+  "clients": {
+    "agent": {"secret": "agent-at-idp"}
+  },
+  "users": {
+    "alice": {"sub": "e-1001", "password": "alice-demo", "email": "alice@acme.test", "groups": ["keycloak-operators"]},
+    "bob": {"sub": "e-1002", "password": "bob-demo", "email": "bob@acme.test", "groups": ["sales"]},
+    "carol": {"sub": "e-1003", "password": "carol-demo", "email": "carol@acme.test", "groups": ["keycloak-operators"]},
+    "dave": {"sub": "e-1004", "password": "dave-demo", "email": "dave@acme.test", "groups": ["keycloak-operators"]}
+  },
+  "apps": [
+    {
+      "name": "Keycloak MCP server (realm acme)",
+      "audience": "http://localhost:8101/realms/acme",
+      "resource": "http://localhost:8103",
+      "clients": {"agent": "agent"},
+      "groups": ["keycloak-operators"],
+      "scopes": ["openid"],
+      "default_scope": "openid"
+    }
+  ]
+}
