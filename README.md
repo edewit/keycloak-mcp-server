@@ -65,7 +65,14 @@ logging in through your MCP client, so every call runs with your own roles. Need
      ```
    - Claude Code: `claude mcp add --transport http --client-id mcp-consumer --callback-port 33418 keycloak http://localhost:8081/mcp`,
      then `/mcp` inside a session starts the login
-   - VS Code, Cursor, Codex, Claude Desktop: [Integrations](docs/integrations.md)
+   - VS Code with GitHub Copilot: add the server to `.vscode/mcp.json` (or the user profile's `mcp.json`):
+     ```json
+     { "servers": { "keycloak": { "type": "http", "url": "http://localhost:8081/mcp" } } }
+     ```
+     Start it from the file or the *MCP: List Servers* command. Keycloak refuses VS Code's dynamic client registration,
+     so VS Code then asks for a client ID: enter `mcp-consumer` and leave the secret empty. Use the tools from the chat
+     in *Agent* mode.
+   - Cursor, Codex, Claude Desktop: [Integrations](docs/integrations.md)
 
 4. Ask it something: "who am I" lists your roles with readable labels, "find users named ali", "which groups is alice
    in"; "disable bob" works as alice and comes back `forbidden` as carol, naming the role she lacks.

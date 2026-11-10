@@ -79,8 +79,10 @@ and runs the login itself, with its own callback (`http://localhost:<port>/oauth
 ```
 
 With login, VS Code first tries dynamic client registration and otherwise asks for a client ID and secret when the
-server is started. Register both callbacks on the client, the loopback one with its trailing slash:
-`http://127.0.0.1:33418/` and `https://vscode.dev/redirect`. A bearer token can also be passed as an `Authorization`
+server is started; for the demo realms enter `mcp-consumer` and leave the secret empty (public client). Register both
+callbacks on the client, the loopback one with its trailing slash: `http://127.0.0.1:33418/` (or `http://127.0.0.1/`
+for any port) and `https://vscode.dev/redirect`. The demo realms of `run-modes`, `distribution` and `ciba-confirm`
+register both. A bearer token can also be passed as an `Authorization`
 header through an input variable. Documentation: <https://code.visualstudio.com/api/extension-guides/ai/mcp>.
 
 A Keycloak with the experimental `cimd` feature needs no client for VS Code at all: `examples/cimd-vscode/`.
@@ -129,8 +131,8 @@ body; the `Mcp-Session-Id` header of the `initialize` answer goes on every later
   scope (Keycloak 26.8.2+ checks it for Admin API tokens). The humans carry the `realm-management` roles, groups
   preferred. `KC_MCP_DELEGATION=exchange` also needs consent on the client and the delegation scope
   ([Security](security.md#callers), `examples/delegated-auth/`).
-- **Callbacks.** Every client's callback must be a redirect URI of that client. The demo realms register LM Studio's;
-  add the ones you use from the sections above. For a loopback callback (`127.0.0.1`, `localhost`) Keycloak ignores
+- **Callbacks.** Every client's callback must be a redirect URI of that client. The demo realms register LM Studio's,
+  most also Claude Code's, Codex's and VS Code's; add the ones you use from the sections above. For a loopback callback (`127.0.0.1`, `localhost`) Keycloak ignores
   the port when the registered URI has none, host and path still have to match: `http://localhost/callback` covers
   Claude Code's variable port and `http://localhost/oauth/callback` Codex's, with the path pinned. `127.0.0.1` and
   `localhost` are different hosts to Keycloak, so register the one the client uses. `*` is allowed only at the end of
