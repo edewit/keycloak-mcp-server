@@ -1,7 +1,9 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.audit;
 
-import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -12,7 +14,8 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
-import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.SettingValues;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
@@ -46,39 +49,53 @@ public class PiiAuditScrubber implements AuditScrubber {
 
     /** What happens to personal data. */
     public enum Policy {
-        KEEP, PSEUDONYMIZE, DROP;
-
-        static Policy parse(String value) {
-            return switch (value.trim().toLowerCase(Locale.ROOT)) {
-                case "keep" -> KEEP;
-                case "pseudonymize", "pseudonymise", "hash" -> PSEUDONYMIZE;
-                case "drop", "remove" -> DROP;
-                default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.audit-scrubber.pii.mode must be keep, pseudonymize or drop, not '" + value + "'");
-            };
-        }
+        KEEP, PSEUDONYMIZE, DROP
     }
 
-    private final Policy policy;
-    private final Set<String> piiArgs;
-    private final Set<String> targets;
-    private final StorageCrypto crypto;
+    public static final ConfigProperty MODE = ConfigProperty.choice("mode", Policy.class)
+        .withDefault("keep")
+        .withLabel("Mode")
+        .withDescription("What happens to personal data: keep (nothing happens), pseudonymize (keyed hash) or drop.");
 
-    @Inject
-    public PiiAuditScrubber(McpServerConfig serverConfig, StorageCrypto crypto) {
-        this(ProviderConfig.forExtension(AuditScrubber.SPI, ID, serverConfig), crypto);
-    }
+    public static final ConfigProperty ARGS = ConfigProperty.list("args")
+        .withDefault(DEFAULT_PII_ARGS)
+        .withLabel("Personal arguments")
+        .withDescription("Tool argument names treated as personal data; 'id' counts too on user tools.");
+
+    public static final ConfigProperty TARGETS = ConfigProperty.list("targets")
+        .withDefault(DatabaseAuditListener.ID)
+        .withLabel("Listeners")
+        .withDescription("Audit listener ids the scrubber applies to, '*' for every listener.");
 
     /**
      * A HMAC key of the scrubber's own, so a storage key rotation keeps the pseudonyms
      * stable.
      */
-    public static final String PSEUDONYM_KEY = "pseudonym-key";
+    public static final ConfigProperty PSEUDONYM_KEY = ConfigProperty.string("pseudonym-key")
+        .asConfidential()
+        .withLabel("Pseudonym key")
+        .withDescription(
+                "HMAC key of the pseudonyms; defaults to kc-mcp.storage.secret-key, which a rotation changes.");
 
+    public static final List<ConfigProperty> CONFIG_PROPERTIES = List.of(MODE, ARGS, TARGETS, PSEUDONYM_KEY);
+
+    private final StorageCrypto storageCrypto;
+    private Policy policy = Policy.KEEP;
+    private Set<String> piiArgs = Set.of();
+    private Set<String> targets = Set.of();
+    private StorageCrypto crypto;
+
+    /** Does nothing until {@link #configure} hands it its settings. */
+    @Inject
+    public PiiAuditScrubber(StorageCrypto crypto) {
+        this.storageCrypto = crypto;
+        this.crypto = crypto;
+    }
+
+    /** Configured with these settings, for tests. */
     PiiAuditScrubber(ProviderConfig config, StorageCrypto crypto) {
-        this(Policy.parse(config.get("mode", "keep")), config.get("args", DEFAULT_PII_ARGS),
-                config.get("targets", DatabaseAuditListener.ID),
-                config.get(PSEUDONYM_KEY).map(StorageCrypto::new).orElse(crypto));
+        this(crypto);
+        configure(config);
     }
 
     /**
@@ -86,11 +103,25 @@ public class PiiAuditScrubber implements AuditScrubber {
      * @param targets comma separated listener ids, {@code *} for all
      */
     public PiiAuditScrubber(Policy policy, String piiArgs, String targets, StorageCrypto crypto) {
+        this(crypto);
+        apply(policy, SettingValues.csv(piiArgs), SettingValues.csv(targets), crypto);
+    }
+
+    @Override
+    public List<ConfigProperty> configProperties() {
+        return CONFIG_PROPERTIES;
+    }
+
+    @Override
+    public void configure(ProviderConfig config) {
+        apply(config.readEnum(MODE, Policy.class), config.readList(ARGS), config.readList(TARGETS),
+                Optional.ofNullable(config.readString(PSEUDONYM_KEY)).map(StorageCrypto::new).orElse(storageCrypto));
+    }
+
+    private void apply(Policy policy, Collection<String> piiArgs, Collection<String> targets, StorageCrypto crypto) {
         this.policy = policy;
-        this.piiArgs = csv(piiArgs).stream()
-            .map(v -> v.toLowerCase(Locale.ROOT))
-            .collect(Collectors.toUnmodifiableSet());
-        this.targets = csv(targets);
+        this.piiArgs = piiArgs.stream().map(v -> v.toLowerCase(Locale.ROOT)).collect(Collectors.toUnmodifiableSet());
+        this.targets = Set.copyOf(targets);
         this.crypto = crypto;
         if (policy != Policy.KEEP) {
             LOG.infof("Audit events for %s %s personal data (%s)",
@@ -140,10 +171,4 @@ public class PiiAuditScrubber implements AuditScrubber {
         return scrubbed.withCaller(event.caller().withoutClaims().withName(name));
     }
 
-    private static Set<String> csv(String value) {
-        return Arrays.stream(value.split(","))
-            .map(String::trim)
-            .filter(v -> !v.isEmpty())
-            .collect(Collectors.toUnmodifiableSet());
-    }
 }

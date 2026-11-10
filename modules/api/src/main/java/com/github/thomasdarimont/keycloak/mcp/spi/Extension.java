@@ -1,5 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.spi;
 
+import java.util.List;
+
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
@@ -50,6 +52,22 @@ public interface Extension {
     /** Lower first; ties are broken by id. */
     default int order() {
         return 0;
+    }
+
+    /**
+     * The settings this extension reads, {@code kc-mcp.spi.<spi>.<id>.<name>}: the server
+     * checks them at startup before {@link #configure} (a malformed value or a missing
+     * required one counts as a failing {@code configure}, unknown keys are logged), maps
+     * environment variables to the declared names, masks the confidential ones and shows
+     * them in the admin API. {@code enabled} and {@code required} are the server's
+     * ({@link ProviderConfig#RESERVED_KEYS}) and not declared here.
+     * <p>
+     * Called before {@link #configure}, possibly on an instance that will not be
+     * configured, so return constants: a {@code static final} list on the class. Empty
+     * (the default) means undeclared: nothing is checked.
+     */
+    default List<ConfigProperty> configProperties() {
+        return List.of();
     }
 
     /**

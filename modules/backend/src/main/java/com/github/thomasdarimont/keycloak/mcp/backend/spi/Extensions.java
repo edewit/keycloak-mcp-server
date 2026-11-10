@@ -460,6 +460,10 @@ public class Extensions {
      * Every place that picks extensions asks here, so the rules and the log lines are the
      * same for all extension points.
      * <p>
+     * Settings the extension declares ({@link Extension#configProperties()}) are checked
+     * first: unknown keys are logged, a malformed or missing required value stops the
+     * start whatever the profile, as a typo must not quietly switch a control off.
+     * <p>
      * Fail closed where it matters: an extension marked
      * {@code kc-mcp.spi.<spi>.<id>.required=true} that is switched off or unsupported
      * stops the start, and so does an {@code isSupported} that throws in profile
@@ -479,6 +483,16 @@ public class Extensions {
             }
             LOG.infof("%s '%s' disabled by configuration", kind, e.id());
             return false;
+        }
+        Set<String> unknown = settings.unknownKeys();
+        if (!unknown.isEmpty()) {
+            LOG.warnf("%s '%s' ignores unknown settings %s; it reads %s", kind, e.id(),
+                    unknown.stream().map(settings::key).toList(), settings.declared().keySet());
+        }
+        List<String> problems = settings.problems();
+        if (!problems.isEmpty()) {
+            throw new IllegalStateException(
+                    kind + " '" + e.id() + "' is misconfigured: " + String.join("; ", problems));
         }
         boolean supported;
         try {

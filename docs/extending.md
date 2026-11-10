@@ -72,6 +72,23 @@ public class AcmeToolProvider implements ToolProvider {
   environment and command line, at startup after the `enabled` switch and before `isSupported`. Keep them in fields;
   a constructor cannot see them. Only the settings are passed, the Keycloak systems do not exist yet; tool providers
   also get `init(ctx)` with the full context. A failing `configure` counts like a failing `isSupported`.
+- `configProperties()` (default empty, nothing checked): the settings an extension reads, as `ConfigProperty`
+  constants, like Keycloak's `ProviderConfigProperty`. Types `STRING`, `BOOLEAN`, `INT`, `NUMBER`, `DURATION`
+  (`30`, `500ms`, `30s`, `5m`, `2h`, `1d`, `PT30S`), `URL` (absolute, with host), `LIST` (comma separated),
+  `CHOICE` (one of `options`) and `JSON`; plus label, description, default (as written in the configuration),
+  `asConfidential()` (masked in logs, error messages and `ProviderConfig.toString()`) and `asRequired()`. Before
+  `configure` the server checks the settings against them: unknown keys are logged, a malformed or missing required
+  value stops the start in every profile. `KC_MCP_SPI_<SPI>_<ID>_<KEY>` variables map to the declared name (`_PDP_URL`
+  → `pdp.url`). Read them with `config.readString(P)`, `readBoolean`, `readInt`, `readLong`, `readNumber`,
+  `readDuration`, `readUrl`, `readList`, `readChoice`, `readEnum(P, Mode.class)` or `readJson`, which apply the
+  default; a reader of the wrong type throws. `enabled` and `required` are the server's and not declared.
+  ```java
+  public static final ConfigProperty MODE = ConfigProperty.choice("mode", Mode.class).withDefault("keep");
+  public static final ConfigProperty KEY = ConfigProperty.string("pseudonym-key").asConfidential();
+
+  @Override public List<ConfigProperty> configProperties() { return List.of(MODE, KEY); }
+  @Override public void configure(ProviderConfig config) { mode = config.readEnum(MODE, Mode.class); }
+  ```
 - `isSupported(serverConfig, config)` (default `true`): asked once at startup after `kc-mcp.spi.<spi>.<id>.enabled`; an
   extension that needs a setting, a feature or a capability answers `false` when it is missing and is left out as if
   it were not installed (logged, not fatal; an exception counts as `false`). Applies to every extension point: tools,
