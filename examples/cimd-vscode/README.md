@@ -34,6 +34,10 @@ Start the server in VS Code and choose to authenticate. The browser opens Keyclo
 | `carol` | `carol-demo` | read users (`view-users`) |
 | `dave` | `dave-demo` | reach the server; every Admin API tool is forbidden |
 
+Once signed in, ask the chat about the realm, for example *list users in the demo realm on keycloak*:
+
+![VS Code chat listing the users of the demo realm](vscode-chat-demo.png)
+
 If no Keycloak page opens, VS Code is not logging in to Keycloak: a prompt can also be for its GitHub account. Check
 `Failed to create MCP auth provider` in the Window log. The server's log shows tool calls only, so a client that has
 not logged in leaves no entries.
