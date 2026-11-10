@@ -8,9 +8,10 @@ import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 
 /**
- * What the management UI session may do. The BFF enforces; the Lit UI only hides. Operators
- * ({@code kc-mcp.admin.role}) get every capability; viewers ({@code kc-mcp.ui.viewer-role},
- * when configured) get the read ones only. Neither role → no API access.
+ * What the management UI session may do. The BFF enforces; the Lit UI only hides.
+ * Operators ({@code kc-mcp.admin.role}) get every capability; viewers
+ * ({@code kc-mcp.ui.viewer-role}, when configured) get the read ones only. Neither role →
+ * no API access.
  */
 public final class UiCapabilities {
 
@@ -26,7 +27,10 @@ public final class UiCapabilities {
         return caller.hasRole(config.admin().role());
     }
 
-    /** True when a viewer role is configured and the caller holds it (operators are separate). */
+    /**
+     * True when a viewer role is configured and the caller holds it (operators are
+     * separate).
+     */
     public static boolean isViewer(Caller caller, McpServerConfig config) {
         return viewerRole(config).map(caller::hasRole).orElse(false);
     }
@@ -43,7 +47,10 @@ public final class UiCapabilities {
         return isOperator(caller, config);
     }
 
-    /** Capability strings for {@code GET /bff/me}; empty when the caller may not use the API. */
+    /**
+     * Capability strings for {@code GET /bff/me}; empty when the caller may not use the
+     * API.
+     */
     public static List<String> forCaller(Caller caller, McpServerConfig config) {
         List<String> out = new ArrayList<>();
         if (!canAccessApi(caller, config)) {

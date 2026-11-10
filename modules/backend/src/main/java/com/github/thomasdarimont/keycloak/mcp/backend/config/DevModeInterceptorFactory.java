@@ -25,11 +25,11 @@ import io.smallrye.config.DefaultValuesConfigSource;
  * {@code kc-mcp.static-systems=false}. Below {@link DefaultTenantInterceptorFactory}, so
  * the default OIDC tenant derives from the assumed system like from a configured one.
  * <p>
- * A distribution built for H2 also gets a database under {@code data/}, the management UI,
- * and {@code kc-mcp.dynamic-systems=true} so the UI / admin API can register systems into
- * that database. Whatever is configured from any source wins, and a build for another
- * database has to be given its own connection first. Below the storage switch, which sees
- * this datasource like a configured one.
+ * A distribution built for H2 also gets a database under {@code data/}, the management
+ * UI, and {@code kc-mcp.dynamic-systems=true} so the UI / admin API can register systems
+ * into that database. Whatever is configured from any source wins, and a build for
+ * another database has to be given its own connection first. Below the storage switch,
+ * which sees this datasource like a configured one.
  */
 @AutoService(ConfigSourceInterceptorFactory.class)
 public class DevModeInterceptorFactory implements ConfigSourceInterceptorFactory {
