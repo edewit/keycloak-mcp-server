@@ -87,7 +87,22 @@ requires consent refuses it.
 ./mcp-call.py --login alice:alice-demo whoami
 ./mcp-call.py --login carol:carol-demo keycloak_user_set_enabled '{"id": "dave", "enabled": true}'
 ./mcp-call.py --login alice:alice-demo --scope openid whoami        # without the delegation scope
+./mcp-call.py --login alice:alice-demo --show-tokens                # the three tokens, raw and decoded
 ```
+
+`--show-tokens` (or `SHOW_TOKENS=1 ./demo.sh` for step 1) prints to stderr the tokens of one delegated call, each
+raw for jwt.io and decoded:
+
+| token | what to look at |
+|---|---|
+| 1. the user's (`mcp-consumer`) | `aud` ∋ `keycloak-mcp`, `may_act` = the actor's service account, alice's full `realm-management` roles |
+| 2. the actor's (`client_credentials` of `keycloak-mcp`) | `sub` = the service account, no admin role at all, `aud` = the Admin API (`kc-admin-api`) |
+| 3. the delegated one (token exchange of 1 with 2) | `sub` = alice, `act` = the actor, `azp` = `keycloak-mcp`, roles cut down to the actor's role scope |
+
+Tokens 2 and 3 never leave the server, so the script requests them a second time with the actor's demo credentials
+(`ACTOR_CLIENT_ID` / `ACTOR_CLIENT_SECRET`), exactly as the server does. You get the same claims with other ids and
+timestamps, and Keycloak logs one more `TOKEN_EXCHANGE` event. With `--scope openid`, the third token is missing and
+the output shows Keycloak's refusal (`Invalid may_act claim in the subject_token`).
 
 | who | what happens |
 |---|---|

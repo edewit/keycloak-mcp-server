@@ -7,6 +7,8 @@
 #   3. carol (view-users) reads, is refused on writes; bob (no admin role) is refused outright
 #   4. a login without the delegation scope: the server explains what is missing instead of acting
 #   5. Keycloak's audit: the TOKEN_EXCHANGE event names the actor, the admin event names alice
+#
+# SHOW_TOKENS=1 ./demo.sh also prints the tokens of step 1: alice's, the actor's and the delegated one.
 set -euo pipefail
 cd "$(dirname "$0")"
 export MCP_URL=${MCP_URL:-http://localhost:8097/mcp}
@@ -16,7 +18,7 @@ step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 call() { ./mcp-call.py "$@" 2>/dev/null; }
 
 step "1. alice logs in and consents to keycloak-mcp acting on her behalf; whoami"
-./mcp-call.py --login alice:alice-demo whoami \
+./mcp-call.py --login alice:alice-demo ${SHOW_TOKENS:+--show-tokens} whoami \
   | jq '{caller: .caller.username, keycloakCallsRunAs, delegation, roles: .roles.demo | map(.role), can: .can.demo}'
 
 step "2. alice is realm-admin, yet the delegated token only carries the roles in keycloak-mcp's scope"

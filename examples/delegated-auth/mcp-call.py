@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Call a tool on the delegated MCP server as a user: mcp-call.py --login user:password [--scope "..."] <tool> [json-args]
+"""Call a tool on the delegated MCP server as a user:
+mcp-call.py --login user:password [--scope "..."] [--show-tokens] <tool> [json-args]
 
     ./mcp-call.py --login alice:alice-demo whoami
     ./mcp-call.py --login alice:alice-demo keycloak_user_search '{"search": "carol"}'
     ./mcp-call.py --login alice:alice-demo --scope openid whoami          # a login without the delegation scope
     ./mcp-call.py --token <access token> whoami                           # a token obtained elsewhere
+    ./mcp-call.py --login alice:alice-demo --show-tokens whoami            # print the access tokens involved
     MCP_URL=http://localhost:8097/mcp ./mcp-call.py ...                   # the MCP endpoint (default)
+
+--show-tokens prints to stderr each token raw (for jwt.io) and decoded: the user's token this script sends, then
+the actor's service-account token and the delegated token. The server keeps its own copies of those two to itself,
+so the script repeats its two requests with the actor's demo credentials (ACTOR_CLIENT_ID, ACTOR_CLIENT_SECRET,
+default keycloak-mcp / keycloak-mcp-secret): the same tokens apart from ids and timestamps, plus one more
+TOKEN_EXCHANGE event in Keycloak's log.
 
 --login walks Keycloak's browser flow the way an MCP client's browser does: authorization request for the public
 client mcp-consumer, login form, consent page (Keycloak asks every session whether keycloak-mcp may act on the user's
@@ -29,8 +37,60 @@ REALM = os.environ.get("REALM", "demo")
 CLIENT = "mcp-consumer"
 REDIRECT = "http://localhost:9999/callback"       # registered on mcp-consumer; nothing listens there, the code is read from the redirect
 DELEGATION_SCOPE = "openid delegation:client:keycloak-mcp"
+ACTOR = os.environ.get("ACTOR_CLIENT_ID", "keycloak-mcp")
+ACTOR_SECRET = os.environ.get("ACTOR_CLIENT_SECRET", "keycloak-mcp-secret")
+ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token"
 
 BEARER = None
+
+
+def token_request(form):
+    request = urllib.request.Request(f"{KEYCLOAK}/realms/{REALM}/protocol/openid-connect/token",
+                                     urllib.parse.urlencode(form).encode(),
+                                     {"content-type": "application/x-www-form-urlencoded"})
+    try:
+        with urllib.request.urlopen(request) as r:
+            return r.status, json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        try:
+            return e.code, json.loads(body)
+        except ValueError:
+            return e.code, {"error": body}
+
+
+def show(title, token):
+    """A token raw and decoded, on stderr so that stdout stays the tool result."""
+    def part(segment):
+        return json.loads(base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
+    header, payload = token.split(".")[:2]
+    print(f"\n--- {title}\n{token}\nheader: {json.dumps(part(header))}\n"
+          + json.dumps(part(payload), indent=2, ensure_ascii=False), file=sys.stderr)
+
+
+def show_tokens(user_token):
+    """The three tokens of a delegated call: the user's, the actor's, and the one Keycloak exchanges them for."""
+    show("1. the user's access token (what this script sends to the MCP server)", user_token)
+    form = {"grant_type": "client_credentials", "client_id": ACTOR, "client_secret": ACTOR_SECRET,
+            "scope": "kc-admin-api"}
+    status, answer = token_request(form)
+    if status == 400 and answer.get("error") == "invalid_scope":             # as the server does: older Keycloak
+        del form["scope"]
+        status, answer = token_request(form)
+    if status != 200:
+        print(f"\nactor token refused: HTTP {status} {answer}", file=sys.stderr)
+        return
+    actor_token = answer["access_token"]
+    show(f"2. the actor's token (client_credentials of {ACTOR}, repeated here as the server requests it)", actor_token)
+    status, answer = token_request({
+        "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange", "client_id": ACTOR,
+        "client_secret": ACTOR_SECRET, "subject_token": user_token, "subject_token_type": ACCESS_TOKEN_TYPE,
+        "actor_token": actor_token, "actor_token_type": ACCESS_TOKEN_TYPE, "requested_token_type": ACCESS_TOKEN_TYPE})
+    if status != 200:
+        print(f"\n--- 3. no delegated token: Keycloak refused the exchange, HTTP {status} {answer}", file=sys.stderr)
+        return
+    show("3. the delegated token (token exchange of 1 with 2 as actor; what the Admin API sees: sub = the user, "
+         "act = the actor)", answer["access_token"])
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -128,7 +188,11 @@ def main():
     args = sys.argv[1:]
     scope = DELEGATION_SCOPE
     credentials = None
+    tokens = False
     while args and args[0].startswith("--"):
+        if args[0] == "--show-tokens":
+            tokens, args = True, args[1:]
+            continue
         flag, value, args = args[0], args[1] if len(args) > 1 else None, args[2:]
         if flag == "--login":
             credentials = value
@@ -141,6 +205,10 @@ def main():
     if credentials:
         username, _, password = credentials.partition(":")
         BEARER = login(username, password, scope)
+    if tokens and BEARER:
+        show_tokens(BEARER)
+        if not args:
+            return                                                          # only the tokens, no tool call
     if not args:
         print(__doc__)
         sys.exit(2)
