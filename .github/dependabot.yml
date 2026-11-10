@@ -1,0 +1,107 @@
+# Dependabot version updates: weekly, grouped so a week produces a handful of PRs instead of dozens.
+#
+#   maven           the whole reactor from the root pom (modules, conformance fixtures, examples/extensions, the
+#                   -Pdist modules); the Quarkus platform is one PR, everything else minor/patch is another
+#   github-actions  .github/workflows, all in one PR
+#   docker          modules/backend/src/main/docker/Dockerfile.jvm
+#   docker-compose  examples/*/docker-compose*.yml
+#
+# Deliberately left to manual upgrades (see the ignore blocks):
+#   - Keycloak (quay.io/keycloak/keycloak): the version is tied to KeycloakTestResource, the checked-in OpenAPI
+#     spec (OpenApiAlignmentTest), docs/keycloak-versions.md and the examples; bumping only the image tags would
+#     silently desynchronize them. Upgrade as one change, see docs/keycloak-versions.md.
+#   - Major versions of the Quarkus platform, PostgreSQL (new on-disk format, example volumes), the Java runtime
+#     images (we target Java 21) and Jackson.
+#   - Jackson beyond patch releases: pinned above the Quarkus platform only for a CVE fix; a minor jump would
+#     diverge from what Quarkus is tested with. Drop the pin (and this rule) once the platform catches up.
+#   - This project's own artifacts.
+#
+# cooldown: new releases wait a few days before a PR is opened (broken or compromised releases are usually pulled
+# by then); security updates are not delayed.
+version: 2
+
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 5
+      semver-major-days: 14
+    commit-message:
+      prefix: "deps(maven)"
+    groups:
+      quarkus:
+        patterns:
+          - "io.quarkus.platform:*"
+          - "io.quarkus:*"
+          - "io.quarkiverse.*:*"
+      maven-minor-patch:
+        update-types: [minor, patch]
+        exclude-patterns:
+          - "io.quarkus.platform:*"
+          - "io.quarkus:*"
+          - "io.quarkiverse.*:*"
+    ignore:
+      - dependency-name: "com.github.thomasdarimont.keycloak:*"
+      - dependency-name: "io.quarkus.platform:*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "io.quarkus:*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "com.fasterxml.jackson:*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # a new major usually changes the default Eclipse formatter and fails spotless:check across the codebase
+      - dependency-name: "com.diffplug.spotless:spotless-maven-plugin"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 5
+    commit-message:
+      prefix: "deps(actions)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /modules/backend/src/main/docker
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 5
+    commit-message:
+      prefix: "deps(docker)"
+    ignore:
+      - dependency-name: "registry.access.redhat.com/ubi9/openjdk-*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: docker-compose
+    directories:
+      - /examples/*
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 5
+    commit-message:
+      prefix: "deps(examples)"
+    groups:
+      # one PR per image across all examples instead of one per example directory
+      example-images:
+        group-by: dependency-name
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "quay.io/keycloak/keycloak"
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "registry.access.redhat.com/ubi9/openjdk-*"
+        update-types: ["version-update:semver-major"]
