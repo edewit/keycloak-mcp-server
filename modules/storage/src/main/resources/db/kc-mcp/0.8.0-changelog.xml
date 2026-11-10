@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema version 0.8.0: the access checks and tool restrictions of a system, presets, settings of single realms. -->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="11-system-access" author="keycloak-mcp-server">
+        <comment>The access checks that govern the system's tool calls (JSON, encrypted like the client secret: it may
+            carry a check's credentials); null means none, the server's settings of the checks apply</comment>
+        <addColumn tableName="kc_mcp_system">
+            <column name="access_settings" type="clob"/>
+            <!-- the preset the system's block goes over -->
+            <column name="preset" type="varchar(255)"/>
+            <!-- the system's own presets, JSON, encrypted like the access block -->
+            <column name="presets" type="clob"/>
+            <!-- the system's tool restrictions over the server's, JSON (no secrets) -->
+            <column name="tool_settings" type="clob"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="12-realms" author="keycloak-mcp-server">
+        <comment>Settings of single realms of a stored system, on top of the system's; removed with the system</comment>
+        <createTable tableName="kc_mcp_realm">
+            <column name="id" type="varchar(36)">
+                <constraints primaryKey="true" primaryKeyName="pk_kc_mcp_realm" nullable="false"/>
+            </column>
+            <column name="system_id" type="varchar(36)">
+                <constraints nullable="false" foreignKeyName="fk_kc_mcp_realm_system"
+                             referencedTableName="kc_mcp_system" referencedColumnNames="id" deleteCascade="true"/>
+            </column>
+            <column name="name" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Keycloak's internal id of the realm, which stays when it is renamed -->
+            <column name="realm_id" type="varchar(255)"/>
+            <column name="display_name" type="varchar(255)"/>
+            <column name="description" type="clob"/>
+            <!-- the realm's access block, JSON, encrypted when kc-mcp.storage.secret-key is set -->
+            <column name="access_settings" type="clob"/>
+            <!-- the preset the realm's block goes over -->
+            <column name="preset" type="varchar(255)"/>
+            <!-- the realm's tool restrictions over the system's, JSON -->
+            <column name="tool_settings" type="clob"/>
+            <column name="created_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="kc_mcp_realm" columnNames="system_id, name"
+                             constraintName="uq_kc_mcp_realm_system_name"/>
+    </changeSet>
+</databaseChangeLog>

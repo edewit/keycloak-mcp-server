@@ -42,9 +42,10 @@ public class KeycloakTestResource implements QuarkusTestResourceLifecycleManager
                 Map.entry("kc-mcp.systems.mirror.url", url),
                 Map.entry("kc-mcp.systems.mirror.allowed-realms", "master"),
                 Map.entry("kc-mcp.default-system", "primary"),
-                Map.entry("kc-mcp.spi.tools.policies.group-scope", "group"),
-                Map.entry("kc-mcp.spi.tools.policies.manager-role", "realm:create-realm"),
-                Map.entry("kc-mcp.spi.tools.policies.no-escalation", "true"));
+                Map.entry("kc-mcp.spi.access-check.group-scope.default", "on"),
+                Map.entry("kc-mcp.spi.access-check.group-scope.scope", "group"),
+                Map.entry("kc-mcp.spi.access-check.group-scope.manager-role", "realm:create-realm"),
+                Map.entry("kc-mcp.spi.access-check.no-escalation.default", "on"));
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.systems;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -20,10 +21,14 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.Preset;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SystemTimestamps;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ToolSettings;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
@@ -32,6 +37,7 @@ import io.quarkus.arc.lookup.LookupIfProperty;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.runtime.BlockingOperationControl;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 
 /**
  * Keycloak systems from the {@code kc_mcp_system} table: what a control plane writes
@@ -149,8 +155,12 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
             }
             Map<String, KeycloakSystem> loaded = QuarkusTransaction.requiringNew().call(() -> {
                 Map<String, KeycloakSystem> out = new LinkedHashMap<>();
+                Map<String, List<RealmEntity>> realms = new LinkedHashMap<>();
+                for (RealmEntity r : RealmEntity.<RealmEntity>list("order by name")) {
+                    realms.computeIfAbsent(r.systemId, k -> new ArrayList<>()).add(r);
+                }
                 for (SystemEntity e : SystemEntity.<SystemEntity>list(ENABLED_IN_ORDER)) {
-                    out.put(e.alias, toSystem(e));
+                    out.put(e.alias, toSystem(e, realms.getOrDefault(e.id, List.of())));
                 }
                 return Collections.unmodifiableMap(out);
             });
@@ -227,6 +237,10 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
                 : new JsonArray(system.allowedRealms().stream().sorted().toList()).encode();
         e.trustedIssuers = system.trustedIssuers().isEmpty() ? null
                 : new JsonArray(system.trustedIssuers().stream().sorted().toList()).encode();
+        e.access = store(system.access());
+        e.preset = system.preset().orElse(null);
+        e.tools = tools(system.tools());
+        e.presets = storePresets(system.presets());
         e.version = system.version().orElse(null);
         e.issuer = system.issuer().orElse(null);
         e.updatedAt = now;
@@ -268,12 +282,19 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
     @Override
     @Transactional
     public boolean delete(String alias) {
+        // the foreign key cascades; removed here too, so that no row outlives its system
+        // whatever the database does with constraints
+        entity(alias).ifPresent(e -> RealmEntity.delete("systemId = ?1", e.id));
         boolean deleted = SystemEntity.delete("alias = ?1", alias) > 0;
         invalidate();
         return deleted;
     }
 
     KeycloakSystem toSystem(SystemEntity e) {
+        return toSystem(e, RealmEntity.list("systemId = ?1 order by name", e.id));
+    }
+
+    private KeycloakSystem toSystem(SystemEntity e, List<RealmEntity> realms) {
         return KeycloakSystem.builder(e.alias, e.url)
             .grantType(GrantType.parse(e.grantType))
             .clientAuth(ClientAuth.parse(e.clientAuth))
@@ -287,7 +308,109 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
             .issuer(e.issuer)
             .displayName(e.name)
             .description(e.description)
+            .access(access(e.access))
+            .preset(e.preset)
+            .tools(tools(e.tools))
+            .presets(presets(e.presets))
+            .realms(realms.stream()
+                .map(r -> new RealmSettings(r.name, Optional.ofNullable(r.realmId), Optional.ofNullable(r.displayName),
+                        Optional.ofNullable(r.description), Optional.ofNullable(r.preset), access(r.access),
+                        tools(r.tools)))
+                .toList())
             .build();
+    }
+
+    private AccessSettings access(String stored) {
+        return stored == null ? null : AccessSettings.fromJson(new JsonObject(crypto.reveal(stored)), "access.");
+    }
+
+    private String storePresets(Map<String, Preset> presets) {
+        if (presets.isEmpty()) {
+            return null;
+        }
+        JsonObject json = new JsonObject();
+        presets.forEach((name, p) -> json.put(name, new JsonObject(p.toMap(false))));
+        return crypto.protect(json.encode());
+    }
+
+    private List<Preset> presets(String stored) {
+        if (stored == null) {
+            return List.of();
+        }
+        JsonObject json = new JsonObject(crypto.reveal(stored));
+        List<Preset> out = new ArrayList<>();
+        for (String name : json.fieldNames()) {
+            out.add(Preset.fromJson(name, json.getJsonObject(name), "presets." + name + "."));
+        }
+        return out;
+    }
+
+    private static String tools(ToolSettings tools) {
+        return tools.isEmpty() ? null : tools.toJson().encode();
+    }
+
+    private static ToolSettings tools(String stored) {
+        return stored == null ? null : ToolSettings.fromJson(new JsonObject(stored), "tools.");
+    }
+
+    private String store(AccessSettings access) {
+        return access.isEmpty() ? null : crypto.protect(access.toJson(false).encode());
+    }
+
+    /**
+     * Adds or replaces the settings of one realm of a stored system; settings without
+     * anything in them remove the row.
+     */
+    @Override
+    @Transactional
+    public RealmSettings saveRealm(String system, RealmSettings realm) {
+        SystemEntity owner = entity(system)
+            .orElseThrow(() -> new IllegalArgumentException("No stored system named '" + system + "'"));
+        long now = System.currentTimeMillis();
+        RealmEntity e = RealmEntity.<RealmEntity>find("systemId = ?1 and name = ?2", owner.id, realm.name())
+            .firstResultOptional()
+            .orElse(null);
+        if (realm.isEmpty()) {
+            if (e != null) {
+                e.delete();
+            }
+        }
+        else {
+            if (e == null) {
+                e = new RealmEntity();
+                e.id = UUID.randomUUID().toString();
+                e.systemId = owner.id;
+                e.name = realm.name();
+                e.createdAt = now;
+            }
+            e.realmId = realm.realmId().orElse(null);
+            e.displayName = realm.displayName().orElse(null);
+            e.description = realm.description().orElse(null);
+            e.access = store(realm.access());
+            e.preset = realm.preset().orElse(null);
+            e.tools = tools(realm.tools());
+            e.updatedAt = now;
+            e.persist();
+        }
+        // the system changed: the server reconnects it, and its next calls see the realm
+        owner.updatedAt = now;
+        invalidate();
+        return realm;
+    }
+
+    @Override
+    @Transactional
+    public boolean deleteRealm(String system, String realm) {
+        Optional<SystemEntity> owner = entity(system);
+        if (owner.isEmpty()) {
+            return false;
+        }
+        boolean deleted = RealmEntity.delete("systemId = ?1 and name = ?2", owner.get().id, realm) > 0;
+        if (deleted) {
+            owner.get().updatedAt = System.currentTimeMillis();
+            invalidate();
+        }
+        return deleted;
     }
 
     /** When the row was created and last changed. */

@@ -85,7 +85,8 @@ public final class JwtSigner {
             if (jwt.publicKeyFile().isPresent()) {
                 publicKey = Jwks.loadPublicKeyPem(Path.of(jwt.publicKeyFile().get()));
             }
-            return new JwtSigner(key, publicKey, jwt.algorithm(), jwt.keyId().orElse(null));
+            String alg = jwt.algorithm() == null || jwt.algorithm().isBlank() ? algorithmFor(key) : jwt.algorithm();
+            return new JwtSigner(key, publicKey, alg, jwt.keyId().orElse(null));
         }
         catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Cannot load private key for private_key_jwt: " + e.getMessage(), e);
@@ -141,9 +142,47 @@ public final class JwtSigner {
         if (ec && !(key instanceof ECPrivateKey)) {
             throw new IllegalStateException(algorithm + " needs an EC private key");
         }
+        if (ec) {
+            // JOSE ties the curve to the algorithm (RFC 7518 3.4); another curve would
+            // sign
+            // with the wrong part length, which the token endpoint only reports as a bad
+            // signature
+            String expected = algorithmFor(key);
+            if (!algorithm.equals(expected)) {
+                throw new IllegalStateException(
+                        algorithm + " needs a key on " + curveName(algorithm) + ", this EC key is on "
+                                + curveName(expected) + ": use " + expected + " or a key on the right curve");
+            }
+        }
         if (!ec && !(key instanceof RSAPrivateKey)) {
             throw new IllegalStateException(algorithm + " needs an RSA private key");
         }
+    }
+
+    /**
+     * The JWS algorithm a key implies: {@code RS256} for RSA, {@code ES256},
+     * {@code ES384} or {@code ES512} by the curve of an EC key.
+     */
+    public static String algorithmFor(PrivateKey key) {
+        if (key instanceof ECPrivateKey ec) {
+            int bits = ec.getParams().getCurve().getField().getFieldSize();
+            return switch (bits) {
+                case 256 -> "ES256";
+                case 384 -> "ES384";
+                case 521 -> "ES512";
+                default -> throw new IllegalStateException(
+                        "EC keys on a " + bits + " bit curve have no JWS algorithm; use P-256, P-384 or P-521");
+            };
+        }
+        return "RS256";
+    }
+
+    private static String curveName(String alg) {
+        return switch (alg) {
+            case "ES256" -> "P-256";
+            case "ES384" -> "P-384";
+            default -> "P-521";
+        };
     }
 
     static String jcaName(String alg) {

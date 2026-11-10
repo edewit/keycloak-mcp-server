@@ -30,6 +30,11 @@ final class OptionCatalogue {
     private static final String ENV_PREFIX = "KC_MCP_";
     private static final String ENV_SPI_PREFIX = ENV_PREFIX + "SPI_";
     private static final String WILDCARD = "<name>";
+    /**
+     * The key of a map with plain values at the end of a setting: SmallRye takes the
+     * whole rest, dots included ({@code authorization.realms.acme.enabled}).
+     */
+    private static final String TAIL = "<key>";
     /** Optional at runtime: the backend can be built without the storage module. */
     private static final String STORAGE_CONFIG = "com.github.thomasdarimont.keycloak.mcp.storage.StorageConfig";
     private static final int MAX_DISTANCE = 3;
@@ -75,7 +80,10 @@ final class OptionCatalogue {
                 return;
             }
             if (raw == Map.class) {
-                resolve(parameterized.getActualTypeArguments()[1], key + "." + WILDCARD, keys);
+                Type value = parameterized.getActualTypeArguments()[1];
+                boolean group = value instanceof ParameterizedType
+                        || value instanceof Class<?> c && c.isInterface() && c.getName().startsWith(group(c));
+                resolve(value, key + "." + (group ? WILDCARD : TAIL), keys);
                 return;
             }
         }
@@ -96,12 +104,14 @@ final class OptionCatalogue {
     }
 
     private static Option option(String key) {
-        String name = Arrays.stream(key.split(Pattern.quote(WILDCARD), -1))
+        boolean tail = key.endsWith("." + TAIL);
+        String head = tail ? key.substring(0, key.length() - TAIL.length()) : key;
+        String name = Arrays.stream(head.split(Pattern.quote(WILDCARD), -1))
             .map(Pattern::quote)
-            .collect(Collectors.joining("(\"[^\"]+\"|[^.]+)"));
-        String env = Arrays.stream(key.split(Pattern.quote(WILDCARD), -1))
+            .collect(Collectors.joining("(\"[^\"]+\"|[^.]+)")) + (tail ? ".+" : "");
+        String env = Arrays.stream(head.split(Pattern.quote(WILDCARD), -1))
             .map(part -> Pattern.quote(part.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "_")))
-            .collect(Collectors.joining(".+"));
+            .collect(Collectors.joining(".+")) + (tail ? ".+" : "");
         return new Option(key, Pattern.compile(name), Pattern.compile(env));
     }
 

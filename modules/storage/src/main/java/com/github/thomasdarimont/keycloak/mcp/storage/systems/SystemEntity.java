@@ -75,6 +75,30 @@ public class SystemEntity extends PanacheEntityBase {
     @Column(name = "trusted_issuers")
     public String trustedIssuers;
 
+    /**
+     * The access block as JSON ({@code AccessSettings}), encrypted as a whole like the
+     * client secret since it may carry a check's credentials; null for none.
+     */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "access_settings")
+    public String access;
+
+    /** The preset the block goes over; null for none. */
+    @Column(name = "preset", length = 255)
+    public String preset;
+
+    /** The tool restrictions as JSON ({@code ToolSettings}); null for none. */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "tool_settings")
+    public String tools;
+
+    /**
+     * The system's own presets as JSON, encrypted like the access block; null for none.
+     */
+    @JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+    @Column(name = "presets")
+    public String presets;
+
     @Column(name = "version", length = 64)
     public String version;
 

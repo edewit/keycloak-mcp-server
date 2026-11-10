@@ -100,12 +100,17 @@ instances on the same database ([Several instances](storage.md#several-instances
   bootstrapping and simple automation; it never expires and is only as safe as the file or variable holding it. One of
   issuer and token is required.
 - `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `description`, `url`, `issuer`, `authRealm`,
-  `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `trustedIssuers`, `version`, `clientSecret`) into the first
+  `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `trustedIssuers`, `version`, `clientSecret`,
+  `access`, `tools`, `preset`, `presets` ([Access checks](access-checks.md))) into the first
   `MutableKeycloakSystemRepository`. Registered systems are service clients: `client_credentials` with
   `private_key_jwt` or `client_secret`; `grantType: password` answers 400 `grant_not_supported`.
   `url` must pass `kc-mcp.allowed-hosts`. `kc-mcp.admin.allow-new-systems=false` freezes the set: unknown aliases answer
   403 `registration_closed`, known systems stay changeable (reading stored systems only needs `kc-mcp.dynamic-systems`,
   not the admin API).
+- `GET|PUT|DELETE /admin/systems/<alias>/realms/<realm>`, `GET /admin/systems/<alias>/realms`: the settings of single
+  realms of a registered system: `realmId` (Keycloak's id of the realm), `displayName`, `description`, and an
+  `preset`, `access` and `tools` over the system's ([Presets](access-checks.md#presets)). A system's own `PUT` carries
+  no `realms` (400 `realms_separately`) and keeps them; `DELETE` of the system removes them.
 - `signingKey`: `generate` (new pair in a creating vault), `existing` (vault already has one), absent (existing, else generate).
 - `"clientSecret": "vault:<name>"`: checked on registration, resolved on every connection; rotating the secret needs no
   system change.

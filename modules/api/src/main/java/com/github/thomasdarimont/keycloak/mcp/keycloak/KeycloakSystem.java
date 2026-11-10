@@ -2,11 +2,16 @@ package com.github.thomasdarimont.keycloak.mcp.keycloak;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
@@ -23,7 +28,8 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 public record KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
         Optional<String> clientId, Optional<String> clientSecret, Optional<String> username, Optional<String> password,
         Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version, Optional<String> issuer,
-        Optional<String> displayName, Optional<String> description, Set<String> trustedIssuers) {
+        Optional<String> displayName, Optional<String> description, Set<String> trustedIssuers, AccessSettings access,
+        Map<String, RealmSettings> realms, Optional<String> preset, Map<String, Preset> presets, ToolSettings tools) {
 
     /**
      * Prefix of a secret value that names a {@link KeyVault} secret instead of holding
@@ -35,6 +41,94 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
         displayName = displayName == null ? Optional.empty() : displayName.map(String::trim).filter(v -> !v.isEmpty());
         description = description == null ? Optional.empty() : description.map(String::trim).filter(v -> !v.isEmpty());
         trustedIssuers = trustedIssuers == null ? Set.of() : Set.copyOf(trustedIssuers);
+        access = access == null ? AccessSettings.NONE : access;
+        realms = realms == null ? Map.of() : Collections.unmodifiableMap(new TreeMap<>(realms));
+        preset = preset == null ? Optional.empty() : preset.map(String::trim).filter(v -> !v.isEmpty());
+        presets = presets == null ? Map.of() : Collections.unmodifiableMap(new TreeMap<>(presets));
+        tools = tools == null ? ToolSettings.NONE : tools;
+    }
+
+    /** Without a tools section. */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version, Optional<String> issuer, Optional<String> displayName,
+            Optional<String> description, Set<String> trustedIssuers, AccessSettings access,
+            Map<String, RealmSettings> realms, Optional<String> preset, Map<String, Preset> presets) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, issuer, displayName, description, trustedIssuers, access, realms, preset,
+                presets, ToolSettings.NONE);
+    }
+
+    /**
+     * The tool restrictions of calls into a realm: the system's section with the realm's
+     * over it; for a global tool ({@code realm == null}) the system's. What the server
+     * restricts comes on top ({@link ToolSettings}).
+     */
+    public ToolSettings tools(String realm) {
+        RealmSettings r = realm == null ? null : realms.get(realm);
+        return r == null ? tools : tools.overlay(r.tools());
+    }
+
+    /** Without presets. */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version, Optional<String> issuer, Optional<String> displayName,
+            Optional<String> description, Set<String> trustedIssuers, AccessSettings access,
+            Map<String, RealmSettings> realms) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, issuer, displayName, description, trustedIssuers, access, realms,
+                Optional.empty(), Map.of());
+    }
+
+    /** Without realm settings. */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version, Optional<String> issuer, Optional<String> displayName,
+            Optional<String> description, Set<String> trustedIssuers, AccessSettings access) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, issuer, displayName, description, trustedIssuers, access, Map.of());
+    }
+
+    /**
+     * The access checks that govern calls into a realm: the system's block with the
+     * realm's over it; for a global tool ({@code realm == null}) the system's.
+     */
+    public AccessSettings access(String realm) {
+        RealmSettings r = realm == null ? null : realms.get(realm);
+        return r == null ? access : access.overlay(r.access());
+    }
+
+    /**
+     * The system's own {@code authorization} entry, as the authorization check reads it.
+     */
+    public AuthorizationSettings authorization() {
+        return AuthorizationSettings.of(access.check(AuthorizationSettings.CHECK));
+    }
+
+    /** The {@code authorization} entry that governs calls into a realm. */
+    public AuthorizationSettings authorization(String realm) {
+        return AuthorizationSettings.of(access(realm).check(AuthorizationSettings.CHECK));
+    }
+
+    /** Every access block of the system: its own and its realms'. */
+    public List<AccessSettings> accessBlocks() {
+        List<AccessSettings> out = new ArrayList<>();
+        out.add(access);
+        realms.values().forEach(r -> out.add(r.access()));
+        return out;
+    }
+
+    /** Without an access block: the server's settings of the checks apply. */
+    public KeycloakSystem(String name, String url, GrantType grantType, ClientAuth clientAuth, String authRealm,
+            Optional<String> clientId, Optional<String> clientSecret, Optional<String> username,
+            Optional<String> password, Optional<String> defaultRealm, Set<String> allowedRealms,
+            Optional<String> version, Optional<String> issuer, Optional<String> displayName,
+            Optional<String> description, Set<String> trustedIssuers) {
+        this(name, url, grantType, clientAuth, authRealm, clientId, clientSecret, username, password, defaultRealm,
+                allowedRealms, version, issuer, displayName, description, trustedIssuers, AccessSettings.NONE);
     }
 
     /**
@@ -140,7 +234,73 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
                     .stream()
                     .map(String::trim)
                     .filter(v -> !v.isEmpty())
-                    .toList()));
+                    .toList()),
+                access(name, s), realms(name, s), s.preset().map(String::trim).filter(v -> !v.isEmpty()),
+                presets(name, s), tools("kc-mcp.systems." + name + ".tools.", s.tools()));
+    }
+
+    private static ToolSettings tools(String where, Map<String, String> flat) {
+        try {
+            return ToolSettings.fromFlat(flat, where);
+        }
+        catch (IllegalArgumentException e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+    }
+
+    /** {@code kc-mcp.systems.<name>.presets.<preset>.*}. */
+    private static Map<String, Preset> presets(String name, McpServerConfig.SystemSettings s) {
+        Map<String, Preset> out = new LinkedHashMap<>();
+        try {
+            s.presets()
+                .forEach((p, flat) -> out.put(p,
+                        Preset.fromFlat(p, flat, "kc-mcp.systems." + name + ".presets." + p + ".")));
+        }
+        catch (IllegalArgumentException e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+        return out;
+    }
+
+    /** {@code kc-mcp.systems.<name>.realms.<realm>.*}. */
+    private static Map<String, RealmSettings> realms(String name, McpServerConfig.SystemSettings s) {
+        Map<String, RealmSettings> out = new LinkedHashMap<>();
+        s.realms().forEach((realm, r) -> {
+            try {
+                out.put(realm, new RealmSettings(realm, r.realmId(), r.displayName(), r.description(), r.preset(),
+                        AccessSettings.fromConfig(r.access(),
+                                "kc-mcp.systems." + name + ".realms." + realm + ".access."),
+                        ToolSettings.fromFlat(r.tools(), "kc-mcp.systems." + name + ".realms." + realm + ".tools.")));
+            }
+            catch (IllegalArgumentException e) {
+                throw new IllegalStateException("kc-mcp.systems." + name + ".realms." + realm + "." + e.getMessage(),
+                        e);
+            }
+        });
+        return out;
+    }
+
+    /**
+     * {@code kc-mcp.systems.<name>.access.<check>.*}; not taken from the system defaults,
+     * the checks' own settings are the defaults.
+     */
+    private static AccessSettings access(String name, McpServerConfig.SystemSettings s) {
+        try {
+            return AccessSettings.fromConfig(s.access(), "kc-mcp.systems." + name + ".access.");
+        }
+        catch (IllegalArgumentException e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+    }
+
+    /** A copy with another access block, e.g. its secret references resolved. */
+    public KeycloakSystem withAccess(AccessSettings settings) {
+        return toBuilder().access(settings).build();
+    }
+
+    /** A copy with other realm settings. */
+    public KeycloakSystem withRealms(Map<String, RealmSettings> newRealms) {
+        return toBuilder().realms(newRealms == null ? List.of() : newRealms.values()).build();
     }
 
     public KeycloakSystem withDisplayName(String label) {
@@ -177,7 +337,12 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             .issuer(issuer.orElse(null))
             .displayName(displayName.orElse(null))
             .description(description.orElse(null))
-            .trustedIssuers(trustedIssuers);
+            .trustedIssuers(trustedIssuers)
+            .access(access)
+            .tools(tools)
+            .realms(realms.values())
+            .preset(preset.orElse(null))
+            .presets(presets.values());
     }
 
     /**
@@ -212,6 +377,11 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
         private String issuer;
         private String displayName;
         private String description;
+        private AccessSettings access = AccessSettings.NONE;
+        private ToolSettings tools = ToolSettings.NONE;
+        private final Map<String, RealmSettings> realms = new LinkedHashMap<>();
+        private String preset;
+        private final Map<String, Preset> presets = new LinkedHashMap<>();
 
         private Builder() {
         }
@@ -329,6 +499,60 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             return this;
         }
 
+        /** Replaces the realm settings; realms without any setting are dropped. */
+        public Builder realms(Collection<RealmSettings> settings) {
+            realms.clear();
+            if (settings != null) {
+                settings.forEach(this::realm);
+            }
+            return this;
+        }
+
+        /** Adds or replaces one realm's settings. */
+        public Builder realm(RealmSettings settings) {
+            if (settings != null && !settings.isEmpty()) {
+                realms.put(settings.name(), settings);
+            }
+            return this;
+        }
+
+        /** The preset the system's block starts from; {@code null} for none. */
+        public Builder preset(String preset) {
+            this.preset = preset;
+            return this;
+        }
+
+        /** Replaces the system's own presets. */
+        public Builder presets(Collection<Preset> own) {
+            presets.clear();
+            if (own != null) {
+                own.forEach(p -> presets.put(p.name(), p));
+            }
+            return this;
+        }
+
+        /** The tools section; {@code null} for none. */
+        public Builder tools(ToolSettings tools) {
+            this.tools = tools == null ? ToolSettings.NONE : tools;
+            return this;
+        }
+
+        /** The access block; {@code null} for none. */
+        public Builder access(AccessSettings access) {
+            this.access = access == null ? AccessSettings.NONE : access;
+            return this;
+        }
+
+        /**
+         * The {@code authorization} check's entry of the access block; {@code null}
+         * removes it.
+         */
+        public Builder authorization(AuthorizationSettings authorization) {
+            this.access = access.with(AuthorizationSettings.CHECK,
+                    authorization == null ? CheckSettings.NONE : authorization.toCheckSettings());
+            return this;
+        }
+
         /**
          * @throws IllegalArgumentException without a name or url, or with a trusted
          * issuer that is not an absolute http(s) URL (such an entry would silently never
@@ -349,7 +573,8 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
             }
             return new KeycloakSystem(name.trim(), url.trim(), grantType, clientAuth, authRealm, text(clientId),
                     text(clientSecret), text(username), text(password), text(defaultRealm), Set.copyOf(allowedRealms),
-                    text(version), text(issuer), text(displayName), text(description), Set.copyOf(trustedIssuers));
+                    text(version), text(issuer), text(displayName), text(description), Set.copyOf(trustedIssuers),
+                    access, Map.copyOf(realms), text(preset), Map.copyOf(presets), tools);
         }
 
         private static boolean isHttpUrl(String value) {

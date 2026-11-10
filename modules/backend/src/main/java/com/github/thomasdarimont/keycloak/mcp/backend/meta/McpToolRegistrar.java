@@ -160,17 +160,20 @@ public class McpToolRegistrar {
     }
 
     /**
-     * Direct destructive tools get an optional {@code confirm} flag for clients without
-     * elicitation.
+     * Direct tools that change Keycloak get an optional {@code confirm} flag for clients
+     * without elicitation: destructive ones always need confirmation, write tools where
+     * the server, a system or a realm asks for it.
      */
     private static JsonObject withConfirm(ToolSpec spec) {
-        if (!spec.isDestructive()) {
+        if (spec.isReadOnly()) {
             return spec.inputSchema();
         }
         JsonObject schema = spec.inputSchema().copy();
         schema.getJsonObject("properties")
             .put(InputSchema.CONFIRM, new JsonObject().put("type", "boolean")
-                .put("description", "Set true after the user confirmed this destructive operation"));
+                .put("description", spec.isDestructive()
+                        ? "Set true after the user confirmed this destructive operation"
+                        : "Set true after the user confirmed this operation, when the server asks for confirmation"));
         return schema;
     }
 

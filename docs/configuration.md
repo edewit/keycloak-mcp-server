@@ -24,7 +24,9 @@ name; in the environment it is a warning, and `kc-mcp.spi.*` is not checked, sin
 `bin/kcmcp.sh show-config` prints each `kc-mcp.*` setting in effect and where it comes from, without starting the server;
 `show-config all` adds the `quarkus.*` ones. Secrets are masked by name, and every `kc-mcp.spi.*` value.
 
-`bin/kcmcp.sh validate` runs the startup checks, reports every problem and exits non-zero if there is one. It opens no
+`bin/kcmcp.sh validate` runs the startup checks, reports every problem and exits non-zero if there is one; it
+also checks the access blocks and presets of the systems in the database (when it can be read) and the systems
+file, which do not stop a normal start. It opens no
 port, runs no migration and changes no data; `--offline` leaves out the checks that contact Keycloak. It does not test
 the database connection.
 
@@ -40,6 +42,12 @@ the database connection.
 | `kc-mcp.systems.<name>.default-realm` |                       | makes `realm` optional for this system |
 | `kc-mcp.systems.<name>.allowed-realms` | all                  | csv allow-list of this system's realms |
 | `kc-mcp.systems.<name>.trusted-issuers` |                     | issuers besides the system's own Keycloak whose caller tokens the server may hand to it (default none): a realm's issuer URL for that realm alone, a Keycloak's base URL for all of its realms; whether Keycloak accepts them is configured in Keycloak |
+| `kc-mcp.systems.<name>.access.<check>.*` |                     | which access checks govern the system, in which order and with which settings (`enabled`, `order`, the check's own, e.g. `access.authorization.authzen.url`) over `kc-mcp.spi.access-check.<check>.*` ([Access checks](access-checks.md)) |
+| `kc-mcp.systems.<name>.realms.<realm>.*` |                     | settings of one realm: `realm-id`, `display-name`, `description`, `preset`, and `access.<check>.*` over the system's ([Realm settings](authzen.md#realm-settings)) |
+| `kc-mcp.systems.<name>.preset`, `...realms.<realm>.preset` |  | the preset the system's or realm's `access` goes over ([Presets](access-checks.md#presets)) |
+| `kc-mcp.systems.<name>.presets.<preset>.*` |  | the system's own presets: `extends`, `access.<check>.<key>`, `tools.<key>` |
+| `kc-mcp.presets.<preset>.*` |  | presets every system can reference: `extends`, `access.<check>.<key>`, `tools.<key>` ([Presets](access-checks.md#presets)) |
+| `kc-mcp.systems.<name>.tools.*`, `...realms.<realm>.tools.*` |  | tool restrictions over the server's, which they can only narrow: `read-only`, `allowed`, `denied`, `categories`, `unlisted`, `confirm`, `confirm-writes` ([Security](security.md#tool-restrictions-per-system-and-realm)) |
 | `kc-mcp.systems.<name>.issuer`  | `<url>/realms/<auth-realm>` | realm issuer as Keycloak states it, audience of `private_key_jwt` assertions; set when the url is internal |
 | `kc-mcp.systems.<name>.version` | read from server            | Keycloak version override / fallback ([Supported Keycloak versions](keycloak-versions.md)) |
 | `kc-mcp.system-defaults.*`      |                             | the same keys except `url`, shared by every system that does not set its own |
@@ -89,7 +97,10 @@ the database connection.
 | `kc-mcp.allowed-hosts`          | any                         | `[scheme://]host[:port]` patterns with `*`, checked at startup |
 | `kc-mcp.tool-prefix`            |                             | prefix for all tool names (`prod_`) |
 | `kc-mcp.read-only`              | `false`                     | |
-| `kc-mcp.allowed-tools` / `denied-tools` / `allowed-categories` | all | explicit narrowing |
+| `kc-mcp.allowed-tools` / `denied-tools` / `allowed-categories` | all | explicit narrowing; systems and realms can narrow further (`tools`) |
+| `kc-mcp.unlisted-tools` | `deny` with `allowed-tools`, else `allow` | what happens to tools `allowed-tools` does not name: `allow`, `read` (only if they read), `deny` ([New, removed and renamed tools](security.md#new-removed-and-renamed-tools)) |
+| `kc-mcp.confirm-tools` | | tools that need confirmation as destructive ones do ([Confirming destructive tools](security.md#confirming-destructive-tools)) |
+| `kc-mcp.confirm-writes` | `false` | every tool that changes Keycloak needs confirmation |
 | `kc-mcp.role-filter`            | `true`                      | hide/refuse tools the token's roles do not cover |
 | `kc-mcp.startup-check`          | `warn`                      | `warn`, `fail`, `off` |
 | `kc-mcp.tool-exposure`          | `hybrid`                    | `direct` / `lazy` / `hybrid` / `progressive` |

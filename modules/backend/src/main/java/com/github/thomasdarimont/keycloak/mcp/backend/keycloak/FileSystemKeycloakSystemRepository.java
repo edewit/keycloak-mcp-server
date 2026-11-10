@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,8 +17,12 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.Preset;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ToolSettings;
 import com.google.auto.service.AutoService;
 
 import io.vertx.core.json.JsonArray;
@@ -42,7 +47,9 @@ import io.vertx.core.json.JsonObject;
  * {@code keycloak-mcp-server}); {@code clientSecret}, {@code username}, {@code password},
  * {@code defaultRealm}, {@code trustedIssuers}, {@code allowedRealms}, {@code version},
  * {@code issuer} (the realm's public issuer URL when {@code url} is an internal address),
- * {@code displayName} (optional).
+ * {@code displayName} (optional), {@code access} (the access checks that govern the
+ * system's tool calls, see {@code AccessSettings}), {@code realms} (settings of single
+ * realms, {@code {"<realm>": {"displayName": "...", "access": {...}}}}).
  */
 @AutoService(KeycloakSystemRepository.class)
 public class FileSystemKeycloakSystemRepository implements KeycloakSystemRepository {
@@ -172,6 +179,51 @@ public class FileSystemKeycloakSystemRepository implements KeycloakSystemReposit
         JsonArray issuers = s.getJsonArray("trustedIssuers", new JsonArray());
         for (int j = 0; j < issuers.size(); j++) {
             system.trustedIssuer(issuers.getString(j));
+        }
+        Object access = s.getValue("access");
+        if (access != null && !(access instanceof JsonObject)) {
+            throw new IllegalArgumentException("'access' of system '" + alias + "' must map check ids to settings");
+        }
+        system.access(AccessSettings.fromJson((JsonObject) access, "access."));
+        Object tools = s.getValue("tools");
+        if (tools != null && !(tools instanceof JsonObject)) {
+            throw new IllegalArgumentException("'tools' of system '" + alias + "' must be an object");
+        }
+        system.tools(ToolSettings.fromJson((JsonObject) tools, "tools."));
+        Object preset = s.getValue("preset");
+        if (preset != null && !(preset instanceof String)) {
+            throw new IllegalArgumentException("'preset' of system '" + alias + "' must be the name of a preset");
+        }
+        system.preset((String) preset);
+        Object presets = s.getValue("presets");
+        if (presets != null && !(presets instanceof JsonObject)) {
+            throw new IllegalArgumentException("'presets' of system '" + alias + "' must map names to presets");
+        }
+        if (presets instanceof JsonObject byName) {
+            List<Preset> own = new ArrayList<>();
+            for (String presetName : byName.fieldNames()) {
+                Object p = byName.getValue(presetName);
+                if (!(p instanceof JsonObject json)) {
+                    throw new IllegalArgumentException(
+                            "presets." + presetName + " of system '" + alias + "' must be an object");
+                }
+                own.add(Preset.fromJson(presetName, json, "presets." + presetName + "."));
+            }
+            system.presets(own);
+        }
+        Object realmSettings = s.getValue("realms");
+        if (realmSettings != null && !(realmSettings instanceof JsonObject)) {
+            throw new IllegalArgumentException("'realms' of system '" + alias + "' must map realm names to settings");
+        }
+        if (realmSettings instanceof JsonObject byName) {
+            for (String realm : byName.fieldNames()) {
+                Object settings = byName.getValue(realm);
+                if (settings != null && !(settings instanceof JsonObject)) {
+                    throw new IllegalArgumentException(
+                            "realms." + realm + " of system '" + alias + "' must be an object");
+                }
+                system.realm(RealmSettings.fromJson(realm, (JsonObject) settings));
+            }
         }
         return system.build();
     }

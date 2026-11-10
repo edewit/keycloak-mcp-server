@@ -16,6 +16,7 @@ import org.jboss.logging.Logger;
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ArgumentValidator;
 import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
+import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.ReadOnlyGuard;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolCall;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
@@ -294,7 +295,8 @@ public class ToolInvoker {
     private ToolResult runWithConfirmation(ToolSpec spec, String system, KeycloakAdmin admin, String realm,
             Map<String, Object> args, boolean confirmFlag, InvocationContext ctx, List<AccessCheck.Decision> humanOnly)
             throws Exception {
-        if (spec.isDestructive() || !humanOnly.isEmpty()) {
+        boolean asked = policy.needsConfirmation(spec, realm, admin);
+        if (asked || !humanOnly.isEmpty()) {
             String reason = humanOnly.isEmpty() ? null
                     : humanOnly.stream()
                         .map(AccessCheck.Decision::message)
@@ -331,11 +333,12 @@ public class ToolInvoker {
                                 + " confirm: true is not accepted as a substitute.";
                     });
                     fields.putAll(decision.details());
-                    return ToolResult.error("confirmation_required",
-                            decision.message() != null ? decision.message()
-                                    : !humanOnly.isEmpty()
-                                            ? spec.title() + " needs the user's own confirmation: " + reason
-                                            : spec.title() + " is destructive and needs confirmation.",
+                    return ToolResult.error("confirmation_required", decision.message() != null ? decision.message()
+                            : !humanOnly.isEmpty() ? spec.title() + " needs the user's own confirmation: " + reason
+                                    : spec.isDestructive() ? spec.title() + " is destructive and needs confirmation."
+                                            : spec.title() + " needs confirmation"
+                                                    + (system == null ? "" : " in system '" + system + "'")
+                                                    + (realm == null ? "" : ", realm '" + realm + "'") + ".",
                             flatten(fields));
                 }
                 default -> {
@@ -344,8 +347,21 @@ public class ToolInvoker {
             }
         }
         ToolCall call = new ToolCall(realm, args, maxItems, ctx.caller(), system, admin, policy.capabilities(system));
-        ToolResult r = spec.handler().handle(call);
-        return r == null ? ToolResult.done("ok") : r;
+        if (!spec.isReadOnly()) {
+            ToolResult r = spec.handler().handle(call);
+            return r == null ? ToolResult.done("ok") : r;
+        }
+        // a tool that declares it only reads is held to it: its writes are refused, and
+        // the
+        // call fails whatever the tool made of the refusal
+        ReadOnlyGuard.Outcome<ToolResult> outcome = ReadOnlyGuard.run(spec.name(), () -> spec.handler().handle(call));
+        if (outcome.violation().isPresent()) {
+            return ToolResult.error("read_only_violation",
+                    spec.name() + " is declared read-only but tried to change" + " Keycloak ("
+                            + outcome.violation().get() + "); nothing was sent. This is a defect of the tool:"
+                            + " do not retry, report it.");
+        }
+        return outcome.result() == null ? ToolResult.done("ok") : outcome.result();
     }
 
 }

@@ -99,12 +99,18 @@ public class AdminSecrets {
     }
 
     /**
-     * The aliases of the systems whose client secret or password is {@code vault:<name>}.
+     * The aliases of the systems whose client secret, password or an authorization
+     * setting is {@code vault:<name>}.
      */
     List<String> usedBy(String name) {
         List<String> out = new ArrayList<>();
         for (KeycloakSystem s : systems.repository().all()) {
-            for (Optional<String> value : List.of(s.clientSecret(), s.password())) {
+            List<Optional<String>> values = new ArrayList<>(List.of(s.clientSecret(), s.password()));
+            s.accessBlocks()
+                .forEach(b -> b.checks()
+                    .values()
+                    .forEach(c -> c.settings().values().forEach(v -> values.add(Optional.of(v)))));
+            for (Optional<String> value : values) {
                 if (value.isPresent() && KeycloakSystem.isVaultRef(value.get())
                         && name.equals(KeycloakSystem.vaultRefName(value.get())) && !out.contains(s.name())) {
                     out.add(s.name());

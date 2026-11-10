@@ -26,6 +26,22 @@ import com.github.thomasdarimont.keycloak.mcp.access.Caller;
  */
 public final class SelfProtectionCheck implements AccessCheck {
 
+    /**
+     * The check's id in access blocks and
+     * {@code kc-mcp.spi.access-check.self-protection.*}.
+     */
+    public static final String ID = "self-protection";
+
+    @Override
+    public String id() {
+        return ID;
+    }
+
+    @Override
+    public String displayName() {
+        return "Self-protection";
+    }
+
     /** built-in tools that act on a user, with the argument naming them */
     static final Map<String, String> BUILT_IN = Map.of("keycloak_user_delete", "id", "keycloak_user_set_enabled", "id",
             "keycloak_user_update", "id", "keycloak_user_role_unassign", "userId", "keycloak_user_client_role_unassign",
@@ -78,6 +94,10 @@ public final class SelfProtectionCheck implements AccessCheck {
             return groupDeletion(ctx, ctx.arg("id"));
         }
         String userArg = userArgs.get(tool);
+        // a tool configured under its former name stays guarded after a rename
+        for (java.util.Iterator<String> f = ctx.tool().formerNames().iterator(); userArg == null && f.hasNext();) {
+            userArg = userArgs.get(f.next());
+        }
         if (userArg == null || ctx.arg(userArg) == null) {
             return Decision.allow();
         }

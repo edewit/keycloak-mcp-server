@@ -16,6 +16,7 @@ import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.SecretEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.SigningKeyEntity;
+import com.github.thomasdarimont.keycloak.mcp.storage.systems.RealmEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.SystemEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.web.UserSessionEntity;
 
@@ -87,7 +88,15 @@ public class StorageRekey {
         long systems = 0;
         for (SystemEntity e : SystemEntity.<SystemEntity>listAll()) {
             boolean changed = rewrite(() -> e.clientSecret, v -> e.clientSecret = v, remaining);
+            changed |= rewrite(() -> e.access, v -> e.access = v, remaining);
+            changed |= rewrite(() -> e.presets, v -> e.presets = v, remaining);
             if (changed) {
+                e.updatedAt = System.currentTimeMillis();
+                systems++;
+            }
+        }
+        for (RealmEntity e : RealmEntity.<RealmEntity>listAll()) {
+            if (rewrite(() -> e.access, v -> e.access = v, remaining)) {
                 e.updatedAt = System.currentTimeMillis();
                 systems++;
             }
@@ -146,8 +155,15 @@ public class StorageRekey {
         Map<String, Long> systems = new TreeMap<>();
         for (SystemEntity e : SystemEntity.<SystemEntity>listAll()) {
             count(systems, e.clientSecret);
+            count(systems, e.access);
+            count(systems, e.presets);
         }
         tables.put("kc_mcp_system", systems);
+        Map<String, Long> realms = new TreeMap<>();
+        for (RealmEntity e : RealmEntity.<RealmEntity>listAll()) {
+            count(realms, e.access);
+        }
+        tables.put("kc_mcp_realm", realms);
         Map<String, Long> keys = new TreeMap<>();
         for (SigningKeyEntity e : SigningKeyEntity.<SigningKeyEntity>listAll()) {
             count(keys, e.privateKey);

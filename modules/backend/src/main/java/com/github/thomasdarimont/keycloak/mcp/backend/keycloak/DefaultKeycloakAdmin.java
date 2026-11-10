@@ -312,6 +312,8 @@ public class DefaultKeycloakAdmin implements KeycloakAdmin {
     private Client newClient() {
         Client c = Keycloak.getClientProvider().newRestEasyClient(null, null, false);
         c.register(new KeycloakClientMetricsFilter(system.name(), metrics));
+        // a tool that declares it only reads cannot write through this client
+        c.register(new ReadOnlyGuard());
         return OutboundClients.readTimeout(c, readTimeout);
     }
 

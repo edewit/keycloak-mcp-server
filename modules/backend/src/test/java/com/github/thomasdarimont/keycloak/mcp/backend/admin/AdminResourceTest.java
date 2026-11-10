@@ -275,4 +275,230 @@ class AdminResourceTest {
             .body("rewritten.signingKeys", equalTo(0))
             .body("remaining", equalTo(Map.of()));
     }
+
+    @Test
+    @Order(7)
+    void systemsBringTheirOwnAuthorizationPolicy() {
+        admin().body("{\"value\": \"pdp-api-key\"}").put("/admin/secrets/gov/pdp-key").then().statusCode(201);
+        String body = """
+                {"url": "http://127.0.0.1:1", "access": {"authorization": {"enabled": true,
+                 "authzen": {"url": "https://sso.example.com/pdp/access/v1/evaluation", "auth": "header",
+                             "headerValue": "vault:gov/pdp-key"}}}}""";
+        admin().body(body)
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(201)
+            .body("access.authorization.enabled", equalTo(true))
+            .body("access.authorization.authzen.url", equalTo("https://sso.example.com/pdp/access/v1/evaluation"))
+            .body("access.authorization.authzen.headerValue", equalTo("vault:gov/pdp-key"));
+        admin().get("/admin/secrets/gov/pdp-key").then().statusCode(200).body("usedBy", hasItem("governed"));
+
+        // a plain secret is stored, never shown
+        admin().body(body.replace("vault:gov/pdp-key", "plain-key"))
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(200)
+            .body("access.authorization.authzen.headerValue", equalTo("***"));
+
+        // what a registered system may not ask for
+        admin().body(body.replace("https://sso.example.com/pdp", "https://pdp.evil.test"))
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("host_not_allowed"));
+        admin().body(body.replace("vault:gov/pdp-key", "vault:gov/missing"))
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("unknown_secret"));
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "access": {"authorization": {"authzen": {
+                 "url": "https://sso.example.com/pdp", "auth": "client-credentials",
+                 "tokenUrl": "https://sso.example.com/token", "clientId": "c", "clientAuth": "private_key_jwt",
+                 "jwtKeyFile": "/etc/passwd"}}}}""")
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("local_file_setting"));
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "access": {"authorization": {"authzen": {
+                 "url": "https://sso.example.com/pdp", "auth": "header"}}}}""")
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("invalid_authorization"))
+            .body("message", containsString("header-value"));
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "access": {"authorization": {"enabled": true, "acme-opa": {}}}}""")
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("unknown_authorization_engine"));
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "access": {"no-such-check": {"order": 1}}}""")
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("unknown_access_check"));
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "realms": {"acme": {"displayName": "ACME"}}}""")
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("realms_separately"));
+    }
+
+    @Test
+    @Order(8)
+    void realmsHaveSettingsOfTheirOwn() {
+        String realm = """
+                {"realmId": "4f2c", "displayName": "Sandbox", "description": "Where support tries things",
+                 "access": {"authorization": {"enabled": false}, "group-scope": {"order": 1}}}""";
+        admin().body(realm)
+            .put("/admin/systems/governed/realms/sandbox")
+            .then()
+            .statusCode(201)
+            .body("name", equalTo("sandbox"))
+            .body("system", equalTo("governed"))
+            .body("realmId", equalTo("4f2c"))
+            .body("displayName", equalTo("Sandbox"))
+            .body("access.authorization.enabled", equalTo(false))
+            .body("entry", equalTo("/mcp/systems/governed/sandbox"));
+        admin().body(realm).put("/admin/systems/governed/realms/sandbox").then().statusCode(200);
+        admin().get("/admin/systems/governed/realms").then().statusCode(200).body("realms.name", hasItem("sandbox"));
+        admin().get("/admin/systems/governed")
+            .then()
+            .statusCode(200)
+            .body("realms.sandbox.displayName", equalTo("Sandbox"));
+
+        // replacing the system keeps its realms
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "description": "replaced"}""")
+            .put("/admin/systems/governed")
+            .then()
+            .statusCode(200)
+            .body("realms.sandbox.realmId", equalTo("4f2c"));
+
+        // a realm is held to the same rules as its system
+        admin().body("""
+                {"access": {"authorization": {"authzen": {"url": "https://pdp.evil.test/e"}}}}""")
+            .put("/admin/systems/governed/realms/acme")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("host_not_allowed"));
+        admin().body("""
+                {"access": {"authorization": {"vendor": {}}}}""")
+            .put("/admin/systems/governed/realms/acme")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("unknown_authorization_engine"));
+        admin().body("{\"color\": \"red\"}")
+            .put("/admin/systems/governed/realms/acme")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("invalid_realm"));
+        admin().body("{}").put("/admin/systems/governed/realms/acme").then().statusCode(400);
+        admin().get("/admin/systems/governed/realms/acme")
+            .then()
+            .statusCode(404)
+            .body("error", equalTo("unknown_realm"));
+        admin().body(realm).put("/admin/systems/default/realms/acme").then().statusCode(409);
+
+        admin().delete("/admin/systems/governed/realms/sandbox").then().statusCode(204);
+        admin().delete("/admin/systems/governed/realms/sandbox").then().statusCode(404);
+        admin().body(realm).put("/admin/systems/governed/realms/sandbox").then().statusCode(201);
+        admin().delete("/admin/systems/governed").then().statusCode(204);
+        admin().get("/admin/systems/governed/realms/sandbox").then().statusCode(404);
+        admin().delete("/admin/secrets/gov/pdp-key").then().statusCode(204);
+    }
+
+    @Test
+    @Order(9)
+    void systemsBringPresetsAndRealmsReferenceThem() {
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "preset": "tenant",
+                 "presets": {
+                   "tenant": {"access": {"self-protection": {"order": 3}}},
+                   "lab": {"extends": "tenant", "access": {"group-scope": {"enabled": false}}}}}""")
+            .put("/admin/systems/with-presets")
+            .then()
+            .statusCode(201)
+            .body("preset", equalTo("tenant"))
+            .body("presets.lab.extends", equalTo("tenant"));
+        admin().body("{\"preset\": \"lab\", \"displayName\": \"Lab\"}")
+            .put("/admin/systems/with-presets/realms/lab1")
+            .then()
+            .statusCode(201)
+            .body("preset", equalTo("lab"));
+
+        admin().body("{\"preset\": \"nope\"}")
+            .put("/admin/systems/with-presets/realms/lab2")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("unknown_preset"));
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "presets": {
+                   "a": {"extends": "b"}, "b": {"extends": "a"}}}""")
+            .put("/admin/systems/with-presets")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("preset_cycle"))
+            .body("message", containsString("a -> b -> a"));
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "presets": {"tenant": {}, "lab": {"extends": "tenant"}},
+                 "access": {"authorization": {"authzen": {"url": "https://{realm.name}.example.com/e"}}}}""")
+            .put("/admin/systems/with-presets")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("placeholder_in_host"));
+        // a realm still uses "lab": replacing the system without it is refused
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "preset": "tenant",
+                 "presets": {"tenant": {"access": {"authorization": {"authzen": {
+                   "url": "https://sso.example.com/pdp/{realm.name}/access/v1/evaluation"}}}}}}""")
+            .put("/admin/systems/with-presets")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("unknown_preset"))
+            .body("message", containsString("lab"));
+
+        admin().delete("/admin/systems/with-presets").then().statusCode(204);
+    }
+
+    @Test
+    @Order(10)
+    void systemsRealmsAndPresetsRestrictTools() {
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "tools": {"denied": ["user_delete"]},
+                 "presets": {"viewer": {"tools": {"readOnly": true, "categories": ["users", "groups"]}}}}""")
+            .put("/admin/systems/restricted")
+            .then()
+            .statusCode(201)
+            .body("tools.denied", hasItem("user_delete"))
+            .body("presets.viewer.tools.readOnly", equalTo(true));
+        admin().body("{\"preset\": \"viewer\", \"tools\": {\"allowed\": [\"keycloak_user_get\"]}}")
+            .put("/admin/systems/restricted/realms/support")
+            .then()
+            .statusCode(201)
+            .body("tools.allowed", hasItem("keycloak_user_get"));
+
+        admin().body("{\"url\": \"http://127.0.0.1:1\", \"tools\": {\"denied\": [\"user_delte\"]}}")
+            .put("/admin/systems/restricted")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("unknown_tool"));
+        admin().body("{\"tools\": {\"categories\": [\"wizards\"]}}")
+            .put("/admin/systems/restricted/realms/support")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("unknown_category"));
+        admin().body("""
+                {"url": "http://127.0.0.1:1", "presets": {"viewer": {"tools": {"hidden": true}}}}""")
+            .put("/admin/systems/restricted")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("invalid_system"));
+
+        admin().delete("/admin/systems/restricted").then().statusCode(204);
+    }
 }

@@ -180,6 +180,108 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+  /admin/systems/{alias}/realms:
+    parameters:
+      - $ref: "#/components/parameters/alias"
+    get:
+      tags: [systems]
+      summary: The settings of the system's realms
+      operationId: listRealms
+      responses:
+        "200":
+          description: Every realm the server keeps settings for
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [realms]
+                properties:
+                  realms:
+                    type: array
+                    items: { $ref: "#/components/schemas/Realm" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownSystem" }
+  /admin/systems/{alias}/realms/{realm}:
+    parameters:
+      - $ref: "#/components/parameters/alias"
+      - $ref: "#/components/parameters/realm"
+    get:
+      tags: [systems]
+      summary: One realm's settings
+      operationId: getRealm
+      responses:
+        "200":
+          description: The realm's settings, secrets as `***` or their `vault:` reference
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Realm" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: "`unknown_system`, or `unknown_realm`: no settings for that realm"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    put:
+      tags: [systems]
+      summary: Add or replace a realm's settings
+      description: |
+        Labels, Keycloak's id of the realm, and an access block that goes over the system's: per check its `enabled`
+        and `order` win, its settings win key by key. Held to the same rules as the system's own block. Only systems of the
+        admin API's repository; a system `PUT` never carries realms (400 `realms_separately`) and keeps them.
+      operationId: putRealm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RealmSettings" }
+      responses:
+        "200":
+          description: Replaced
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Realm" }
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Realm" }
+        "400":
+          description: >-
+            `invalid_realm`, `invalid_realm_name`, `unknown_secret`, `host_not_allowed`, `private_host`,
+            `local_file_setting`, `unknown_access_check`, `access_check_locked`, `unknown_authorization_engine`,
+            `invalid_authorization`
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownSystem" }
+        "409":
+          description: "`system_configured`: the system comes from a repository the admin API cannot change"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [systems]
+      summary: Remove a realm's settings; the system's apply to it again
+      operationId: deleteRealm
+      responses:
+        "204":
+          description: Removed
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: "`unknown_system` or `unknown_realm`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: "`system_configured`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /admin/secrets:
     get:
       tags: [secrets]
@@ -335,6 +437,14 @@ components:
       required: true
       description: The system's name
       schema: { $ref: "#/components/schemas/Alias" }
+    realm:
+      name: realm
+      in: path
+      required: true
+      description: The realm's name in Keycloak
+      schema:
+        type: string
+        maxLength: 255
     secretName:
       name: name
       in: path
@@ -419,9 +529,184 @@ components:
           type: string
           enum: [generate, existing]
           description: With `private_key_jwt`, where the key comes from; absent takes the existing key, else generates one
+        access:
+          $ref: "#/components/schemas/Access"
+        tools:
+          $ref: "#/components/schemas/Tools"
+        preset:
+          type: string
+          description: The preset the system's `access` goes over (its own, else the server's)
+        presets:
+          type: object
+          description: The system's own presets by name
+          additionalProperties:
+            $ref: "#/components/schemas/Preset"
+    Access:
+      type: object
+      description: >-
+        The access checks that govern the tool calls, by check id, over the server's
+        `kc-mcp.spi.access-check.<id>.*` (a realm's over its system's, key by key; `docs/access-checks.md`). An entry
+        for a check the server does not have answers 400 `unknown_access_check`, one for a check the operator locked
+        400 `access_check_locked`. Whatever the check, URL-valued settings must pass `kc-mcp.allowed-hosts` and the
+        private-host rule, and settings ending in `File` answer 400 `local_file_setting`.
+      properties:
+        authorization:
+          $ref: "#/components/schemas/Authorization"
+      additionalProperties:
+        $ref: "#/components/schemas/CheckEntry"
+      example:
+        self-protection: { order: 10, mode: confirm }
+        group-scope: { enabled: false }
+    Preset:
+      type: object
+      description: >-
+        A named set of settings: `extends` names one other preset (the system's, else the server's), whose settings it
+        goes over; `access` holds access check entries. Other keys answer 400. A cycle answers 400 `preset_cycle`, an
+        unknown name `unknown_preset`.
+      additionalProperties: false
+      properties:
+        extends:
+          type: string
+        access:
+          $ref: "#/components/schemas/Access"
+        tools:
+          $ref: "#/components/schemas/Tools"
+    Tools:
+      type: object
+      description: >-
+        Tool restrictions over the server's `kc-mcp.read-only`, `allowed-tools`, `denied-tools` and
+        `allowed-categories`, which they can only narrow; among presets, system and realm the most specific key wins.
+        Unknown tools answer 400 `unknown_tool`, unknown categories `unknown_category`.
+      additionalProperties: false
+      properties:
+        readOnly: { type: boolean, description: Only tools that read }
+        allowed:
+          type: array
+          items: { type: string }
+          description: Only these tools (with or without the `keycloak_` prefix)
+        denied:
+          type: array
+          items: { type: string }
+          description: Never these tools
+        categories:
+          type: array
+          items: { type: string }
+          description: Only tools of these categories
+        confirm:
+          type: array
+          items: { type: string }
+          description: These tools need confirmation there, as destructive ones do
+        confirmWrites:
+          type: boolean
+          description: Every tool that changes Keycloak needs confirmation there
+        unlisted:
+          type: string
+          enum: [allow, read, deny]
+          description: What happens to the tools `allowed` does not name; unset, `deny` with `allowed`, else `allow`
+    CheckEntry:
+      type: object
+      description: One check's entry; its own settings beside `enabled` and `order`
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the check runs here; absent follows the level below (realm, system, the server's `default`)
+        order:
+          type: integer
+          description: Where it runs, lower first; absent follows the level below, then the check's own order
+      additionalProperties: true
+    Authorization:
+      type: object
+      description: >-
+        Whether tool calls are evaluated by the server's authorization engines, and per engine the settings that differ
+        from the engine's own (`kc-mcp.spi.authorization-engine.<id>.*`, `docs/authzen.md`). Every other key names an
+        engine by its id and holds its settings; naming engines limits the calls to them, naming none hands them to
+        every engine the server has. An engine the server does not have answers 400 `unknown_authorization_engine`.
+        Whatever the engine, URL-valued settings must pass `kc-mcp.allowed-hosts` and the private-host rule, settings
+        ending in `File` answer 400 `authorization_local_file`, and settings an engine finds wrong 400
+        `invalid_authorization`.
+      properties:
+        enabled:
+          type: boolean
+          description: Evaluate the calls; absent follows the system (for a realm), else each engine's `default` (off)
+        order:
+          type: integer
+          description: Where the authorization check runs among the access checks
+        authzen:
+          $ref: "#/components/schemas/AuthZenSettings"
+      additionalProperties:
+        type: object
+        description: A vendor engine's settings, by the engine's id
+        additionalProperties:
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+    AuthZenSettings:
+      type: object
+      description: The `authzen` engine's settings over `kc-mcp.spi.authorization-engine.authzen.*`
+      additionalProperties:
+        description: Further settings in camelCase (`connectTimeout`, `tlsConfigurationName`, a client authentication method's own)
+        oneOf:
+          - type: string
+          - type: number
+          - type: boolean
+      properties:
+        url:
+          type: string
+          description: The PDP's evaluation endpoint; may contain `{system}` and `{realm}`
+          example: https://pdp.example.com/access/v1/evaluation
+        auth:
+          type: string
+          enum: [none, header, client-credentials, system-client]
+          description: "`system-client`: a token for the PDP from the system's own Keycloak, requested with the system's own client and `scope`"
+        headerName: { type: string, default: Authorization }
+        headerValue:
+          type: string
+          description: A literal (stored encrypted, shown as `***`) or `vault:<name>`
+        tokenUrl: { type: string, format: uri }
+        clientId: { type: string }
+        clientAuth:
+          type: string
+          description: "`client_secret_basic` (default), `client_secret_post`, `private_key_jwt` (signed with the system's own key) or an extension's"
+        clientSecret:
+          type: string
+          description: A literal (stored encrypted, shown as `***`) or `vault:<name>`
+        scope: { type: string }
+        onError:
+          type: string
+          enum: [deny, allow]
+        sendArgs: { type: boolean }
+    RealmSettings:
+      type: object
+      description: One realm of a system, on top of the system's settings
+      properties:
+        realmId:
+          type: string
+          description: Keycloak's internal id of the realm, which stays when the realm is renamed
+        displayName: { type: string }
+        description: { type: string }
+        access:
+          $ref: "#/components/schemas/Access"
+        tools:
+          $ref: "#/components/schemas/Tools"
+        preset:
+          type: string
+          description: The preset the realm's `access` goes over
+    Realm:
+      allOf:
+        - $ref: "#/components/schemas/RealmSettings"
+        - type: object
+          required: [name, system, entry]
+          properties:
+            name: { type: string, description: The realm's name in Keycloak }
+            system: { $ref: "#/components/schemas/Alias" }
+            entry:
+              type: string
+              description: The MCP entry of the realm
+              example: /mcp/systems/acme/sandbox
     System:
       type: object
-      description: A system without its secrets (`clientSecret` and `password` show `***`, or their `vault:` reference)
+      description: A system without its secrets (`clientSecret`, `password` and the authorization secrets, its realms' too, show `***`, or their `vault:` reference)
       required: [alias, url, authRealm, grantType, clientAuth, allowedRealms, entries]
       properties:
         alias: { $ref: "#/components/schemas/Alias" }
@@ -452,6 +737,23 @@ components:
           type: array
           items: { type: string }
         version: { type: string }
+        access:
+          $ref: "#/components/schemas/Access"
+        tools:
+          $ref: "#/components/schemas/Tools"
+        preset:
+          type: string
+          description: The preset the system's `access` goes over (its own, else the server's)
+        presets:
+          type: object
+          description: The system's own presets by name
+          additionalProperties:
+            $ref: "#/components/schemas/Preset"
+        realms:
+          type: object
+          description: The settings of the system's realms by name (`/admin/systems/{alias}/realms`)
+          additionalProperties:
+            $ref: "#/components/schemas/RealmSettings"
         source:
           type: string
           description: Id of the repository defining the system; configured ones are read-only here

@@ -537,6 +537,13 @@ public class MetaTools {
             if (isMetaTool(name == null ? "" : ToolCatalog.normalize(name))) {
                 return ToolResult.error("invalid_arguments", "Call " + name + " directly, not through execute_tool.");
             }
+            Optional<String> renamed = catalog.renamedTo(name);
+            if (renamed.isPresent()) {
+                // the old name does not run the tool: it may do something else now
+                return ToolResult.error("unknown_tool",
+                        "'" + name + "' was renamed to '" + renamed.get() + "'; call it by its new name.", "renamedTo",
+                        renamed.get());
+            }
             List<SearchHit> similar = index.similarNames(name == null ? "" : name, 3, policy::visibleNow);
             JsonArray didYouMean = new JsonArray();
             for (SearchHit hit : similar) {

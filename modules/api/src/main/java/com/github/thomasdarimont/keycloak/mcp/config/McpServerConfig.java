@@ -264,6 +264,26 @@ public interface McpServerConfig {
     Optional<List<String>> allowedCategories();
 
     /**
+     * What happens to the tools {@link #allowedTools()} does not name: {@code allow},
+     * {@code read} (only if they read: new write and destructive tools wait until listed)
+     * or {@code deny}. Unset: {@code deny} with an allow-list, {@code allow} without.
+     */
+    @WithConverter(UnlistedTools.Converter.class)
+    Optional<UnlistedTools> unlistedTools();
+
+    /**
+     * These tools need confirmation, as destructive ones do (csv). Systems, realms and
+     * presets can add their own ({@code tools.confirm}).
+     */
+    Optional<List<String>> confirmTools();
+
+    /**
+     * Every tool that changes Keycloak needs confirmation, not only the destructive ones.
+     */
+    @WithDefault("false")
+    boolean confirmWrites();
+
+    /**
      * Hide and refuse tools whose realm-management roles the server's own token does not
      * hold.
      */
@@ -320,6 +340,12 @@ public interface McpServerConfig {
         @WithParentName
         Map<String, Map<String, String>> extensions();
     }
+
+    /**
+     * Presets every system can reference: {@code extends} and {@code <check>.<key>} per
+     * preset name ({@link com.github.thomasdarimont.keycloak.mcp.keycloak.Preset}).
+     */
+    Map<String, Map<String, String>> presets();
 
     /** Elicitation / confirmation prompt timeout in seconds. */
     @WithDefault("120")
@@ -659,6 +685,60 @@ public interface McpServerConfig {
 
         /** Issuer of this system's auth realm; see {@link McpServerConfig#issuer()}. */
         Optional<String> issuer();
+
+        /**
+         * The access checks that govern this system's tool calls, per check id
+         * ({@link com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings}):
+         * {@code enabled}, {@code order} and the check's settings over
+         * {@code kc-mcp.spi.access-check.<id>.*}; ignored in
+         * {@code kc-mcp.system-defaults}.
+         */
+        Map<String, Map<String, String>> access();
+
+        /** The preset the system's {@link #access()} goes over. */
+        Optional<String> preset();
+
+        /**
+         * Tool restrictions of this system over the server's, which they can only tighten
+         * ({@link com.github.thomasdarimont.keycloak.mcp.keycloak.ToolSettings}):
+         * {@code read-only}, {@code allowed}, {@code denied}, {@code categories}; ignored
+         * in {@code kc-mcp.system-defaults}.
+         */
+        Map<String, String> tools();
+
+        /**
+         * The system's own presets: {@code extends} and {@code <check>.<key>} per preset
+         * name; ignored in {@code kc-mcp.system-defaults}.
+         */
+        Map<String, Map<String, String>> presets();
+
+        /**
+         * Settings of single realms of this system, on top of the system's
+         * ({@link com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings});
+         * ignored in {@code kc-mcp.system-defaults}.
+         */
+        Map<String, RealmConfig> realms();
+    }
+
+    /** One realm of a system: {@code kc-mcp.systems.<name>.realms.<realm>.*}. */
+    interface RealmConfig {
+        /** Keycloak's internal id of the realm, which stays when it is renamed. */
+        Optional<String> realmId();
+
+        /** A name for people. */
+        Optional<String> displayName();
+
+        /** Free text for people: what the realm is, who owns it. */
+        Optional<String> description();
+
+        /** Over the system's {@link SystemSettings#access()}, check by check. */
+        Map<String, Map<String, String>> access();
+
+        /** The preset the realm's {@link #access()} goes over. */
+        Optional<String> preset();
+
+        /** Over the system's {@link SystemSettings#tools()}. */
+        Map<String, String> tools();
     }
 
     interface Jwt {

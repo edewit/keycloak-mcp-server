@@ -42,12 +42,91 @@ be set on its own in either profile.
   The admin client and the UI's discovery never follow redirects. The address is checked when the system is registered
   or changes, not on every connection.
 - **Tools.** `KC_MCP_ALLOWED_TOOLS`, `KC_MCP_DENIED_TOOLS` and `KC_MCP_ALLOWED_CATEGORIES` narrow the tool set
-  explicitly.
+  explicitly. Per system, realm and preset, a `tools` section narrows it further for the calls into them
+  ([Tool restrictions per system and realm](#tool-restrictions-per-system-and-realm)).
 - **DNS rebinding.** While the MCP endpoint is anonymous, requests whose `Host` or `Origin` is not localhost answer
   403 `forbidden_host`, so a web page cannot reach the local server through a name rebound to 127.0.0.1
   (`kc-mcp.dns-rebinding-protection`, default `auto`). It is off once callers authenticate.
   `kc-mcp.dns-rebinding-allowed-hosts` adds `host[:port]` values for an anonymous server reached by name or through a
   proxy. The host of `kc-mcp.hostname` counts too. JWKS and admin routes are not covered.
+
+### Tool restrictions per system and realm
+
+A system, a realm and a [preset](access-checks.md#presets) can each have a `tools` section, with the same four
+restrictions the server has:
+
+| key (config / JSON) | meaning |
+|---|---|
+| `read-only` / `readOnly` | only tools that read |
+| `denied` | never these tools (names with or without `keycloak_`) |
+| `allowed` | only these tools |
+| `categories` | only tools of these categories (`users`, `clients`, ...) |
+| `unlisted` | what happens to the tools `allowed` does not name: `allow`, `read` (only if they read) or `deny`; unset: `deny` with an `allowed` list, `allow` without |
+| `confirm` | these tools need confirmation there, as destructive ones do ([Confirming destructive tools](#confirming-destructive-tools)) |
+| `confirm-writes` / `confirmWrites` | every tool that changes Keycloak needs confirmation there |
+
+```properties
+kc-mcp.systems.prod.tools.denied=user_delete,realm_update
+kc-mcp.systems.prod.realms.support.tools.categories=users,groups
+kc-mcp.systems.prod.realms.customers.tools.confirm=user_set_enabled,user_logout
+kc-mcp.presets.viewer.tools.read-only=true
+kc-mcp.systems.prod.realms.audit.preset=viewer
+```
+
+Among the tenant levels the most specific key wins, as with `access`: the system's preset, the system, the realm's
+preset, the realm. Against the server a section can only take tools away. The server's `kc-mcp.read-only`,
+`denied-tools`, `allowed-tools` and `allowed-categories` are checked first and on their own, so no system or realm can
+re-enable what the server closed, and no section can take a confirmation away. The keys of a section do not repeat
+"tools" (`confirm`, not `confirm-tools`); an unknown key stops the start rather than be ignored. That is why a `tools` section needs no lock, unlike an access check: whoever
+registers a system through the admin API can only narrow its tools. The admin API refuses names of tools that do not
+exist (`unknown_tool`) and unknown categories (`unknown_category`), since a misspelt name would deny nothing.
+
+A section is enforced when a tool is called, where system and realm are known (`read_only_mode`, `tool_not_allowed`,
+naming system and realm). The tool list and the search are the server's and show tools a system may still refuse.
+
+### New, removed and renamed tools
+
+A new tool, from an upgrade or an extension, is available wherever no allow-list stands in its way. The server's
+`kc-mcp.unlisted-tools` (and `tools.unlisted` of a system, realm or preset) decides what happens to the tools nobody
+named:
+
+| `unlisted` | a tool no `allowed` list names |
+|---|---|
+| `allow` | available (the default without an `allowed` list; also in profile `shared`) |
+| `read` | available if it only reads: new read tools appear by themselves, new write and destructive tools wait until someone lists them |
+| `deny` | not available (the default with an `allowed` list) |
+
+`read-only` is the stronger switch: it refuses write tools even when listed. As every tool setting, a system or realm
+can only be stricter than the server (`deny` before `read` before `allow`).
+
+A removed tool, an uninstalled extension or a switched-off provider takes the tool out of the catalog: it is neither
+listed nor found, and a call answers `unknown_tool`. What still names it is reported: at startup as a warning, by
+`bin/kcmcp.sh validate` as a problem (stored systems included), since such an entry restricts nothing. That covers the
+server's `allowed-tools` and `denied-tools`, the `tools` sections of systems, realms and presets, and
+`self-protection.tools`.
+
+A renamed tool keeps its old names as former names (`ToolSpec.Builder.formerly(...)`). They only ever restrict:
+
+- a `denied` list, and `self-protection.tools`, that name a former name still apply to the tool, so a restriction
+  survives the rename;
+- an `allowed` list does not carry over: the tool has to be listed under its new name;
+- calling a former name answers `unknown_tool` with the new name (`renamedTo`); it does not run the tool;
+- a former name that is a tool's current name, or claimed by two tools, stops the start, so no tool can take another's
+  name or hide behind a disabled one;
+- `validate` reports entries that use a former name, with the name to use.
+
+### Read tools only read
+
+A tool declares its level (`read`, `write`, `destructive`); the declaration decides read-only mode, `unlisted=read`
+and the confirmation. While a read tool runs, the admin client refuses every Admin API request (`/admin/...`) that is
+not `GET`, `HEAD` or `OPTIONS`: the request is not sent, the call fails as `read_only_violation` (even if the tool
+catches the error) and the server logs it as an error. Token requests pass. Tools declared `write` or `destructive`
+(disabling a user, say: `keycloak_user_set_enabled` is a write) are not affected; no built-in tool declared `read`
+needs more than `GET`.
+
+This catches mislabelled tools and mistakes; it is no sandbox. An extension runs in the server's process and can build
+its own HTTP client or read the server's secrets: installing a jar in `providers/` is a decision of trust, as with a
+Keycloak provider. Work a tool hands to a pooled thread escapes the guard.
 
 ### Roles decide what the model sees
 
@@ -69,6 +148,11 @@ instead ([Callers](#callers)).
 DESTRUCTIVE tools delete users and groups, reset passwords, log users out, unassign roles. `keycloak_realm_update`
 and `keycloak_auth_flow_bind` count as destructive too, for the lock-out risk. `keycloak_user_delete` also demands the
 matching `username`, so an id alone cannot delete.
+
+More tools can need confirmation, the same way: server-wide `kc-mcp.confirm-tools=user_set_enabled` or
+`kc-mcp.confirm-writes=true` (every tool that changes Keycloak), and per system, realm or preset the `confirm` and
+`confirm-writes` keys of the [tools section](#tool-restrictions-per-system-and-realm). Confirmation can only be
+added: a destructive tool is confirmed everywhere, a read tool never.
 
 - **Elicitation first.** When the MCP client supports it, the server asks the human through the client.
 - **Without elicitation**, `kc-mcp.confirm-fallback` decides: `flag` (the `local` default) requires and explains
@@ -145,26 +229,45 @@ tool("keycloak_user_delete")
 
 - An `AccessCheck` gets the tool, the resolved realm, the validated arguments, the granted roles and the `Caller`. It
   runs after the realm and role checks and before the confirmation. A denial answers `{"error": <code>, "message": ...}`.
-- Global checks come from `ToolProvider.accessChecks(...)` or any CDI bean implementing `AccessCheck`.
+- Global checks come from `ToolProvider.accessChecks(...)` or any CDI bean implementing `AccessCheck`. Which of them
+  run, in which order and with which settings can differ per system and realm ([Access checks](access-checks.md)).
 - `Delegation` says whether a tool may run with a delegated identity. Under `KC_MCP_DELEGATION=forward` every call is
   delegated (`Caller.delegated()`): `FORBIDDEN` tools are refused, `REQUIRED` tools usable; service account mode is the
   reverse. `FORBIDDEN` by default: `client_get_secret`, `client_regenerate_secret`, `realm_update`, `auth_flow_bind`,
   `federation_sync`.
 - Version and feature requirements: [Supported Keycloak versions](keycloak-versions.md).
+- External policies: authorization engines (the built-in `authzen` speaks AuthZEN to a PDP; extensions add vendors')
+  decide about tool calls. The server switches an engine on, each system (configured or registered at runtime) and
+  realm decides whether its calls go through it and may bring its own settings ([External authorization](authzen.md)).
 
 ### Built-in policies: group scope, no escalation, self-protection
 
-The provider `policies` adds caller-relative checks once callers are authenticated ([Callers](#callers)).
+Three caller-relative [access checks](access-checks.md), once callers are authenticated ([Callers](#callers)). Each is
+configured as an access check, `kc-mcp.spi.access-check.<id>.*` on the server and `access.<id>` per system and realm,
+where it can also be switched off or reordered.
 
-| `kc-mcp.spi.tools.policies.*` | default | meaning |
+| check, `kc-mcp.spi.access-check.<id>.` | default | meaning |
 |---|---|---|
-| `group-scope` | `off` | `group`: callers manage only groups they belong to, or subgroups of them; `organization`: the groups of their organizations |
-| `manager-role` | | the role needed for group management, e.g. `realm:group-manager` |
-| `no-escalation` | `true` | grants (direct, client role, group mapping, membership) only within the caller's effective roles; no touching users who outrank them; no self-grants |
-| `self-protection` | `reject` | a caller deleting or disabling their own account (`user_delete`, `user_set_enabled`, `user_update` with `enabled=false`) or removing their own administrative access (`realm:admin`, `realm-management.*`, master `<realm>-realm.*`, super roles; directly, by leaving a group that grants one, or by deleting a group whose subtree grants one to them) is refused; a caller or group the directory cannot resolve is caught too, and a group or composite role whose mappings cannot be read fails the call (`access_check_failed`) rather than passing as harmless; `confirm` lets the call through only after the human confirmed it themselves, by elicitation or a confirmer that asks them such as [CIBA](ciba-confirmation.md), never by the model's `confirm: true`; `off` disables it. Other roles and groups of their own callers may drop; super roles do not bypass it |
-| `self-protection-tools` | | more tools the guard covers, `<tool>=<user argument>` comma separated (a tool of another provider is caught whenever it acts on the caller); `<tool>=` removes a built-in one |
-| `anonymous` | `allow` | `deny`: guarded tools are refused without a known caller |
-| `super-roles` | `realm:admin, realm-management.realm-admin` | holders bypass the group scope and escalation checks, not self-protection |
+| `group-scope` | off (`default=on` or a system's or realm's `enabled: true` switches it on) | callers manage only the groups of their `scope` |
+| `group-scope.scope` | `group` | `group`: groups they belong to, or subgroups of them; `organization`: the groups of their organizations |
+| `group-scope.manager-role` | | the role needed for group management, e.g. `realm:group-manager` |
+| `no-escalation` | on | grants (direct, client role, group mapping, membership) only within the caller's effective roles; no touching users who outrank them; no self-grants |
+| `self-protection` | on | a caller deleting or disabling their own account (`user_delete`, `user_set_enabled`, `user_update` with `enabled=false`) or removing their own administrative access (`realm:admin`, `realm-management.*`, master `<realm>-realm.*`, super roles; directly, by leaving a group that grants one, or by deleting a group whose subtree grants one to them) is caught; a caller or group the directory cannot resolve is caught too, and a group or composite role whose mappings cannot be read fails the call (`access_check_failed`) rather than passing as harmless. Other roles and groups of their own callers may drop; super roles do not bypass it |
+| `self-protection.mode` | `reject` | `confirm` lets the call through only after the human confirmed it themselves, by elicitation or a confirmer that asks them such as [CIBA](ciba-confirmation.md), never by the model's `confirm: true` |
+| `self-protection.tools` | | more tools the guard covers, `<tool>=<user argument>` comma separated (a tool of another provider is caught whenever it acts on the caller); `<tool>=` removes a built-in one |
+| `<each>.anonymous` | `allow` | `deny`: guarded tools are refused without a known caller |
+| `<each>.super-roles` | `realm:admin, realm-management.realm-admin` | holders bypass the group scope and escalation checks; for self-protection they count as administrative access |
+
+```properties
+kc-mcp.spi.access-check.group-scope.default=on
+kc-mcp.spi.access-check.group-scope.scope=organization
+kc-mcp.spi.access-check.group-scope.manager-role=realm:group-manager
+# prod asks the human instead of refusing
+kc-mcp.systems.prod.access.self-protection.mode=confirm
+```
+
+The settings of old, `kc-mcp.spi.tools.policies.*`, are gone: one still set stops the start and names its
+replacement.
 
 Denials: `group_out_of_scope`, `manager_role_required`, `privilege_escalation`, `target_outranks_caller`, `self_grant`,
 `self_protection`, `caller_unknown`, `caller_foreign_realm`, `caller_required`. Effective roles come from Keycloak: direct, through groups,

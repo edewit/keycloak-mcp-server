@@ -146,15 +146,21 @@ public class ClientAssertionTokenManager implements AutoCloseable {
      * {@code aud} the realm's issuer, valid for {@code lifespan} seconds from now.
      */
     public static String clientAssertion(String clientId, String audience, JwtSigner signer, int lifespan) {
+        return signer.sign(clientAssertionClaims(clientId, audience, lifespan));
+    }
+
+    /**
+     * The claims of {@link #clientAssertion}, for signers other than a {@link JwtSigner}.
+     */
+    public static JsonObject clientAssertionClaims(String clientId, String audience, int lifespan) {
         long now = Instant.now().getEpochSecond();
-        JsonObject claims = new JsonObject().put("iss", clientId)
+        return new JsonObject().put("iss", clientId)
             .put("sub", clientId)
             .put("aud", audience)
             .put("jti", UUID.randomUUID().toString())
             .put("iat", now)
             .put("nbf", now)
             .put("exp", now + lifespan);
-        return signer.sign(claims);
     }
 
     private void grant() {

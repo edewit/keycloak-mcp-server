@@ -24,9 +24,15 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.Explanations;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.config.UnlistedTools;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.Preset;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.Presets;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ServerCapabilities;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ToolSettings;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.quarkus.runtime.Startup;
 
@@ -76,6 +82,25 @@ public class AccessPolicy {
     private final CapabilityDiscovery capabilities;
     private final Explanations explanations;
     private final List<AccessCheck> globalChecks;
+    /** What happens to the tools kc-mcp.allowed-tools does not name. */
+    private volatile UnlistedTools unlisted;
+    /**
+     * What needs confirmation besides the destructive tools: kc-mcp.confirm-tools,
+     * confirm-writes.
+     */
+    private volatile Set<String> confirmTools = Set.of();
+    private volatile boolean confirmWrites;
+    /**
+     * The access check chain: which of the global checks run for a call, in which order,
+     * with which settings: the server's, the system's, the realm's.
+     */
+    private volatile AccessCheckChain plan;
+    private final Map<String, String> realmIds = new java.util.concurrent.ConcurrentHashMap<>();
+    /**
+     * For the startup check of the configured systems' access blocks; {@code null} in
+     * tests.
+     */
+    private McpServerConfig serverConfig;
     /** For delegation mode {@code exchange}: where the delegated tokens come from. */
     private final KeycloakSystems systems;
     private final DelegationMode delegation;
@@ -88,6 +113,12 @@ public class AccessPolicy {
                 config.allowedCategories().orElse(List.of()), roles, collectChecks(registry),
                 name -> systems.find(name).map(a -> a.system().allowedRealms()).orElse(Set.of()), capabilities,
                 config.explanations(), systems, config.delegation());
+        this.plan = new AccessCheckChain(globalChecks, id -> ProviderConfig.forExtension(AccessCheck.SPI, id, config));
+        this.serverConfig = config;
+        this.unlisted = UnlistedTools.effective(config.unlistedTools(), List.copyOf(this.allowedTools));
+        confirmation(config.confirmTools().orElse(List.of()), config.confirmWrites());
+        LOG.infof("Access checks, in server order: %s",
+                plan.plan(null, null).steps().stream().map(st -> st.check().id() + "@" + st.order()).toList());
     }
 
     /** The providers' checks first, then the ones registered on their own. */
@@ -170,6 +201,217 @@ public class AccessPolicy {
             .collect(Collectors.toSet());
         this.roles = roles;
         this.globalChecks = List.copyOf(globalChecks == null ? List.of() : globalChecks);
+        this.unlisted = UnlistedTools.effective(Optional.empty(), List.copyOf(this.allowedTools));
+        this.plan = new AccessCheckChain(this.globalChecks, null);
+    }
+
+    void onStart(@jakarta.enterprise.event.Observes io.quarkus.runtime.StartupEvent event) {
+        com.github.thomasdarimont.keycloak.mcp.config.ValidationRun.guard(() -> runStartupChecks(serverConfig));
+    }
+
+    /**
+     * A configured system whose access block names a check the server does not have, or
+     * one the operator locked, stops the start.
+     */
+    void runStartupChecks(McpServerConfig serverConfig) {
+        if (serverConfig == null) {
+            return;
+        }
+        Presets presets = Presets.fromConfig(serverConfig.presets());
+        try {
+            presets.validate(Map.of());
+            for (Preset p : presets.server().values()) {
+                plan.validate(p.access(), "kc-mcp.presets." + p.name() + ".");
+            }
+        }
+        catch (IllegalArgumentException e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+        serverConfig.systems().forEach((name, settings) -> {
+            if (settings.url().isEmpty()) {
+                return;
+            }
+            try {
+                check(presets, KeycloakSystem.resolve(name, serverConfig, settings), "kc-mcp.systems." + name + ".");
+            }
+            catch (IllegalArgumentException e) {
+                throw new IllegalStateException(e.getMessage(), e);
+            }
+        });
+        // systems from the database or the systems file do not stop the start, one tenant
+        // must not take the server down; the validate command reports them
+        if (com.github.thomasdarimont.keycloak.mcp.config.ValidationRun.active()
+                && systems instanceof com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems d) {
+            for (KeycloakSystem s : d.repository().all()) {
+                if (serverConfig.systems().containsKey(s.name())) {
+                    continue;
+                }
+                String source = d.repositoryOf(s.name()).map(r -> r.id()).orElse("?");
+                try {
+                    check(d.presets(), s, "system '" + s.name() + "' (" + source + "): ");
+                }
+                catch (IllegalArgumentException e) {
+                    com.github.thomasdarimont.keycloak.mcp.config.ValidationRun.add(e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * The tools section of the system and realm the call targets: on top of the server's
+     * restrictions, never instead of them, so it can only take tools away.
+     */
+    static Optional<ToolResult> restricted(ToolSpec spec, String system, String realm, KeycloakSystem target) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        ToolSettings tools = target.tools(realm);
+        if (tools.isEmpty()) {
+            return Optional.empty();
+        }
+        String where = "system '" + system + "'" + (realm == null ? "" : ", realm '" + realm + "'");
+        if (tools.readOnly().orElse(false) && !spec.isReadOnly()) {
+            return Optional.of(ToolResult.error("read_only_mode", "Calls into " + where + " are read-only; "
+                    + spec.name() + " is a " + spec.level().name().toLowerCase() + " operation."));
+        }
+        String name = shortName(spec.name());
+        Set<String> denied = tools.denied()
+            .orElse(List.of())
+            .stream()
+            .map(AccessPolicy::shortName)
+            .collect(Collectors.toSet());
+        // a deny follows a tool across renames; an allow does not
+        if (denied.contains(name) || formerNames(spec).anyMatch(denied::contains)) {
+            return Optional.of(ToolResult.error("tool_not_allowed", spec.name() + " is disabled for " + where + "."));
+        }
+        List<String> allowed = tools.allowed().orElse(List.of());
+        boolean listed = allowed.stream().map(AccessPolicy::shortName).anyMatch(name::equals);
+        UnlistedTools rule = tools.effectiveUnlisted();
+        if (!listed && !rule.admits(spec.isReadOnly())) {
+            return Optional.of(ToolResult.error("tool_not_allowed",
+                    spec.name() + (rule == UnlistedTools.READ
+                            ? " changes Keycloak and is not among the tools of " + where
+                                    + ", where unlisted tools must only read."
+                            : " is not among the tools of " + where + ".")));
+        }
+        List<String> categories = tools.categories().orElse(List.of());
+        if (!categories.isEmpty() && categories.stream().map(Category::parse).noneMatch(spec.category()::equals)) {
+            return Optional.of(ToolResult.error("tool_not_allowed",
+                    spec.name() + " (" + spec.category().id() + ") is outside the tool categories of " + where + "."));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Keycloak's id of a realm, read once per system and realm: the id does not change
+     * while the name stays.
+     */
+    private Optional<String> realmId(KeycloakAdmin admin, String realm) {
+        if (admin == null || realm == null) {
+            return Optional.empty();
+        }
+        String key = admin.system().name() + "\u0000" + realm;
+        String known = realmIds.get(key);
+        if (known != null) {
+            return Optional.of(known);
+        }
+        try {
+            Optional<String> id = Optional.ofNullable(admin.realm(realm).toRepresentation().getId());
+            // only what was found is kept: a failure is asked again next time
+            id.ifPresent(v -> realmIds.put(key, v));
+            return id;
+        }
+        catch (RuntimeException e) {
+            LOG.debugf("The id of realm '%s' is not readable: %s", realm, e.toString());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * A system's own presets resolve, its references resolve, and its effective blocks
+     * name only checks the server has and did not lock.
+     *
+     * @throws IllegalArgumentException with what is wrong
+     */
+    void check(Presets presets, KeycloakSystem raw, String where) {
+        try {
+            presets.validate(raw.presets());
+            presets.apply(raw);
+        }
+        catch (IllegalArgumentException e) {
+            // the presets' messages do not know the system: say whose they are
+            throw new IllegalArgumentException(where + e.getMessage(), e);
+        }
+        for (Preset p : raw.presets().values()) {
+            plan.validate(p.access(), where + "presets." + p.name() + ".");
+        }
+        KeycloakSystem s = presets.apply(raw);
+        plan.validate(s.access(), where + "access.");
+        s.realms().forEach((realm, r) -> plan.validate(r.access(), where + "realms." + realm + ".access."));
+    }
+
+    /**
+     * The global checks with their server settings, for the admin API's checks of access
+     * blocks.
+     */
+    public AccessCheckChain accessCheckChain() {
+        return plan;
+    }
+
+    /**
+     * Whether a call needs confirmation: every destructive tool, and what the server
+     * ({@code kc-mcp.confirm-tools}, {@code kc-mcp.confirm-writes}) and the system's and
+     * realm's {@code tools} section ({@code confirm}, {@code confirmWrites}) add. Nothing
+     * takes it away from a destructive tool.
+     */
+    public boolean needsConfirmation(ToolSpec spec, String realm, KeycloakAdmin admin) {
+        return needsConfirmation(spec, realm, admin == null ? null : admin.system());
+    }
+
+    /**
+     * {@link #needsConfirmation(ToolSpec, String, KeycloakAdmin)} for a system at hand.
+     */
+    public boolean needsConfirmation(ToolSpec spec, String realm, KeycloakSystem target) {
+        if (spec.isDestructive()) {
+            return true;
+        }
+        if (spec.isReadOnly()) {
+            return false;
+        }
+        if (confirmWrites || names(confirmTools, spec)) {
+            return true;
+        }
+        ToolSettings tools = target == null ? ToolSettings.NONE : target.tools(realm);
+        return tools.confirmWrites().orElse(false) || names(
+                tools.confirm().orElse(List.of()).stream().map(AccessPolicy::shortName).collect(Collectors.toSet()),
+                spec);
+    }
+
+    /** Whether a set of short names names the tool, by its name or a former one. */
+    private static boolean names(Set<String> names, ToolSpec spec) {
+        return names.contains(shortName(spec.name())) || formerNames(spec).anyMatch(names::contains);
+    }
+
+    /** For tests: what the server makes confirm besides the destructive tools. */
+    public AccessPolicy confirmation(List<String> tools, boolean writes) {
+        this.confirmTools = clean(tools).stream().map(AccessPolicy::shortName).collect(Collectors.toSet());
+        this.confirmWrites = writes;
+        return this;
+    }
+
+    /** For tests: another rule for the tools the allow-list does not name. */
+    public AccessPolicy unlistedTools(UnlistedTools rule) {
+        this.unlisted = rule == null ? UnlistedTools.effective(Optional.empty(), List.copyOf(allowedTools)) : rule;
+        return this;
+    }
+
+    public UnlistedTools unlistedTools() {
+        return unlisted;
+    }
+
+    /** The tool's former names, short: what a deny-list may still name it by. */
+    static java.util.stream.Stream<String> formerNames(ToolSpec spec) {
+        return spec.formerNames().stream().map(AccessPolicy::shortName);
     }
 
     /** Tool names in config may omit the {@code keycloak_} prefix. */
@@ -196,10 +438,10 @@ public class AccessPolicy {
             return false;
         }
         String name = shortName(spec.name());
-        if (deniedTools.contains(name)) {
+        if (deniedTools.contains(name) || formerNames(spec).anyMatch(deniedTools::contains)) {
             return false;
         }
-        if (!allowedTools.isEmpty() && !allowedTools.contains(name)) {
+        if (!allowedTools.contains(name) && !unlisted.admits(spec.isReadOnly())) {
             return false;
         }
         return allowedCategories.isEmpty() || allowedCategories.contains(spec.category());
@@ -264,7 +506,18 @@ public class AccessPolicy {
                 return Optional.of(ToolResult.error("read_only_mode", "This server runs in read-only mode; "
                         + spec.name() + " is a " + spec.level().name().toLowerCase() + " operation."));
             }
+            if (unlisted == UnlistedTools.READ && !spec.isReadOnly()
+                    && !allowedTools.contains(shortName(spec.name()))) {
+                return Optional.of(ToolResult.error("tool_not_allowed",
+                        spec.name() + " changes Keycloak and is not in"
+                                + " kc-mcp.allowed-tools; this server makes unlisted tools available only if they read"
+                                + " (kc-mcp.unlisted-tools=read)."));
+            }
             return Optional.of(ToolResult.error("tool_not_allowed", spec.name() + " is disabled on this server."));
+        }
+        Optional<ToolResult> restricted = restricted(spec, system, realm, admin == null ? null : admin.system());
+        if (restricted.isPresent()) {
+            return restricted;
         }
         if (realm != null && !realmAllowed(system, realm)) {
             return Optional.of(ToolResult.error("realm_not_allowed",
@@ -314,11 +567,33 @@ public class AccessPolicy {
             return Optional.of(ToolResult.error("delegation_required",
                     spec.name() + " may only run on behalf of an authenticated user."));
         }
-        if (!globalChecks.isEmpty() || !spec.accessChecks().isEmpty()) {
+        KeycloakSystem target = admin == null ? null : admin.system();
+        AccessCheckChain.Plan checks = plan.plan(target, realm, r -> realmId(admin, r));
+        if (checks.missing().contains(Presets.UNRESOLVED)) {
+            return Optional.of(ToolResult.error("access_check_unavailable", "The preset of system '" + system
+                    + "' does not resolve, so this server runs no tool there; nothing was changed. An administrator"
+                    + " has to fix the preset (the server log names the problem)."));
+        }
+        if (!checks.missing().isEmpty()) {
+            LOG.warnf("System '%s'%s names the access check(s) %s, which this server does not have; %s denied", system,
+                    realm == null ? "" : " realm '" + realm + "'", checks.missing(), spec.name());
+            return Optional.of(ToolResult.error("access_check_unavailable",
+                    "The access settings of system '" + system
+                            + "' need a check this server does not have, so it runs no tool there; nothing was"
+                            + " changed. An administrator has to install it or change the settings."));
+        }
+        if (!checks.steps().isEmpty() || !spec.accessChecks().isEmpty()) {
             AccessCheck.Context context = new AccessCheck.Context(spec, system, realm, args,
                     granted == null ? GrantedRoles.UNKNOWN : granted, ctx.caller(), admin);
-            for (AccessCheck check : globalChecks) {
-                Optional<ToolResult> denied = evaluate(check, context, confirmations);
+            for (AccessCheckChain.Step step : checks.steps()) {
+                if (step.error().isPresent()) {
+                    LOG.warnf("System '%s': %s; %s refused", system, step.error().get(), spec.name());
+                    return Optional.of(ToolResult.error("access_check_failed",
+                            "The access settings of system '" + system + "' cannot be used for this call ("
+                                    + step.error().get() + "); nothing was"
+                                    + " changed. An administrator has to fix them."));
+                }
+                Optional<ToolResult> denied = evaluate(step.check(), context.forCheck(step.settings()), confirmations);
                 if (denied.isPresent()) {
                     return denied;
                 }

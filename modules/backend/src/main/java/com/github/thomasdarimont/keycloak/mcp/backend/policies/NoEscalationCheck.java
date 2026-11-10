@@ -14,6 +14,22 @@ import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
  */
 public final class NoEscalationCheck implements AccessCheck {
 
+    /**
+     * The check's id in access blocks and
+     * {@code kc-mcp.spi.access-check.no-escalation.*}.
+     */
+    public static final String ID = "no-escalation";
+
+    @Override
+    public String id() {
+        return ID;
+    }
+
+    @Override
+    public String displayName() {
+        return "No privilege escalation";
+    }
+
     static final Set<String> GRANT_TOOLS = Set.of("keycloak_user_role_assign", "keycloak_user_client_role_assign",
             "keycloak_group_role_assign", "keycloak_group_member_add");
     /** tools that act on a target user: the target must not outrank the caller */

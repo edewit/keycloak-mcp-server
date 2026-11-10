@@ -36,7 +36,7 @@ import io.vertx.core.json.JsonObject;
 public record ToolSpec(String name, String title, String description, Category category, ToolLevel level,
         boolean idempotent, JsonObject inputSchema, List<String> synonyms, boolean hot, boolean realmScoped,
         List<ApiOperation> api, Set<String> requiredRoles, List<Requirement> requires, List<AccessCheck> accessChecks,
-        Delegation delegation, ToolHandler handler, boolean sensitiveResult) {
+        Delegation delegation, ToolHandler handler, boolean sensitiveResult, Set<String> formerNames) {
 
     public ToolSpec {
         Objects.requireNonNull(name, "name");
@@ -52,6 +52,16 @@ public record ToolSpec(String name, String title, String description, Category c
         requires = List.copyOf(requires == null ? List.of() : requires);
         accessChecks = List.copyOf(accessChecks == null ? List.of() : accessChecks);
         delegation = delegation == null ? Delegation.ALLOWED : delegation;
+        formerNames = Set.copyOf(formerNames == null ? Set.of() : formerNames);
+    }
+
+    /** Without former names. */
+    public ToolSpec(String name, String title, String description, Category category, ToolLevel level,
+            boolean idempotent, JsonObject inputSchema, List<String> synonyms, boolean hot, boolean realmScoped,
+            List<ApiOperation> api, Set<String> requiredRoles, List<Requirement> requires,
+            List<AccessCheck> accessChecks, Delegation delegation, ToolHandler handler, boolean sensitiveResult) {
+        this(name, title, description, category, level, idempotent, inputSchema, synonyms, hot, realmScoped, api,
+                requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult, Set.of());
     }
 
     public boolean isDestructive() {
@@ -64,7 +74,7 @@ public record ToolSpec(String name, String title, String description, Category c
 
     public ToolSpec withInputSchema(JsonObject schema) {
         return new ToolSpec(name, title, description, category, level, idempotent, schema, synonyms, hot, realmScoped,
-                api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult);
+                api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult, formerNames);
     }
 
     public ToolSpec withName(String newName) {
@@ -72,12 +82,14 @@ public record ToolSpec(String name, String title, String description, Category c
             return this;
         }
         return new ToolSpec(newName, title, description, category, level, idempotent, inputSchema, synonyms, hot,
-                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult);
+                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult,
+                formerNames);
     }
 
     public ToolSpec withHot(boolean hotFlag) {
         return new ToolSpec(name, title, description, category, level, idempotent, inputSchema, synonyms, hotFlag,
-                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult);
+                realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult,
+                formerNames);
     }
 
     /** Parameter names declared in the (effective) schema, in declaration order. */
@@ -108,6 +120,7 @@ public record ToolSpec(String name, String title, String description, Category c
         private Delegation delegation = Delegation.ALLOWED;
         private ToolHandler handler;
         private boolean sensitiveResult;
+        private final Set<String> formerNames = new LinkedHashSet<>();
 
         private Builder(String name) {
             this.name = name;
@@ -233,6 +246,22 @@ public record ToolSpec(String name, String title, String description, Category c
         }
 
         /** The result carries a secret; see {@link ToolSpec#sensitiveResult()}. */
+        /**
+         * Names the tool had before. A deny-list that names one still denies the tool, so
+         * a restriction survives a rename; an allow-list does not carry over, the tool
+         * has to be listed under its new name. Calling a former name answers that the
+         * tool was renamed, it does not run the tool. A former name cannot be another
+         * tool's name.
+         */
+        public Builder formerly(String... names) {
+            for (String n : names) {
+                if (n != null && !n.isBlank()) {
+                    formerNames.add(n.trim());
+                }
+            }
+            return this;
+        }
+
         public Builder sensitiveResult() {
             this.sensitiveResult = true;
             return this;
@@ -257,7 +286,8 @@ public record ToolSpec(String name, String title, String description, Category c
             }
             boolean idem = idempotent != null ? idempotent : level == ToolLevel.READ;
             return new ToolSpec(name, title, description, category, level, idem, inputSchema, synonyms, hot,
-                    realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult);
+                    realmScoped, api, requiredRoles, requires, accessChecks, delegation, handler, sensitiveResult,
+                    formerNames);
         }
     }
 }

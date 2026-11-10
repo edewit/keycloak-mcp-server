@@ -10,7 +10,9 @@ import java.util.Set;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
- * Settings of the built-in policy provider ({@code kc-mcp.spi.tools.policies.*}).
+ * Settings of one of the built-in policy checks, from its effective settings
+ * ({@link #forCheck}: {@code kc-mcp.spi.access-check.<id>.*} with the system's and the
+ * realm's {@code access.<id>} entry over it).
  *
  * @param groupScope {@code off}, {@code group} (caller must be in the target group or an
  * ancestor) or {@code organization} (caller and group share an organization)
@@ -53,7 +55,7 @@ public record PolicySettings(GroupScope groupScope, String managerRole, boolean 
                 case "reject", "true" -> REJECT;
                 case "confirm" -> CONFIRM;
                 default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.tools.policies.self-protection: 'reject', 'confirm' or 'off', not '" + value + "'");
+                        "kc-mcp.spi.access-check.self-protection.mode: 'reject' or 'confirm', not '" + value + "'");
             };
         }
     }
@@ -66,27 +68,14 @@ public record PolicySettings(GroupScope groupScope, String managerRole, boolean 
         superRoles = superRoles == null ? Set.of() : Set.copyOf(superRoles);
     }
 
-    public static PolicySettings from(ProviderConfig config) {
-        GroupScope scope = GroupScope.valueOf(config.get("group-scope", "off").trim().toUpperCase(Locale.ROOT));
-        String manager = config.get("manager-role").orElse(null);
-        boolean noEscalation = config.getBoolean("no-escalation", true);
-        SelfProtection selfProtection = SelfProtection.parse(config.get("self-protection", "reject"));
-        Map<String, String> selfProtectionTools = new LinkedHashMap<>();
-        config.get("self-protection-tools").ifPresent(v -> {
-            for (String entry : v.split(",")) {
-                if (entry.isBlank()) {
-                    continue;
-                }
-                int eq = entry.indexOf('=');
-                if (eq <= 0) {
-                    throw new IllegalArgumentException("kc-mcp.spi.tools.policies.self-protection-tools: entries are"
-                            + " <tool>=<user argument> (an empty argument removes a built-in tool), not '"
-                            + entry.trim() + "'");
-                }
-                selfProtectionTools.put(entry.substring(0, eq).trim(), entry.substring(eq + 1).trim());
-            }
-        });
-        boolean denyAnonymous = "deny".equalsIgnoreCase(config.get("anonymous", "allow"));
+    /** The settings a check of the given id reads from its effective settings. */
+    public static PolicySettings forCheck(String checkId, ProviderConfig config) {
+        String where = ProviderConfig.PREFIX + "access-check." + checkId + ".";
+        boolean denyAnonymous = switch (config.get("anonymous", "allow").trim().toLowerCase(Locale.ROOT)) {
+            case "allow" -> false;
+            case "deny" -> true;
+            default -> throw new IllegalArgumentException(where + "anonymous must be allow or deny");
+        };
         Set<String> supers = new LinkedHashSet<>(List.of("realm:admin", "realm-management.realm-admin"));
         config.get("super-roles").ifPresent(v -> {
             for (String s : v.split(",")) {
@@ -95,8 +84,45 @@ public record PolicySettings(GroupScope groupScope, String managerRole, boolean 
                 }
             }
         });
-        return new PolicySettings(scope, manager, noEscalation, selfProtection, selfProtectionTools, denyAnonymous,
-                supers);
+        return switch (checkId) {
+            case GroupScopeCheck.ID -> {
+                String v = config.get("scope", "group").trim().toUpperCase(Locale.ROOT);
+                GroupScope scope;
+                try {
+                    scope = GroupScope.valueOf(v);
+                }
+                catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                            where + "scope must be group or organization, not '" + v.toLowerCase(Locale.ROOT) + "'", e);
+                }
+                yield new PolicySettings(scope, config.get("manager-role").orElse(null), false, SelfProtection.OFF,
+                        Map.of(), denyAnonymous, supers);
+            }
+            case NoEscalationCheck.ID ->
+                new PolicySettings(GroupScope.OFF, null, true, SelfProtection.OFF, Map.of(), denyAnonymous, supers);
+            case SelfProtectionCheck.ID ->
+                new PolicySettings(GroupScope.OFF, null, false, SelfProtection.parse(config.get("mode", "reject")),
+                        tools(config.get("tools"), where + "tools"), denyAnonymous, supers);
+            default -> throw new IllegalArgumentException("not a built-in policy check: " + checkId);
+        };
+    }
+
+    private static Map<String, String> tools(java.util.Optional<String> value, String where) {
+        Map<String, String> out = new LinkedHashMap<>();
+        value.ifPresent(v -> {
+            for (String entry : v.split(",")) {
+                if (entry.isBlank()) {
+                    continue;
+                }
+                int eq = entry.indexOf('=');
+                if (eq <= 0) {
+                    throw new IllegalArgumentException(where + ": entries are <tool>=<user argument> (an empty"
+                            + " argument removes a built-in tool), not '" + entry.trim() + "'");
+                }
+                out.put(entry.substring(0, eq).trim(), entry.substring(eq + 1).trim());
+            }
+        });
+        return out;
     }
 
     public boolean enabled() {

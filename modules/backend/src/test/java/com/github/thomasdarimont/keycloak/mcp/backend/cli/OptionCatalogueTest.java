@@ -40,6 +40,19 @@ class OptionCatalogueTest {
     }
 
     @Test
+    void authorizationBlocksTakeKeysOfSeveralSegments() {
+        assertTrue(OptionCatalogue.known("kc-mcp.systems.prod.access.authorization.enabled"));
+        assertTrue(OptionCatalogue.known("kc-mcp.systems.prod.access.authorization.authzen.client-auth"));
+        assertTrue(OptionCatalogue.known("kc-mcp.systems.prod.realms.acme.access.self-protection.order"));
+        assertTrue(OptionCatalogue.known("kc-mcp.systems.prod.realms.\"acme.eu\".access.authorization.authzen.url"));
+        assertTrue(OptionCatalogue.known("kc-mcp.systems.prod.realms.acme.display-name"));
+        assertFalse(OptionCatalogue.known("kc-mcp.systems.prod.access"));
+        assertFalse(OptionCatalogue.known("kc-mcp.systems.prod.realms.acme.colour"));
+        assertEquals(List.of(), OptionCatalogue.unknown(List.of(),
+                Map.of("KC_MCP_SYSTEMS_PROD_REALMS_ACME_ACCESS_GROUP_SCOPE_ENABLED", "false")));
+    }
+
+    @Test
     void aTypoIsUnknownAndGetsASuggestion() {
         assertFalse(OptionCatalogue.known("kc-mcp.tool-exposur"));
         assertFalse(OptionCatalogue.known("kc-mcp.systems.prod.urll"));

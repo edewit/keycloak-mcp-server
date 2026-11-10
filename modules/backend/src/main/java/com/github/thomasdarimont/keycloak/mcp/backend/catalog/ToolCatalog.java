@@ -31,6 +31,8 @@ import io.vertx.core.json.JsonObject;
 public class ToolCatalog {
 
     private final Map<String, ToolSpec> specs;
+    /** Former name (short) -> the tool's current name. */
+    private final Map<String, String> formerNames;
     private final String defaultRealm;
     private final String prefix;
     private final List<String> systems;
@@ -106,6 +108,40 @@ public class ToolCatalog {
             map.put(name, effective);
         }
         this.specs = Map.copyOf(map);
+        this.formerNames = formerNames(map);
+    }
+
+    /**
+     * The former names of the tools: a former name may be no tool's current name, and
+     * belong to one tool only, or a deny-list naming it would hit the wrong tool.
+     */
+    private Map<String, String> formerNames(Map<String, ToolSpec> map) {
+        Set<String> current = new HashSet<>();
+        map.values().forEach(t -> current.add(shortName(stripPrefix(normalize(t.name())))));
+        Map<String, String> out = new LinkedHashMap<>();
+        for (ToolSpec t : map.values()) {
+            for (String former : t.formerNames()) {
+                String key = shortName(stripPrefix(normalize(former)));
+                if (current.contains(key)) {
+                    throw new IllegalStateException("Tool " + t.name() + " claims the former name '" + former
+                            + "', which is the name of a tool");
+                }
+                String previous = out.putIfAbsent(key, t.name());
+                if (previous != null) {
+                    throw new IllegalStateException(
+                            "Tools " + previous + " and " + t.name() + " both claim the former name '" + former + "'");
+                }
+            }
+        }
+        return Map.copyOf(out);
+    }
+
+    /** The current name of a tool that was called this, if one was. */
+    public Optional<String> renamedTo(String name) {
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(formerNames.get(shortName(stripPrefix(normalize(name)))));
     }
 
     private static String shortName(String name) {

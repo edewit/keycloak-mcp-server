@@ -8,24 +8,35 @@ import java.util.function.Function;
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 import com.google.auto.service.AutoService;
 
 /**
- * Built-in policies: no tools, only access checks. Configure with
- * {@code kc-mcp.spi.tools.policies.*}: {@code group-scope=off|group|organization},
- * {@code manager-role=realm:group-manager}, {@code no-escalation=true},
- * {@code self-protection=reject|confirm|off},
- * {@code self-protection-tools=<tool>=<arg>,...}, {@code anonymous=allow|deny},
- * {@code super-roles=...}. The checks only act for authenticated callers unless
- * {@code anonymous=deny}.
+ * Built-in policies: no tools, three access checks, {@code group-scope},
+ * {@code no-escalation} and {@code self-protection}. Each is configured as an access
+ * check ({@code kc-mcp.spi.access-check.<id>.*}, per system and realm in their
+ * {@code access} blocks) and reads its settings per call ({@link ConfiguredPolicyCheck}).
+ * The settings of old, {@code kc-mcp.spi.tools.policies.*} besides {@code enabled}, stop
+ * the start with their replacements ({@link #REPLACED}).
  */
 @AutoService(ToolProvider.class)
 public class PolicyToolProvider implements ToolProvider {
 
+    /** The settings of old and what replaces them. */
+    static final Map<String, String> REPLACED = Map.of("group-scope",
+            "kc-mcp.spi.access-check.group-scope.default=on and kc-mcp.spi.access-check.group-scope.scope=group|organization",
+            "manager-role", "kc-mcp.spi.access-check.group-scope.manager-role", "no-escalation",
+            "kc-mcp.spi.access-check.no-escalation.default=on|off", "self-protection",
+            "kc-mcp.spi.access-check.self-protection.mode=reject|confirm, or its default=off", "self-protection-tools",
+            "kc-mcp.spi.access-check.self-protection.tools", "anonymous",
+            "kc-mcp.spi.access-check.<group-scope|no-escalation|self-protection>.anonymous", "super-roles",
+            "kc-mcp.spi.access-check.<group-scope|no-escalation|self-protection>.super-roles");
+
     private Function<AccessCheck.Context, RealmDirectory> directories;
-    private PolicySettings settings = PolicySettings.DISABLED;
+    /** Fixed settings of tests; {@code null}: per call. */
+    private PolicySettings fixed;
 
     public PolicyToolProvider() {
     }
@@ -33,7 +44,7 @@ public class PolicyToolProvider implements ToolProvider {
     /** For tests: fixed directory and settings. */
     public PolicyToolProvider(RealmDirectory directory, PolicySettings settings) {
         this.directories = ctx -> directory;
-        this.settings = settings;
+        this.fixed = settings;
     }
 
     @Override
@@ -71,7 +82,24 @@ public class PolicyToolProvider implements ToolProvider {
                             : system.isEmpty() ? context.keycloak() : context.keycloak(system);
                     return new KeycloakDirectory(kc, clientIds.computeIfAbsent(system, s -> new ConcurrentHashMap<>()));
                 });
-            settings = PolicySettings.from(context.config());
+        }
+        refuseOldSettings(context.config());
+    }
+
+    /**
+     * The settings of {@code kc-mcp.spi.tools.policies.*} are gone; one still set stops
+     * the start, so that a rule an operator relied on is not quietly dropped.
+     */
+    static void refuseOldSettings(ProviderConfig config) {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        for (String key : new java.util.TreeSet<>(config.keys())) {
+            if (REPLACED.containsKey(key)) {
+                found.add("kc-mcp.spi.tools.policies." + key + " -> " + REPLACED.get(key));
+            }
+        }
+        if (!found.isEmpty()) {
+            throw new IllegalStateException("The built-in policies are access checks now; replace "
+                    + String.join("; ", found) + " (docs/access-checks.md)");
         }
     }
 
@@ -82,10 +110,21 @@ public class PolicyToolProvider implements ToolProvider {
 
     @Override
     public List<AccessCheck> accessChecks(ToolProviderContext context) {
-        if (!settings.enabled()) {
-            return List.of();
+        if (fixed != null) {
+            if (!fixed.enabled()) {
+                return List.of();
+            }
+            return List.of(new GroupScopeCheck(directories, fixed), new NoEscalationCheck(directories, fixed),
+                    new SelfProtectionCheck(directories, fixed));
         }
-        return List.of(new GroupScopeCheck(directories, settings), new NoEscalationCheck(directories, settings),
-                new SelfProtectionCheck(directories, settings));
+        Function<AccessCheck.Context, RealmDirectory> dirs = directories;
+        // the group scope only where it is asked for; the other two everywhere unless
+        // switched off
+        return List.of(
+                new ConfiguredPolicyCheck(GroupScopeCheck.ID, "Group scope", false, s -> new GroupScopeCheck(dirs, s)),
+                new ConfiguredPolicyCheck(NoEscalationCheck.ID, "No privilege escalation", true,
+                        s -> new NoEscalationCheck(dirs, s)),
+                new ConfiguredPolicyCheck(SelfProtectionCheck.ID, "Self-protection", true,
+                        s -> new SelfProtectionCheck(dirs, s)));
     }
 }

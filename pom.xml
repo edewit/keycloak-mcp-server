@@ -185,9 +185,10 @@
                             <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_DB_RETENTION_DAYS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_MODE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_TARGETS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_GROUP_SCOPE</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_MANAGER_ROLE</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_NO_ESCALATION</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_GROUP_SCOPE_DEFAULT</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_GROUP_SCOPE_MANAGER_ROLE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_GROUP_SCOPE_SCOPE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_NO_ESCALATION_DEFAULT</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STARTUP_CHECK</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STATIC_SYSTEMS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STORAGE_SECRET_KEY</excludedEnvironmentVariable>
@@ -278,9 +279,10 @@
                             <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_DB_RETENTION_DAYS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_MODE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_SCRUBBER_PII_TARGETS</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_GROUP_SCOPE</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_MANAGER_ROLE</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_SPI_TOOLS_POLICIES_NO_ESCALATION</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_GROUP_SCOPE_DEFAULT</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_GROUP_SCOPE_MANAGER_ROLE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_GROUP_SCOPE_SCOPE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SPI_ACCESS_CHECK_NO_ESCALATION_DEFAULT</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STARTUP_CHECK</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STATIC_SYSTEMS</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_STORAGE_SECRET_KEY</excludedEnvironmentVariable>

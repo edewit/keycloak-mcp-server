@@ -37,6 +37,10 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
  * PUT    /admin/secrets/{name}               store or replace (body: {"value": "..."}); referenced as vault:{name}
  * DELETE /admin/secrets/{name}               remove a secret no system refers to
  * GET    /admin/storage                      encryption state: which key ids the stored values are under
+ * GET    /admin/systems/{alias}/realms       the settings of the system's realms
+ * GET    /admin/systems/{alias}/realms/{r}   one realm's settings
+ * PUT    /admin/systems/{alias}/realms/{r}   adds or replaces them (labels, Keycloak's realm id, authorization)
+ * DELETE /admin/systems/{alias}/realms/{r}   removes them; the system's settings apply again
  * POST   /admin/storage/rekey                re-encrypt everything under the current kc-mcp.storage.secret-key
  * </pre>
  */
@@ -98,6 +102,33 @@ public class AdminResource {
     public Map<String, Object> rotate(@PathParam("alias") String alias, @Context UriInfo uri,
             @Context HttpHeaders headers) {
         return admin.rotate(alias, publicBase(config.hostname(), uri, headers));
+    }
+
+    @GET
+    @Path("systems/{alias}/realms")
+    public Map<String, Object> realms(@PathParam("alias") String alias) {
+        return admin.realms(alias);
+    }
+
+    @GET
+    @Path("systems/{alias}/realms/{realm}")
+    public Map<String, Object> realm(@PathParam("alias") String alias, @PathParam("realm") String realm) {
+        return admin.realm(alias, realm);
+    }
+
+    @PUT
+    @Path("systems/{alias}/realms/{realm}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response putRealm(@PathParam("alias") String alias, @PathParam("realm") String realm,
+            Map<String, Object> body) {
+        return saved(admin.saveRealm(alias, realm, body));
+    }
+
+    @DELETE
+    @Path("systems/{alias}/realms/{realm}")
+    public Response deleteRealm(@PathParam("alias") String alias, @PathParam("realm") String realm) {
+        admin.deleteRealm(alias, realm);
+        return Response.noContent().build();
     }
 
     @GET

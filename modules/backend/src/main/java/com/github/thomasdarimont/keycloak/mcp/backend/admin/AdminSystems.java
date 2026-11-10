@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -13,6 +14,10 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.catalog.ToolCatalog;
+import com.github.thomasdarimont.keycloak.mcp.backend.guard.AccessCheckChain;
+import com.github.thomasdarimont.keycloak.mcp.backend.guard.AccessPolicy;
+import com.github.thomasdarimont.keycloak.mcp.backend.guard.AuthorizationAccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.backend.http.EntryRoutes;
 import com.github.thomasdarimont.keycloak.mcp.backend.http.HttpPaths;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems;
@@ -20,15 +25,21 @@ import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.FileSystemKeycloa
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.Jwks;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.JwksEndpoint;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.SigningKeys;
+import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.AuthorizationSettings;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.CheckSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.ToolSettings;
 
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.core.json.JsonArray;
@@ -62,6 +73,12 @@ public class AdminSystems {
     SigningKeys keys;
     @Inject
     HttpPaths paths;
+    @Inject
+    AuthorizationAccessCheck engines;
+    @Inject
+    AccessPolicy policy;
+    @Inject
+    ToolCatalog catalog;
 
     void onStart(@Observes StartupEvent event) {
         ValidationRun.guard(this::runStartupChecks);
@@ -112,6 +129,12 @@ public class AdminSystems {
         if (body == null) {
             throw new AdminException(400, "invalid_system", "A JSON object with at least 'url' is expected.");
         }
+        if (body.containsKey("realms")) {
+            throw new AdminException(400, "realms_separately",
+                    "The settings of a system's realms are managed one by"
+                            + " one, so that replacing a system never drops them: PUT " + AdminResource.PATH
+                            + "/systems/<alias>/realms/<realm>.");
+        }
         KeycloakSystem system;
         try {
             system = FileSystemKeycloakSystemRepository.parseSystem(new JsonObject(body), aliasFromPath);
@@ -149,6 +172,12 @@ public class AdminSystems {
                     + owner.get().id() + "', which the admin API cannot change.");
         }
         checkSecrets(system);
+        checkTools(system, catalog);
+        // the stored realms stay, and overlay the new block: checked together
+        KeycloakSystem withRealms = owner.isPresent()
+                ? systems.repository().find(system.name()).map(old -> system.withRealms(old.realms())).orElse(system)
+                : system;
+        checkAccess(withRealms);
         if (system.clientAuth() == ClientAuth.PRIVATE_KEY_JWT && !keys.configuredKey()) {
             Object mode = body.get("signingKey");
             provideKey(system.name(), mode == null ? null : String.valueOf(mode));
@@ -191,9 +220,48 @@ public class AdminSystems {
         }
     }
 
+    /**
+     * The tools sections of a system, its realms and its presets name tools and
+     * categories that exist: a misspelt name would deny nothing.
+     */
+    static void checkTools(KeycloakSystem system, ToolCatalog catalog) {
+        Map<String, ToolSettings> sections = new LinkedHashMap<>();
+        sections.put("tools.", system.tools());
+        system.realms().forEach((name, r) -> sections.put("realms." + name + ".tools.", r.tools()));
+        system.presets().forEach((name, p) -> sections.put("presets." + name + ".tools.", p.tools()));
+        for (Map.Entry<String, ToolSettings> e : sections.entrySet()) {
+            ToolSettings t = e.getValue();
+            List<String> named = concat(t.allowed(), t.denied());
+            named.addAll(t.confirm().orElse(List.of()));
+            for (String tool : named) {
+                if (catalog != null && catalog.resolve(tool).isEmpty()) {
+                    throw new AdminException(400, "unknown_tool", e.getKey() + ": no tool named '" + tool + "'.");
+                }
+            }
+            for (String category : t.categories().orElse(List.of())) {
+                if (Category.parse(category) == null) {
+                    throw new AdminException(400, "unknown_category",
+                            e.getKey() + "categories: no category '" + category + "'; there are "
+                                    + java.util.Arrays.stream(Category.values()).map(Category::id).toList() + ".");
+                }
+            }
+        }
+    }
+
+    private static List<String> concat(Optional<List<String>> a, Optional<List<String>> b) {
+        List<String> out = new ArrayList<>(a.orElse(List.of()));
+        out.addAll(b.orElse(List.of()));
+        return out;
+    }
+
     /** A {@code vault:} reference the vault does not resolve is refused. */
     private void checkSecrets(KeycloakSystem system) {
-        for (Optional<String> value : List.of(system.clientSecret(), system.password())) {
+        List<Optional<String>> values = new ArrayList<>(List.of(system.clientSecret(), system.password()));
+        system.accessBlocks()
+            .forEach(b -> b.checks()
+                .values()
+                .forEach(c -> c.settings().values().forEach(v -> values.add(Optional.of(v)))));
+        for (Optional<String> value : values) {
             if (value.isPresent() && KeycloakSystem.isVaultRef(value.get())) {
                 String name = KeycloakSystem.vaultRefName(value.get());
                 if (keys.vault().findSecret(name).isEmpty()) {
@@ -202,6 +270,204 @@ public class AdminSystems {
                 }
             }
         }
+    }
+
+    /**
+     * The system's access blocks, its own and its realms', held to what a registered
+     * system may ask of this server, whatever the check; then the authorization engines'
+     * own checks.
+     */
+    private void checkAccess(KeycloakSystem system) {
+        boolean presets = system.preset().isPresent() || !system.presets().isEmpty()
+                || system.realms().values().stream().anyMatch(r -> r.preset().isPresent());
+        if (!presets && system.accessBlocks().stream().allMatch(AccessSettings::isEmpty)) {
+            return;
+        }
+        KeyVault vault = keys.vault();
+        boolean systemKey = keys.configuredKey() || vault.findSigningKey(system.name()).isPresent()
+                || vault.supportsKeyCreation();
+        checkAccess(system, systems, policy.accessCheckChain(), engines, systemKey);
+    }
+
+    /**
+     * What every block is held to: entries only for checks the server has and did not
+     * lock; a URL-valued setting names a host like the system's own URL
+     * ({@code kc-mcp.allowed-hosts}, private addresses); a setting ending in
+     * {@code -file} would make the server read one of its files and is refused; the
+     * authorization engines named must exist, and check their own settings.
+     *
+     * @param systemKey whether the system will have a signing key of its own
+     */
+    static void checkAccess(KeycloakSystem system, DefaultKeycloakSystems systems, AccessCheckChain plan,
+            AuthorizationAccessCheck engines, boolean systemKey) {
+        // presets first: names exist, no cycles; the blocks below are the effective ones
+        KeycloakSystem applied;
+        try {
+            systems.presets().validate(system.presets());
+            applied = systems.presets().apply(system);
+        }
+        catch (IllegalArgumentException e) {
+            throw new AdminException(400, e.getMessage().contains("cycle") || e.getMessage().contains("more than")
+                    ? "preset_cycle" : "unknown_preset", e.getMessage());
+        }
+        Map<String, AccessSettings> blocks = new LinkedHashMap<>();
+        system.presets().forEach((name, p) -> blocks.put("presets." + name + ".", p.access()));
+        blocks.put("access.", applied.access());
+        applied.realms().forEach((name, r) -> blocks.put("realms." + name + ".access.", r.access()));
+        for (Map.Entry<String, AccessSettings> block : blocks.entrySet()) {
+            try {
+                plan.validate(block.getValue(), block.getKey());
+            }
+            catch (IllegalArgumentException e) {
+                throw new AdminException(400,
+                        e.getMessage().contains("locked") ? "access_check_locked" : "unknown_access_check",
+                        e.getMessage());
+            }
+            for (Map.Entry<String, CheckSettings> check : block.getValue().checks().entrySet()) {
+                for (Map.Entry<String, String> setting : check.getValue().settings().entrySet()) {
+                    String where = block.getKey() + check.getKey() + "." + setting.getKey();
+                    checkSetting(where, setting.getKey(), setting.getValue(), systems);
+                }
+            }
+            AuthorizationSettings authz = AuthorizationSettings.of(block.getValue().check(AuthorizationSettings.CHECK));
+            Set<String> missing = engines.missing(authz);
+            if (!missing.isEmpty()) {
+                throw new AdminException(400, "unknown_authorization_engine",
+                        block.getKey() + "authorization needs" + " the engine(s) " + missing
+                                + ", which this server does not have; it has " + engines.ids() + ".");
+            }
+        }
+        try {
+            engines.check(applied, systemKey);
+        }
+        catch (IllegalArgumentException e) {
+            throw new AdminException(400, "invalid_authorization", e.getMessage());
+        }
+    }
+
+    private static void checkSetting(String where, String key, String value, DefaultKeycloakSystems systems) {
+        if (key.endsWith("-file")) {
+            throw new AdminException(400, "local_file_setting",
+                    where + " names a file on this server, which a registered system cannot use (with client-auth"
+                            + " private_key_jwt the system's own signing key signs).");
+        }
+        // placeholders are filled per call: in the path, never in the host, which a
+        // realm's
+        // name would then choose
+        int scheme = value.indexOf("://");
+        if (scheme > 0) {
+            int path = value.indexOf('/', scheme + 3);
+            String authority = path < 0 ? value.substring(scheme + 3) : value.substring(scheme + 3, path);
+            if (authority.contains("{")) {
+                throw new AdminException(400, "placeholder_in_host",
+                        where + " " + value + ": placeholders belong in the path, not in the host.");
+            }
+        }
+        String concrete = value.replaceAll("\\{[^}]*}", "x");
+        if (!isHttpUrl(concrete)) {
+            return;
+        }
+        if (!systems.allowedHosts().permits(concrete)) {
+            throw new AdminException(400, "host_not_allowed", where + " " + value + " is not covered by"
+                    + " kc-mcp.allowed-hosts " + systems.allowedHosts().patterns() + ".");
+        }
+        systems.dynamicHostProblem(concrete).ifPresent(why -> {
+            throw new AdminException(400, "private_host", where + ": " + why);
+        });
+    }
+
+    private static boolean isHttpUrl(String value) {
+        try {
+            java.net.URI u = new java.net.URI(value);
+            return ("http".equalsIgnoreCase(u.getScheme()) || "https".equalsIgnoreCase(u.getScheme()))
+                    && u.getHost() != null;
+        }
+        catch (java.net.URISyntaxException e) {
+            return false;
+        }
+    }
+
+    /** A realm name as Keycloak takes it, without what a path cannot carry. */
+    static final Pattern REALM_NAME = Pattern.compile("[^/\\p{Cntrl}]{1,255}");
+
+    /** The settings of every realm of a system the server keeps settings for. */
+    public Map<String, Object> realms(String alias) {
+        KeycloakSystem system = known(alias);
+        List<Map<String, Object>> out = new ArrayList<>();
+        system.realms().keySet().forEach(name -> out.add(representRealm(system, name)));
+        return Map.of("realms", out);
+    }
+
+    public Map<String, Object> realm(String alias, String realm) {
+        KeycloakSystem system = known(alias);
+        if (!system.realms().containsKey(realm)) {
+            throw new AdminException(404, "unknown_realm",
+                    "System '" + alias + "' keeps no settings for a realm named '" + realm + "'.");
+        }
+        return representRealm(system, realm);
+    }
+
+    /**
+     * Adds or replaces the settings of one realm of a registered system, held to the same
+     * rules as the system's own authorization.
+     */
+    public Saved saveRealm(String alias, String realm, Map<String, Object> body) {
+        MutableKeycloakSystemRepository owner = mutableOwner(alias);
+        if (!REALM_NAME.matcher(realm).matches()) {
+            throw new AdminException(400, "invalid_realm_name", "Not a realm name: '" + realm + "'.");
+        }
+        RealmSettings settings;
+        try {
+            settings = RealmSettings.fromJson(realm, body == null ? null : new JsonObject(body));
+        }
+        catch (IllegalArgumentException | ClassCastException e) {
+            throw new AdminException(400, "invalid_realm", e.getMessage());
+        }
+        if (settings.isEmpty()) {
+            throw new AdminException(400, "invalid_realm", "A realm with no settings is not kept; DELETE "
+                    + AdminResource.PATH + "/systems/" + alias + "/realms/" + realm + " removes them.");
+        }
+        KeycloakSystem system = known(alias);
+        boolean existed = system.realms().containsKey(realm);
+        KeycloakSystem candidate = system.toBuilder().realm(settings).build();
+        checkSecrets(candidate);
+        checkTools(candidate, catalog);
+        checkAccess(candidate);
+        owner.saveRealm(alias, settings);
+        systems.forget(alias);
+        LOG.infof("Admin API: realm '%s' of system '%s' %s", realm, alias, existed ? "changed" : "registered");
+        return new Saved(representRealm(candidate, realm), existed);
+    }
+
+    /** Removes the settings of one realm; the system's own apply to it again. */
+    public void deleteRealm(String alias, String realm) {
+        MutableKeycloakSystemRepository owner = mutableOwner(alias);
+        if (!owner.deleteRealm(alias, realm)) {
+            throw new AdminException(404, "unknown_realm",
+                    "System '" + alias + "' keeps no settings for a realm named '" + realm + "'.");
+        }
+        systems.forget(alias);
+        LOG.infof("Admin API: realm '%s' of system '%s' removed", realm, alias);
+    }
+
+    private MutableKeycloakSystemRepository mutableOwner(String alias) {
+        KeycloakSystemRepository owner = systems.repositoryOf(alias)
+            .orElseThrow(() -> new AdminException(404, "unknown_system", "No Keycloak system named '" + alias + "'."));
+        if (!(owner instanceof MutableKeycloakSystemRepository mutable)) {
+            throw new AdminException(409, "system_configured", "'" + alias + "' is defined by the repository '"
+                    + owner.id() + "', which the admin API cannot change.");
+        }
+        return mutable;
+    }
+
+    private Map<String, Object> representRealm(KeycloakSystem system, String realm) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("name", realm);
+        out.put("system", system.name());
+        out.putAll(system.realms().get(realm).toMap(true));
+        String root = paths.absoluteMcpRoot() + "/" + EntryRoutes.SEGMENT + "/" + system.name();
+        out.put("entry", root + "/" + realm);
+        return out;
     }
 
     /** Removes a registered system; its keys stay in the vault. */
@@ -263,6 +529,23 @@ public class AdminSystems {
             out.put("trustedIssuers", s.trustedIssuers().stream().sorted().toList());
         }
         s.version().ifPresent(v -> out.put("version", v));
+        s.preset().ifPresent(p -> out.put("preset", p));
+        if (!s.access().isEmpty()) {
+            out.put("access", s.access().toMap(true));
+        }
+        if (!s.tools().isEmpty()) {
+            out.put("tools", s.tools().toMap());
+        }
+        if (!s.presets().isEmpty()) {
+            Map<String, Object> presets = new LinkedHashMap<>();
+            s.presets().forEach((name, p) -> presets.put(name, p.toMap(true)));
+            out.put("presets", presets);
+        }
+        if (!s.realms().isEmpty()) {
+            Map<String, Object> realms = new LinkedHashMap<>();
+            s.realms().forEach((name, r) -> realms.put(name, r.toMap(true)));
+            out.put("realms", realms);
+        }
         systems.repositoryOf(s.name()).ifPresent(r -> {
             out.put("source", r.id());
             r.timestamps(s.name()).ifPresent(t -> {

@@ -14,6 +14,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.access.AuthorizationEngine;
 import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
@@ -158,7 +159,8 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
 
     /** The extension points the registry hands out, resolved at startup. */
     static final List<Class<? extends Extension>> STARTUP_TYPES = List.of(PromptProvider.class, AccessCheck.class,
-            Confirmer.class, AuditListener.class, AuditScrubber.class, ProfileCheck.class, PendingApprovalStore.class);
+            AuthorizationEngine.class, Confirmer.class, AuditListener.class, AuditScrubber.class, ProfileCheck.class,
+            PendingApprovalStore.class);
 
     /**
      * Extension points picked outside the registry; discovered here too, so that their

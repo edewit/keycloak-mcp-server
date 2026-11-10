@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.backend.keycloak;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,6 +24,8 @@ import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.PrivateHosts;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.CheckSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.CompositeKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAddressCheck;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.HostAllowList;
@@ -34,6 +37,8 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.Presets;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
 
 import io.quarkus.runtime.BlockingOperationNotAllowedException;
 
@@ -66,6 +71,7 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     private final String defaultName;
     private final HostAllowList allowedHosts;
     private final SigningKeys keys;
+    private volatile Presets presets = Presets.NONE;
     private final DelegationMode delegation;
     private volatile PrivateHosts dynamicPrivateHosts = PrivateHosts.ALLOW;
     private volatile KcMcpMetrics metrics = KcMcpMetrics.noop();
@@ -82,6 +88,21 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
         this.issuerPolicies = new CallerIssuerPolicies(issuerPolicies(config, extensions));
         this.readTimeout = config.http().readTimeout();
         this.dynamicPrivateHosts = config.effectiveDynamicPrivateHosts();
+        this.presets = Presets.fromConfig(config.presets());
+    }
+
+    /**
+     * The server's presets, which systems' and realms' {@code preset} references resolve
+     * against (after the system's own).
+     */
+    public Presets presets() {
+        return presets;
+    }
+
+    /** For tests and embedding: other server presets. */
+    public DefaultKeycloakSystems presets(Presets serverPresets) {
+        this.presets = serverPresets == null ? Presets.NONE : serverPresets;
+        return this;
     }
 
     /**
@@ -306,12 +327,47 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
      * {@link KeyVault}; a reference the vault cannot resolve is logged and left empty, so
      * the connection fails with a clear credentials error.
      */
-    KeycloakSystem resolveSecrets(KeycloakSystem system) {
+    KeycloakSystem resolveSecrets(KeycloakSystem stored) {
+        // presets first: they may carry vault references of their own
+        KeycloakSystem system = presets.applyOrBlock(stored, problem -> LOG
+            .errorf("[%s] the presets do not resolve, so its tool calls are refused: %s", stored.name(), problem));
         if (keys == null) {
             return system;
         }
-        return system.withClientSecret(resolve(system, system.clientSecret(), "clientSecret"))
+        KeycloakSystem resolved = system.withClientSecret(resolve(system, system.clientSecret(), "clientSecret"))
             .withPassword(resolve(system, system.password(), "password"));
+        Map<String, RealmSettings> realms = new LinkedHashMap<>();
+        system.realms()
+            .forEach((name, r) -> realms.put(name,
+                    r.withAccess(resolve(system, r.access(), "realms." + name + ".access"))));
+        return resolved.withAccess(resolve(system, system.access(), "access")).withRealms(realms);
+    }
+
+    /**
+     * An access block with its {@code vault:} references resolved; an unresolved one is
+     * left out, so the check refuses the call rather than run with a reference: fail
+     * closed.
+     */
+    private AccessSettings resolve(KeycloakSystem system, AccessSettings access, String where) {
+        if (access.checks()
+            .values()
+            .stream()
+            .flatMap(c -> c.settings().values().stream())
+            .noneMatch(KeycloakSystem::isVaultRef)) {
+            return access;
+        }
+        Map<String, CheckSettings> checks = new LinkedHashMap<>();
+        access.checks().forEach((id, entry) -> {
+            Map<String, String> out = new LinkedHashMap<>(entry.settings());
+            entry.settings().forEach((k, v) -> {
+                if (KeycloakSystem.isVaultRef(v)) {
+                    resolve(system, Optional.of(v), where + "." + id + "." + k)
+                        .ifPresentOrElse(secret -> out.put(k, secret), () -> out.remove(k));
+                }
+            });
+            checks.put(id, entry.withSettings(out));
+        });
+        return new AccessSettings(checks);
     }
 
     private Optional<String> resolve(KeycloakSystem system, Optional<String> value, String field) {

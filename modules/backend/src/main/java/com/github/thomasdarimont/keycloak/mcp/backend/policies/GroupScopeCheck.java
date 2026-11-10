@@ -15,6 +15,21 @@ import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
  */
 public final class GroupScopeCheck implements AccessCheck {
 
+    /**
+     * The check's id in access blocks and {@code kc-mcp.spi.access-check.group-scope.*}.
+     */
+    public static final String ID = "group-scope";
+
+    @Override
+    public String id() {
+        return ID;
+    }
+
+    @Override
+    public String displayName() {
+        return "Group scope";
+    }
+
     /** tool name -> argument naming the target group */
     static final Map<String, String> GROUP_ARG = Map.of("keycloak_group_delete", "id", "keycloak_group_members_list",
             "groupId", "keycloak_group_member_add", "groupId", "keycloak_group_member_remove", "groupId",

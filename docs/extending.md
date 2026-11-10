@@ -44,6 +44,12 @@ public class AcmeToolProvider implements ToolProvider {
 - Secrets: `InputSchema.builder().string("pin", "...").sensitive()` for an argument, `.stringMap("config", "...")
   .sensitiveKeys("clientSecret")` for keys of a map, `ToolSpec.builder(...).sensitiveResult()` for a result that is a
   secret; `catalog.Sensitive` tells listeners and confirmers what to hide.
+- A read tool is held to it: while it runs, the admin client refuses every Admin API request but `GET`, `HEAD` and
+  `OPTIONS`, and the call fails as `read_only_violation`. A tool that changes anything, or reads through a `POST`,
+  declares `.write()` ([Read tools only read](security.md#read-tools-only-read)).
+- Renaming a tool: `.formerly("old_name")`. Deny-lists naming the old name keep denying it, allow-lists have to name
+  the new one, and calls by the old name answer with the new name. A former name may not be any tool's name
+  ([New, removed and renamed tools](security.md#new-removed-and-renamed-tools)).
 - Every tool declares its level, `.read()`, `.write()` or `.destructive()`; `build()` refuses a tool without one, so a
   forgotten call cannot slip past the read-only filter or the confirmation. The level is in every `search_tools` hit
   (`level`) and in the MCP tool annotations (`readOnlyHint`, `destructiveHint`).
@@ -52,7 +58,7 @@ public class AcmeToolProvider implements ToolProvider {
   use the same SPI; `kc-mcp.spi.<spi>.<id>.enabled=false` switches one off.
 - Settings: `kc-mcp.spi.<spi>.<id>.<key>`, environment `KC_MCP_SPI_<SPI>_<ID>_<KEY>`. An id is unique within its
   extension point, so the same id under two extension points has separate settings. `<spi>` is `tools`, `prompts`,
-  `access-check`, `confirmer`, `issuer-policy`, `profile-check`, `audit-listener`, `audit-scrubber`, `approval-store`,
+  `access-check`, `authorization-engine`, `confirmer`, `issuer-policy`, `profile-check`, `audit-listener`, `audit-scrubber`, `approval-store`,
   `system-repository`, `key-vault`, `key-generator` or `session-store`.
 - Choosing a provider: `key-vault`, `key-generator`, `session-store` and `approval-store` are served by exactly one
   extension, the others run all of theirs. `kc-mcp.spi.key-vault.provider=db`
@@ -82,7 +88,10 @@ public class AcmeToolProvider implements ToolProvider {
   point is discovered once. `configure` and `isSupported` run once at startup, and settings need a restart to change.
 - `ExtensionRegistry` (`extensions(Confirmer.class)`, `extension(ToolProvider.class, "users")`, `context(id)`):
   discovery, dedup by id, enabled switch, order. CDI bean, injectable.
-- Global `AccessCheck`: `@AutoService(AccessCheck.class)`, CDI bean, or `ToolProvider.accessChecks(...)`.
+- Global `AccessCheck`: `@AutoService(AccessCheck.class)`, CDI bean, or `ToolProvider.accessChecks(...)`. Give it a
+  short `id()`: it names the check's entry in systems' and realms' `access` blocks. Read the effective settings of the
+  call from `context.settings()` (the server's `kc-mcp.spi.access-check.<id>.*` with the system's and realm's entry
+  over them) to follow systems and realms ([Access checks](access-checks.md)).
 
 ## Extension jars: `providers/`
 
@@ -126,6 +135,59 @@ public class TicketConfirmer implements Confirmer {
 
 The built-in confirmer that has the caller approve each destructive tool on their own device through OpenID Connect
 CIBA has a page of its own: [CIBA confirmation](ciba-confirmation.md). `examples/ciba-confirm` runs it.
+
+## Authorization engines
+
+An `AuthorizationEngine` (package `access`) is a client of an outside policy service: the built-in `authzen`, or a
+vendor's. Register with `@AutoService(AuthorizationEngine.class)` or as a CDI bean; settings
+`kc-mcp.spi.authorization-engine.<id>.*`. The engine decides about a call, not whether the call is its to decide: the
+server's access check `authorization` does that from the system's and realm's `authorization` block, denies calls
+that need an engine the server does not have, and denies calls whose engine throws
+([External authorization](authzen.md)).
+
+```java
+@AutoService(AuthorizationEngine.class)
+public class AcmeOpaEngine implements AuthorizationEngine {
+    public String id() { return "acme-opa"; }                     // "authorization": {"acme-opa": {...}}
+    public AccessCheck.Decision decide(Request r) {
+        String endpoint = r.settings().getOrDefault("endpoint", defaultEndpoint); // the block's, realm's over system's
+        boolean allowed = opa.allows(endpoint, r.context().caller(), r.context().tool().name(), r.context().args());
+        return allowed ? AccessCheck.Decision.allow() : AccessCheck.Decision.deny("policy_denied", "OPA says no.");
+    }
+    public void validate(KeycloakSystem system, boolean systemKey) { /* refuse bad settings before they are stored */ }
+}
+```
+
+- `Request`: the call's `AccessCheck.Context`, the system it targets, the effective `authorization` block and the
+  engine's part of it (`settings()`, kebab-case keys).
+- `evaluatesByDefault()` (default `false`): whether systems whose block has no switch are evaluated by this engine.
+- `validate`: the admin API calls it before storing a system or realm; throw `IllegalArgumentException` with what is
+  wrong. URL-valued settings, `-file` settings and `vault:` references are checked by the server for every engine.
+- A setting whose name ends like a secret (`...secret`, `...password`, `...token`, `...key`) is masked and may be a
+  `vault:` reference, resolved before the engine sees it.
+
+## Client authenticators
+
+Where the server fetches tokens from an authorization server other than Keycloak's admin login (today: the AuthZEN
+engine with `auth=client-credentials`), the client authentication is pluggable. A `ClientAuthenticatorFactory`
+(package `oauth`) serves one `token_endpoint_auth_method` by its `id()`; the component names it in its settings
+(`client-auth=<id>`) and the factory gets the client id, the token endpoint, the component's settings and, where there
+is one, a signer with the Keycloak system's key. The `ClientAuthenticator` it makes adds form parameters or headers to
+each `TokenRequest`. Built in: `client_secret_basic`, `client_secret_post`, `private_key_jwt`. Register with
+`@AutoService(ClientAuthenticatorFactory.class)`, from the class path or `providers/`, or as a CDI bean; an
+extension's factory with a built-in id replaces the built-in one. A factory that throws `IllegalStateException` on
+incomplete settings stops the start.
+
+```java
+@AutoService(ClientAuthenticatorFactory.class)
+public class VendorKeyAuthenticatorFactory implements ClientAuthenticatorFactory {
+    public String id() { return "vendor_api_key"; }
+    public ClientAuthenticator create(Context ctx) {
+        String key = ctx.require(id(), "vendor-key");          // kc-mcp.spi.authorization-engine.authzen.vendor-key
+        return request -> request.param("client_id", ctx.clientId()).header("X-Vendor-Key", key);
+    }
+}
+```
 
 ## Caller issuer policies
 

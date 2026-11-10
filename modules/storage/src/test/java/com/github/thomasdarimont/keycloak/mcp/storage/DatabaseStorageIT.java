@@ -22,9 +22,11 @@ import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.AuthorizationSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
 import com.github.thomasdarimont.keycloak.mcp.storage.approvals.DatabasePendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.storage.approvals.PendingApprovalEntity;
@@ -36,6 +38,7 @@ import com.github.thomasdarimont.keycloak.mcp.storage.keys.DatabaseKeyVault;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.SecretEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.keys.SigningKeyEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.DatabaseKeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.storage.systems.RealmEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.systems.SystemEntity;
 import com.github.thomasdarimont.keycloak.mcp.storage.web.UserSessionEntity;
 import com.github.thomasdarimont.keycloak.mcp.web.UserSession;
@@ -185,6 +188,130 @@ class DatabaseStorageIT {
         assertEquals(trusting.trustedIssuers(), repo.find(alias).orElseThrow().trustedIssuers());
         repo.save(trusting.toBuilder().trustedIssuers(List.of()).build());
         assertEquals(Set.of(), repo.find(alias).orElseThrow().trustedIssuers(), "cleared again");
+    }
+
+    @Test
+    void authorizationRoundTripEncryptedAtRest() {
+        DatabaseKeycloakSystemRepository repo = repositories.select(DatabaseKeycloakSystemRepository.class).get();
+        String alias = "governed-" + UUID.randomUUID();
+        AuthorizationSettings authz = AuthorizationSettings.fromJson(new io.vertx.core.json.JsonObject("""
+                {"enabled": true, "authzen": {"url": "https://pdp.example.com/access/v1/evaluation",
+                 "auth": "client-credentials", "clientSecret": "pdp-s3cret"}}"""));
+        KeycloakSystem governed = system(alias, "https://sso.example.com", Optional.empty(), Set.of()).toBuilder()
+            .authorization(authz)
+            .build();
+
+        SystemEntity row = repo.saveEntity(governed);
+
+        assertTrue(StorageCrypto.isEncrypted(row.access), "the block may hold the PDP's secret");
+        assertFalse(row.access.contains("pdp-s3cret"));
+        assertEquals(authz, repo.find(alias).orElseThrow().authorization());
+        repo.save(governed.toBuilder().authorization(null).build());
+        assertNull(repo.entity(alias).orElseThrow().access, "cleared again");
+        assertTrue(repo.find(alias).orElseThrow().authorization().isEmpty());
+    }
+
+    @Test
+    void realmsAreRowsOfTheirOwnThatOutliveAReplaceButNotTheSystem() {
+        DatabaseKeycloakSystemRepository repo = repositories.select(DatabaseKeycloakSystemRepository.class).get();
+        String alias = "realms-" + UUID.randomUUID();
+        KeycloakSystem system = system(alias, "https://sso.example.com", Optional.empty(), Set.of());
+        repo.save(system);
+        RealmSettings sandbox = new RealmSettings("sandbox", Optional.of("4f2c-uuid"), Optional.of("Sandbox"),
+                Optional.of("Where support tries things"),
+                com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings
+                    .fromJson(new io.vertx.core.json.JsonObject(
+                            "{\"authorization\": {\"enabled\": false, \"authzen\": {\"headerValue\": \"realm-s3cret\"}},"
+                                    + " \"self-protection\": {\"order\": 5, \"mode\": \"confirm\"}}"),
+                            "access."));
+
+        repo.saveRealm(alias, sandbox);
+
+        assertEquals(sandbox, repo.find(alias).orElseThrow().realms().get("sandbox"));
+        RealmEntity row = RealmEntity
+            .<RealmEntity>find("name = ?1 and systemId = ?2", "sandbox", repo.entity(alias).orElseThrow().id)
+            .firstResult();
+        assertTrue(StorageCrypto.isEncrypted(row.access));
+        assertFalse(row.access.contains("realm-s3cret"));
+
+        repo.save(system.withDescription("replaced")); // a system without realms
+        assertEquals(sandbox, repo.find(alias).orElseThrow().realms().get("sandbox"), "replacing keeps them");
+        assertThrows(IllegalArgumentException.class, () -> repo.saveRealm("nope-" + alias, sandbox));
+
+        assertTrue(repo.deleteRealm(alias, "sandbox"));
+        assertFalse(repo.deleteRealm(alias, "sandbox"));
+        assertTrue(repo.find(alias).orElseThrow().realms().isEmpty());
+
+        repo.saveRealm(alias, sandbox);
+        String systemId = repo.entity(alias).orElseThrow().id;
+        assertTrue(repo.delete(alias));
+        assertEquals(0, RealmEntity.count("systemId = ?1", systemId), "gone with the system");
+    }
+
+    @Test
+    void presetsAndTheirReferencesRoundTrip() {
+        DatabaseKeycloakSystemRepository repo = repositories.select(DatabaseKeycloakSystemRepository.class).get();
+        String alias = "presetd-" + UUID.randomUUID();
+        var tenant = com.github.thomasdarimont.keycloak.mcp.keycloak.Preset.fromJson("tenant",
+                new io.vertx.core.json.JsonObject("{\"extends\": \"strict\","
+                        + " \"access\": {\"authorization\": {\"authzen\": {\"clientSecret\": \"preset-s3cret\"}}}}"),
+                "presets.tenant.");
+        KeycloakSystem system = system(alias, "https://sso.example.com", Optional.empty(), Set.of()).toBuilder()
+            .preset("tenant")
+            .presets(List.of(tenant))
+            .build();
+
+        SystemEntity row = repo.saveEntity(system);
+        repo.saveRealm(alias, new RealmSettings("lab", Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.of("tenant"), com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings.NONE));
+
+        assertEquals("tenant", row.preset);
+        assertTrue(StorageCrypto.isEncrypted(row.presets));
+        assertFalse(row.presets.contains("preset-s3cret"));
+        KeycloakSystem read = repo.find(alias).orElseThrow();
+        assertEquals(Optional.of("tenant"), read.preset());
+        assertEquals(tenant, read.presets().get("tenant"));
+        assertEquals(Optional.of("tenant"), read.realms().get("lab").preset());
+
+        var tools = com.github.thomasdarimont.keycloak.mcp.keycloak.ToolSettings.fromJson(
+                new io.vertx.core.json.JsonObject("{\"readOnly\": true, \"denied\": [\"user_delete\"]}"), "tools.");
+        repo.save(read.toBuilder().tools(tools).build());
+        repo.saveRealm(alias, read.realms().get("lab").withTools(tools));
+        KeycloakSystem again = repo.find(alias).orElseThrow();
+        assertEquals(tools, again.tools());
+        assertEquals(tools, again.realms().get("lab").tools());
+    }
+
+    @Test
+    void rekeyRewritesAuthorizationBlocks() {
+        DatabaseKeycloakSystemRepository repo = repositories.select(DatabaseKeycloakSystemRepository.class).get();
+        String alias = "governed-old-" + UUID.randomUUID();
+        repo.save(system(alias, "https://sso.example.com", Optional.empty(), Set.of()));
+        repo.saveRealm(alias, new RealmSettings("acme", AuthorizationSettings
+            .fromJson(new io.vertx.core.json.JsonObject("{\"authzen\": {\"clientSecret\": \"r\"}}"))));
+        StorageCrypto previous = new StorageCrypto("old-passphrase");
+        String old = previous.protect("{\"authorization\":{\"enabled\":true,\"authzen\":{\"clientSecret\":\"s\"}}}");
+        String oldRealm = previous.protect("{\"authorization\":{\"authzen\":{\"clientSecret\":\"r\"}}}");
+        QuarkusTransaction.requiringNew().run(() -> {
+            SystemEntity e = repo.entity(alias).orElseThrow();
+            e.access = old;
+            RealmEntity.<RealmEntity>find("systemId = ?1", e.id).firstResult().access = oldRealm;
+        });
+        repo.setEnabled(alias, true); // drops the repository's snapshot, which predates
+                                      // the direct write
+        assertEquals("s", repo.find(alias).orElseThrow().authorization().engine("authzen").get("client-secret"),
+                "the previous key decrypts");
+
+        rekey.rekey();
+
+        SystemEntity now = repo.entity(alias).orElseThrow();
+        assertEquals(crypto.currentKeyId(), StorageCrypto.keyIdOf(now.access), "rewritten under the current key");
+        assertEquals(crypto.currentKeyId(),
+                StorageCrypto.keyIdOf(RealmEntity.<RealmEntity>find("systemId = ?1", now.id).firstResult().access));
+        repo.setEnabled(alias, true);
+        KeycloakSystem read = repo.find(alias).orElseThrow();
+        assertEquals("s", read.authorization().engine("authzen").get("client-secret"));
+        assertEquals("r", read.realms().get("acme").authorization().engine("authzen").get("client-secret"));
     }
 
     @Test

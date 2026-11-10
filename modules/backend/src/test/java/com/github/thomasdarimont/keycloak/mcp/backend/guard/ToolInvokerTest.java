@@ -119,6 +119,20 @@ class ToolInvokerTest {
     }
 
     @Test
+    void writeToolsNeedConfirmationWhereTheServerAsks() {
+        ToolSpec setEnabled = catalog.get("keycloak_user_set_enabled").orElseThrow();
+        Map<String, Object> args = Map.of("realm", "demo", "id", "1", "enabled", false);
+        assertFalse(payload(invoker(false, List.of(), fixed(Decision.DECLINED)).invoke(setEnabled, args, false, ctx))
+            .containsKey("error"), "no confirmation asked by default: the confirmer is not consulted");
+
+        ToolInvoker strict = new ToolInvoker(catalog,
+                new AccessPolicy(false, List.of()).confirmation(List.of("user_set_enabled"), false),
+                fixed(Decision.DECLINED), 50);
+        assertEquals("cancelled", payload(strict.invoke(setEnabled, args, false, ctx)).get("error"),
+                "asked, and declined");
+    }
+
+    @Test
     void defaultConfirmerWithoutElicitationUsesFlag() {
         ToolSpec spec = catalog.get("keycloak_user_delete").orElseThrow();
         DefaultConfirmer confirmer = new DefaultConfirmer();

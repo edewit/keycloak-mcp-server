@@ -81,4 +81,30 @@ class JwtSignerTest {
         KeyPair kp = gen.generateKeyPair();
         assertThrows(IllegalStateException.class, () -> new JwtSigner(kp.getPrivate(), "ES256", null));
     }
+
+    @Test
+    void curveMustMatchAlgorithm() throws Exception {
+        KeyPairGenerator gen = KeyPairGenerator.getInstance("EC");
+        gen.initialize(new ECGenParameterSpec("secp384r1"));
+        KeyPair p384 = gen.generateKeyPair();
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new JwtSigner(p384.getPrivate(), "ES256", null));
+        assertTrue(e.getMessage().contains("P-384") && e.getMessage().contains("ES384"), e.getMessage());
+        assertEquals("ES384", JwtSigner.algorithmFor(p384.getPrivate()));
+        String jwt = new JwtSigner(p384.getPrivate(), "ES384", null).sign(new JsonObject().put("a", 1));
+        assertEquals(96, Base64.getUrlDecoder().decode(jwt.split("\\.")[2]).length);
+    }
+
+    @Test
+    void algorithmFollowsTheKey() throws Exception {
+        KeyPairGenerator rsa = KeyPairGenerator.getInstance("RSA");
+        rsa.initialize(2048);
+        assertEquals("RS256", JwtSigner.algorithmFor(rsa.generateKeyPair().getPrivate()));
+        for (String[] c : new String[][] { { "secp256r1", "ES256" }, { "secp521r1", "ES512" } }) {
+            KeyPairGenerator ec = KeyPairGenerator.getInstance("EC");
+            ec.initialize(new ECGenParameterSpec(c[0]));
+            assertEquals(c[1], JwtSigner.algorithmFor(ec.generateKeyPair().getPrivate()));
+        }
+    }
 }

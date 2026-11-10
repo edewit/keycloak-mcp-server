@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
 
@@ -35,6 +36,15 @@ public interface AccessCheck extends Extension {
     Decision check(Context context);
 
     /**
+     * Whether the check runs where neither the server's {@code default} nor a system's or
+     * realm's entry says otherwise. Default: yes; a check that only makes sense where it
+     * is asked for (the group scope) answers no.
+     */
+    default boolean enabledByDefault() {
+        return true;
+    }
+
+    /**
      * @param tool the tool about to run
      * @param system Keycloak system name ({@code null} in single-system unit tests)
      * @param realm resolved target realm ({@code null} for global tools)
@@ -47,13 +57,34 @@ public interface AccessCheck extends Extension {
      * @param attributes scratch space of this one evaluation, fresh per call: a check
      * that looks something up, a directory say, keeps it here so the other checks of the
      * same call reuse it instead of asking Keycloak again
+     * @param settings this check's effective settings for the call: the server's
+     * {@code kc-mcp.spi.access-check.<id>.*} with the system's and the realm's
+     * {@code access.<id>} entries over them, without {@code enabled} and {@code order};
+     * empty for checks attached to a tool
      */
     record Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
-            Caller caller, KeycloakAdmin keycloak, Map<String, Object> attributes) {
+            Caller caller, KeycloakAdmin keycloak, Map<String, Object> attributes, ProviderConfig settings) {
+
+        public Context {
+            settings = settings == null ? new ProviderConfig(SPI, "", Map.of()) : settings;
+        }
+
+        public Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
+                Caller caller, KeycloakAdmin keycloak, Map<String, Object> attributes) {
+            this(tool, system, realm, args, roles, caller, keycloak, attributes, null);
+        }
 
         public Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
                 Caller caller, KeycloakAdmin keycloak) {
             this(tool, system, realm, args, roles, caller, keycloak, new ConcurrentHashMap<>());
+        }
+
+        /**
+         * The same call as another check sees it: its own settings, the shared
+         * attributes.
+         */
+        public Context forCheck(ProviderConfig checkSettings) {
+            return new Context(tool, system, realm, args, roles, caller, keycloak, attributes, checkSettings);
         }
 
         public Context(ToolSpec tool, String system, String realm, Map<String, Object> args, GrantedRoles roles,
