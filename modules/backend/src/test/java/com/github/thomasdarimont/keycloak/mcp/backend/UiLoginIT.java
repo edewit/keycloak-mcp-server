@@ -30,6 +30,7 @@ import io.restassured.response.Response;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -116,7 +117,9 @@ class UiLoginIT {
             .body("realm", equalTo("demo"))
             .body("roles", hasItem("realm-management.realm-admin"))
             .body("admin", equalTo(true))
-            .body("adminRole", equalTo("realm-management.realm-admin"));
+            .body("adminRole", equalTo("realm-management.realm-admin"))
+            .body("capabilities", hasItem("systems:read"))
+            .body("capabilities", hasItem("systems:write"));
         alice.get("/bff/api/systems").then().statusCode(200).body("systems.alias", hasItem("default"));
 
         // the row: plain tokens through the store, encrypted in the table; issuer,
@@ -151,7 +154,8 @@ class UiLoginIT {
     }
 
     @Test
-    void viewerSignsInButLacksTheManagementRole() {
+    void signedInWithoutOperatorOrViewerRoleIsForbidden() {
+        // viewer-role is unset in this IT: carol can sign in but gets no capabilities.
         Browser carol = Browser.login("second", "carol", "carol");
         assertTrue(carol.sessionCookie.startsWith("q_session_kc-mcp-ui-second="), carol.sessionCookie);
         carol.get("/bff/me")
@@ -160,7 +164,9 @@ class UiLoginIT {
             .body("authenticated", equalTo(true))
             .body("idp", equalTo("second"))
             .body("username", equalTo("carol"))
-            .body("admin", equalTo(false));
+            .body("admin", equalTo(false))
+            .body("viewer", equalTo(false))
+            .body("capabilities", empty());
         carol.get("/bff/api/systems").then().statusCode(403).body("error", equalTo("forbidden"));
     }
 

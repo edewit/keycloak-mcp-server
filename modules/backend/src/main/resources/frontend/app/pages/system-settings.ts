@@ -1,6 +1,16 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { BffError, getSystem, listSystems, saveSystem, type System, type SystemSave } from '../bff.js';
+import {
+  BffError,
+  Cap,
+  getSystem,
+  hasCapability,
+  listSystems,
+  me,
+  saveSystem,
+  type System,
+  type SystemSave,
+} from '../bff.js';
 import { systemHref, systemsHref } from '../router.js';
 
 type FormState = {
@@ -221,6 +231,9 @@ export class SystemSettings extends LitElement {
   @state()
   private createBlockedHint: string | null = null;
 
+  @state()
+  private canWrite = false;
+
   private secretConfigured = false;
 
   connectedCallback(): void {
@@ -241,11 +254,19 @@ export class SystemSettings extends LitElement {
     this.error = null;
     this.savedAt = null;
     this.createBlockedHint = null;
-    if (this.create) {
-      this.system = null;
-      this.secretConfigured = false;
-      this.busy = true;
-      try {
+    this.busy = true;
+    try {
+      const session = await me();
+      this.canWrite = hasCapability(session, Cap.systemsWrite);
+      if (this.create) {
+        this.system = null;
+        this.secretConfigured = false;
+        if (!this.canWrite) {
+          this.createBlockedHint =
+            'Sign in with the operator role (kc-mcp.admin.role) to register systems. Viewers may only read.';
+          this.form = null;
+          return;
+        }
         const list = await listSystems();
         if (!list.canCreate) {
           this.createBlockedHint =
@@ -255,21 +276,13 @@ export class SystemSettings extends LitElement {
         } else {
           this.form = emptyForm();
         }
-      } catch (e) {
-        this.form = emptyForm();
-        this.report(e);
-      } finally {
-        this.busy = false;
+        return;
       }
-      return;
-    }
-    if (!this.alias) {
-      this.form = null;
-      this.system = null;
-      return;
-    }
-    this.busy = true;
-    try {
+      if (!this.alias) {
+        this.form = null;
+        this.system = null;
+        return;
+      }
       const system = await getSystem(this.alias);
       this.system = system;
       this.secretConfigured = !!system.clientSecret;
@@ -297,7 +310,7 @@ export class SystemSettings extends LitElement {
     if (!this.form) {
       return;
     }
-    const writable = this.create || !!this.system?.writable;
+    const writable = this.canWrite && (this.create || !!this.system?.writable);
     if (!writable) {
       return;
     }
@@ -392,7 +405,7 @@ export class SystemSettings extends LitElement {
         ${this.error ? html`<p class="error">${this.error}</p>` : nothing}
       `;
     }
-    const writable = this.create || !!this.system?.writable;
+    const writable = this.canWrite && (this.create || !!this.system?.writable);
     const secretHint = this.create
       ? 'Plain secret or vault:name.'
       : this.secretConfigured

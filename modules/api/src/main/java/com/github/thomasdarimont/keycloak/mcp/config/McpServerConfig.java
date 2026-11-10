@@ -606,6 +606,15 @@ public interface McpServerConfig {
          */
         @WithConverter(Durations.DurationConverter.class)
         Optional<Duration> readTimeout();
+
+        /**
+         * Optional read-only role for the management UI (same notation as
+         * {@link Admin#role()}: {@code realm:<role>} or {@code <client>.<role>}). Holders
+         * may call safe {@code /bff/api/*} methods and see the UI; writes still need
+         * {@link Admin#role()}. Unset: only the admin role opens the API (unchanged from
+         * before).
+         */
+        Optional<String> viewerRole();
     }
 
     /** One identity provider of the management UI. */

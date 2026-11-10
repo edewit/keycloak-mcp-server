@@ -52,9 +52,9 @@ import io.quarkus.vertx.http.runtime.CurrentVertxRequest;
  * POST /bff/check-session  is the session still alive at the provider (UserSessionCheck); 200 {"active": true, ...}
  *                       with a re-sent cookie, 401 {"active": false} when it ended elsewhere, 503 when the provider
  *                       cannot be asked
- * GET /bff/api/systems           the known systems, as GET /admin/systems (needs kc-mcp.admin.role)
+ * GET /bff/api/systems           the known systems, as GET /admin/systems (operator or viewer role)
  * GET /bff/api/systems/{alias}   one system, as GET /admin/systems/{alias}
- * PUT /bff/api/systems/{alias}   replace a mutable system, as PUT /admin/systems/{alias} (CSRF header)
+ * PUT /bff/api/systems/{alias}   replace a mutable system, as PUT /admin/systems/{alias} (operator + CSRF header)
  * POST /bff/backchannel-logout   the provider ends sessions (OIDC back-channel logout, BackChannelLogoutResource)
  * </pre>
  */
@@ -120,7 +120,12 @@ public class UiResource {
         out.put("issuer", caller.claim("iss"));
         out.put("roles", new TreeSet<>(caller.roles()));
         out.put("adminRole", config.admin().role());
-        out.put("admin", caller.hasRole(config.admin().role()));
+        boolean operator = UiCapabilities.isOperator(caller, config);
+        boolean viewer = UiCapabilities.isViewer(caller, config);
+        out.put("admin", operator);
+        out.put("viewer", viewer);
+        UiCapabilities.viewerRole(config).ifPresent(r -> out.put("viewerRole", r));
+        out.put("capabilities", UiCapabilities.forCaller(caller, config));
         if (idToken.isResolvable() && idToken.get().getRawToken() != null) {
             long exp = idToken.get().getExpirationTime();
             if (exp > 0) {

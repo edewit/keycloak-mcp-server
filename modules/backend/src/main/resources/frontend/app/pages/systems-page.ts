@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { BffError, listSystems, type System } from '../bff.js';
+import { BffError, Cap, hasCapability, listSystems, me, type System } from '../bff.js';
 import { newSystemHref, systemHref } from '../router.js';
 
 /** Systems list via GET /bff/api/systems; each row is a Keycloak cluster/environment. */
@@ -95,6 +95,9 @@ export class SystemsPage extends LitElement {
   private canCreate = false;
 
   @state()
+  private canWrite = false;
+
+  @state()
   private canCreateHint: string | null = null;
 
   @state()
@@ -112,13 +115,17 @@ export class SystemsPage extends LitElement {
     this.busy = true;
     this.error = null;
     try {
-      const data = await listSystems();
+      const [session, data] = await Promise.all([me(), listSystems()]);
+      this.canWrite = hasCapability(session, Cap.systemsWrite);
       this.items = data.systems ?? [];
-      this.canCreate = !!data.canCreate;
-      this.canCreateHint = data.canCreateHint ?? null;
+      this.canCreate = !!data.canCreate && this.canWrite;
+      this.canCreateHint = this.canWrite
+        ? (data.canCreateHint ?? null)
+        : 'Sign in with the operator role (kc-mcp.admin.role) to register or change systems.';
     } catch (e) {
       this.items = [];
       this.canCreate = false;
+      this.canWrite = false;
       this.canCreateHint = null;
       if (e instanceof BffError) {
         this.error = `${e.status} ${e.code}: ${e.message}`;
@@ -162,7 +169,7 @@ export class SystemsPage extends LitElement {
         </button>
       </div>
       ${!this.canCreate && this.canCreateHint && !this.error
-        ? html`<p class="muted">Cannot register new systems: ${this.canCreateHint}</p>`
+        ? html`<p class="muted">${this.canCreateHint}</p>`
         : nothing}
       ${this.error ? html`<p class="error">${this.error}</p>` : nothing}
       ${!this.error && !this.busy && this.items.length === 0
@@ -204,7 +211,11 @@ export class SystemsPage extends LitElement {
           <span class="badge">${s.source ?? '—'}</span>
           ${s.writable === false ? html` <span class="badge">read-only</span>` : nothing}
         </td>
-        <td><a href=${href}>${s.writable === false ? 'View' : 'Open'}</a></td>
+        <td
+          ><a href=${href}
+            >${s.writable === false || !this.canWrite ? 'View' : 'Open'}</a
+          ></td
+        >
       </tr>
     `;
   }

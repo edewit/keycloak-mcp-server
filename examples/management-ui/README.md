@@ -15,8 +15,8 @@ open https://localhost:8443/ui/
 
 | user | password | outcome |
 |---|---|---|
-| `alice` | `alice-demo` | `/mcp-admins` → `realm-management.realm-admin`: signs in, "Call the API" lists the systems |
-| `carol` | `carol-demo` | `/mcp-support`: signs in, the API answers 403 `forbidden`, the page shows the missing role |
+| `alice` | `alice-demo` | `/mcp-admins` → `realm-management.realm-admin` (operator): signs in, can list and edit mutable systems |
+| `carol` | `carol-demo` | `/mcp-support` → `realm-management.view-users` (viewer via `KC_MCP_UI_VIEWER_ROLE`): signs in, can read systems; writes answer 403 |
 
 - `env/ui.env`: one identity provider (`KC_MCP_UI_ISSUER`, the demo realm, client `keycloak-mcp-ui`), H2 file database,
   the mkcert certificate, admin API over bearer tokens too
@@ -35,8 +35,9 @@ open https://localhost:8443/ui/
 - The cookie: `q_session_kc-mcp-ui-<alias>` with a 43 character id, `Secure; HttpOnly; SameSite=Lax`, no token in it
 - The row: `select id, idp, subject, substr(id_token, 1, 12), expires_at from kc_mcp_user_session` in `data/kc-mcp-ui`
   (H2) shows `enc:v2:...`; `GET /admin/storage` counts the table's key ids; logout deletes the row
-- Roles: `/bff/me` lists them from the access token (`realm:...`, `<client>.<role>`); `admin` says whether
-  `KC_MCP_ADMIN_ROLE` is among them, the same gate as the bearer admin API
+- Roles: `/bff/me` lists them from the access token (`realm:...`, `<client>.<role>`); `admin` / `viewer` and
+  `capabilities` (`systems:read`, `systems:write`, …) drive the sidebar. Operator = `KC_MCP_ADMIN_ROLE` (reads and
+  writes); optional viewer = `KC_MCP_UI_VIEWER_ROLE` (reads only). The bearer admin API still needs the operator role.
 - Expiry: the ID token lives 5 minutes (realm setting), Quarkus renews it for `KC_MCP_UI_SESSION_AGE_EXTENSION`
   (default 30 minutes, Keycloak's SSO idle timeout) of idling; after that `/bff/api/*` answers 499 and the page shows
   the sign-in buttons again

@@ -3,6 +3,8 @@
 export type NavRoute = {
   path: string;
   label: string;
+  /** When set, the sidebar shows the item only if /bff/me lists this capability. */
+  capability?: string;
 };
 
 export type SystemTab = 'settings' | 'realms';
@@ -15,9 +17,9 @@ export const DEFAULT_PATH = `${UI_BASE}/overview`;
 
 export const routes: NavRoute[] = [
   { path: `${UI_BASE}/overview`, label: 'Overview' },
-  { path: `${UI_BASE}/systems`, label: 'Systems' },
-  { path: `${UI_BASE}/secrets`, label: 'Secrets' },
-  { path: `${UI_BASE}/storage`, label: 'Storage' },
+  { path: `${UI_BASE}/systems`, label: 'Systems', capability: 'systems:read' },
+  { path: `${UI_BASE}/secrets`, label: 'Secrets', capability: 'secrets:read' },
+  { path: `${UI_BASE}/storage`, label: 'Storage', capability: 'storage:read' },
 ];
 
 export function overviewHref(): string {

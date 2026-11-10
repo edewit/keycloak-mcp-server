@@ -289,7 +289,7 @@ export class KcMcpApp extends LitElement {
     return html`
       <kc-mcp-toolbar .session=${this.session}></kc-mcp-toolbar>
       <div class="body">
-        ${signedIn ? html`<kc-mcp-nav></kc-mcp-nav>` : nothing}
+        ${signedIn ? html`<kc-mcp-nav .session=${this.session}></kc-mcp-nav>` : nothing}
         <main>
           ${this.sessionError
             ? html`<section class="card">

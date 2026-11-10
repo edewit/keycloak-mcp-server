@@ -25,6 +25,17 @@ logout. See `modules/backend/src/main/resources/frontend/README.md` for the cont
 A system is one Keycloak front door (`url`). Realms are not a top-level nav section: the server only knows
 `allowedRealms` / `defaultRealm` per system. Empty `allowedRealms` means all realms on that cluster.
 
+### Roles
+
+| role | config | access |
+|---|---|---|
+| operator | `kc-mcp.admin.role` (default `realm:admin`) | read and write `/bff/api/*` |
+| viewer | `kc-mcp.ui.viewer-role` (optional; unset = off) | read-only `/bff/api/*` |
+
+The BFF enforces; the UI hides what `/bff/me` `capabilities` does not list (`systems:read`, `systems:write`,
+`secrets:read`, `storage:read`). An operator sees everything a viewer sees. The bearer admin API is unchanged and still
+requires the operator role.
+
 ## How it works
 
 The UI is a [Lit](https://lit.dev) single-page app under `modules/backend/src/main/resources/frontend`, bundled by
@@ -85,11 +96,11 @@ which provider and subject it belongs to.
 
 | call | does |
 |---|---|
-| `GET /bff/me` | who is signed in and the providers of the login page |
+| `GET /bff/me` | who is signed in, providers, `admin` / `viewer`, and `capabilities` |
 | `GET /bff/login[?idp=<alias>]` | starts the login, then `/ui/overview` |
 | `GET /bff/logout` | RP-initiated logout, session row deleted |
-| `GET /bff/api/systems[/{alias}]` | the systems, as `GET /admin/systems`; needs `kc-mcp.admin.role` on the access token |
-| `PUT /bff/api/systems/{alias}` | replace a mutable system, as `PUT /admin/systems/{alias}` (CSRF header) |
+| `GET /bff/api/systems[/{alias}]` | the systems, as `GET /admin/systems`; operator (`kc-mcp.admin.role`) or viewer (`kc-mcp.ui.viewer-role`) |
+| `PUT /bff/api/systems/{alias}` | replace a mutable system; operator only (+ CSRF header) |
 | `POST /bff/check-session` | the session check above |
 | `POST /bff/backchannel-logout` | for the identity provider, not the browser |
 
