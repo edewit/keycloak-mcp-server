@@ -1,4 +1,4 @@
-package com.github.thomasdarimont.keycloak.mcp.backend.authzen;
+package com.github.thomasdarimont.keycloak.mcp.authzen;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,8 +18,10 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
- * Turns one tool call into an AuthZEN evaluation request (OpenID AuthZEN Authorization
- * API 1.0, {@code POST /access/v1/evaluation}):
+ * How a tool call becomes an AuthZEN evaluation request; the built-in {@code authzen}
+ * engine uses it, and so can an extension that talks AuthZEN its own way
+ * ({@link AuthZenEvaluation#of}). Turns one tool call into an AuthZEN evaluation request
+ * (OpenID AuthZEN Authorization API 1.0, {@code POST /access/v1/evaluation}):
  * <ul>
  * <li>{@code subject}: the caller from the token, never from the arguments: {@code user}
  * or, for a service account token, {@code client}, with realm, roles, delegation and the
@@ -35,17 +37,17 @@ import io.vertx.core.json.JsonObject;
  * time and, with {@code send-args}, the arguments with every sensitive value masked</li>
  * </ul>
  */
-final class AuthZenRequests {
+public final class AuthZenMapping {
 
-    static final String REALM_PREFIX = "/admin/realms/{realm}";
+    public static final String REALM_PREFIX = "/admin/realms/{realm}";
 
     /** Segments that are not a collection of their own: the one before them is. */
     private static final Set<String> INNER_SEGMENTS = Set.of("instances", "models");
 
-    private AuthZenRequests() {
+    private AuthZenMapping() {
     }
 
-    static JsonObject evaluation(AccessCheck.Context ctx, boolean sendArgs, Instant now) {
+    public static JsonObject request(AccessCheck.Context ctx, boolean sendArgs, Instant now) {
         ToolSpec tool = ctx.tool();
         return new JsonObject().put("subject", subject(ctx.caller()))
             .put("action", action(tool))
@@ -53,7 +55,7 @@ final class AuthZenRequests {
             .put("context", context(ctx, sendArgs, now));
     }
 
-    static JsonObject subject(Caller caller) {
+    public static JsonObject subject(Caller caller) {
         if (caller == null || caller.isAnonymous()) {
             return new JsonObject().put("type", "anonymous").put("id", "anonymous");
         }
@@ -68,7 +70,7 @@ final class AuthZenRequests {
             .put("properties", props);
     }
 
-    static JsonObject action(ToolSpec tool) {
+    public static JsonObject action(ToolSpec tool) {
         JsonObject props = new JsonObject().put("level", tool.level().name().toLowerCase(Locale.ROOT))
             .put("category", tool.category().id());
         ApiOperation op = primary(tool);
@@ -78,7 +80,7 @@ final class AuthZenRequests {
         return new JsonObject().put("name", tool.name()).put("properties", props);
     }
 
-    static JsonObject resource(AccessCheck.Context ctx) {
+    public static JsonObject resource(AccessCheck.Context ctx) {
         ToolSpec tool = ctx.tool();
         JsonObject props = new JsonObject();
         putIfPresent(props, "system", ctx.system());
@@ -103,7 +105,7 @@ final class AuthZenRequests {
             .put("properties", props);
     }
 
-    static JsonObject context(AccessCheck.Context ctx, boolean sendArgs, Instant now) {
+    public static JsonObject context(AccessCheck.Context ctx, boolean sendArgs, Instant now) {
         JsonObject c = new JsonObject();
         putIfPresent(c, "system", ctx.system());
         putIfPresent(c, "realm", ctx.realm());
@@ -130,7 +132,7 @@ final class AuthZenRequests {
      * The operation the call is about: a tool that reads before it writes is about the
      * write.
      */
-    static ApiOperation primary(ToolSpec tool) {
+    public static ApiOperation primary(ToolSpec tool) {
         if (tool.api().isEmpty()) {
             return null;
         }
@@ -148,7 +150,7 @@ final class AuthZenRequests {
      * The resources the call's arguments fill into the path, outermost first; parameters
      * the handler derives, and the realm, do not count.
      */
-    static List<JsonObject> pathResources(ApiOperation op, Map<String, Object> args) {
+    public static List<JsonObject> pathResources(ApiOperation op, Map<String, Object> args) {
         List<JsonObject> out = new ArrayList<>();
         String[] segments = relative(op.path()).split("/");
         for (int i = 0; i < segments.length; i++) {
@@ -171,7 +173,7 @@ final class AuthZenRequests {
     }
 
     /** The last literal segment of the path, singular: what a create or list acts on. */
-    static String collection(ApiOperation op) {
+    public static String collection(ApiOperation op) {
         String[] segments = relative(op.path()).split("/");
         return typeBefore(segments, segments.length);
     }
@@ -187,7 +189,7 @@ final class AuthZenRequests {
         return null;
     }
 
-    static String singular(String segment) {
+    public static String singular(String segment) {
         String s = segment.endsWith("-by-id") ? segment.substring(0, segment.length() - "-by-id".length()) : segment;
         if (s.endsWith("ies")) {
             return s.substring(0, s.length() - 3) + "y";
@@ -209,7 +211,7 @@ final class AuthZenRequests {
      * A Keycloak service account token: {@code client_id} (Keycloak's service account
      * mapper) or the {@code service-account-} username.
      */
-    static boolean isServiceAccount(Caller caller) {
+    public static boolean isServiceAccount(Caller caller) {
         String username = string(caller.claim("preferred_username"));
         return caller.claim("client_id") != null || username != null && username.startsWith("service-account-");
     }

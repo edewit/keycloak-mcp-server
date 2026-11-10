@@ -13,6 +13,7 @@ import com.github.thomasdarimont.keycloak.mcp.access.AuthorizationEngine;
 import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenRequestCustomizer;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
@@ -43,9 +44,9 @@ public final class ProviderConfig {
 
     /** The names of the extension points, the first segment after {@link #PREFIX}. */
     public static final Set<String> SPIS = Set.of(ToolProvider.SPI, PromptProvider.SPI, Confirmer.SPI, AccessCheck.SPI,
-            AuthorizationEngine.SPI, CallerIssuerPolicy.SPI, AuditListener.SPI, AuditScrubber.SPI, ProfileCheck.SPI,
-            PendingApprovalStore.SPI, KeycloakSystemRepository.SPI, KeyVault.SPI, SigningKeyGenerator.SPI,
-            UserSessionStore.SPI);
+            AuthorizationEngine.SPI, AuthZenRequestCustomizer.SPI, CallerIssuerPolicy.SPI, AuditListener.SPI,
+            AuditScrubber.SPI, ProfileCheck.SPI, PendingApprovalStore.SPI, KeycloakSystemRepository.SPI, KeyVault.SPI,
+            SigningKeyGenerator.SPI, UserSessionStore.SPI);
 
     /** The extension points served by exactly one extension. */
     public static final Set<String> SINGLE_PROVIDER_SPIS = Set.of(KeyVault.SPI, SigningKeyGenerator.SPI,

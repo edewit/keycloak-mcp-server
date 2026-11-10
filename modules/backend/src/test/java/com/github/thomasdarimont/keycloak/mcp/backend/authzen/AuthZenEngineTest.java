@@ -22,6 +22,8 @@ import org.junit.jupiter.api.Test;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.access.AuthorizationEngine;
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenAnswer;
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenEvaluation;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.AuthorizationAccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.oauth.ClientAuthenticators;
@@ -38,8 +40,8 @@ import com.sun.net.httpserver.HttpServer;
 
 import io.vertx.core.json.JsonObject;
 
-import static com.github.thomasdarimont.keycloak.mcp.backend.authzen.AuthZenRequestsTest.ALICE;
-import static com.github.thomasdarimont.keycloak.mcp.backend.authzen.AuthZenRequestsTest.R;
+import static com.github.thomasdarimont.keycloak.mcp.backend.authzen.AuthZenMappingTest.ALICE;
+import static com.github.thomasdarimont.keycloak.mcp.backend.authzen.AuthZenMappingTest.R;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -63,7 +65,7 @@ class AuthZenEngineTest {
     private Function<String, Optional<Function<JsonObject, String>>> systemSigners = name -> Optional
         .of(claims -> "sig-of-" + name + "-" + claims.getString("aud"));
 
-    static final ToolSpec DISABLE = AuthZenRequestsTest.tool("keycloak_user_disable", Category.USERS)
+    static final ToolSpec DISABLE = AuthZenMappingTest.tool("keycloak_user_disable", Category.USERS)
         .write()
         .schema(InputSchema.builder().string("id", "id"))
         .api(ApiOperation.put(R + "/users/{user-id}").path("user-id", "id"))
@@ -624,10 +626,13 @@ class AuthZenEngineTest {
 
     @Test
     void reasonFormats() {
-        assertEquals("a", AuthZenEngine.reason(new JsonObject().put("reason_user", "a")).orElseThrow());
-        assertEquals("b", AuthZenEngine.reason(new JsonObject().put("reason_admin", new JsonObject().put("de", "b")))
-            .orElseThrow());
-        assertTrue(AuthZenEngine.reason(new JsonObject()).isEmpty());
+        assertEquals("a",
+                new AuthZenAnswer(true, new JsonObject().put("reason_user", "a"), null).reason().orElseThrow());
+        assertEquals("b",
+                new AuthZenAnswer(true, new JsonObject().put("reason_admin", new JsonObject().put("de", "b")), null)
+                    .reason()
+                    .orElseThrow());
+        assertTrue(new AuthZenAnswer(true, new JsonObject(), null).reason().isEmpty());
     }
 
     @Test
@@ -645,5 +650,82 @@ class AuthZenEngineTest {
                         Map.of("enabled", "true", "url", base, "auth", "header", "header-value", "Bearer s3cr3t")),
                 null);
         assertFalse(s.toString().contains("s3cr3t"));
+    }
+
+    @Test
+    void furtherFieldsOfTheAnswerAreKept() {
+        answer.set(new Object[] { 200, """
+                {"decision": true, "context": {"reason_user": "ok"},
+                 "obligations": [{"id": "log", "level": "audit"}], "policy": {"version": "7"}, "ttl": 60}""" });
+        AuthZenSettings settings = AuthZenSettings.from(new ProviderConfig(AuthorizationEngine.SPI, AuthZenSettings.ID,
+                Map.of("enabled", "true", "url", base + "/e")), null);
+
+        AuthZenAnswer a = new AuthZenClient(http, settings, null).evaluate(new JsonObject(), "prod", "acme").answer();
+
+        assertTrue(a.decision());
+        assertEquals("ok", a.context().getString("reason_user"));
+        assertEquals(java.util.Set.of("obligations", "policy", "ttl"), a.attributes().keySet(),
+                "decision and context are not repeated");
+        assertEquals(60, a.attributes().get("ttl"));
+        assertEquals(Map.of("version", "7"), a.attributes().get("policy"), "plain maps");
+        assertEquals(List.of(Map.of("id", "log", "level", "audit")), a.attributes().get("obligations"), "plain lists");
+        assertThrows(UnsupportedOperationException.class, () -> a.attributes().put("x", 1));
+    }
+
+    @Test
+    void customizersAdjustTheRequestInOrder() {
+        var under = check(Map.of("enabled", "true", "url", base + "/e"));
+        under.engine()
+            .customizers(
+                    List.of((evaluation, request) -> evaluation.withContextValue("ticket", "CHG-42"),
+                            (evaluation, request) -> evaluation.withResource(evaluation.resource()
+                                .put("type", "account")
+                                .put("id", request.systemName() + "/" + evaluation.resource().getString("id")))));
+
+        assertTrue(under.check(call("prod")).allowed());
+
+        JsonObject sent = new JsonObject(seen.getFirst().body());
+        assertEquals("CHG-42", sent.getJsonObject("context").getString("ticket"));
+        assertEquals("account", sent.getJsonObject("resource").getString("type"));
+        assertEquals("prod/8f1c", sent.getJsonObject("resource").getString("id"), "the second sees the first's work");
+    }
+
+    @Test
+    void aCustomizerThatFailsRefusesTheCallEvenWithOnErrorAllow() {
+        var under = check(Map.of("enabled", "true", "url", base + "/e", "on-error", "allow"));
+        under.engine().customizers(List.of((evaluation, request) -> {
+            throw new IllegalStateException("directory down");
+        }));
+
+        AccessCheck.Decision d = under.check(call("prod"));
+
+        assertFalse(d.allowed());
+        assertTrue(seen.isEmpty(), "nothing was sent");
+    }
+
+    @Test
+    void evaluationsAreImmutable() {
+        AuthZenEvaluation e = new AuthZenEvaluation(new JsonObject().put("type", "user").put("id", "1"),
+                new JsonObject().put("name", "t"), new JsonObject().put("type", "realm").put("id", "acme"), null);
+
+        e.context().put("sneaky", true);
+        e.resource().put("id", "other");
+
+        assertFalse(e.context().containsKey("sneaky"));
+        assertEquals("acme", e.resource().getString("id"));
+        assertEquals("x", e.withContextValue("k", "x").context().getString("k"));
+        assertFalse(e.context().containsKey("k"), "a with-copy leaves the original alone");
+    }
+
+    @Test
+    void answersWithoutABooleanDecisionAreRefused() {
+        assertThrows(IllegalArgumentException.class,
+                () -> AuthZenAnswer.parse(new JsonObject().put("decision", "yes")));
+        assertTrue(AuthZenAnswer
+            .parse(new JsonObject("{\"decision\": true, \"context\": {\"confirmation_required\": true}}"))
+            .confirmationRequired());
+        assertFalse(AuthZenAnswer
+            .parse(new JsonObject("{\"decision\": false, \"context\": {\"confirmation_required\": true}}"))
+            .confirmationRequired(), "a denial is no confirmation");
     }
 }

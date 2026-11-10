@@ -6,9 +6,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
@@ -19,10 +21,14 @@ import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.access.AuthorizationEngine;
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenAnswer;
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenEvaluation;
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenRequestCustomizer;
 import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.SigningKeys;
 import com.github.thomasdarimont.keycloak.mcp.backend.oauth.ClientAuthenticators;
 import com.github.thomasdarimont.keycloak.mcp.backend.oauth.ClientCredentialsTokens;
+import com.github.thomasdarimont.keycloak.mcp.backend.spi.DefaultExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
@@ -42,12 +48,12 @@ import io.vertx.core.json.JsonObject;
 /**
  * The {@code authzen} authorization engine: asks an AuthZEN policy decision point (OpenID
  * AuthZEN Authorization API 1.0) about a tool call. The call becomes an evaluation
- * request ({@link AuthZenRequests}: caller as subject, tool as action, what it acts on as
- * resource), the PDP's {@code decision} allows or denies it. A decision {@code true}
- * whose response context says {@code "confirmation_required": true} allows the call once
- * the human confirms it themselves (elicitation or CIBA, never the model's flag). The
- * PDP's {@code reason_user} (else {@code reason_admin}) is what the model is told on a
- * denial.
+ * request ({@link AuthZenEvaluation}, adjusted by the {@link AuthZenRequestCustomizer}s:
+ * caller as subject, tool as action, what it acts on as resource), the PDP's
+ * {@code decision} allows or denies it. A decision {@code true} whose response context
+ * says {@code "confirmation_required": true} allows the call once the human confirms it
+ * themselves (elicitation or CIBA, never the model's flag). The PDP's {@code reason_user}
+ * (else {@code reason_admin}) is what the model is told on a denial.
  * <p>
  * Whether a call comes here is decided by the server's {@code authorization} access check
  * from the system's and realm's switches; {@code default=on} makes this engine evaluate
@@ -61,9 +67,6 @@ import io.vertx.core.json.JsonObject;
 public class AuthZenEngine implements AuthorizationEngine {
 
     private static final Logger LOG = Logger.getLogger(AuthZenEngine.class);
-
-    /** Response context key the PDP sets to hand the call to the human. */
-    static final String CONFIRMATION_REQUIRED = "confirmation_required";
 
     /**
      * One system's PDP, with the merged settings it was built from: a system that changes
@@ -88,17 +91,26 @@ public class AuthZenEngine implements AuthorizationEngine {
     private final Map<ClientKey, Client> clients = new ConcurrentHashMap<>();
     private final ClientAuthenticators authenticators;
     /**
+     * The request customizers, looked up on first use: the registry creates this engine
+     * too.
+     */
+    private Supplier<List<AuthZenRequestCustomizer>> customizerLookup = List::of;
+    private volatile List<AuthZenRequestCustomizer> customizers;
+    /**
      * Signs JWT claims with a system's key, for {@code private_key_jwt} without own key.
      */
     private final Function<String, Optional<Function<JsonObject, String>>> systemSigners;
 
     @Inject
     public AuthZenEngine(McpServerConfig server, Instance<TlsConfigurationRegistry> tls, Extensions extensions,
-            Instance<SigningKeys> signingKeys, Instance<KeycloakSystems> systems) {
+            Instance<SigningKeys> signingKeys, Instance<KeycloakSystems> systems,
+            Instance<DefaultExtensionRegistry> registry) {
         this(ProviderConfig.forExtension(AuthorizationEngine.SPI, AuthZenSettings.ID, server),
                 tls.isResolvable() ? tls.get() : null, OutboundClients.Timeouts.of(server), staticSystems(server),
                 Clock.systemUTC(), new ClientAuthenticators(extensions.discover(ClientAuthenticatorFactory.class)),
                 systemSigners(signingKeys, systems));
+        this.customizerLookup = () -> registry.isResolvable()
+                ? registry.get().extensions(AuthZenRequestCustomizer.class) : List.of();
     }
 
     /**
@@ -176,6 +188,22 @@ public class AuthZenEngine implements AuthorizationEngine {
     @Override
     public String description() {
         return "Asks an AuthZEN PDP whether the caller may run a tool on its target, per Keycloak system.";
+    }
+
+    private List<AuthZenRequestCustomizer> customizers() {
+        List<AuthZenRequestCustomizer> c = customizers;
+        if (c == null) {
+            c = List.copyOf(customizerLookup.get());
+            customizers = c;
+        }
+        return c;
+    }
+
+    /** For tests and embedding: other request customizers. */
+    AuthZenEngine customizers(List<AuthZenRequestCustomizer> list) {
+        this.customizerLookup = () -> list;
+        this.customizers = null;
+        return this;
     }
 
     /** {@code default=on}: systems whose block has no switch are evaluated here. */
@@ -395,10 +423,16 @@ public class AuthZenEngine implements AuthorizationEngine {
                             + " has to set the system's authorization.authzen.url or " + AuthZenSettings.PREFIX
                             + "url.");
         }
-        JsonObject request = AuthZenRequests.evaluation(ctx, settings.sendArgs(), clock.instant());
-        AuthZenClient.Answer answer;
+        AuthZenEvaluation evaluation = AuthZenEvaluation.of(ctx, settings.sendArgs(), clock.instant());
+        // outside the PDP's try: a customizer that fails refuses the call, whatever
+        // on-error says
+        for (AuthZenRequestCustomizer customizer : customizers()) {
+            evaluation = Objects.requireNonNull(customizer.customize(evaluation, r),
+                    "AuthZEN customizer " + customizer.id() + " returned no evaluation");
+        }
+        AuthZenClient.Result result;
         try {
-            answer = pdp.client().evaluate(request, ctx.system(), ctx.realm());
+            result = pdp.client().evaluate(evaluation.toJson(), ctx.system(), ctx.realm());
         }
         catch (RuntimeException e) {
             if (settings.onError() == AuthZenSettings.OnError.ALLOW) {
@@ -410,39 +444,21 @@ public class AuthZenEngine implements AuthorizationEngine {
                     "The authorization service could not decide whether " + ctx.tool().name()
                             + " may run; nothing was changed. Try again later or ask an administrator.");
         }
-        JsonObject resource = request.getJsonObject("resource");
+        AuthZenAnswer answer = result.answer();
+        JsonObject resource = evaluation.resource();
         String target = resource.getString("type") + " '" + resource.getString("id") + "'";
         if (!answer.decision()) {
-            LOG.debugf("AuthZEN denied %s on %s (request %s)", ctx.tool().name(), target, answer.requestId());
-            return AccessCheck.Decision.deny("policy_denied", reason(answer.context())
+            LOG.debugf("AuthZEN denied %s on %s (request %s)", ctx.tool().name(), target, result.requestId());
+            return AccessCheck.Decision.deny("policy_denied", answer.reason()
                 .orElse("The authorization policy does not allow " + ctx.tool().name() + " on " + target + "."));
         }
-        if (answer.context().getValue(CONFIRMATION_REQUIRED) instanceof Boolean b && b) {
+        if (answer.confirmationRequired()) {
             return AccessCheck.Decision.confirm("policy_confirmation",
-                    reason(answer.context()).orElse("The authorization policy allows " + ctx.tool().name() + " on "
-                            + target + " only once you confirm it yourself."));
+                    answer.reason()
+                        .orElse("The authorization policy allows " + ctx.tool().name() + " on " + target
+                                + " only once you confirm it yourself."));
         }
         return AccessCheck.Decision.allow();
     }
 
-    /**
-     * {@code reason_user}, else {@code reason_admin}, else {@code reason}: a string or,
-     * as in the AuthZEN examples, an object of texts by language ({@code en} preferred).
-     */
-    static Optional<String> reason(JsonObject context) {
-        for (String key : List.of("reason_user", "reason_admin", "reason")) {
-            Object v = context.getValue(key);
-            if (v instanceof String s && !s.isBlank()) {
-                return Optional.of(s);
-            }
-            if (v instanceof JsonObject texts && !texts.isEmpty()) {
-                Object en = texts.getValue("en");
-                Object any = en != null ? en : texts.getValue(texts.fieldNames().iterator().next());
-                if (any instanceof String s && !s.isBlank()) {
-                    return Optional.of(s);
-                }
-            }
-        }
-        return Optional.empty();
-    }
 }

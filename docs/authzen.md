@@ -65,6 +65,9 @@ go through it.
 
 Every request carries an `X-Request-ID`, logged with a denial at debug level.
 
+Extensions can add to the request before it is sent (an `AuthZenRequestCustomizer`, e.g. a ticket id in the
+context), or talk AuthZEN their own way with the same model ([Extending](extending.md#authzen-for-extensions)).
+
 ## Switching it on
 
 1. Server-wide: the engine, `kc-mcp.spi.authorization-engine.authzen.enabled=true`. Without an engine, no call is

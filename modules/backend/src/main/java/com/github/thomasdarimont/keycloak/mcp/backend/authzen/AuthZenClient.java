@@ -10,6 +10,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenAnswer;
 import com.github.thomasdarimont.keycloak.mcp.backend.oauth.ClientCredentialsTokens;
 
 import io.vertx.core.json.DecodeException;
@@ -22,7 +23,8 @@ import io.vertx.core.json.JsonObject;
 class AuthZenClient {
 
     /** What the PDP said: its decision and the response context (reasons, our hints). */
-    record Answer(boolean decision, JsonObject context, String requestId) {
+    /** The PDP's answer, and the id the request was sent with (for the log). */
+    record Result(AuthZenAnswer answer, String requestId) {
     }
 
     /** The PDP could not be asked or answered something that is not a decision. */
@@ -50,7 +52,7 @@ class AuthZenClient {
         this.tokens = tokens;
     }
 
-    Answer evaluate(JsonObject request, String system, String realm) {
+    Result evaluate(JsonObject request, String system, String realm) {
         String requestId = UUID.randomUUID().toString();
         URI endpoint = settings.endpoint(system, realm);
         try {
@@ -85,7 +87,7 @@ class AuthZenClient {
         return b.post(Entity.entity(request.encode(), MediaType.APPLICATION_JSON_TYPE));
     }
 
-    private static Answer answer(Response r, String requestId) {
+    private static Result answer(Response r, String requestId) {
         String body = r.hasEntity() ? r.readEntity(String.class) : "";
         if (r.getStatus() != 200) {
             throw new PdpException("the PDP answered HTTP " + r.getStatus() + " (request " + requestId + ")");
@@ -97,10 +99,11 @@ class AuthZenClient {
         catch (DecodeException e) {
             throw new PdpException("the PDP's answer is not JSON (request " + requestId + ")", e);
         }
-        if (!(json.getValue("decision") instanceof Boolean decision)) {
-            throw new PdpException("the PDP's answer has no boolean decision (request " + requestId + ")");
+        try {
+            return new Result(AuthZenAnswer.parse(json), requestId);
         }
-        JsonObject context = json.getValue("context") instanceof JsonObject c ? c : new JsonObject();
-        return new Answer(decision, context, requestId);
+        catch (IllegalArgumentException e) {
+            throw new PdpException(e.getMessage() + " (request " + requestId + ")", e);
+        }
     }
 }

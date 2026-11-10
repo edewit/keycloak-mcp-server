@@ -58,7 +58,7 @@ public class AcmeToolProvider implements ToolProvider {
   use the same SPI; `kc-mcp.spi.<spi>.<id>.enabled=false` switches one off.
 - Settings: `kc-mcp.spi.<spi>.<id>.<key>`, environment `KC_MCP_SPI_<SPI>_<ID>_<KEY>`. An id is unique within its
   extension point, so the same id under two extension points has separate settings. `<spi>` is `tools`, `prompts`,
-  `access-check`, `authorization-engine`, `confirmer`, `issuer-policy`, `profile-check`, `audit-listener`, `audit-scrubber`, `approval-store`,
+  `access-check`, `authorization-engine`, `authzen-customizer`, `confirmer`, `issuer-policy`, `profile-check`, `audit-listener`, `audit-scrubber`, `approval-store`,
   `system-repository`, `key-vault`, `key-generator` or `session-store`.
 - Choosing a provider: `key-vault`, `key-generator`, `session-store` and `approval-store` are served by exactly one
   extension, the others run all of theirs. `kc-mcp.spi.key-vault.provider=db`
@@ -165,6 +165,35 @@ public class AcmeOpaEngine implements AuthorizationEngine {
   wrong. URL-valued settings, `-file` settings and `vault:` references are checked by the server for every engine.
 - A setting whose name ends like a secret (`...secret`, `...password`, `...token`, `...key`) is masked and may be a
   `vault:` reference, resolved before the engine sees it.
+
+## AuthZEN for extensions
+
+The `api` module holds the AuthZEN protocol model (package `authzen`), so that extensions need not repeat it:
+
+- `AuthZenEvaluation.of(context, sendArgs, now)`: the evaluation request of a tool call, exactly as the built-in engine
+  sends it (subject from the token, the tool as action, the resource from the operation's path, the masked
+  arguments); `toJson()` is the request body. Immutable: `withSubject`, `withResource`, `withContextValue` and so on
+  give changed copies. `AuthZenMapping` holds the single steps, `AuthZenMapping.subject(caller)` say.
+- `AuthZenAnswer.parse(json)`: decision, context, `reason()`, `confirmationRequired()`, and every further top-level
+  field in `attributes()`.
+
+With them an extension can talk AuthZEN its own way (a vendor SDK, another transport, a cache) as its own
+`AuthorizationEngine`. To keep the built-in engine and only adjust what it sends, contribute an
+`AuthZenRequestCustomizer` instead: it gets the evaluation and the call, and returns the evaluation to send.
+
+```java
+@AutoService(AuthZenRequestCustomizer.class)
+public class TicketContext implements AuthZenRequestCustomizer {
+    public AuthZenEvaluation customize(AuthZenEvaluation evaluation, AuthorizationEngine.Request request) {
+        Object ticket = request.context().args().get("ticket");
+        return ticket == null ? evaluation : evaluation.withContextValue("ticket", ticket);
+    }
+}
+```
+
+Customizers run in `order()`, each on the result of the one before; settings `kc-mcp.spi.authzen-customizer.<id>.*`. One
+that throws refuses the call, `on-error=allow` notwithstanding: a request the customizers could not finish is never
+sent. A customizer that replaces the subject takes over the responsibility for who the PDP believes is acting.
 
 ## Client authenticators
 

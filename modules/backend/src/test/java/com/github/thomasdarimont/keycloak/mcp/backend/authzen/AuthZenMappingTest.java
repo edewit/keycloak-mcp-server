@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.access.GrantedRoles;
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenMapping;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ApiOperation;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
@@ -24,9 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class AuthZenRequestsTest {
+class AuthZenMappingTest {
 
-    static final String R = AuthZenRequests.REALM_PREFIX;
+    static final String R = AuthZenMapping.REALM_PREFIX;
     static final Instant NOW = Instant.parse("2026-11-10T10:00:00Z");
 
     static final Caller ALICE = new Caller("u-alice", "alice", "acme", true, Set.of("realm:support", "realm:admin"),
@@ -50,7 +51,7 @@ class AuthZenRequestsTest {
             .build();
         Map<String, Object> args = new LinkedHashMap<>(Map.of("id", "8f1c", "email", "a@b.c"));
 
-        JsonObject req = AuthZenRequests.evaluation(ctx(spec, "acme", args, ALICE), true, NOW);
+        JsonObject req = AuthZenMapping.request(ctx(spec, "acme", args, ALICE), true, NOW);
 
         JsonObject subject = req.getJsonObject("subject");
         assertEquals("user", subject.getString("type"));
@@ -88,11 +89,11 @@ class AuthZenRequestsTest {
             .build();
         Map<String, Object> args = Map.of("id", "8f1c", "password", "hunter22");
 
-        JsonObject with = AuthZenRequests.evaluation(ctx(spec, "acme", args, ALICE), true, NOW);
+        JsonObject with = AuthZenMapping.request(ctx(spec, "acme", args, ALICE), true, NOW);
         assertEquals("***", with.getJsonObject("context").getJsonObject("args").getString("password"));
         assertFalse(with.encode().contains("hunter22"));
 
-        JsonObject without = AuthZenRequests.evaluation(ctx(spec, "acme", args, ALICE), false, NOW);
+        JsonObject without = AuthZenMapping.request(ctx(spec, "acme", args, ALICE), false, NOW);
         assertNull(without.getJsonObject("context").getValue("args"));
         assertEquals("user", without.getJsonObject("resource").getString("type"), "the target still comes along");
     }
@@ -106,7 +107,7 @@ class AuthZenRequestsTest {
                 .path("role-name", "role"))
             .build();
 
-        JsonObject resource = AuthZenRequests
+        JsonObject resource = AuthZenMapping
             .resource(ctx(spec, "acme", Map.of("clientId", "billing", "role", "viewer"), ALICE));
 
         assertEquals("role", resource.getString("type"));
@@ -122,7 +123,7 @@ class AuthZenRequestsTest {
             .api(ApiOperation.post(R + "/users"))
             .build();
 
-        JsonObject resource = AuthZenRequests.resource(ctx(spec, "acme", Map.of("username", "bob"), ALICE));
+        JsonObject resource = AuthZenMapping.resource(ctx(spec, "acme", Map.of("username", "bob"), ALICE));
 
         assertEquals("realm", resource.getString("type"));
         assertEquals("acme", resource.getString("id"));
@@ -136,12 +137,12 @@ class AuthZenRequestsTest {
             .api(ApiOperation.get(R + "/identity-provider/instances/{alias}").path("alias", "alias"))
             .build();
         assertEquals("identity-provider",
-                AuthZenRequests.resource(ctx(spec, "acme", Map.of("alias", "google"), ALICE)).getString("type"));
+                AuthZenMapping.resource(ctx(spec, "acme", Map.of("alias", "google"), ALICE)).getString("type"));
 
         ToolSpec derived = tool("keycloak_x", Category.CLIENTS).read()
             .api(ApiOperation.get(R + "/clients/{client-uuid}").derivedPath("client-uuid"))
             .build();
-        assertEquals("realm", AuthZenRequests.resource(ctx(derived, "acme", Map.of(), ALICE)).getString("type"),
+        assertEquals("realm", AuthZenMapping.resource(ctx(derived, "acme", Map.of(), ALICE)).getString("type"),
                 "a parameter the handler derives names nothing the policy could match on");
     }
 
@@ -149,7 +150,7 @@ class AuthZenRequestsTest {
     void globalToolsActOnTheSystem() {
         ToolSpec spec = tool("keycloak_realm_list", Category.REALM).read().global().build();
 
-        JsonObject resource = AuthZenRequests.resource(ctx(spec, null, Map.of(), ALICE));
+        JsonObject resource = AuthZenMapping.resource(ctx(spec, null, Map.of(), ALICE));
 
         assertEquals("system", resource.getString("type"));
         assertEquals("prod", resource.getString("id"));
@@ -159,19 +160,19 @@ class AuthZenRequestsTest {
     void serviceAccountsAndAnonymousCallers() {
         Caller sa = new Caller("u-sa", "service-account-ci", "acme", false, Set.of(), null,
                 Map.of("preferred_username", "service-account-ci", "client_id", "ci"));
-        assertEquals("client", AuthZenRequests.subject(sa).getString("type"));
-        assertEquals("ci", AuthZenRequests.subject(sa).getJsonObject("properties").getString("client_id"));
+        assertEquals("client", AuthZenMapping.subject(sa).getString("type"));
+        assertEquals("ci", AuthZenMapping.subject(sa).getJsonObject("properties").getString("client_id"));
 
-        JsonObject anonymous = AuthZenRequests.subject(Caller.NONE);
+        JsonObject anonymous = AuthZenMapping.subject(Caller.NONE);
         assertEquals("anonymous", anonymous.getString("type"));
         assertEquals("anonymous", anonymous.getString("id"));
     }
 
     @Test
     void singular() {
-        assertEquals("policy", AuthZenRequests.singular("policies"));
-        assertEquals("client-scope", AuthZenRequests.singular("client-scopes"));
-        assertEquals("role", AuthZenRequests.singular("roles-by-id"));
-        assertEquals("brute-force", AuthZenRequests.singular("brute-force"));
+        assertEquals("policy", AuthZenMapping.singular("policies"));
+        assertEquals("client-scope", AuthZenMapping.singular("client-scopes"));
+        assertEquals("role", AuthZenMapping.singular("roles-by-id"));
+        assertEquals("brute-force", AuthZenMapping.singular("brute-force"));
     }
 }

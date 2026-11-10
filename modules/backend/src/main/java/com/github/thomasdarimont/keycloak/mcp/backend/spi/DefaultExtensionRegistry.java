@@ -18,6 +18,7 @@ import com.github.thomasdarimont.keycloak.mcp.access.AuthorizationEngine;
 import com.github.thomasdarimont.keycloak.mcp.access.CallerIssuerPolicy;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
+import com.github.thomasdarimont.keycloak.mcp.authzen.AuthZenRequestCustomizer;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
@@ -159,8 +160,8 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
 
     /** The extension points the registry hands out, resolved at startup. */
     static final List<Class<? extends Extension>> STARTUP_TYPES = List.of(PromptProvider.class, AccessCheck.class,
-            AuthorizationEngine.class, Confirmer.class, AuditListener.class, AuditScrubber.class, ProfileCheck.class,
-            PendingApprovalStore.class);
+            AuthorizationEngine.class, AuthZenRequestCustomizer.class, Confirmer.class, AuditListener.class,
+            AuditScrubber.class, ProfileCheck.class, PendingApprovalStore.class);
 
     /**
      * Extension points picked outside the registry; discovered here too, so that their
