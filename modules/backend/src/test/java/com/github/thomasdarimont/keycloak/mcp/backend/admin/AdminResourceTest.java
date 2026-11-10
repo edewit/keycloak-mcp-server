@@ -45,7 +45,12 @@ class AdminResourceTest {
     void theAdminApiNeedsTheToken() {
         given().get("/admin/systems").then().statusCode(401).header("WWW-Authenticate", containsString("Bearer"));
         given().header("Authorization", "Bearer nope").get("/admin/systems").then().statusCode(401);
-        admin().get("/admin/systems").then().statusCode(200).body("systems.alias", hasItem("default"));
+        admin().get("/admin/systems")
+            .then()
+            .statusCode(200)
+            .body("systems.alias", hasItem("default"))
+            .body("canCreate", equalTo(true))
+            .body("mutableSource", equalTo("db"));
     }
 
     @Test

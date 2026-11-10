@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { logout, type Me } from './bff.js';
+import { overviewHref } from './router.js';
 
 /** Top masthead: brand + user / sign-out (nav lives in the sidebar). */
 @customElement('kc-mcp-toolbar')
@@ -24,6 +25,13 @@ export class KcMcpToolbar extends LitElement {
       font-size: 1.1rem;
       margin: 0;
       flex: 1;
+    }
+    h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+    h1 a:hover {
+      text-decoration: underline;
     }
     .row {
       display: flex;
@@ -50,7 +58,7 @@ export class KcMcpToolbar extends LitElement {
     const signedIn = !!s?.authenticated;
     return html`
       <header>
-        <h1>Keycloak MCP</h1>
+        <h1><a href=${overviewHref()}>Keycloak MCP</a></h1>
         ${signedIn
           ? html`<div class="row">
               <span>${s!.name ?? s!.username}</span>

@@ -5,17 +5,24 @@ export type NavRoute = {
   label: string;
 };
 
+export type SystemTab = 'settings' | 'realms';
+
 /** Quarkus mount point for the SPA (`UiRoutes`). */
 export const UI_BASE = '/ui';
 
-/** Default landing path when signed in (Systems is the primary section). */
-export const DEFAULT_PATH = `${UI_BASE}/systems`;
+/** Default landing path when signed in. */
+export const DEFAULT_PATH = `${UI_BASE}/overview`;
 
 export const routes: NavRoute[] = [
+  { path: `${UI_BASE}/overview`, label: 'Overview' },
   { path: `${UI_BASE}/systems`, label: 'Systems' },
   { path: `${UI_BASE}/secrets`, label: 'Secrets' },
   { path: `${UI_BASE}/storage`, label: 'Storage' },
 ];
+
+export function overviewHref(): string {
+  return `${UI_BASE}/overview`;
+}
 
 export function systemsHref(): string {
   return `${UI_BASE}/systems`;
@@ -25,13 +32,15 @@ export function newSystemHref(): string {
   return `${UI_BASE}/systems/new`;
 }
 
-export function systemHref(alias: string): string {
-  return `${UI_BASE}/systems/${encodeURIComponent(alias)}`;
+/** System detail; default tab is Settings (`/ui/systems/{alias}`). */
+export function systemHref(alias: string, tab: SystemTab = 'settings'): string {
+  const base = `${UI_BASE}/systems/${encodeURIComponent(alias)}`;
+  return tab === 'settings' ? base : `${base}/${tab}`;
 }
 
 /** Highlight Systems in the sidebar for both list and detail routes. */
 export function navPath(pathname = location.pathname): string {
-  if (pathname === UI_BASE || pathname === `${UI_BASE}/`) {
+  if (pathname === UI_BASE || pathname === `${UI_BASE}/` || pathname === `${UI_BASE}/home`) {
     return DEFAULT_PATH;
   }
   if (pathname.startsWith(`${UI_BASE}/systems/`)) {
@@ -40,9 +49,13 @@ export function navPath(pathname = location.pathname): string {
   return pathname;
 }
 
-/** Ensure `/ui` and `/ui/` land on Systems before the router matches. */
+/** Ensure `/ui` and `/ui/` land on Overview before the router matches. */
 export function ensureDefaultPath(): void {
-  if (location.pathname === UI_BASE || location.pathname === `${UI_BASE}/`) {
+  if (
+    location.pathname === UI_BASE ||
+    location.pathname === `${UI_BASE}/` ||
+    location.pathname === `${UI_BASE}/home`
+  ) {
     history.replaceState({}, '', DEFAULT_PATH + location.search);
   }
 }

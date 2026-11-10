@@ -1,10 +1,10 @@
-import { LitElement, css, html, nothing } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import { BffError, listSystems, type System } from "../bff.js";
-import { newSystemHref, systemHref } from "../router.js";
+import { LitElement, css, html, nothing } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import { BffError, listSystems, type System } from '../bff.js';
+import { newSystemHref, systemHref } from '../router.js';
 
-/** Systems list via GET /bff/api/systems; open a row to edit settings. */
-@customElement("kc-mcp-systems-page")
+/** Systems list via GET /bff/api/systems; each row is a Keycloak cluster/environment. */
+@customElement('kc-mcp-systems-page')
 export class SystemsPage extends LitElement {
   static styles = css`
     :host {
@@ -92,6 +92,12 @@ export class SystemsPage extends LitElement {
   private items: System[] = [];
 
   @state()
+  private canCreate = false;
+
+  @state()
+  private canCreateHint: string | null = null;
+
+  @state()
   private error: string | null = null;
 
   @state()
@@ -108,14 +114,16 @@ export class SystemsPage extends LitElement {
     try {
       const data = await listSystems();
       this.items = data.systems ?? [];
+      this.canCreate = !!data.canCreate;
+      this.canCreateHint = data.canCreateHint ?? null;
     } catch (e) {
       this.items = [];
+      this.canCreate = false;
+      this.canCreateHint = null;
       if (e instanceof BffError) {
         this.error = `${e.status} ${e.code}: ${e.message}`;
         if (e.sessionLost) {
-          this.dispatchEvent(
-            new CustomEvent("session-lost", { bubbles: true, composed: true }),
-          );
+          this.dispatchEvent(new CustomEvent('session-lost', { bubbles: true, composed: true }));
         }
       } else {
         this.error = e instanceof Error ? e.message : String(e);
@@ -125,53 +133,63 @@ export class SystemsPage extends LitElement {
     }
   }
 
+  private realmsSummary(s: System): string {
+    const allowed = s.allowedRealms ?? [];
+    if (allowed.length === 0) {
+      return s.defaultRealm ? `all (default ${s.defaultRealm})` : 'all realms';
+    }
+    if (allowed.length <= 3) {
+      return allowed
+        .map((r) => (r === s.defaultRealm ? `${r}*` : r))
+        .join(', ');
+    }
+    return `${allowed.length} realms`;
+  }
+
   render() {
     return html`
       <h2>Systems</h2>
       <p>
-        Keycloak connections known to this server. Add a system or open one to
-        edit its settings.
+        Keycloak clusters and environments known to this server. Each system has a front-door URL and zero or more
+        managed realms (all realms, or an explicit allowlist).
       </p>
       <div class="row">
-        <a class="btn" href=${newSystemHref()}>Add system</a>
-        <button
-          class="secondary"
-          type="button"
-          ?disabled=${this.busy}
-          @click=${() => this.load()}
-        >
+        ${this.canCreate
+          ? html`<a class="btn" href=${newSystemHref()}>Add system</a>`
+          : nothing}
+        <button class="secondary" type="button" ?disabled=${this.busy} @click=${() => this.load()}>
           Refresh
         </button>
       </div>
+      ${!this.canCreate && this.canCreateHint && !this.error
+        ? html`<p class="muted">Cannot register new systems: ${this.canCreateHint}</p>`
+        : nothing}
       ${this.error ? html`<p class="error">${this.error}</p>` : nothing}
-      ${
-        !this.error && !this.busy && this.items.length === 0
-          ? html`<p class="muted">No systems registered.</p>`
-          : nothing
-      }
-      ${
-        this.items.length
-          ? html`<table>
-              <thead>
-                <tr>
-                  <th>Alias</th>
-                  <th>URL</th>
-                  <th>Auth</th>
-                  <th>Source</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.items.map((s) => this.renderRow(s))}
-              </tbody>
-            </table>`
-          : nothing
-      }
+      ${!this.error && !this.busy && this.items.length === 0
+        ? html`<p class="muted">No systems registered.</p>`
+        : nothing}
+      ${this.items.length
+        ? html`<table>
+            <thead>
+              <tr>
+                <th>Alias</th>
+                <th>URL</th>
+                <th>Realms</th>
+                <th>Source</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.items.map((s) => this.renderRow(s))}
+            </tbody>
+          </table>`
+        : nothing}
     `;
   }
 
   private renderRow(s: System) {
     const href = systemHref(s.alias);
+    const realmsHref = systemHref(s.alias, 'realms');
     return html`
       <tr>
         <td>
@@ -179,12 +197,14 @@ export class SystemsPage extends LitElement {
           ${s.displayName ? html`<div class="muted"><code>${s.alias}</code></div>` : nothing}
         </td>
         <td><code>${s.url}</code></td>
-        <td>${s.clientAuth}</td>
         <td>
-          ${s.source ?? "—"}
+          <a href=${realmsHref}>${this.realmsSummary(s)}</a>
+        </td>
+        <td>
+          <span class="badge">${s.source ?? '—'}</span>
           ${s.writable === false ? html` <span class="badge">read-only</span>` : nothing}
         </td>
-        <td><a href=${href}>${s.writable === false ? "View" : "Edit"}</a></td>
+        <td><a href=${href}>${s.writable === false ? 'View' : 'Open'}</a></td>
       </tr>
     `;
   }
@@ -192,6 +212,6 @@ export class SystemsPage extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "kc-mcp-systems-page": SystemsPage;
+    'kc-mcp-systems-page': SystemsPage;
   }
 }

@@ -4,10 +4,26 @@
 
 A browser UI for the server at `/ui`, with its backend-for-frontend (BFF) under `/bff`.
 
-**Status: work in progress.** Sign in at Keycloak, browse and edit mutable systems (create / replace via the BFF), see
-who you are, sign out. Secrets and storage pages are still placeholders. The plumbing underneath is covered by
+**Status: work in progress.** Sign in at Keycloak, land on Overview, browse **Systems** (each system is a Keycloak
+cluster / environment), open a system for **Settings** (connection and realm allowlist) and **Realms** (managed realms
+and MCP entries). Create / replace mutable systems via the BFF. Secrets and Storage are placeholders (vault provenance
+and encryption / system sources later — no secret writing in the UI). The plumbing underneath is covered by
 integration tests: the login, sessions in the database, several identity providers, session checks and back-channel
 logout. See `modules/backend/src/main/resources/frontend/README.md` for the contract and the development loop.
+
+### Information architecture (stage 0)
+
+| path | page |
+|---|---|
+| `/ui/overview` | who you are, system count; framing for systems → realms |
+| `/ui/systems` | list of systems with source, read-only marker, realms summary |
+| `/ui/systems/new` | create a mutable system |
+| `/ui/systems/{alias}` | system Settings (default tab) |
+| `/ui/systems/{alias}/realms` | Realms view (allowlist / all realms, MCP entries); edit allowlist under Settings |
+| `/ui/secrets`, `/ui/storage` | stubs |
+
+A system is one Keycloak front door (`url`). Realms are not a top-level nav section: the server only knows
+`allowedRealms` / `defaultRealm` per system. Empty `allowedRealms` means all realms on that cluster.
 
 ## How it works
 
@@ -70,7 +86,7 @@ which provider and subject it belongs to.
 | call | does |
 |---|---|
 | `GET /bff/me` | who is signed in and the providers of the login page |
-| `GET /bff/login[?idp=<alias>]` | starts the login, then `/ui/` |
+| `GET /bff/login[?idp=<alias>]` | starts the login, then `/ui/overview` |
 | `GET /bff/logout` | RP-initiated logout, session row deleted |
 | `GET /bff/api/systems[/{alias}]` | the systems, as `GET /admin/systems`; needs `kc-mcp.admin.role` on the access token |
 | `PUT /bff/api/systems/{alias}` | replace a mutable system, as `PUT /admin/systems/{alias}` (CSRF header) |

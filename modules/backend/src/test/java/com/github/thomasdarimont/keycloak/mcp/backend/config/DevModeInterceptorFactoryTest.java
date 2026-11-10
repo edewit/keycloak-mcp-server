@@ -51,7 +51,10 @@ class DevModeInterceptorFactoryTest {
         assertEquals("jdbc:h2:file:" + home.resolve("data").resolve("kc-mcp"),
                 c.getRawValue("quarkus.datasource.jdbc.url"));
         assertEquals("true", c.getRawValue("kc-mcp.ui.enabled"));
+        assertEquals("true", c.getRawValue("kc-mcp.dynamic-systems"),
+                "start-dev with H2 can register systems from the UI / admin API");
         assertTrue(names(c).contains("quarkus.datasource.jdbc.url"));
+        assertTrue(names(c).contains("kc-mcp.dynamic-systems"));
     }
 
     @Test
