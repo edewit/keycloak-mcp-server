@@ -3,7 +3,6 @@ package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -55,7 +54,10 @@ public class CallerAuth {
         this.defaultTenantProblem = DefaultTenant.problem(oidcEnabled, authServerUrlSet, staticSystems);
     }
 
-    /** The configured static systems, a block with a url each; none when repositories supply them. */
+    /**
+     * The configured static systems, a block with a url each; none when repositories
+     * supply them.
+     */
     private static List<String> staticSystems(McpServerConfig config) {
         if (!config.staticSystems()) {
             return List.of();

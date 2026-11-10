@@ -29,10 +29,10 @@ public final class DefaultTenant {
     /**
      * Why the default OIDC tenant has nothing to verify callers against, if so: callers
      * are authenticated, {@code quarkus.oidc.auth-server-url} is neither set nor derived,
-     * and several static systems leave the default open. Quarkus would disable the
-     * tenant without a word and refuse every caller of {@code /mcp}. A deployment whose
-     * systems all come from repositories has no static system to derive from and binds
-     * callers per entry instead, so it is left alone.
+     * and several static systems leave the default open. Quarkus would disable the tenant
+     * without a word and refuse every caller of {@code /mcp}. A deployment whose systems
+     * all come from repositories has no static system to derive from and binds callers
+     * per entry instead, so it is left alone.
      * @param staticSystems the names of the configured static systems
      */
     public static Optional<String> problem(boolean oidcEnabled, boolean authServerUrlSet, List<String> staticSystems) {

@@ -45,9 +45,7 @@ class DefaultTenantInterceptorFactoryTest {
     @Test
     void severalStaticSystemsWithoutADefaultAreAStartupProblemWithCallerLogin() {
         List<String> two = List.of("default", "prod");
-        assertTrue(DefaultTenant.problem(true, false, two)
-            .orElseThrow()
-            .contains("kc-mcp.default-system"));
+        assertTrue(DefaultTenant.problem(true, false, two).orElseThrow().contains("kc-mcp.default-system"));
         assertTrue(DefaultTenant.problem(false, false, two).isEmpty());
         assertTrue(DefaultTenant.problem(true, true, two).isEmpty());
         assertTrue(DefaultTenant.problem(true, false, List.of("a")).isEmpty());

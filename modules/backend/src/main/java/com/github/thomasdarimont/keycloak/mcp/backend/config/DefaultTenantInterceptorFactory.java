@@ -16,12 +16,11 @@ import io.smallrye.config.Priorities;
  * Points the default OIDC tenant at the default Keycloak system: when
  * {@code quarkus.oidc.auth-server-url} is not set, it becomes
  * {@code <url>/realms/<auth-realm>} of the system {@code kc-mcp.default-system} names,
- * else of the only configured system; several systems without that setting derive
- * nothing (a system's name carries no meaning). Callers of
- * the MCP endpoint are then verified against that realm, and the UI and the CIBA
- * confirmer take their default issuer from the same value. An interceptor, so files from
- * {@code kc-mcp.config-files} count; below the expression interceptor, so the derived
- * value expands like a configured one.
+ * else of the only configured system; several systems without that setting derive nothing
+ * (a system's name carries no meaning). Callers of the MCP endpoint are then verified
+ * against that realm, and the UI and the CIBA confirmer take their default issuer from
+ * the same value. An interceptor, so files from {@code kc-mcp.config-files} count; below
+ * the expression interceptor, so the derived value expands like a configured one.
  */
 @AutoService(ConfigSourceInterceptorFactory.class)
 public class DefaultTenantInterceptorFactory implements ConfigSourceInterceptorFactory {
