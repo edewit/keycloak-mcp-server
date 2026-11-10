@@ -123,8 +123,18 @@ export class OverviewPage extends LitElement {
         <dd>${s.idp} <span class="muted">${s.issuer}</span></dd>
         <dt>Roles</dt>
         <dd>${s.roles?.join(', ') || html`<span class="muted">none</span>`}</dd>
-        <dt>Management role</dt>
-        <dd>${s.adminRole} ${s.admin ? '✓' : html`<span class="error">missing</span>`}</dd>
+        <dt>Operator role</dt>
+        <dd>${s.adminRole} ${s.admin ? '✓' : html`<span class="muted">no</span>`}</dd>
+        ${s.viewerRole
+          ? html`<dt>Viewer role</dt>
+              <dd>${s.viewerRole} ${s.viewer ? '✓' : html`<span class="muted">no</span>`}</dd>`
+          : nothing}
+        <dt>Capabilities</dt>
+        <dd>
+          ${s.capabilities?.length
+            ? s.capabilities.join(', ')
+            : html`<span class="error">none — need operator or viewer role for the API</span>`}
+        </dd>
         <dt>Session expires</dt>
         <dd>${s.sessionExpiresAt ? new Date(s.sessionExpiresAt).toLocaleString() : '–'}</dd>
         <dt>Last session check</dt>

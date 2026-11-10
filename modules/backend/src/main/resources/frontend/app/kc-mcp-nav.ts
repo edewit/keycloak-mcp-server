@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
+import { hasCapability, type Me } from './bff.js';
 import { DEFAULT_PATH, navPath, routes } from './router.js';
 
 /**
@@ -59,6 +60,9 @@ export class KcMcpNav extends LitElement {
     }
   `;
 
+  @property({ attribute: false })
+  session: Me | null = null;
+
   @state()
   private path = DEFAULT_PATH;
 
@@ -70,7 +74,6 @@ export class KcMcpNav extends LitElement {
     super.connectedCallback();
     this.path = location.pathname;
     window.addEventListener('popstate', this.onNav);
-    // Lit router updates history without always firing popstate on same-document clicks.
     window.addEventListener('kc-mcp-navigate', this.onNav);
   }
 
@@ -82,9 +85,12 @@ export class KcMcpNav extends LitElement {
 
   render() {
     const current = navPath(this.path);
+    const visible = routes.filter(
+      (route) => !route.capability || hasCapability(this.session, route.capability),
+    );
     return html`
       <nav aria-label="Management">
-        ${routes.map(
+        ${visible.map(
           (route) => html`
             <a href=${route.path} aria-current=${current === route.path ? 'page' : nothing}
               >${route.label}</a

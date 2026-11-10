@@ -27,8 +27,26 @@ export interface Me {
   issuer?: string;
   roles?: string[];
   adminRole?: string;
+  /** True when the session holds kc-mcp.admin.role (operator). */
   admin?: boolean;
+  /** True when the session holds kc-mcp.ui.viewer-role (read-only), if configured. */
+  viewer?: boolean;
+  viewerRole?: string;
+  /** BFF-enforced capabilities; the UI only hides. */
+  capabilities?: string[];
   sessionExpiresAt?: string;
+}
+
+/** Capability strings from GET /bff/me. */
+export const Cap = {
+  systemsRead: 'systems:read',
+  systemsWrite: 'systems:write',
+  secretsRead: 'secrets:read',
+  storageRead: 'storage:read',
+} as const;
+
+export function hasCapability(me: Me | null | undefined, capability: string): boolean {
+  return !!me?.capabilities?.includes(capability);
 }
 
 /** One Keycloak system as returned by GET /bff/api/systems[/{alias}]. */

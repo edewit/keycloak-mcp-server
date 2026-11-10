@@ -144,9 +144,7 @@ export class SystemPage extends LitElement {
       <p class="lead">
         Alias <code>${s.alias}</code>
         ${s.source ? html` · source <code>${s.source}</code>` : nothing}
-        ${s.writable === false
-          ? html` <span class="badge">read-only</span>`
-          : nothing}
+        ${s.writable === false ? html` <span class="badge">read-only source</span>` : nothing}
       </p>
       <nav class="tabs" aria-label="System">
         <a
