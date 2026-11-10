@@ -29,6 +29,34 @@ class DynamicSystemsTest {
     }
 
     @Test
+    void onlyTheSettingMakesOneOfSeveralSystemsTheDefault() {
+        List<KeycloakSystem> two = List.of(system("default", "https://d.example.com"),
+                system("prod", "https://p.example.com"));
+        DefaultKeycloakSystems unnamed = new DefaultKeycloakSystems(two, null, null);
+        try {
+            assertTrue(unnamed.defaultName().isEmpty(), "a system called default is a name like any other");
+        }
+        finally {
+            unnamed.close();
+        }
+        DefaultKeycloakSystems named = new DefaultKeycloakSystems(two, "default", null);
+        try {
+            assertEquals(Optional.of("default"), named.defaultName());
+        }
+        finally {
+            named.close();
+        }
+        DefaultKeycloakSystems single = new DefaultKeycloakSystems(List.of(system("prod", "https://p.example.com")),
+                null, null);
+        try {
+            assertEquals(Optional.of("prod"), single.defaultName());
+        }
+        finally {
+            single.close();
+        }
+    }
+
+    @Test
     void repositoriesAddSystemsNextToTheStaticOnes() {
         InMemoryKeycloakSystemRepository source = new InMemoryKeycloakSystemRepository("map", List.of());
         source.put(system("tenant-a", "https://a.example.com"));

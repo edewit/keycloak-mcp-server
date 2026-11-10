@@ -191,8 +191,8 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
             this.defaultName = systems.getFirst().name();
         }
         else {
-            this.defaultName = staticSystems.find(KeycloakSystem.DEFAULT_NAME).isPresent() ? KeycloakSystem.DEFAULT_NAME
-                    : null;
+            // several systems: only kc-mcp.default-system makes one the default, never its name
+            this.defaultName = null;
         }
         ErrorMapper.register(KeycloakErrors::map);
     }

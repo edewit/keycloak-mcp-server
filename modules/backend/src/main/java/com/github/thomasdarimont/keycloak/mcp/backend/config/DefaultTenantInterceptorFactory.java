@@ -16,7 +16,8 @@ import io.smallrye.config.Priorities;
  * Points the default OIDC tenant at the default Keycloak system: when
  * {@code quarkus.oidc.auth-server-url} is not set, it becomes
  * {@code <url>/realms/<auth-realm>} of the system {@code kc-mcp.default-system} names,
- * else of the only configured system, else of the one called {@code default}. Callers of
+ * else of the only configured system; several systems without that setting derive
+ * nothing (a system's name carries no meaning). Callers of
  * the MCP endpoint are then verified against that realm, and the UI and the CIBA
  * confirmer take their default issuer from the same value. An interceptor, so files from
  * {@code kc-mcp.config-files} count; below the expression interceptor, so the derived
@@ -66,10 +67,7 @@ public class DefaultTenantInterceptorFactory implements ConfigSourceInterceptorF
         };
     }
 
-    /**
-     * The configured default system, else the only one, else {@code default} if it
-     * exists.
-     */
+    /** The configured default system, else the only one. */
     static String defaultSystem(ConfigSourceInterceptorContext ctx) {
         if ("false".equalsIgnoreCase(raw(ctx, "kc-mcp.static-systems"))) {
             // repositories supply the systems at runtime: nothing to derive the tenant
@@ -91,10 +89,7 @@ public class DefaultTenantInterceptorFactory implements ConfigSourceInterceptorF
                 }
             }
         }
-        if (names.size() == 1) {
-            return names.getFirst();
-        }
-        return names.contains("default") ? "default" : null;
+        return names.size() == 1 ? names.getFirst() : null;
     }
 
     private static String raw(ConfigSourceInterceptorContext ctx, String name) {

@@ -6,7 +6,7 @@ One server for several Keycloak installations: configured statically, supplied b
 
 Every Keycloak the server administers is a named system, `kc-mcp.systems.<name>.*`; a system exists exactly when
 its `url` is set, and a blank `url` switches a configured one off. There is no unnamed system: one Keycloak is
-usually called `default`. Settings a system leaves out come from `kc-mcp.system-defaults.*` (the same keys except
+usually called `default`, a name like any other. Settings a system leaves out come from `kc-mcp.system-defaults.*` (the same keys except
 `url`), then from the built-in defaults.
 
 ```properties
@@ -21,8 +21,11 @@ kc-mcp.default-system=prod
 ```
 
 - More than one system: every tool gains a `system` argument (enum; optional with a default system).
-- The default system: `kc-mcp.default-system`, else the only system, else the one named `default`. The OIDC default
-  tenant verifies callers against its auth realm (`quarkus.oidc.auth-server-url` is derived from it unless set).
+- The default system: `kc-mcp.default-system`, else the only system. Several systems without the setting have no
+  default, and every tool requires `system`; a system called `default` is not picked by its name. The OIDC default
+  tenant verifies callers against the default system's auth realm (`quarkus.oidc.auth-server-url` is derived from it
+  unless set): with caller login, several static systems need `kc-mcp.default-system` or
+  `quarkus.oidc.auth-server-url`, or the server does not start.
 - Roles, allowed realms, default realm, startup checks, audit: per system.
 - One `kc-mcp.jwt.key-file` serves all systems; without it each system gets its own key (see Dynamic systems below).
 - Environment form: `KC_MCP_SYSTEMS_PROD_URL`, `KC_MCP_SYSTEM_DEFAULTS_CLIENT_ID`; a system name given through the

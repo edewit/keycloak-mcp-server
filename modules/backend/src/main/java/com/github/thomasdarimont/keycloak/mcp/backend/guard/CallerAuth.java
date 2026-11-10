@@ -1,11 +1,17 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.guard;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.config.ConfigProvider;
 
+import com.github.thomasdarimont.keycloak.mcp.backend.config.DefaultTenant;
+import com.github.thomasdarimont.keycloak.mcp.backend.config.DefaultTenantInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
@@ -24,20 +30,54 @@ public class CallerAuth {
     private final boolean required;
     private final boolean oidcEnabled;
 
+    private final Optional<String> defaultTenantProblem;
+
     @Inject
     public CallerAuth(McpServerConfig config) {
         this(config.delegation(), config.callerRequired(),
-                ConfigProvider.getConfig().getOptionalValue("quarkus.oidc.tenant-enabled", Boolean.class).orElse(true));
+                ConfigProvider.getConfig().getOptionalValue("quarkus.oidc.tenant-enabled", Boolean.class).orElse(true),
+                ConfigProvider.getConfig()
+                    .getOptionalValue(DefaultTenantInterceptorFactory.AUTH_SERVER_URL, String.class)
+                    .filter(v -> !v.isBlank())
+                    .isPresent(),
+                staticSystems(config));
     }
 
     public CallerAuth(DelegationMode delegation, boolean requireCaller, boolean oidcEnabled) {
+        this(delegation, requireCaller, oidcEnabled, true, List.of());
+    }
+
+    public CallerAuth(DelegationMode delegation, boolean requireCaller, boolean oidcEnabled, boolean authServerUrlSet,
+            List<String> staticSystems) {
         this.delegation = delegation;
         this.required = requireCaller || delegation.delegating();
         this.oidcEnabled = oidcEnabled;
+        this.defaultTenantProblem = DefaultTenant.problem(oidcEnabled, authServerUrlSet, staticSystems);
+    }
+
+    /** The configured static systems, a block with a url each; none when repositories supply them. */
+    private static List<String> staticSystems(McpServerConfig config) {
+        if (!config.staticSystems()) {
+            return List.of();
+        }
+        return config.systems()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().url().filter(v -> !v.isBlank()).isPresent())
+            .map(Map.Entry::getKey)
+            .sorted()
+            .toList();
     }
 
     void validate(@Observes StartupEvent event) {
         ValidationRun.guard(this::requireCallerAuthentication);
+        ValidationRun.guard(this::requireDefaultTenant);
+    }
+
+    private void requireDefaultTenant() {
+        defaultTenantProblem.ifPresent(p -> {
+            throw new IllegalStateException(p);
+        });
     }
 
     private void requireCallerAuthentication() {

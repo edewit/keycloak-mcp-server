@@ -25,8 +25,6 @@ public record KeycloakSystem(String name, String url, GrantType grantType, Clien
         Optional<String> defaultRealm, Set<String> allowedRealms, Optional<String> version, Optional<String> issuer,
         Optional<String> displayName, Optional<String> description, Set<String> trustedIssuers) {
 
-    public static final String DEFAULT_NAME = "default";
-
     /**
      * Prefix of a secret value that names a {@link KeyVault} secret instead of holding
      * one.

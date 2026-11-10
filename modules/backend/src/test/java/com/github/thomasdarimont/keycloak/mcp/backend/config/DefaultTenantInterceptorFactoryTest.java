@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.config;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import io.smallrye.config.SmallRyeConfigBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultTenantInterceptorFactoryTest {
 
@@ -28,13 +30,29 @@ class DefaultTenantInterceptorFactoryTest {
     }
 
     @Test
-    void theNamedDefaultSystemWinsOverTheOneCalledDefault() {
+    void onlyTheSettingPicksTheDefaultAmongSeveral() {
         Map<String, String> two = Map.of("kc-mcp.systems.default.url", "http://d", "kc-mcp.systems.prod.url",
                 "http://p", "kc-mcp.systems.prod.auth-realm", "ops");
-        assertEquals("http://d/realms/master", authServerUrl(two));
+        // a system called "default" is a name like any other
+        assertNull(authServerUrl(two));
         Map<String, String> named = new java.util.HashMap<>(two);
         named.put("kc-mcp.default-system", "prod");
         assertEquals("http://p/realms/ops", authServerUrl(named));
+        named.put("kc-mcp.default-system", "default");
+        assertEquals("http://d/realms/master", authServerUrl(named));
+    }
+
+    @Test
+    void severalStaticSystemsWithoutADefaultAreAStartupProblemWithCallerLogin() {
+        List<String> two = List.of("default", "prod");
+        assertTrue(DefaultTenant.problem(true, false, two)
+            .orElseThrow()
+            .contains("kc-mcp.default-system"));
+        assertTrue(DefaultTenant.problem(false, false, two).isEmpty());
+        assertTrue(DefaultTenant.problem(true, true, two).isEmpty());
+        assertTrue(DefaultTenant.problem(true, false, List.of("a")).isEmpty());
+        // repositories only: entries carry the tenants
+        assertTrue(DefaultTenant.problem(true, false, List.of()).isEmpty());
     }
 
     @Test

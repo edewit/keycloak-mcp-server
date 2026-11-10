@@ -43,7 +43,7 @@ the database connection.
 | `kc-mcp.systems.<name>.issuer`  | `<url>/realms/<auth-realm>` | realm issuer as Keycloak states it, audience of `private_key_jwt` assertions; set when the url is internal |
 | `kc-mcp.systems.<name>.version` | read from server            | Keycloak version override / fallback ([Supported Keycloak versions](keycloak-versions.md)) |
 | `kc-mcp.system-defaults.*`      |                             | the same keys except `url`, shared by every system that does not set its own |
-| `kc-mcp.default-system`         | the only system, else `default` | system when `system` is omitted; the OIDC default tenant verifies callers against its auth realm |
+| `kc-mcp.default-system`         | the only system | system when `system` is omitted; the OIDC default tenant verifies callers against its auth realm. Several systems have no default without it (a system called `default` is not picked by its name); with caller login they need it or `quarkus.oidc.auth-server-url` |
 | `kc-mcp.jwt.key-file`           |                             | PKCS#8 PEM private key for `private_key_jwt` |
 | `kc-mcp.jwt.keystore-file` / `keystore-password` / `key-alias` / `key-password` / `keystore-type` | | keystore alternative |
 | `kc-mcp.jwt.algorithm`          | `RS256`                     | RS256/384/512, PS256/384/512, ES256/384/512 |
