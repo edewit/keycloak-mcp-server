@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { BffError, getSystem, saveSystem, type System, type SystemSave } from '../bff.js';
+import { BffError, getSystem, listSystems, saveSystem, type System, type SystemSave } from '../bff.js';
 import { systemHref, systemsHref } from '../router.js';
 
 type FormState = {
@@ -15,6 +15,7 @@ type FormState = {
   clientSecret: string;
   defaultRealm: string;
   allowedRealms: string;
+  trustedIssuers: string;
   version: string;
 };
 
@@ -33,6 +34,7 @@ function emptyForm(): FormState {
     clientSecret: '',
     defaultRealm: '',
     allowedRealms: '',
+    trustedIssuers: '',
     version: '',
   };
 }
@@ -50,11 +52,12 @@ function toForm(s: System): FormState {
     clientSecret: s.clientSecret?.startsWith('vault:') ? s.clientSecret : '',
     defaultRealm: s.defaultRealm ?? '',
     allowedRealms: (s.allowedRealms ?? []).join(', '),
+    trustedIssuers: (s.trustedIssuers ?? []).join(', '),
     version: s.version ?? '',
   };
 }
 
-function parseRealms(value: string): string[] {
+function parseList(value: string): string[] {
   return value
     .split(/[,\s]+/)
     .map((r) => r.trim())
@@ -193,6 +196,10 @@ export class SystemSettings extends LitElement {
   @property({ type: Boolean })
   create = false;
 
+  /** When true, omit the page chrome (used inside the system detail tabs). */
+  @property({ type: Boolean })
+  embedded = false;
+
   @property()
   alias = '';
 
@@ -210,6 +217,9 @@ export class SystemSettings extends LitElement {
 
   @state()
   private savedAt: Date | null = null;
+
+  @state()
+  private createBlockedHint: string | null = null;
 
   private secretConfigured = false;
 
@@ -230,11 +240,27 @@ export class SystemSettings extends LitElement {
   private async load(): Promise<void> {
     this.error = null;
     this.savedAt = null;
+    this.createBlockedHint = null;
     if (this.create) {
       this.system = null;
       this.secretConfigured = false;
-      this.form = emptyForm();
-      this.busy = false;
+      this.busy = true;
+      try {
+        const list = await listSystems();
+        if (!list.canCreate) {
+          this.createBlockedHint =
+            list.canCreateHint ??
+            'No mutable repository: set quarkus.datasource.jdbc.url and kc-mcp.dynamic-systems=true.';
+          this.form = null;
+        } else {
+          this.form = emptyForm();
+        }
+      } catch (e) {
+        this.form = emptyForm();
+        this.report(e);
+      } finally {
+        this.busy = false;
+      }
       return;
     }
     if (!this.alias) {
@@ -298,7 +324,8 @@ export class SystemSettings extends LitElement {
       clientAuth: this.form.clientAuth,
       clientId: this.form.clientId.trim() || undefined,
       defaultRealm: this.form.defaultRealm.trim() || undefined,
-      allowedRealms: parseRealms(this.form.allowedRealms),
+      allowedRealms: parseList(this.form.allowedRealms),
+      trustedIssuers: parseList(this.form.trustedIssuers),
       version: this.form.version.trim() || undefined,
     };
     const secret = this.form.clientSecret.trim();
@@ -319,6 +346,9 @@ export class SystemSettings extends LitElement {
       this.secretConfigured = !!saved.clientSecret;
       this.form = toForm(saved);
       this.savedAt = new Date();
+      this.dispatchEvent(
+        new CustomEvent('system-saved', { detail: saved, bubbles: true, composed: true }),
+      );
     } catch (e) {
       this.report(e);
     } finally {
@@ -344,6 +374,18 @@ export class SystemSettings extends LitElement {
     if (!this.form && this.busy) {
       return html`<p class="lead">Loading…</p>`;
     }
+    if (this.create && this.createBlockedHint) {
+      return html`
+        <a class="back" href=${systemsHref()}>← Systems</a>
+        <h2>New system</h2>
+        <p class="error">${this.createBlockedHint}</p>
+        <p class="lead">
+          A system is a Keycloak cluster/environment. Registration needs a mutable repository (database storage +
+          <code>kc-mcp.dynamic-systems=true</code>). With <code>bin/kcmcp.sh start-dev</code> that is assumed for H2
+          builds.
+        </p>
+      `;
+    }
     if (!this.form || (!this.create && !this.system)) {
       return html`
         <a class="back" href=${systemsHref()}>← Systems</a>
@@ -360,15 +402,21 @@ export class SystemSettings extends LitElement {
       ? 'New system'
       : this.system!.displayName || this.system!.alias;
     return html`
-      <a class="back" href=${systemsHref()}>← Systems</a>
-      <h2>${title}</h2>
-      <p class="lead">
-        ${this.create
-          ? html`Register a Keycloak connection in the mutable repository.`
-          : html`Alias <code>${this.system!.alias}</code>
-              ${this.system!.source ? html` · source <code>${this.system!.source}</code>` : nothing}
-              ${writable ? nothing : html` · read-only (not stored in the mutable repository)`}`}
-      </p>
+      ${this.embedded
+        ? nothing
+        : html`<a class="back" href=${systemsHref()}>← Systems</a>
+            <h2>${title}</h2>
+            <p class="lead">
+              ${this.create
+                ? html`Register a Keycloak cluster (environment) in the mutable repository.`
+                : html`Alias <code>${this.system!.alias}</code>
+                    ${this.system!.source
+                      ? html` · source <code>${this.system!.source}</code>`
+                      : nothing}
+                    ${writable
+                      ? nothing
+                      : html` · read-only (not stored in the mutable repository)`}`}
+            </p>`}
       ${this.error ? html`<p class="error">${this.error}</p>` : nothing}
       ${this.savedAt
         ? html`<p class="ok">Saved at ${this.savedAt.toLocaleTimeString()}.</p>`
@@ -383,10 +431,6 @@ export class SystemSettings extends LitElement {
             ${this.system.signingKey?.jwksUrl
               ? html`<dt>JWKS</dt>
                   <dd><code>${this.system.signingKey.jwksUrl}</code></dd>`
-              : nothing}
-            ${(this.system.entries ?? []).length
-              ? html`<dt>Entries</dt>
-                  <dd>${this.system.entries!.map((e) => html`<code>${e}</code> `)}</dd>`
               : nothing}
           </dl>`
         : nothing}
@@ -524,6 +568,7 @@ export class SystemSettings extends LitElement {
                 ?disabled=${!writable || this.busy}
                 @input=${(e: Event) => this.onInput('defaultRealm', e)}
               />
+              <span class="hint">Used when a tool call omits <code>realm</code>.</span>
             </label>
             <label class="span-2"
               >Allowed realms
@@ -533,7 +578,23 @@ export class SystemSettings extends LitElement {
                 @input=${(e: Event) => this.onInput('allowedRealms', e)}
                 placeholder="comma-separated; empty = all"
               />
-              <span class="hint">Empty means every realm is allowed.</span>
+              <span class="hint"
+                >Empty means every realm on this cluster is allowed. The Realms tab lists the resulting MCP
+                entries.</span
+              >
+            </label>
+            <label class="span-2"
+              >Trusted issuers
+              <input
+                .value=${this.form.trustedIssuers}
+                ?disabled=${!writable || this.busy}
+                @input=${(e: Event) => this.onInput('trustedIssuers', e)}
+                placeholder="optional issuer URLs or Keycloak base URLs"
+              />
+              <span class="hint"
+                >Issuers besides this Keycloak whose caller tokens the server may hand to it (same as the admin API
+                <code>trustedIssuers</code>).</span
+              >
             </label>
           </div>
         </fieldset>
@@ -554,7 +615,7 @@ export class SystemSettings extends LitElement {
               >
                 Reset
               </button>`}
-          <a class="back" href=${systemsHref()}>Cancel</a>
+          ${this.embedded ? nothing : html`<a class="back" href=${systemsHref()}>Cancel</a>`}
         </div>
       </form>
     `;

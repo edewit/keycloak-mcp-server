@@ -48,6 +48,8 @@ export interface System {
   password?: string;
   defaultRealm?: string;
   allowedRealms: string[];
+  /** Issuers besides this Keycloak whose caller tokens may be used here. */
+  trustedIssuers?: string[];
   version?: string;
   source?: string;
   /** True when the admin/BFF API can replace this system (mutable repository). */
@@ -67,6 +69,10 @@ export interface System {
 
 export interface SystemsList {
   systems: System[];
+  /** False when there is no mutable repository or registration is closed. */
+  canCreate?: boolean;
+  mutableSource?: string;
+  canCreateHint?: string;
 }
 
 /** Body for PUT /bff/api/systems/{alias} (omit secrets to keep stored values). */
@@ -82,6 +88,7 @@ export type SystemSave = {
   clientSecret?: string;
   defaultRealm?: string;
   allowedRealms?: string[];
+  trustedIssuers?: string[];
   version?: string;
   signingKey?: string;
 };

@@ -103,11 +103,22 @@ public class AdminSystems {
 
     /** Every known system, static ones included. */
     public Map<String, Object> list(String publicBase) {
-        List<Map<String, Object>> out = new ArrayList<>();
+        List<Map<String, Object>> systemsOut = new ArrayList<>();
         for (String name : systems.names()) {
-            systems.repository().find(name).ifPresent(s -> out.add(represent(s, publicBase)));
+            systems.repository().find(name).ifPresent(s -> systemsOut.add(represent(s, publicBase)));
         }
-        return Map.of("systems", out);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("systems", systemsOut);
+        // UI: show "Add system" only when a mutable repository can accept new aliases.
+        boolean canCreate = systems.mutableRepository().isPresent() && config.admin().allowNewSystems();
+        out.put("canCreate", canCreate);
+        systems.mutableRepository().ifPresent(r -> out.put("mutableSource", r.id()));
+        if (!canCreate) {
+            out.put("canCreateHint", systems.mutableRepository().isEmpty()
+                    ? "Configure the database storage (quarkus.datasource.jdbc.url) and kc-mcp.dynamic-systems=true."
+                    : "Registration of new systems is closed (kc-mcp.admin.allow-new-systems=false).");
+        }
+        return out;
     }
 
     public Map<String, Object> get(String alias, String publicBase) {

@@ -2,16 +2,21 @@ import { Router } from '@lit-labs/router';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { checkSession, login, me, type Me, type SessionCheck } from './bff.js';
-import { DEFAULT_PATH, ensureDefaultPath, UI_BASE } from './router.js';
+import { DEFAULT_PATH, ensureDefaultPath, UI_BASE, type SystemTab } from './router.js';
 import './kc-mcp-nav.js';
 import './kc-mcp-toolbar.js';
-import './pages/home-page.js';
+import './pages/overview-page.js';
 import './pages/placeholder-page.js';
+import './pages/system-page.js';
 import './pages/system-settings.js';
 import './pages/systems-page.js';
 
+function notifyNavigate(): void {
+  window.dispatchEvent(new Event('kc-mcp-navigate'));
+}
+
 /**
- * Shell: masthead, vertical nav (when signed in), content. Systems is the default section.
+ * Shell: masthead, vertical nav (when signed in), content. Overview is the default section.
  * Routing uses `@lit-labs/router` on pathnames under `/ui/` (served by UiRoutes).
  */
 @customElement('kc-mcp-app')
@@ -111,59 +116,107 @@ export class KcMcpApp extends LitElement {
     }
   `;
 
-  private readonly router = new Router(this, [
+  private readonly router = new Router(
+    this,
+    [
+      {
+        name: 'system-new',
+        path: `${UI_BASE}/systems/new`,
+        enter: async () => {
+          notifyNavigate();
+          return true;
+        },
+        render: () => html`<kc-mcp-system-settings create></kc-mcp-system-settings>`,
+      },
+      {
+        name: 'system-tab',
+        path: `${UI_BASE}/systems/:alias/:tab`,
+        enter: async ({ alias, tab }) => {
+          notifyNavigate();
+          if (tab !== 'realms' && tab !== 'settings') {
+            const path = `${UI_BASE}/systems/${alias ?? ''}`;
+            history.replaceState({}, '', path);
+            await this.router.goto(path);
+            return false;
+          }
+          return true;
+        },
+        render: ({ alias, tab }) =>
+          html`<kc-mcp-system-page
+            .alias=${alias ?? ''}
+            .tab=${this.systemTab(tab)}
+          ></kc-mcp-system-page>`,
+      },
+      {
+        name: 'system',
+        path: `${UI_BASE}/systems/:alias`,
+        enter: async () => {
+          notifyNavigate();
+          return true;
+        },
+        render: ({ alias }) =>
+          html`<kc-mcp-system-page .alias=${alias ?? ''} tab="settings"></kc-mcp-system-page>`,
+      },
+      {
+        name: 'systems',
+        path: `${UI_BASE}/systems`,
+        enter: async () => {
+          notifyNavigate();
+          return true;
+        },
+        render: () => html`<kc-mcp-systems-page></kc-mcp-systems-page>`,
+      },
+      {
+        name: 'secrets',
+        path: `${UI_BASE}/secrets`,
+        enter: async () => {
+          notifyNavigate();
+          return true;
+        },
+        render: () =>
+          html`<kc-mcp-placeholder-page
+            heading="Secrets"
+            description="Names, vault provenance, and usedBy will appear here. Secrets are managed in the vault (or OpenBao / HashiCorp Vault) — this UI will not edit values."
+          ></kc-mcp-placeholder-page>`,
+      },
+      {
+        name: 'storage',
+        path: `${UI_BASE}/storage`,
+        enter: async () => {
+          notifyNavigate();
+          return true;
+        },
+        render: () =>
+          html`<kc-mcp-placeholder-page
+            heading="Storage"
+            description="Encryption status, key ids, and the system-source (repository) chain will appear here. Adding a repository remains a providers/ + config change, not a UI write."
+          ></kc-mcp-placeholder-page>`,
+      },
+      {
+        name: 'overview',
+        path: `${UI_BASE}/overview`,
+        enter: async () => {
+          notifyNavigate();
+          return true;
+        },
+        render: () =>
+          html`<kc-mcp-overview-page
+            .session=${this.session}
+            .lastCheck=${this.lastCheck}
+          ></kc-mcp-overview-page>`,
+      },
+    ],
     {
-      name: 'system-new',
-      path: `${UI_BASE}/systems/new`,
-      render: () => html`<kc-mcp-system-settings create></kc-mcp-system-settings>`,
-    },
-    {
-      name: 'system',
-      path: `${UI_BASE}/systems/:alias`,
-      render: ({ alias }) =>
-        html`<kc-mcp-system-settings .alias=${alias ?? ''}></kc-mcp-system-settings>`,
-    },
-    {
-      name: 'systems',
-      path: `${UI_BASE}/systems`,
-      render: () => html`<kc-mcp-systems-page></kc-mcp-systems-page>`,
-    },
-    {
-      name: 'secrets',
-      path: `${UI_BASE}/secrets`,
-      render: () =>
-        html`<kc-mcp-placeholder-page
-          heading="Secrets"
-          description="Placeholder for vault secret metadata via the BFF."
-        ></kc-mcp-placeholder-page>`,
-    },
-    {
-      name: 'storage',
-      path: `${UI_BASE}/storage`,
-      render: () =>
-        html`<kc-mcp-placeholder-page
-          heading="Storage"
-          description="Placeholder for encryption status and rekey via the BFF."
-        ></kc-mcp-placeholder-page>`,
-    },
-    {
-      name: 'home',
-      path: `${UI_BASE}/home`,
-      render: () =>
-        html`<kc-mcp-home-page
-          .session=${this.session}
-          .lastCheck=${this.lastCheck}
-        ></kc-mcp-home-page>`,
-    },
-  ], {
-    fallback: {
-      enter: async () => {
-        history.replaceState({}, '', DEFAULT_PATH + location.search);
-        await this.router.goto(DEFAULT_PATH);
-        return false;
+      fallback: {
+        enter: async () => {
+          history.replaceState({}, '', DEFAULT_PATH + location.search);
+          await this.router.goto(DEFAULT_PATH);
+          notifyNavigate();
+          return false;
+        },
       },
     },
-  });
+  );
 
   @state() private session: Me | null = null;
   @state() private sessionError: string | null = null;
@@ -175,6 +228,10 @@ export class KcMcpApp extends LitElement {
       void this.checkSession();
     }
   };
+
+  private systemTab(tab: string | undefined): SystemTab {
+    return tab === 'realms' ? 'realms' : 'settings';
+  }
 
   connectedCallback(): void {
     ensureDefaultPath();
@@ -232,7 +289,7 @@ export class KcMcpApp extends LitElement {
     return html`
       <kc-mcp-toolbar .session=${this.session}></kc-mcp-toolbar>
       <div class="body">
-        ${signedIn ? html`<kc-mcp-nav .path=${location.pathname}></kc-mcp-nav>` : nothing}
+        ${signedIn ? html`<kc-mcp-nav></kc-mcp-nav>` : nothing}
         <main>
           ${this.sessionError
             ? html`<section class="card">
