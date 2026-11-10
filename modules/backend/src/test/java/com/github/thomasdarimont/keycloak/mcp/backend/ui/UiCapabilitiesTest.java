@@ -24,16 +24,14 @@ class UiCapabilitiesTest {
         Caller alice = Caller.of("a", "alice", "demo", Set.of("realm:admin"));
         assertTrue(UiCapabilities.canAccessApi(alice, config));
         assertTrue(UiCapabilities.canWrite(alice, config));
-        assertEquals(
-                List.of(UiCapabilities.SYSTEMS_READ, UiCapabilities.SECRETS_READ, UiCapabilities.STORAGE_READ,
-                        UiCapabilities.SYSTEMS_WRITE),
-                UiCapabilities.forCaller(alice, config));
+        assertEquals(List.of(UiCapabilities.SYSTEMS_READ, UiCapabilities.SECRETS_READ, UiCapabilities.STORAGE_READ,
+                UiCapabilities.SYSTEMS_WRITE), UiCapabilities.forCaller(alice, config));
     }
 
     @Test
     void viewerGetsReadsOnlyWhenConfigured() {
-        McpServerConfig config = config(Map.of("kc-mcp.admin.role", "realm:admin", "kc-mcp.ui.viewer-role",
-                "realm-management.view-users"));
+        McpServerConfig config = config(
+                Map.of("kc-mcp.admin.role", "realm:admin", "kc-mcp.ui.viewer-role", "realm-management.view-users"));
         Caller carol = Caller.of("c", "carol", "demo", Set.of("realm-management.view-users"));
         assertTrue(UiCapabilities.isViewer(carol, config));
         assertFalse(UiCapabilities.canWrite(carol, config));
