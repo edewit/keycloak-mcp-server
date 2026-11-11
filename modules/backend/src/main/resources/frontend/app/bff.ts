@@ -69,6 +69,14 @@ export interface System {
   /** Issuers besides this Keycloak whose caller tokens may be used here. */
   trustedIssuers?: string[];
   version?: string;
+  /** System-level preset name when set. */
+  preset?: string;
+  /** Named presets defined on this system (keys are preset names). */
+  presets?: Record<string, unknown>;
+  /** Per-realm settings keyed by realm name (embedded on the system GET). */
+  realms?: Record<string, Omit<SystemRealm, 'name' | 'system' | 'entry'>>;
+  access?: Record<string, unknown>;
+  tools?: Record<string, unknown>;
   source?: string;
   /** True when the admin/BFF API can replace this system (mutable repository). */
   writable?: boolean;
@@ -84,6 +92,33 @@ export interface System {
   };
   entries?: string[];
 }
+
+/** One realm's stored settings as returned by GET /bff/api/systems/{alias}/realms[/{realm}]. */
+export interface SystemRealm {
+  name: string;
+  system: string;
+  realmId?: string;
+  displayName?: string;
+  description?: string;
+  preset?: string;
+  access?: Record<string, unknown>;
+  tools?: Record<string, unknown>;
+  entry?: string;
+}
+
+export interface SystemRealmsList {
+  realms: SystemRealm[];
+}
+
+/** Body for PUT /bff/api/systems/{alias}/realms/{realm}. */
+export type SystemRealmSave = {
+  realmId?: string;
+  displayName?: string;
+  description?: string;
+  preset?: string;
+  access?: Record<string, unknown>;
+  tools?: Record<string, unknown>;
+};
 
 export interface SystemsList {
   systems: System[];
@@ -207,6 +242,45 @@ export const saveSystem = (alias: string, body: SystemSave): Promise<System> =>
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  });
+
+/** Remove a mutable system (DELETE /bff/api/systems/{alias}). Keys stay in the vault. */
+export const deleteSystem = (alias: string): Promise<void> =>
+  call<void>(`/api/systems/${encodeURIComponent(alias)}`, { method: 'DELETE' });
+
+/** Rotate the system's signing key (POST /bff/api/systems/{alias}/signing-key). */
+export const rotateSigningKey = (alias: string): Promise<System> =>
+  call<System>(`/api/systems/${encodeURIComponent(alias)}/signing-key`, { method: 'POST' });
+
+/** Realm settings kept for a system (GET /bff/api/systems/{alias}/realms). */
+export const listSystemRealms = (alias: string): Promise<SystemRealmsList> =>
+  call<SystemRealmsList>(`/api/systems/${encodeURIComponent(alias)}/realms`);
+
+/** One realm's settings (GET /bff/api/systems/{alias}/realms/{realm}). */
+export const getSystemRealm = (alias: string, realm: string): Promise<SystemRealm> =>
+  call<SystemRealm>(
+    `/api/systems/${encodeURIComponent(alias)}/realms/${encodeURIComponent(realm)}`,
+  );
+
+/** Add or replace realm settings (PUT /bff/api/systems/{alias}/realms/{realm}). */
+export const saveSystemRealm = (
+  alias: string,
+  realm: string,
+  body: SystemRealmSave,
+): Promise<SystemRealm> =>
+  call<SystemRealm>(
+    `/api/systems/${encodeURIComponent(alias)}/realms/${encodeURIComponent(realm)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+
+/** Remove realm settings so the system's settings apply again. */
+export const deleteSystemRealm = (alias: string, realm: string): Promise<void> =>
+  call<void>(`/api/systems/${encodeURIComponent(alias)}/realms/${encodeURIComponent(realm)}`, {
+    method: 'DELETE',
   });
 
 /** Full-page navigations: the code flow and the RP-initiated logout are redirects, not fetches. */

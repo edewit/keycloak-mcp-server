@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import {
   BffError,
   Cap,
+  deleteSystem,
   getSystem,
   hasCapability,
   listSystems,
@@ -200,6 +201,17 @@ export class SystemSettings extends LitElement {
     a.back:hover {
       text-decoration: underline;
     }
+    button.danger {
+      background: transparent;
+      color: var(--error, #cf222e);
+      border-color: var(--error, #cf222e);
+    }
+    .confirm {
+      margin-top: 1.25rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--error, #cf222e);
+      border-radius: 8px;
+    }
   `;
 
   /** When true, register a new system instead of editing an existing one. */
@@ -234,6 +246,12 @@ export class SystemSettings extends LitElement {
   @state()
   private canWrite = false;
 
+  @state()
+  private confirmDelete = false;
+
+  @state()
+  private deleteTyped = '';
+
   private secretConfigured = false;
 
   connectedCallback(): void {
@@ -254,6 +272,8 @@ export class SystemSettings extends LitElement {
     this.error = null;
     this.savedAt = null;
     this.createBlockedHint = null;
+    this.confirmDelete = false;
+    this.deleteTyped = '';
     this.busy = true;
     try {
       const session = await me();
@@ -365,6 +385,22 @@ export class SystemSettings extends LitElement {
     } catch (e) {
       this.report(e);
     } finally {
+      this.busy = false;
+    }
+  }
+
+  private async remove(): Promise<void> {
+    if (!this.system || this.deleteTyped !== this.system.alias) {
+      return;
+    }
+    this.busy = true;
+    this.error = null;
+    try {
+      await deleteSystem(this.system.alias);
+      history.pushState({}, '', systemsHref());
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } catch (e) {
+      this.report(e);
       this.busy = false;
     }
   }
@@ -592,8 +628,8 @@ export class SystemSettings extends LitElement {
                 placeholder="comma-separated; empty = all"
               />
               <span class="hint"
-                >Empty means every realm on this cluster is allowed. The Realms tab lists the resulting MCP
-                entries.</span
+                >Empty means every realm on this cluster is allowed. Per-realm labels and presets are edited on the
+                Realms tab (not in this PUT).</span
               >
             </label>
             <label class="span-2"
@@ -631,6 +667,56 @@ export class SystemSettings extends LitElement {
           ${this.embedded ? nothing : html`<a class="back" href=${systemsHref()}>Cancel</a>`}
         </div>
       </form>
+
+      ${!this.create && writable
+        ? html`<div class="confirm">
+            <p class="lead" style="margin:0 0 0.5rem">
+              Delete this system from the mutable repository. Signing keys stay in the vault. Type
+              <code>${this.system!.alias}</code> to confirm.
+            </p>
+            ${this.confirmDelete
+              ? html`<div class="row">
+                  <input
+                    .value=${this.deleteTyped}
+                    ?disabled=${this.busy}
+                    @input=${(e: Event) => {
+                      this.deleteTyped = (e.target as HTMLInputElement).value;
+                    }}
+                    placeholder=${this.system!.alias}
+                    aria-label="Type system alias to confirm delete"
+                  />
+                  <button
+                    class="danger"
+                    type="button"
+                    ?disabled=${this.busy || this.deleteTyped !== this.system!.alias}
+                    @click=${() => this.remove()}
+                  >
+                    Delete system
+                  </button>
+                  <button
+                    class="secondary"
+                    type="button"
+                    ?disabled=${this.busy}
+                    @click=${() => {
+                      this.confirmDelete = false;
+                      this.deleteTyped = '';
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>`
+              : html`<button
+                  class="danger"
+                  type="button"
+                  ?disabled=${this.busy}
+                  @click=${() => {
+                    this.confirmDelete = true;
+                  }}
+                >
+                  Delete system…
+                </button>`}
+          </div>`
+        : nothing}
     `;
   }
 }

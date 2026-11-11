@@ -8,6 +8,7 @@ import './kc-mcp-toolbar.js';
 import './pages/overview-page.js';
 import './pages/placeholder-page.js';
 import './pages/system-page.js';
+import './pages/system-realm-page.js';
 import './pages/system-settings.js';
 import './pages/systems-page.js';
 
@@ -129,11 +130,24 @@ export class KcMcpApp extends LitElement {
         render: () => html`<kc-mcp-system-settings create></kc-mcp-system-settings>`,
       },
       {
+        name: 'system-realm',
+        path: `${UI_BASE}/systems/:alias/realms/:realm`,
+        enter: async () => {
+          notifyNavigate();
+          return true;
+        },
+        render: ({ alias, realm }) =>
+          html`<kc-mcp-system-realm-page
+            .alias=${alias ?? ''}
+            .realm=${realm ?? ''}
+          ></kc-mcp-system-realm-page>`,
+      },
+      {
         name: 'system-tab',
         path: `${UI_BASE}/systems/:alias/:tab`,
         enter: async ({ alias, tab }) => {
           notifyNavigate();
-          if (tab !== 'realms' && tab !== 'settings') {
+          if (tab !== 'realms' && tab !== 'settings' && tab !== 'keys') {
             const path = `${UI_BASE}/systems/${alias ?? ''}`;
             history.replaceState({}, '', path);
             await this.router.goto(path);
@@ -230,7 +244,10 @@ export class KcMcpApp extends LitElement {
   };
 
   private systemTab(tab: string | undefined): SystemTab {
-    return tab === 'realms' ? 'realms' : 'settings';
+    if (tab === 'realms' || tab === 'keys') {
+      return tab;
+    }
+    return 'settings';
   }
 
   connectedCallback(): void {

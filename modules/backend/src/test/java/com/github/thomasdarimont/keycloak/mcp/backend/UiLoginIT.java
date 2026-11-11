@@ -245,6 +245,47 @@ class UiLoginIT {
             .body("error", equalTo("missing_request_header"));
     }
 
+    @Test
+    void operatorCanManageMutableSystemsAndRealmSettings() {
+        Browser alice = Browser.login("demo", "alice", "alice");
+        alice.put("/bff/api/systems/ui-sandbox", """
+                {"url": "http://127.0.0.1:1", "displayName": "UI sandbox",
+                 "clientAuth": "client_secret", "clientSecret": "secret",
+                 "allowedRealms": ["demo", "sandbox"]}""")
+            .then()
+            .statusCode(201)
+            .body("alias", equalTo("ui-sandbox"))
+            .body("writable", equalTo(true));
+
+        alice.get("/bff/api/systems/ui-sandbox/realms").then().statusCode(200).body("realms", empty());
+        alice.put("/bff/api/systems/ui-sandbox/realms/sandbox", """
+                {"displayName": "Sandbox", "description": "Where support tries things"}""")
+            .then()
+            .statusCode(201)
+            .body("name", equalTo("sandbox"))
+            .body("displayName", equalTo("Sandbox"))
+            .body("entry", equalTo("/mcp/systems/ui-sandbox/sandbox"));
+        alice.get("/bff/api/systems/ui-sandbox/realms").then().statusCode(200).body("realms.name", hasItem("sandbox"));
+        alice.get("/bff/api/systems/ui-sandbox/realms/sandbox")
+            .then()
+            .statusCode(200)
+            .body("description", equalTo("Where support tries things"));
+
+        // configured systems stay read-only through the BFF
+        alice.put("/bff/api/systems/default/realms/demo", "{\"displayName\": \"Demo\"}")
+            .then()
+            .statusCode(409)
+            .body("error", equalTo("system_configured"));
+
+        alice.delete("/bff/api/systems/ui-sandbox/realms/sandbox").then().statusCode(204);
+        alice.get("/bff/api/systems/ui-sandbox/realms/sandbox")
+            .then()
+            .statusCode(404)
+            .body("error", equalTo("unknown_realm"));
+        alice.delete("/bff/api/systems/ui-sandbox").then().statusCode(204);
+        alice.get("/bff/api/systems/ui-sandbox").then().statusCode(404).body("error", equalTo("unknown_system"));
+    }
+
     /**
      * A cookie whose row is gone: the UI's request gets 499 (no redirect) and the cookie
      * is cleared, a plain request 401; without the cookie the browser is anonymous again.
@@ -287,6 +328,24 @@ class UiLoginIT {
                 .redirects()
                 .follow(false)
                 .post(path);
+        }
+
+        Response put(String path, String body) {
+            return given().header("Cookie", sessionCookie)
+                .header(UiTenant.JAVASCRIPT_HEADER, UiTenant.JAVASCRIPT_HEADER_VALUE)
+                .contentType("application/json")
+                .body(body)
+                .redirects()
+                .follow(false)
+                .put(path);
+        }
+
+        Response delete(String path) {
+            return given().header("Cookie", sessionCookie)
+                .header(UiTenant.JAVASCRIPT_HEADER, UiTenant.JAVASCRIPT_HEADER_VALUE)
+                .redirects()
+                .follow(false)
+                .delete(path);
         }
 
         /** Runs the code flow at Keycloak the way a browser does. */

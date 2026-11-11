@@ -7,7 +7,7 @@ export type NavRoute = {
   capability?: string;
 };
 
-export type SystemTab = 'settings' | 'realms';
+export type SystemTab = 'settings' | 'realms' | 'keys';
 
 /** Quarkus mount point for the SPA (`UiRoutes`). */
 export const UI_BASE = '/ui';
@@ -38,6 +38,11 @@ export function newSystemHref(): string {
 export function systemHref(alias: string, tab: SystemTab = 'settings'): string {
   const base = `${UI_BASE}/systems/${encodeURIComponent(alias)}`;
   return tab === 'settings' ? base : `${base}/${tab}`;
+}
+
+/** Realm settings page under a system. */
+export function realmHref(alias: string, realm: string): string {
+  return `${UI_BASE}/systems/${encodeURIComponent(alias)}/realms/${encodeURIComponent(realm)}`;
 }
 
 /** Highlight Systems in the sidebar for both list and detail routes. */
