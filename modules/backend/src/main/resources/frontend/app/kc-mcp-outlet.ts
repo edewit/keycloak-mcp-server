@@ -1,12 +1,10 @@
 import { Router } from '@lit-labs/router';
-import { provide } from '@lit/context';
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
-import { checkSession, login, me, type Me, type SessionCheck } from './bff.js';
+import { customElement } from 'lit/decorators.js';
+import { login, type Me } from './bff.js';
 import { DEFAULT_PATH, ensureDefaultPath, UI_BASE, type SystemTab } from './router.js';
 import { sessionContext, type SessionState } from './session-context.js';
-import './kc-mcp-nav.js';
-import './kc-mcp-toolbar.js';
 import './pages/overview.js';
 import './pages/placeholder.js';
 import './pages/system/page.js';
@@ -20,65 +18,22 @@ function notifyNavigate(): void {
 }
 
 /**
- * Shell: masthead, vertical nav (when signed in), content. Overview is the default section.
- * Routing uses `@lit-labs/router` on pathnames under `/ui/` (served by UiRoutes).
- * Session is provided via {@link sessionContext} for descendants.
+ * Route outlet and auth gate: sign-in, session errors, or the matched page.
+ * Owns `@lit-labs/router`; shell chrome lives in {@code index.html}.
  */
-@customElement('kc-mcp-app')
-export class KcMcpApp extends LitElement {
+@customElement('kc-mcp-outlet')
+export class KcMcpOutlet extends LitElement {
   static styles = css`
     :host {
-      --fg: #1f2328;
-      --muted: #656d76;
-      --bg: #f6f8fa;
-      --card: #ffffff;
-      --border: #d0d7de;
-      --error: #cf222e;
-      --pre-bg: #f6f8fa;
-      --accent: #1f6feb;
-      --nav-width: 13.5rem;
-      display: flex;
-      flex-direction: column;
-      font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      color: var(--fg);
-      background: var(--bg);
-      min-height: 100vh;
-    }
-    @media (prefers-color-scheme: dark) {
-      :host {
-        --fg: #e6edf3;
-        --muted: #8b949e;
-        --bg: #0d1117;
-        --card: #161b22;
-        --border: #30363d;
-        --error: #ff7b72;
-        --pre-bg: #0d1117;
-        --accent: #2f81f7;
-      }
-    }
-    .body {
-      display: flex;
-      flex: 1;
-      min-height: 0;
-    }
-    .body kc-mcp-nav {
-      flex: 0 0 var(--nav-width);
-      align-self: stretch;
-    }
-    main {
-      flex: 1;
-      min-width: 0;
-      padding: 1.5rem;
-      display: grid;
-      gap: 1rem;
-      align-content: start;
+      display: block;
+      color: var(--fg, inherit);
     }
     .card {
-      background: var(--card);
-      border: 1px solid var(--border);
+      background: var(--card, #fff);
+      border: 1px solid var(--border, #d0d7de);
       border-radius: 8px;
       padding: 1rem 1.25rem;
-      color: var(--fg);
+      color: var(--fg, inherit);
       max-width: 56rem;
     }
     h2 {
@@ -89,15 +44,15 @@ export class KcMcpApp extends LitElement {
       font: inherit;
       padding: 0.4rem 0.9rem;
       border-radius: 6px;
-      border: 1px solid var(--accent);
-      background: var(--accent);
+      border: 1px solid var(--accent, #1f6feb);
+      background: var(--accent, #1f6feb);
       color: #fff;
       cursor: pointer;
     }
     button.secondary {
       background: transparent;
-      color: var(--fg);
-      border-color: var(--border);
+      color: var(--fg, inherit);
+      border-color: var(--border, #8b949e);
     }
     .row {
       display: flex;
@@ -106,26 +61,15 @@ export class KcMcpApp extends LitElement {
       align-items: center;
     }
     .error {
-      color: var(--error);
+      color: var(--error, #cf222e);
     }
     .muted {
-      color: var(--muted);
-    }
-    ::slotted(.boot) {
-      display: block;
-      padding: 1.5rem;
-      color: var(--muted);
-      max-width: 36rem;
-    }
-    @media (max-width: 640px) {
-      .body {
-        flex-direction: column;
-      }
-      .body kc-mcp-nav {
-        flex: none;
-      }
+      color: var(--muted, #656d76);
     }
   `;
+
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
 
   private readonly router = new Router(
     this,
@@ -146,7 +90,6 @@ export class KcMcpApp extends LitElement {
           notifyNavigate();
           return true;
         },
-        // Same shell as the Realms tab so list → detail only swaps the inner view.
         render: ({ alias, realm }) =>
           html`<kc-mcp-system-page
             .alias=${alias ?? ''}
@@ -245,19 +188,6 @@ export class KcMcpApp extends LitElement {
     },
   );
 
-  @provide({ context: sessionContext })
-  @state()
-  private sessionState: SessionState = { me: null, lastCheck: null };
-
-  @state() private sessionError: string | null = null;
-  private suggestedIdp: string | undefined;
-  private checking = false;
-  private readonly onVisible = () => {
-    if (document.visibilityState === 'visible' && this.sessionState.me?.authenticated && !this.checking) {
-      void this.checkSession();
-    }
-  };
-
   private readonly onGoto = (event: Event) => {
     const path = (event as CustomEvent<GotoDetail>).detail?.path;
     if (path) {
@@ -275,94 +205,39 @@ export class KcMcpApp extends LitElement {
 
   connectedCallback(): void {
     ensureDefaultPath();
-    const url = new URL(window.location.href);
-    this.suggestedIdp = url.searchParams.get('idp') ?? undefined;
-    if (url.searchParams.has('state')) {
-      url.searchParams.delete('state');
-      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-    }
     super.connectedCallback();
     window.addEventListener('kc-mcp-goto', this.onGoto);
-    void this.refresh();
-    this.trackActivity();
   }
 
   disconnectedCallback(): void {
     window.removeEventListener('kc-mcp-goto', this.onGoto);
-    document.removeEventListener('visibilitychange', this.onVisible);
-    window.removeEventListener('focus', this.onVisible);
     super.disconnectedCallback();
   }
 
-  private trackActivity(): void {
-    document.addEventListener('visibilitychange', this.onVisible);
-    window.addEventListener('focus', this.onVisible);
-  }
-
-  private async checkSession(): Promise<void> {
-    this.checking = true;
-    try {
-      const check: SessionCheck | false = await checkSession();
-      this.sessionState = {
-        ...this.sessionState,
-        lastCheck: { at: new Date(), ok: check !== false },
-      };
-      await this.refresh();
-    } catch (e) {
-      this.sessionError = e instanceof Error ? e.message : String(e);
-    } finally {
-      this.checking = false;
-    }
-  }
-
-  private async refresh(): Promise<void> {
-    try {
-      const next = await me(this.suggestedIdp);
-      if (next.authenticated && next.idp) {
-        this.suggestedIdp = next.idp;
-      }
-      this.sessionState = { ...this.sessionState, me: next };
-      this.sessionError = null;
-    } catch (e) {
-      this.sessionState = { ...this.sessionState, me: null };
-      this.sessionError = e instanceof Error ? e.message : String(e);
-    }
+  private retry(): void {
+    this.dispatchEvent(new CustomEvent('session-lost', { bubbles: true, composed: true }));
   }
 
   render() {
-    const s = this.sessionState.me;
-    // Until /bff/me returns, keep the light-DOM boot content from index.html visible.
-    if (!s && !this.sessionError) {
-      return html`<slot></slot>`;
+    const s = this.session?.me;
+    if (this.session?.error) {
+      return html`<section class="card">
+        <h2>Session</h2>
+        <p class="error">${this.session.error}</p>
+        <button class="secondary" type="button" @click=${() => this.retry()}>Retry</button>
+      </section>`;
     }
-    const signedIn = !!s?.authenticated;
-    return html`
-      <kc-mcp-toolbar></kc-mcp-toolbar>
-      <div class="body">
-        ${signedIn ? html`<kc-mcp-nav></kc-mcp-nav>` : nothing}
-        <main>
-          ${this.sessionError
-            ? html`<section class="card">
-                <h2>Session</h2>
-                <p class="error">${this.sessionError}</p>
-                <button class="secondary" type="button" @click=${() => this.refresh()}>Retry</button>
-              </section>`
-            : !s?.authenticated
-              ? this.renderSignIn(s!)
-              : html`<section
-                  class="card"
-                  @check-session=${() => this.checkSession()}
-                  @session-lost=${() => this.refresh()}
-                >
-                  ${this.router.outlet()}
-                </section>`}
-        </main>
-      </div>
-    `;
+    if (!s) {
+      return nothing;
+    }
+    if (!s.authenticated) {
+      return this.renderSignIn(s);
+    }
+    return html`<section class="card">${this.router.outlet()}</section>`;
   }
 
   private renderSignIn(s: Me) {
-    const suggested = s.suggestedIdp ?? this.suggestedIdp;
+    const suggested = s.suggestedIdp ?? this.session?.suggestedIdp;
     const last = s.idps.find((idp) => idp.alias === suggested);
     const others = s.idps.filter((idp) => idp !== last);
     return html`<section class="card">
@@ -386,6 +261,6 @@ export class KcMcpApp extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'kc-mcp-app': KcMcpApp;
+    'kc-mcp-outlet': KcMcpOutlet;
   }
 }
