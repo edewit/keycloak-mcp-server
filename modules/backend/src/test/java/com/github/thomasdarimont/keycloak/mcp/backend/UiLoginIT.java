@@ -95,8 +95,8 @@ class UiLoginIT {
             .then()
             .statusCode(200)
             .header("Cache-Control", equalTo("no-cache"))
-            .body(containsString("<kc-mcp-session>"));
-        given().get("/ui/systems/acme").then().statusCode(200).body(containsString("<kc-mcp-session>"));
+            .body(containsString("<kc-mcp-session"));
+        given().get("/ui/systems/acme").then().statusCode(200).body(containsString("<kc-mcp-session"));
         given().get("/ui/missing.css").then().statusCode(404);
     }
 
