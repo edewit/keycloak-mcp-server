@@ -11,8 +11,8 @@ import {
   saveSystem,
   type System,
   type SystemSave,
-} from '../bff.js';
-import { navigate, systemHref, systemsHref } from '../router.js';
+} from '../../bff.js';
+import { navigate, systemHref, systemsHref } from '../../router.js';
 
 type FormState = {
   alias: string;

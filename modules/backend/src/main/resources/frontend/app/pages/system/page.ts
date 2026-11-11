@@ -1,11 +1,11 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { BffError, getSystem, type System } from '../bff.js';
-import { systemHref, systemsHref, type SystemTab } from '../router.js';
-import './system-keys.js';
-import './system-realm-page.js';
-import './system-realms.js';
-import './system-settings.js';
+import { BffError, getSystem, type System } from '../../bff.js';
+import { systemHref, systemsHref, type SystemTab } from '../../router.js';
+import './keys.js';
+import './realm.js';
+import './realms.js';
+import './settings.js';
 
 /** System detail: header, Settings | Realms | Keys tabs, child outlet. */
 @customElement('kc-mcp-system-page')

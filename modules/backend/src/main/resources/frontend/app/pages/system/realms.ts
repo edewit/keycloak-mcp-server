@@ -9,8 +9,8 @@ import {
   saveSystemRealm,
   type System,
   type SystemRealm,
-} from '../bff.js';
-import { navigate, realmHref, systemHref } from '../router.js';
+} from '../../bff.js';
+import { navigate, realmHref, systemHref } from '../../router.js';
 
 type Row = {
   realm: string;
