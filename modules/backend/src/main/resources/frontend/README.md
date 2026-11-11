@@ -6,7 +6,7 @@ Bundled by [Quarkus Web Bundler](https://docs.quarkiverse.io/quarkus-web-bundler
 | path | purpose |
 |---|---|
 | `app/` | Lit entry (`index.ts`) and components |
-| `index.html` | SPA shell with `{#bundle /}`; served for every `/ui/*` route |
+| `index.html` | Document shell (boot copy, noscript, critical CSS) + `{#bundle /}`; served for every `/ui/*` route |
 | `tsconfig.json` | Lit classic decorators (`experimentalDecorators`) |
 
 A `-Pdist` build bundles these same files in `modules/ui-bundle` and ships the result as a static jar, because

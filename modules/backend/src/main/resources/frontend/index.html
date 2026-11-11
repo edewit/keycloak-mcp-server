@@ -4,10 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Management UI for the Keycloak MCP Server: systems, realms, and server settings."
+    />
     <title>Keycloak MCP Server</title>
+    <style>
+      html {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        color: #1f2328;
+        background: #f6f8fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          color: #e6edf3;
+          background: #0d1117;
+        }
+      }
+      /* Visible until the custom element upgrades and takes over. */
+      kc-mcp-app:not(:defined) {
+        display: block;
+        box-sizing: border-box;
+        min-height: 100vh;
+        padding: 1.5rem;
+      }
+      .boot {
+        margin: 0;
+        max-width: 36rem;
+        color: #656d76;
+      }
+      .boot h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.1rem;
+        color: inherit;
+      }
+      .boot p {
+        margin: 0;
+      }
+      @media (prefers-color-scheme: dark) {
+        .boot {
+          color: #8b949e;
+        }
+      }
+      noscript {
+        display: block;
+        box-sizing: border-box;
+        padding: 1.5rem;
+        max-width: 36rem;
+      }
+      noscript h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.1rem;
+      }
+      noscript p {
+        margin: 0;
+        color: #656d76;
+      }
+      @media (prefers-color-scheme: dark) {
+        noscript p {
+          color: #8b949e;
+        }
+      }
+    </style>
     {#bundle /}
   </head>
   <body>
-    <kc-mcp-app></kc-mcp-app>
+    <kc-mcp-app>
+      <div class="boot">
+        <h1>Keycloak MCP</h1>
+        <p>Loading the management UI…</p>
+      </div>
+    </kc-mcp-app>
+    <noscript>
+      <h1>Keycloak MCP</h1>
+      <p>
+        The management UI needs JavaScript. Enable it in this browser, or use the admin API and MCP endpoints
+        directly.
+      </p>
+    </noscript>
   </body>
 </html>
