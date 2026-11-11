@@ -18,10 +18,7 @@ import com.google.auto.service.AutoService;
 public class ProtectedUsersCheck implements AccessCheck {
 
     /** {@code kc-mcp.spi.access-check.acme-protected-users.prefix} */
-    static final ConfigProperty PREFIX = ConfigProperty.string("prefix")
-        .withDefault("svc-")
-        .withLabel("Protected prefix")
-        .withDescription("Users whose name starts with it are refused to change.");
+    static final ConfigProperty PREFIX = ConfigProperty.string("prefix").withDefault("svc-");
 
     private String prefix;
 

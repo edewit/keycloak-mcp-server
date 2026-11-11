@@ -29,6 +29,9 @@ import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigMessageKeys;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigMessages;
+import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.vertx.core.json.JsonObject;
@@ -175,5 +178,18 @@ class AcmeExtensionsTest {
         AcmeTenantRepository tenants = new AcmeTenantRepository();
         tenants.configure(new ProviderConfig("acme-tenants", Map.of("systems", "globex=https://sso.globex.example")));
         assertEquals(List.of("globex"), tenants.names());
+    }
+
+    /** Every setting of the extensions has an English label in this jar's bundle. */
+    @Test
+    void theBundleHasTheLabelsOfEverySetting() {
+        ConfigMessages messages = new ConfigMessages(getClass().getClassLoader());
+        List<String> missing = new java.util.ArrayList<>();
+        for (Extension e : List.<Extension>of(new ProtectedUsersCheck(), new JsonLinesAuditListener(),
+                new AcmeTenantRepository(), new AcmeToolProvider())) {
+            missing.addAll(messages.missingLabels(ConfigMessageKeys.prefix(e), e.configSpec()));
+        }
+        assertEquals(List.of(), missing);
+        assertEquals("Company", messages.label(java.util.Locale.ROOT, "tools.acme.", AcmeToolProvider.COMPANY));
     }
 }

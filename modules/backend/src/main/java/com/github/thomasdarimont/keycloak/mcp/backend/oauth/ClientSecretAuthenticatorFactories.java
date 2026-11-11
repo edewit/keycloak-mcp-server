@@ -18,10 +18,7 @@ import com.google.auto.service.AutoService;
 public final class ClientSecretAuthenticatorFactories {
 
     /** The client's secret. */
-    public static final ConfigProperty CLIENT_SECRET = ConfigProperty.string("client-secret")
-        .asConfidential()
-        .withLabel("Client secret")
-        .withDescription("Secret of the client, for client_secret_basic and client_secret_post.");
+    public static final ConfigProperty CLIENT_SECRET = ConfigProperty.string("client-secret").asConfidential();
 
     static final ConfigSpec SPEC = ConfigSpec.of(CLIENT_SECRET);
 

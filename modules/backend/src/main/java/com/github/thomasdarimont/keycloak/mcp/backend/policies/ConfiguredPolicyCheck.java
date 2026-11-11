@@ -8,6 +8,7 @@ import java.util.function.Function;
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigValueException;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
@@ -66,8 +67,8 @@ final class ConfiguredPolicyCheck implements AccessCheck {
             PolicySettings.forCheck(id, config);
             return List.of();
         }
-        catch (IllegalArgumentException e) {
-            return List.of(ConfigProblem.error(e.getMessage()));
+        catch (ConfigValueException e) {
+            return List.of(e.problem());
         }
     }
 

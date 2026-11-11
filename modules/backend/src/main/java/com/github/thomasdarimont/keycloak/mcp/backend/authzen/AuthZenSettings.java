@@ -98,86 +98,50 @@ public record AuthZenSettings(boolean enabled, String url, Auth auth, String hea
 
     public static final ConfigProperty DEFAULT = ConfigProperty.choice("default", Default.class)
         .withAliases("false", "off", "true", "on")
-        .withDefault("off")
-        .withLabel("Evaluate by default")
-        .withDescription("Whether systems whose authorization block says nothing are evaluated.");
+        .withDefault("off");
 
     public static final ConfigProperty SYSTEMS_WITHOUT_PDP = ConfigProperty
         .choice("systems-without-pdp", WithoutPdp.class)
         .withAliases("allow", "skip")
-        .withDefault("deny")
-        .withLabel("Systems without a PDP")
-        .withDescription("What an evaluated system without a PDP URL means: deny its calls or skip the check.");
+        .withDefault("deny");
 
-    public static final ConfigProperty URL = ConfigProperty.string("url")
-        .withLabel("PDP URL")
-        .withDescription("The PDP's evaluation endpoint (http or https); may contain {system} and {realm}.");
+    public static final ConfigProperty URL = ConfigProperty.string("url");
 
     public static final ConfigProperty AUTH = ConfigProperty.choice("auth", Auth.class)
         .withAliases("api-key", "header", "client_credentials", "client-credentials", "system_client", "system-client")
-        .withDefault("none")
-        .withLabel("Authentication")
-        .withDescription("How the server authenticates at the PDP: none, header, client-credentials or system-client.");
+        .withDefault("none");
 
-    public static final ConfigProperty HEADER_NAME = ConfigProperty.string("header-name")
-        .withDefault("Authorization")
-        .withLabel("Header name")
-        .withDescription("auth=header: the request header.");
+    public static final ConfigProperty HEADER_NAME = ConfigProperty.string("header-name").withDefault("Authorization");
 
-    public static final ConfigProperty HEADER_VALUE = ConfigProperty.string("header-value")
-        .asConfidential()
-        .withLabel("Header value")
-        .withDescription("auth=header: its value as sent, e.g. Bearer abc.");
+    public static final ConfigProperty HEADER_VALUE = ConfigProperty.string("header-value").asConfidential();
 
-    public static final ConfigProperty TOKEN_URL = ConfigProperty.url("token-url")
-        .withLabel("Token endpoint")
-        .withDescription("auth=client-credentials: the token endpoint (http or https).");
+    public static final ConfigProperty TOKEN_URL = ConfigProperty.url("token-url");
 
-    public static final ConfigProperty CLIENT_ID = ConfigProperty.string("client-id")
-        .withLabel("Client id")
-        .withDescription("auth=client-credentials: the client.");
+    public static final ConfigProperty CLIENT_ID = ConfigProperty.string("client-id");
 
     public static final ConfigProperty CLIENT_AUTH = ConfigProperty.string("client-auth")
-        .withDefault("client_secret_basic")
-        .withLabel("Client authentication")
-        .withDescription("auth=client-credentials: client_secret_basic, client_secret_post, private_key_jwt or an"
-                + " extension's method.");
+        .withDefault("client_secret_basic");
 
-    public static final ConfigProperty SCOPE = ConfigProperty.string("scope")
-        .withLabel("Scope")
-        .withDescription("Scope requested with the PDP's tokens.");
+    public static final ConfigProperty SCOPE = ConfigProperty.string("scope");
 
-    public static final ConfigProperty ON_ERROR = ConfigProperty.choice("on-error", OnError.class)
-        .withDefault("deny")
-        .withLabel("On error")
-        .withDescription("What a PDP that cannot be reached or answers nonsense means.");
+    public static final ConfigProperty ON_ERROR = ConfigProperty.choice("on-error", OnError.class).withDefault("deny");
 
-    public static final ConfigProperty SEND_ARGS = ConfigProperty.bool("send-args")
-        .withDefault("true")
-        .withLabel("Send arguments")
-        .withDescription("Whether the call's arguments go into context.args (sensitive ones are masked).");
+    public static final ConfigProperty SEND_ARGS = ConfigProperty.bool("send-args").withDefault("true");
 
-    public static final ConfigProperty CONNECT_TIMEOUT = ConfigProperty.duration("connect-timeout")
-        .withLabel("Connect timeout")
-        .withDescription("Unset: kc-mcp.http.connect-timeout.");
+    public static final ConfigProperty CONNECT_TIMEOUT = ConfigProperty.duration("connect-timeout");
 
-    public static final ConfigProperty READ_TIMEOUT = ConfigProperty.duration("read-timeout")
-        .withDefault("5s")
-        .withLabel("Read timeout")
-        .withDescription("Every tool call waits for the PDP.");
+    public static final ConfigProperty READ_TIMEOUT = ConfigProperty.duration("read-timeout").withDefault("5s");
 
-    public static final ConfigProperty TLS_CONFIGURATION_NAME = ConfigProperty.string("tls-configuration-name")
-        .withLabel("TLS configuration")
-        .withDescription("Named TLS configuration (quarkus.tls.<name>.*) for the calls to the PDP.");
+    public static final ConfigProperty TLS_CONFIGURATION_NAME = ConfigProperty.string("tls-configuration-name");
 
     /** The engine's own settings; the client authenticators' come on top. */
     public static final ConfigSpec CONFIG_SPEC = ConfigSpec
         .of(DEFAULT, SYSTEMS_WITHOUT_PDP, URL, AUTH, HEADER_NAME, HEADER_VALUE, TOKEN_URL, CLIENT_ID, CLIENT_AUTH,
                 SCOPE, ON_ERROR, SEND_ARGS, CONNECT_TIMEOUT, READ_TIMEOUT, TLS_CONFIGURATION_NAME)
-        .withHints(ConfigHint.group("Evaluation", DEFAULT.name(), SYSTEMS_WITHOUT_PDP.name()),
-                ConfigHint.group("Policy decision point", URL.name(), ON_ERROR.name(), SEND_ARGS.name(),
-                        CONNECT_TIMEOUT.name(), READ_TIMEOUT.name(), TLS_CONFIGURATION_NAME.name()),
-                ConfigHint.group("Authentication at the PDP", AUTH.name(), HEADER_NAME.name(), HEADER_VALUE.name(),
+        .withHints(ConfigHint.group("evaluation", DEFAULT.name(), SYSTEMS_WITHOUT_PDP.name()),
+                ConfigHint.group("pdp", URL.name(), ON_ERROR.name(), SEND_ARGS.name(), CONNECT_TIMEOUT.name(),
+                        READ_TIMEOUT.name(), TLS_CONFIGURATION_NAME.name()),
+                ConfigHint.group("authentication", AUTH.name(), HEADER_NAME.name(), HEADER_VALUE.name(),
                         TOKEN_URL.name(), CLIENT_ID.name(), CLIENT_AUTH.name(), SCOPE.name()),
                 // presentational: a PDP URL is needed too, and a system may bring it
                 // (validate enforces them with the URL)
@@ -187,6 +151,20 @@ public record AuthZenSettings(boolean enabled, String url, Auth auth, String hea
                 ConfigHint.when(CLIENT_ID.name()).is(AUTH.name(), "client-credentials"),
                 ConfigHint.when(CLIENT_AUTH.name()).is(AUTH.name(), "client-credentials"),
                 ConfigHint.when(SCOPE.name()).is(AUTH.name(), "client-credentials", "system-client"));
+
+    /** Problem code: a URL that is not http(s); args {@code key}, {@code value}. */
+    public static final String NOT_HTTP_URL = "authzen.not-http-url";
+
+    /**
+     * Problem code: {@code auth=header} without {@code header-value}; args {@code key}.
+     */
+    public static final String HEADER_VALUE_NEEDED = "authzen.header-value-needed";
+
+    /**
+     * Problem code: {@code auth=client-credentials} without {@code token-url} or
+     * {@code client-id}; args {@code key}.
+     */
+    public static final String CLIENT_CREDENTIALS_INCOMPLETE = "authzen.client-credentials-incomplete";
 
     public static final AuthZenSettings DISABLED = new AuthZenSettings(false, null, Auth.NONE, null, null, null, null,
             null, null, OnError.DENY, true, null, null, null);
@@ -279,36 +257,45 @@ public record AuthZenSettings(boolean enabled, String url, Auth auth, String hea
         String of = where == null ? "" : " (or " + PREFIX + "* for every system)";
         List<ConfigProblem> problems = new ArrayList<>();
         // placeholders ({realm.name}, ...) are the access check chain's to fill per call
-        checkUrl(url.replaceAll("\\{[^}]*}", "x"), p + URL.name(), of).ifPresent(problems::add);
+        checkUrl(url.replaceAll("\\{[^}]*}", "x"), URL.name(), p + URL.name(), of).ifPresent(problems::add);
         URI token = config.readUrl(TOKEN_URL);
         if (token != null) {
-            checkUrl(token.toString(), p + TOKEN_URL.name(), of).ifPresent(problems::add);
+            checkUrl(token.toString(), TOKEN_URL.name(), p + TOKEN_URL.name(), of).ifPresent(problems::add);
         }
         Auth auth = config.readEnum(AUTH, Auth.class);
         if (auth == Auth.HEADER && trimmed(config.readString(HEADER_VALUE)) == null) {
-            problems.add(ConfigProblem.error(p + "auth=header needs " + p + HEADER_VALUE.name() + of, AUTH.name(),
-                    HEADER_VALUE.name()));
+            problems.add(
+                    ConfigProblem
+                        .error(HEADER_VALUE_NEEDED, p + "auth=header needs " + p + HEADER_VALUE.name() + of,
+                                AUTH.name(), HEADER_VALUE.name())
+                        .withArg("key", p + HEADER_VALUE.name()));
         }
         if (auth == Auth.CLIENT_CREDENTIALS && (token == null || trimmed(config.readString(CLIENT_ID)) == null)) {
-            problems.add(ConfigProblem.error(
-                    p + "auth=client-credentials needs " + p + TOKEN_URL.name() + " and " + p + CLIENT_ID.name() + of,
-                    AUTH.name(), TOKEN_URL.name(), CLIENT_ID.name()));
+            problems
+                .add(ConfigProblem
+                    .error(CLIENT_CREDENTIALS_INCOMPLETE,
+                            p + "auth=client-credentials needs " + p + TOKEN_URL.name() + " and " + p + CLIENT_ID.name()
+                                    + of,
+                            AUTH.name(), TOKEN_URL.name(), CLIENT_ID.name())
+                    .withArg("key", p + AUTH.name()));
         }
         return problems;
     }
 
-    private static Optional<ConfigProblem> checkUrl(String v, String key, String of) {
-        URI u;
+    private static Optional<ConfigProblem> checkUrl(String v, String name, String key, String of) {
         try {
-            u = URI.create(v);
+            URI u = URI.create(v);
+            if ("https".equalsIgnoreCase(u.getScheme()) || "http".equalsIgnoreCase(u.getScheme())) {
+                return Optional.empty();
+            }
         }
         catch (IllegalArgumentException e) {
-            return Optional.of(ConfigProblem.error(key + " is not a URL: '" + v + "'" + of, URL.name()));
+            // not a URL at all: the same problem
         }
-        if (!"https".equalsIgnoreCase(u.getScheme()) && !"http".equalsIgnoreCase(u.getScheme())) {
-            return Optional.of(ConfigProblem.error(key + " must be an http(s) URL, not '" + v + "'" + of, URL.name()));
-        }
-        return Optional.empty();
+        return Optional
+            .of(ConfigProblem.error(NOT_HTTP_URL, key + " must be an http(s) URL, not '" + v + "'" + of, name)
+                .withArg("key", key)
+                .withArg("value", v));
     }
 
     private static String trimmed(String v) {

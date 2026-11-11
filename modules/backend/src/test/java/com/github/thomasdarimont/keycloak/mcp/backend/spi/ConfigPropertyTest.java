@@ -12,9 +12,11 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigHint;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigMessageKeys;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigValueException;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.smallrye.config.PropertiesConfigSource;
@@ -151,7 +153,7 @@ class ConfigPropertyTest {
         assertThrows(IllegalArgumentException.class,
                 () -> ConfigSpec.of(TEXT).withHints(ConfigHint.when(TEXT.name()).is("nope", "x")),
                 "a condition on an undeclared setting");
-        assertThrows(IllegalArgumentException.class, () -> ConfigSpec.of(TEXT).withHints(ConfigHint.group("G", "nope")),
+        assertThrows(IllegalArgumentException.class, () -> ConfigSpec.of(TEXT).withHints(ConfigHint.group("g", "nope")),
                 "a group of undeclared settings");
         ConfigSpec.of(TEXT).withHints(ConfigHint.when(TEXT.name()).is("enabled", "true"));
     }
@@ -243,12 +245,12 @@ class ConfigPropertyTest {
     @Test
     void theExtensionsOwnRulesRunAfterTheSpecsChecks() {
         Declaring e = new Declaring();
-        e.rules = List.of(ConfigProblem.error("acme rule broken", "mode"));
+        e.rules = List.of(ConfigProblem.error("acme.rule-broken", "acme rule broken", "mode"));
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> Extensions.usable(e, "AuditListener", server(Map.of())));
         assertTrue(ex.getMessage().contains("acme rule broken"), ex.getMessage());
 
-        e.rules = List.of(ConfigProblem.warning("acme rule looks odd", "mode"));
+        e.rules = List.of(ConfigProblem.warning("acme.rule-odd", "acme rule looks odd", "mode"));
         assertTrue(Extensions.usable(e, "AuditListener", server(Map.of())), "a warning is only logged");
 
         ProviderConfig malformed = new ProviderConfig("audit-listener", "declaring", Map.of("mode", "maybe"),
@@ -283,12 +285,65 @@ class ConfigPropertyTest {
     void specsCombineTheFirstDeclarationWinning() {
         ConfigProperty secret = ConfigProperty.string("client-secret").asConfidential();
         ConfigSpec own = ConfigSpec.of(TEXT, ConfigProperty.string("client-secret"))
-            .withHints(ConfigHint.group("Own", "text"));
+            .withHints(ConfigHint.group("own", "text"));
         ConfigSpec other = ConfigSpec.of(secret, FLAG).withHints(ConfigHint.when(FLAG.name()).isSet(secret.name()));
         ConfigSpec both = own.plus(other);
         assertEquals(List.of("text", "client-secret", "flag"), List.copyOf(both.names()));
         assertFalse(both.property("client-secret").orElseThrow().confidential(), "declared here first");
         assertEquals(2, both.hints().size());
         assertEquals(both, both.plus(other), "hints come along once");
+    }
+
+    @Test
+    void problemsCarryACodeAndNamedArgumentsForTranslation() {
+        ConfigProperty pin = ConfigProperty.integer("pin").asConfidential();
+        ConfigProperty value = ConfigProperty.string("header-value").asRequired();
+        ConfigSpec spec = ConfigSpec.of(MODE, pin, value)
+            .withHints(ConfigHint.when(value.name()).is(MODE.name(), "drop"));
+        List<ConfigProblem> problems = new ProviderConfig("audit-listener", "acme",
+                Map.of("mode", "drop", "pin", "12x4", "mdoe", "x"), spec)
+            .problems();
+
+        ConfigProblem pinProblem = problems.stream()
+            .filter(p -> p.properties().contains("pin"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(ConfigProblem.INVALID_VALUE, pinProblem.code());
+        assertEquals("kc-mcp.spi.audit-listener.acme.pin", pinProblem.args().get("key"));
+        assertEquals("INT", pinProblem.args().get("type"));
+        assertFalse(pinProblem.args().containsKey("value"), "a confidential value is no argument either");
+
+        ConfigProblem required = problems.stream()
+            .filter(p -> p.code().equals(ConfigProblem.REQUIRED))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("mode=drop", required.args().get("conditions"));
+
+        ConfigProblem unknown = problems.stream()
+            .filter(p -> p.code().equals(ConfigProblem.UNKNOWN_KEY))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("mode,pin,header-value", unknown.args().get("known"));
+
+        ConfigValueException e = assertThrows(ConfigValueException.class, () -> MODE.parse("maybe"));
+        assertEquals("keep,pseudonymize,drop", e.problem().args().get("options"));
+        assertEquals("maybe", e.problem().args().get("value"));
+    }
+
+    @Test
+    void messageKeysFollowFromTheSpec() {
+        String prefix = ConfigMessageKeys.prefix("audit-scrubber", "pii");
+        ConfigHint.Group group = ConfigHint.group("scrubbing", "mode");
+        assertEquals("audit-scrubber.pii.mode.label", ConfigMessageKeys.label(prefix, MODE));
+        assertEquals("audit-scrubber.pii.mode.description", ConfigMessageKeys.description(prefix, MODE));
+        assertEquals("audit-scrubber.pii.mode.option.drop", ConfigMessageKeys.option(prefix, MODE, "drop"));
+        assertEquals("audit-scrubber.pii.group.scrubbing.label", ConfigMessageKeys.label(prefix, group));
+        assertEquals("audit-scrubber.pii.group.scrubbing.description", ConfigMessageKeys.description(prefix, group));
+        assertEquals("tools.acme-tickets.", ConfigMessageKeys.prefix("tools", "acmeTickets"), "the id kebab-cased");
+        assertThrows(IllegalArgumentException.class, () -> ConfigHint.group("Scrubbing", "mode"),
+                "a group id is kebab-case");
+        assertThrows(IllegalArgumentException.class,
+                () -> ConfigSpec.of(MODE).withHints(ConfigHint.group("g", "mode"), ConfigHint.group("g", "mode")),
+                "group ids are unique");
     }
 }

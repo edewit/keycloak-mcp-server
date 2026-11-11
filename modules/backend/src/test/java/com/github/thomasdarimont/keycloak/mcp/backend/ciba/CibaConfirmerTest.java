@@ -41,10 +41,12 @@ import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
+import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Prompter;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -56,6 +58,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -344,6 +347,40 @@ class CibaConfirmerTest {
         Map<String, String> bc = backchannelRequests.get(0);
         assertEquals("alice@example.com", bc.get("login_hint"));
         assertTrue(bc.get("binding_message").startsWith("ACMECorp!-"), bc.get("binding_message"));
+    }
+
+    @Test
+    void validateRefusesWhatWouldLeaveDestructiveToolsUnasked() {
+        CibaSettings off = CibaSettings.from(new ProviderConfig(CibaSettings.ID, Map.of()), 120);
+        Map<String, String> on = Map.of("enabled", "true", "client-id", "c", "client-secret", "s");
+
+        CibaConfirmer anonymous = new CibaConfirmer(off, issuer, null, null, null, false);
+        assertTrue(anonymous.validate(new ProviderConfig(CibaSettings.ID, Map.of())).isEmpty(), "off: nothing to ask");
+        List<ConfigProblem> problems = anonymous.validate(new ProviderConfig(CibaSettings.ID, on));
+        assertEquals(1, problems.size(), problems.toString());
+        assertTrue(problems.getFirst().message().contains("needs authenticated callers"));
+
+        CibaConfirmer withCallers = new CibaConfirmer(off, issuer, null, null, null, true);
+        Map<String, String> unknownTls = new HashMap<>(on);
+        unknownTls.put("tls-configuration-name", "corp-ca");
+        List<ConfigProblem> tls = withCallers.validate(new ProviderConfig(Confirmer.SPI, CibaSettings.ID, unknownTls));
+        assertEquals(List.of("tls-configuration-name"), tls.getFirst().properties());
+        assertTrue(tls.getFirst().message().startsWith("kc-mcp.spi.confirmer.ciba.tls-configuration-name=corp-ca"),
+                tls.getFirst().message());
+    }
+
+    @Test
+    void configureReplacesTheSettings() {
+        CibaSettings off = CibaSettings.from(new ProviderConfig(CibaSettings.ID, Map.of()), 120);
+        CibaConfirmer c = new CibaConfirmer(off, issuer, null, null, null, true);
+        assertFalse(c.asksTheHuman());
+        c.configure(new ProviderConfig(CibaSettings.ID,
+                Map.of("enabled", "true", "client-id", "mcp-ciba", "client-secret", "s", "flow", "blocking")));
+        assertTrue(c.asksTheHuman());
+        assertEquals("mcp-ciba", c.settings().clientId());
+        assertEquals(CibaSettings.Flow.BLOCKING, c.settings().flow());
+        assertEquals(120, c.settings().timeoutSeconds(), "the default timeout stays the server's");
+        c.close();
     }
 
     @Test

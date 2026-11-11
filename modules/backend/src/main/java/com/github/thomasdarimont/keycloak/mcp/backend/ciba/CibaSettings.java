@@ -84,78 +84,39 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
         ALWAYS, WITHOUT_ELICITATION
     }
 
-    public static final ConfigProperty ISSUER = ConfigProperty.string("issuer")
-        .withDefault("caller")
-        .withLabel("Issuer")
-        .withDescription("Issuer URL of the CIBA client, or caller for the issuer of the caller's token.");
-    public static final ConfigProperty TOKEN_ISSUER = ConfigProperty.string("token-issuer")
-        .withLabel("Token issuer")
-        .withDescription("The iss of the provider's tokens when it differs from the URL the server reaches it at.");
-    public static final ConfigProperty CLIENT_ID = ConfigProperty.string("client-id")
-        .asRequired()
-        .withLabel("Client id")
-        .withDescription("The confidential client registered for CIBA.");
+    public static final ConfigProperty ISSUER = ConfigProperty.string("issuer").withDefault("caller");
+    public static final ConfigProperty TOKEN_ISSUER = ConfigProperty.string("token-issuer");
+    public static final ConfigProperty CLIENT_ID = ConfigProperty.string("client-id").asRequired();
     public static final ConfigProperty CLIENT_SECRET = ConfigProperty.string("client-secret")
         .asConfidential()
-        .asRequired()
-        .withLabel("Client secret");
+        .asRequired();
     public static final ConfigProperty CLIENT_AUTH = ConfigProperty
         .choice("client-auth", "client_secret_basic", "client_secret_post")
         .withAliases("basic", "client_secret_basic", "client-secret-basic", "client_secret_basic", "post",
                 "client_secret_post", "client-secret-post", "client_secret_post")
-        .withDefault("client_secret_basic")
-        .withLabel("Client authentication");
-    public static final ConfigProperty SCOPE = ConfigProperty.string("scope").withDefault("openid").withLabel("Scope");
-    public static final ConfigProperty ACR_VALUES = ConfigProperty.string("acr-values")
-        .withLabel("ACR values")
-        .withDescription("Optional acr_values, e.g. to demand a second factor on the device.");
-    public static final ConfigProperty LOGIN_HINT = ConfigProperty.string("login-hint")
-        .withDefault("username")
-        .withLabel("Login hint")
-        .withDescription("username (the caller's name) or the token claim the provider resolves the user by.");
-    public static final ConfigProperty BINDING_MESSAGE = ConfigProperty.bool("binding-message")
-        .withDefault("true")
-        .withLabel("Binding message");
+        .withDefault("client_secret_basic");
+    public static final ConfigProperty SCOPE = ConfigProperty.string("scope").withDefault("openid");
+    public static final ConfigProperty ACR_VALUES = ConfigProperty.string("acr-values");
+    public static final ConfigProperty LOGIN_HINT = ConfigProperty.string("login-hint").withDefault("username");
+    public static final ConfigProperty BINDING_MESSAGE = ConfigProperty.bool("binding-message").withDefault("true");
     public static final ConfigProperty BINDING_MESSAGE_PREFIX = ConfigProperty.string("binding-message-prefix")
-        .withDefault("kc-mcp")
-        .withLabel("Binding message prefix");
-    public static final ConfigProperty REQUESTED_EXPIRY = ConfigProperty.bool("requested-expiry")
-        .withDefault("false")
-        .withLabel("Requested expiry")
-        .withDescription("Whether to ask for requested_expiry = the timeout.");
-    public static final ConfigProperty TIMEOUT_SECONDS = ConfigProperty.integer("timeout-seconds")
-        .withLabel("Timeout (seconds)")
-        .withDescription("How long to wait for the approval; kc-mcp.confirm-timeout-seconds by default.");
+        .withDefault("kc-mcp");
+    public static final ConfigProperty REQUESTED_EXPIRY = ConfigProperty.bool("requested-expiry").withDefault("false");
+    public static final ConfigProperty TIMEOUT_SECONDS = ConfigProperty.integer("timeout-seconds");
     public static final ConfigProperty WHEN = ConfigProperty.choice("when", When.class)
         .withAliases("without_elicitation", "without-elicitation", "no-elicitation", "without-elicitation",
                 "no_elicitation", "without-elicitation", "fallback", "without-elicitation")
-        .withDefault("always")
-        .withLabel("When")
-        .withDescription("always, or without-elicitation to let a client that can ask the human itself do so.");
+        .withDefault("always");
     public static final ConfigProperty FLOW = ConfigProperty.choice("flow", Flow.class)
         .withAliases("two_step", "two-step", "2-step", "two-step", "2_step", "two-step", "async", "two-step", "wait",
                 "blocking", "sync", "blocking")
-        .withDefault("two-step")
-        .withLabel("Flow")
-        .withDescription("two-step: answer at once and collect the approval with the next call; blocking: wait.");
-    public static final ConfigProperty NUMBER_MATCHING = ConfigProperty.bool("number-matching")
-        .withDefault("true")
-        .withLabel("Number matching");
-    public static final ConfigProperty EXTRA_PARAMETERS = ConfigProperty.bool("extra-parameters")
-        .withDefault("true")
-        .withLabel("Extra parameters")
-        .withDescription("Send requester and operation as additional request parameters.");
-    public static final ConfigProperty POLL_WAIT_SECONDS = ConfigProperty.integer("poll-wait-seconds")
-        .withDefault("5")
-        .withLabel("Poll wait (seconds)");
-    public static final ConfigProperty TLS_CONFIGURATION_NAME = ConfigProperty.string("tls-configuration-name")
-        .withLabel("TLS configuration");
-    public static final ConfigProperty CONNECT_TIMEOUT = ConfigProperty.duration("connect-timeout")
-        .withLabel("Connect timeout")
-        .withDescription("Unset: kc-mcp.http.connect-timeout.");
-    public static final ConfigProperty READ_TIMEOUT = ConfigProperty.duration("read-timeout")
-        .withLabel("Read timeout")
-        .withDescription("Unset: kc-mcp.http.read-timeout.");
+        .withDefault("two-step");
+    public static final ConfigProperty NUMBER_MATCHING = ConfigProperty.bool("number-matching").withDefault("true");
+    public static final ConfigProperty EXTRA_PARAMETERS = ConfigProperty.bool("extra-parameters").withDefault("true");
+    public static final ConfigProperty POLL_WAIT_SECONDS = ConfigProperty.integer("poll-wait-seconds").withDefault("5");
+    public static final ConfigProperty TLS_CONFIGURATION_NAME = ConfigProperty.string("tls-configuration-name");
+    public static final ConfigProperty CONNECT_TIMEOUT = ConfigProperty.duration("connect-timeout");
+    public static final ConfigProperty READ_TIMEOUT = ConfigProperty.duration("read-timeout");
 
     /**
      * The client is required once CIBA is switched on ({@code enabled=true}): a
@@ -166,12 +127,12 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
                 BINDING_MESSAGE_PREFIX, REQUESTED_EXPIRY, TIMEOUT_SECONDS, WHEN, FLOW, NUMBER_MATCHING,
                 EXTRA_PARAMETERS, POLL_WAIT_SECONDS, TLS_CONFIGURATION_NAME, CONNECT_TIMEOUT, READ_TIMEOUT)
         .withHints(
-                ConfigHint.group("OpenID provider", ISSUER.name(), TOKEN_ISSUER.name(), TLS_CONFIGURATION_NAME.name(),
+                ConfigHint.group("provider", ISSUER.name(), TOKEN_ISSUER.name(), TLS_CONFIGURATION_NAME.name(),
                         CONNECT_TIMEOUT.name(), READ_TIMEOUT.name()),
-                ConfigHint.group("Client", CLIENT_ID.name(), CLIENT_SECRET.name(), CLIENT_AUTH.name(), SCOPE.name()),
-                ConfigHint.group("Authentication request", LOGIN_HINT.name(), ACR_VALUES.name(), BINDING_MESSAGE.name(),
+                ConfigHint.group("client", CLIENT_ID.name(), CLIENT_SECRET.name(), CLIENT_AUTH.name(), SCOPE.name()),
+                ConfigHint.group("request", LOGIN_HINT.name(), ACR_VALUES.name(), BINDING_MESSAGE.name(),
                         BINDING_MESSAGE_PREFIX.name(), REQUESTED_EXPIRY.name(), EXTRA_PARAMETERS.name()),
-                ConfigHint.group("Approval", WHEN.name(), FLOW.name(), NUMBER_MATCHING.name(), TIMEOUT_SECONDS.name(),
+                ConfigHint.group("approval", WHEN.name(), FLOW.name(), NUMBER_MATCHING.name(), TIMEOUT_SECONDS.name(),
                         POLL_WAIT_SECONDS.name()),
                 ConfigHint.when(CLIENT_ID.name()).is("enabled", "true"),
                 ConfigHint.when(CLIENT_SECRET.name()).is("enabled", "true"),

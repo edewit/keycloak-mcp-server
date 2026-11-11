@@ -22,17 +22,16 @@ import io.vertx.core.json.Json;
  * siblings read a declared setting with its default, so name and default live in one
  * place.
  * <p>
- * Immutable; the {@code with...} methods return a copy:
+ * Immutable; the {@code with...} and {@code as...} methods return a copy:
  * {@snippet :
- * public static final ConfigProperty MODE = ConfigProperty.choice("mode", "keep", "drop")
- *     .withDefault("keep")
- *     .withDescription("What happens to personal data");
+ * public static final ConfigProperty MODE = ConfigProperty.choice("mode", "keep", "drop").withDefault("keep");
  * }
+ * Its texts are not declared here: label, description and the options' texts come from
+ * the message bundles by the keys {@link ConfigMessageKeys} derives
+ * ({@code <spi>.<id>.<name>.label}), resolved by {@link ConfigMessages}.
  *
  * @param name the key relative to the extension, kebab-case ({@code page-size})
  * @param type how the value is written and parsed
- * @param label short human readable name, the name when not given
- * @param description one or two sentences for the UI and the docs
  * @param defaultValue as it would be written in the configuration, {@code null} for none
  * @param options the allowed values of a {@link Type#CHOICE}, empty otherwise
  * @param aliases further spellings of a choice's options, lowercase, to the option they
@@ -42,8 +41,8 @@ import io.vertx.core.json.Json;
  * @param required startup refuses the extension when the setting is missing and has no
  * default
  */
-public record ConfigProperty(String name, Type type, String label, String description, String defaultValue,
-        List<String> options, Map<String, String> aliases, boolean confidential, boolean required) {
+public record ConfigProperty(String name, Type type, String defaultValue, List<String> options,
+        Map<String, String> aliases, boolean confidential, boolean required) {
 
     /** Shown instead of a {@link #confidential} value. */
     public static final String MASK = "******";
@@ -90,8 +89,6 @@ public record ConfigProperty(String name, Type type, String label, String descri
         if (type == null) {
             throw new IllegalArgumentException("Config property '" + name + "' needs a type");
         }
-        label = label == null || label.isBlank() ? name : label;
-        description = description == null ? "" : description;
         options = options == null ? List.of() : List.copyOf(options);
         aliases = aliases == null ? Map.of() : Map.copyOf(aliases);
         if (type == Type.CHOICE && options.isEmpty()) {
@@ -109,7 +106,7 @@ public record ConfigProperty(String name, Type type, String label, String descri
     }
 
     public static ConfigProperty of(String name, Type type) {
-        return new ConfigProperty(name, type, null, null, null, List.of(), Map.of(), false, false);
+        return new ConfigProperty(name, type, null, List.of(), Map.of(), false, false);
     }
 
     public static ConfigProperty string(String name) {
@@ -145,7 +142,7 @@ public record ConfigProperty(String name, Type type, String label, String descri
     }
 
     public static ConfigProperty choice(String name, String... options) {
-        return new ConfigProperty(name, Type.CHOICE, null, null, null, Arrays.asList(options), Map.of(), false, false);
+        return new ConfigProperty(name, Type.CHOICE, null, Arrays.asList(options), Map.of(), false, false);
     }
 
     /**
@@ -160,23 +157,12 @@ public record ConfigProperty(String name, Type type, String label, String descri
                     .toArray(String[]::new));
     }
 
-    public ConfigProperty withLabel(String label) {
-        return new ConfigProperty(name, type, label, description, defaultValue, options, aliases, confidential,
-                required);
-    }
-
-    public ConfigProperty withDescription(String description) {
-        return new ConfigProperty(name, type, label, description, defaultValue, options, aliases, confidential,
-                required);
-    }
-
     /**
      * @param defaultValue as written in the configuration; checked here, so a broken
      * default fails where it is declared
      */
     public ConfigProperty withDefault(String defaultValue) {
-        ConfigProperty p = new ConfigProperty(name, type, label, description, defaultValue, options, aliases,
-                confidential, required);
+        ConfigProperty p = new ConfigProperty(name, type, defaultValue, options, aliases, confidential, required);
         if (defaultValue != null) {
             p.parse(defaultValue);
         }
@@ -196,17 +182,17 @@ public record ConfigProperty(String name, Type type, String label, String descri
         for (int i = 0; i < pairs.length; i += 2) {
             more.put(pairs[i].toLowerCase(Locale.ROOT), pairs[i + 1]);
         }
-        return new ConfigProperty(name, type, label, description, defaultValue, options, more, confidential, required);
+        return new ConfigProperty(name, type, defaultValue, options, more, confidential, required);
     }
 
     /** Masks the value wherever it is shown. */
     public ConfigProperty asConfidential() {
-        return new ConfigProperty(name, type, label, description, defaultValue, options, aliases, true, required);
+        return new ConfigProperty(name, type, defaultValue, options, aliases, true, required);
     }
 
     /** Startup refuses the extension when the setting is missing and has no default. */
     public ConfigProperty asRequired() {
-        return new ConfigProperty(name, type, label, description, defaultValue, options, aliases, confidential, true);
+        return new ConfigProperty(name, type, defaultValue, options, aliases, confidential, true);
     }
 
     /** The value as it may be shown: {@link #MASK} when confidential. */
@@ -218,14 +204,19 @@ public record ConfigProperty(String name, Type type, String label, String descri
      * The value as {@link #type} describes it.
      *
      * @param value as written in the configuration
-     * @throws IllegalArgumentException naming the setting and, unless confidential, the
-     * value
+     * @throws ConfigValueException (an {@link IllegalArgumentException}) naming the
+     * setting and, unless confidential, the value
      */
     public Object parse(String value) {
-        return parse(value, "'" + name + "'");
+        return parse(value, null);
     }
 
-    /** {@link #parse(String)}, the setting called {@code key} in the message. */
+    /**
+     * {@link #parse(String)}, the setting called {@code key} in the problem.
+     *
+     * @param key the full key; {@code null}: the name
+     * @throws ConfigValueException with a {@link ConfigProblem#INVALID_VALUE} problem
+     */
     Object parse(String value, String key) {
         String v = value == null ? "" : value.trim();
         return switch (type) {
@@ -304,8 +295,17 @@ public record ConfigProperty(String name, Type type, String label, String descri
         };
     }
 
-    private IllegalArgumentException invalid(String key, String value, String expected) {
+    private ConfigValueException invalid(String key, String value, String expected) {
         String shown = confidential ? "" : ", not '" + value + "'";
-        return new IllegalArgumentException(key + " must be " + expected + shown);
+        String where = key != null ? key : "'" + name + "'";
+        ConfigProblem problem = ConfigProblem
+            .error(ConfigProblem.INVALID_VALUE, where + " must be " + expected + shown, name)
+            .withArg("key", key != null ? key : name)
+            .withArg("name", name)
+            .withArg("type", type.name())
+            .withArg("expected", expected)
+            .withArg("value", confidential ? null : value)
+            .withArg("options", type == Type.CHOICE ? String.join(",", options) : null);
+        return new ConfigValueException(problem);
     }
 }

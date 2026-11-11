@@ -7,8 +7,10 @@ import java.util.Map;
 import java.util.Set;
 
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigHint;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigValueException;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
@@ -52,36 +54,19 @@ public record PolicySettings(GroupScope groupScope, String managerRole, boolean 
     }
 
     public static final ConfigProperty ANONYMOUS = ConfigProperty.choice("anonymous", "allow", "deny")
-        .withDefault("allow")
-        .withLabel("Anonymous callers")
-        .withDescription("allow skips the check for anonymous callers (unprotected endpoint), deny refuses the"
-                + " guarded tools.");
+        .withDefault("allow");
 
-    public static final ConfigProperty SUPER_ROLES = ConfigProperty.list("super-roles")
-        .withLabel("Super roles")
-        .withDescription("Role keys that bypass the check, besides realm:admin and realm-management.realm-admin.");
+    public static final ConfigProperty SUPER_ROLES = ConfigProperty.list("super-roles");
 
-    public static final ConfigProperty SCOPE = ConfigProperty.choice("scope", GroupScope.class)
-        .withDefault("group")
-        .withLabel("Scope")
-        .withDescription("group: the caller must be in the target group or an ancestor; organization: caller and"
-                + " group share an organization.");
+    public static final ConfigProperty SCOPE = ConfigProperty.choice("scope", GroupScope.class).withDefault("group");
 
-    public static final ConfigProperty MANAGER_ROLE = ConfigProperty.string("manager-role")
-        .withLabel("Manager role")
-        .withDescription(
-                "Role the caller must hold for group management under the scope, e.g." + " realm:group-manager.");
+    public static final ConfigProperty MANAGER_ROLE = ConfigProperty.string("manager-role");
 
     public static final ConfigProperty MODE = ConfigProperty.choice("mode", SelfProtection.class)
         .withAliases("true", "reject", "false", "off")
-        .withDefault("reject")
-        .withLabel("Mode")
-        .withDescription("reject, confirm (only the human's own confirmation lets it through) or off.");
+        .withDefault("reject");
 
-    public static final ConfigProperty TOOLS = ConfigProperty.list("tools")
-        .withLabel("Guarded tools")
-        .withDescription("<tool>=<user argument> entries guarded besides the built-in ones; an empty argument"
-                + " removes a built-in tool.");
+    public static final ConfigProperty TOOLS = ConfigProperty.list("tools");
 
     /** The settings the built-in check of this id reads. */
     public static ConfigSpec spec(String checkId) {
@@ -120,13 +105,24 @@ public record PolicySettings(GroupScope groupScope, String managerRole, boolean 
         };
     }
 
+    /**
+     * Problem code: a {@code tools} entry that is not {@code <tool>=<user argument>};
+     * args {@code key}, {@code value}.
+     */
+    public static final String INVALID_TOOL_ENTRY = "access-check.self-protection.invalid-tool-entry";
+
     private static Map<String, String> tools(List<String> entries, String where) {
         Map<String, String> out = new LinkedHashMap<>();
         for (String entry : entries) {
             int eq = entry.indexOf('=');
             if (eq <= 0) {
-                throw new IllegalArgumentException(where + ": entries are <tool>=<user argument> (an empty"
-                        + " argument removes a built-in tool), not '" + entry + "'");
+                throw new ConfigValueException(ConfigProblem
+                    .error(INVALID_TOOL_ENTRY,
+                            where + ": entries are <tool>=<user argument> (an empty argument removes a built-in"
+                                    + " tool), not '" + entry + "'",
+                            TOOLS.name())
+                    .withArg("key", where)
+                    .withArg("value", entry));
             }
             out.put(entry.substring(0, eq).trim(), entry.substring(eq + 1).trim());
         }

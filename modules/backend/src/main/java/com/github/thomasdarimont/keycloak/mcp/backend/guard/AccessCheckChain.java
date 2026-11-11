@@ -34,6 +34,12 @@ public final class AccessCheckChain {
 
     private static final Logger LOG = Logger.getLogger(AccessCheckChain.class);
 
+    /**
+     * Problem code: a setting with a placeholder that does not exist or a brace without
+     * end; args {@code key}, {@code error}.
+     */
+    public static final String INVALID_PLACEHOLDER = "access-check.invalid-placeholder";
+
     /** Server settings that are about the check's place, not passed to it. */
     static final Set<String> META = Set.of("enabled", "default", "order", "locked", "required", "provider");
 
@@ -113,7 +119,9 @@ public final class AccessCheckChain {
                 resolved.put(k, sample.resolve(v));
             }
             catch (IllegalArgumentException e) {
-                problems.add(ConfigProblem.error(settings.key(k) + ": " + e.getMessage(), k));
+                problems.add(ConfigProblem.error(INVALID_PLACEHOLDER, settings.key(k) + ": " + e.getMessage(), k)
+                    .withArg("key", settings.key(k))
+                    .withArg("error", e.getMessage()));
             }
         });
         problems.addAll(settings.withValues(resolved).problems(check));

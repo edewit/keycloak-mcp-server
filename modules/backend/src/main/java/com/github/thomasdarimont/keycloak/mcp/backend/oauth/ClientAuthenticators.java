@@ -64,15 +64,28 @@ public final class ClientAuthenticators {
     }
 
     /**
+     * Problem code: no factory serves the method; args {@code key}, {@code value},
+     * {@code known}.
+     */
+    public static final String UNKNOWN_METHOD = "client-auth.unknown-method";
+
+    /**
      * The rules of the named method on these settings; an error when no factory serves
      * the method.
      */
     public List<ConfigProblem> validate(String method, ProviderConfig config, String setting) {
         ClientAuthenticatorFactory f = byId.get(normalize(method));
         if (f == null) {
+            String known = String.join(",", new TreeSet<>(byId.keySet()));
             return List
-                .of(ConfigProblem.error(setting + "=" + method + " is not a known client authentication method; known: "
-                        + new TreeSet<>(byId.keySet()), "client-auth"));
+                .of(ConfigProblem
+                    .error(UNKNOWN_METHOD,
+                            setting + "=" + method + " is not a known client authentication method; known: [" + known
+                                    + "]",
+                            "client-auth")
+                    .withArg("key", setting)
+                    .withArg("value", method)
+                    .withArg("known", known));
         }
         return f.validate(config);
     }

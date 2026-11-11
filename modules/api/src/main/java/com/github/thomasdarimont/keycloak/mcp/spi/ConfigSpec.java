@@ -32,7 +32,11 @@ public record ConfigSpec(List<ConfigProperty> properties, List<ConfigHint> hints
                 throw new IllegalArgumentException("'" + p.name() + "' is declared twice");
             }
         }
+        Set<String> groups = new java.util.HashSet<>();
         for (ConfigHint h : hints) {
+            if (h instanceof ConfigHint.Group g && !groups.add(g.id())) {
+                throw new IllegalArgumentException("Group '" + g.id() + "' is declared twice");
+            }
             for (String name : h.properties()) {
                 if (!byName.containsKey(name)) {
                     throw new IllegalArgumentException("A hint names '" + name + "', which is not declared");

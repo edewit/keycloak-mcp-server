@@ -215,8 +215,8 @@ class AccessCheckChainTest {
             public List<ConfigProblem> validate(ProviderConfig config) {
                 return "confirm".equals(config.readChoice(configSpec().property("mode").orElseThrow()))
                         && config.get("endpoint").isEmpty()
-                                ? List
-                                    .of(ConfigProblem.error(config.key("mode") + "=confirm needs an endpoint", "mode"))
+                                ? List.of(ConfigProblem.error("ticket.endpoint-needed",
+                                        config.key("mode") + "=confirm needs an endpoint", "mode"))
                                 : List.of();
             }
 

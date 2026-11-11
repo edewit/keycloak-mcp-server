@@ -29,10 +29,7 @@ import com.google.auto.service.AutoService;
 public class AcmeToolProvider extends AbstractToolProvider {
 
     /** {@code kc-mcp.spi.tools.acme.company} */
-    static final ConfigProperty COMPANY = ConfigProperty.string("company")
-        .withDefault("ACME")
-        .withLabel("Company")
-        .withDescription("Shown in the tool titles.");
+    static final ConfigProperty COMPANY = ConfigProperty.string("company").withDefault("ACME");
 
     @Override
     public String id() {

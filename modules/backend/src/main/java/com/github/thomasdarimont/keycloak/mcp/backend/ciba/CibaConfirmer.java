@@ -19,7 +19,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.client.Client;
@@ -36,18 +35,17 @@ import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
-import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
-import io.quarkus.runtime.StartupEvent;
 import io.quarkus.tls.TlsConfigurationRegistry;
 import io.vertx.core.json.JsonObject;
 
@@ -122,12 +120,24 @@ public class CibaConfirmer implements Confirmer {
         return Collections.unmodifiableMap(m);
     }
 
-    private final CibaSettings settings;
+    /** Set by {@link #configure}; off until then. */
+    private CibaSettings settings;
     private final String defaultIssuer;
-    private final Function<String, CibaClient> clients;
-    private final Function<CibaClient, CibaIdentityVerifier> verifiers;
-    private final PendingApprovalStore store;
+    /** What the clients and verifiers are made of; {@code null} for the real ones. */
+    private final Function<String, CibaClient> givenClients;
+    private final Function<CibaClient, CibaIdentityVerifier> givenVerifiers;
+    private Function<String, CibaClient> clients;
+    private Function<CibaClient, CibaIdentityVerifier> verifiers;
+    /** The store a test hands in; {@code null}: the one the registry selects. */
+    private final PendingApprovalStore givenStore;
+    private PendingApprovalStore store;
     private final boolean callersRequired;
+    /** Where the approval store comes from; {@code null} in tests. */
+    private final ExtensionRegistry registry;
+    private final TlsConfigurationRegistry tls;
+    private final OutboundClients.Timeouts timeouts;
+    /** {@code kc-mcp.confirm-timeout-seconds}, the default of {@code timeout-seconds}. */
+    private final int defaultTimeout;
     private final Map<String, CibaClient> byIssuer = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private Duration pollFloor = Duration.ofSeconds(1);
@@ -142,25 +152,32 @@ public class CibaConfirmer implements Confirmer {
     private BooleanSupplier severalSystems = () -> true;
 
     /** How long one poll of the provider may take: the read timeout of its client. */
-    private final Duration readTimeout;
+    private Duration readTimeout;
     /**
      * The JAX-RS client shared by the providers' CIBA clients; {@code null} when the
-     * clients come from outside.
+     * clients come from outside or CIBA is off.
      */
-    private final Client http;
+    private Client http;
 
+    /** Off until {@link #configure} hands it {@code kc-mcp.spi.confirmer.ciba.*}. */
     @Inject
     public CibaConfirmer(McpServerConfig config, ExtensionRegistry registry, KcMcpMetrics metrics,
             Instance<TlsConfigurationRegistry> tls, Instance<KeycloakSystems> systems) {
-        this(CibaSettings.from(config), DefaultTenant.authServerUrl(), null, null,
-                approvalStore(CibaSettings.from(config).enabled(), registry),
-                config.callerRequired() || config.delegation().delegating(), tls.isResolvable() ? tls.get() : null,
-                OutboundClients.Timeouts.of(config));
+        this.defaultIssuer = DefaultTenant.authServerUrl();
+        this.givenClients = null;
+        this.givenVerifiers = null;
+        this.givenStore = null;
+        this.callersRequired = config.callerRequired() || config.delegation().delegating();
+        this.registry = registry;
+        this.tls = tls.isResolvable() ? tls.get() : null;
+        this.timeouts = OutboundClients.Timeouts.of(config);
+        this.defaultTimeout = config.confirmTimeoutSeconds();
         this.metrics = metrics;
         if (systems.isResolvable()) {
             KeycloakSystems all = systems.get();
             this.severalSystems = all::multiple;
         }
+        apply(CibaSettings.from(new ProviderConfig(Confirmer.SPI, CibaSettings.ID, Map.of()), defaultTimeout), null);
     }
 
     /**
@@ -171,12 +188,20 @@ public class CibaConfirmer implements Confirmer {
     static PendingApprovalStore approvalStore(boolean cibaEnabled, ExtensionRegistry registry) {
         Optional<PendingApprovalStore> selected = registry.extensions(PendingApprovalStore.class).stream().findFirst();
         if (selected.isEmpty() && cibaEnabled) {
-            throw new IllegalStateException("kc-mcp.spi.confirmer.ciba.enabled=true needs a PendingApprovalStore, and"
-                    + " every candidate is switched off or not supported: configure the database storage or enable"
-                    + " kc-mcp.spi.approval-store." + InMemoryPendingApprovalStore.ID);
+            throw new IllegalStateException(NO_STORE);
         }
         return selected.orElse(null);
     }
+
+    /** Problem code: CIBA on, callers not authenticated. */
+    public static final String CALLERS_REQUIRED = "ciba.callers-required";
+
+    /** Problem code: CIBA on, no store for the pending approvals. */
+    public static final String APPROVAL_STORE_MISSING = "ciba.approval-store-missing";
+
+    private static final String NO_STORE = "kc-mcp.spi.confirmer.ciba.enabled=true needs a PendingApprovalStore,"
+            + " and every candidate is switched off or not supported: configure the database storage or enable"
+            + " kc-mcp.spi.approval-store." + InMemoryPendingApprovalStore.ID;
 
     public CibaConfirmer(CibaSettings settings, String defaultIssuer, Function<String, CibaClient> clients,
             Function<CibaClient, CibaIdentityVerifier> verifiers, PendingApprovalStore store, boolean callersRequired) {
@@ -185,6 +210,8 @@ public class CibaConfirmer implements Confirmer {
     }
 
     /**
+     * Configured with these settings, for tests and embedding.
+     *
      * @param clients makes the client of an issuer; {@code null} for the real HTTP one
      * @param verifiers makes the verifier of a client; {@code null} for the real one (the
      * client's issuer, its JWKS, the CIBA client as audience)
@@ -196,22 +223,90 @@ public class CibaConfirmer implements Confirmer {
     public CibaConfirmer(CibaSettings settings, String defaultIssuer, Function<String, CibaClient> clients,
             Function<CibaClient, CibaIdentityVerifier> verifiers, PendingApprovalStore store, boolean callersRequired,
             TlsConfigurationRegistry tls, OutboundClients.Timeouts timeouts) {
-        this.settings = settings;
         this.defaultIssuer = defaultIssuer;
-        this.readTimeout = timeouts
-            .with(Optional.ofNullable(settings.connectTimeout()), Optional.ofNullable(settings.readTimeout()))
-            .read();
-        Client http = clients == null && settings.enabled() ? OutboundClients.create(
-                timeouts.with(Optional.ofNullable(settings.connectTimeout()),
-                        Optional.ofNullable(settings.readTimeout())),
-                settings.tlsConfigurationName(), tls, "kc-mcp.spi.confirmer.ciba.tls-configuration-name") : null;
-        this.http = http;
-        this.clients = clients != null ? clients : issuer -> new CibaClient(http, issuer, settings.clientId(),
-                settings.clientSecret(), settings.clientAuth(), settings.scope(), settings.acrValues());
-        this.verifiers = verifiers != null ? verifiers : client -> new CibaIdentityVerifier(client.jwksUri(),
-                settings.tokenIssuer() != null ? settings.tokenIssuer() : client.issuer(), settings.clientId());
-        this.store = store == null ? new InMemoryPendingApprovalStore() : store;
+        this.givenClients = clients;
+        this.givenVerifiers = verifiers;
+        this.givenStore = store;
         this.callersRequired = callersRequired;
+        this.registry = null;
+        this.tls = tls;
+        this.timeouts = timeouts;
+        this.defaultTimeout = settings.timeoutSeconds();
+        apply(settings, store);
+    }
+
+    /**
+     * What makes CIBA unusable beyond its settings, so that it stops the start instead of
+     * leaving destructive tools to a confirmer that does not ask the human: callers
+     * nobody could ask on a device, no store for the pending approvals, a TLS
+     * configuration that does not exist.
+     */
+    @Override
+    public List<ConfigProblem> validate(ProviderConfig config) {
+        if (!config.getBoolean("enabled", false)) {
+            return List.of();
+        }
+        List<ConfigProblem> problems = new java.util.ArrayList<>();
+        if (!callersRequired) {
+            problems.add(ConfigProblem.error(CALLERS_REQUIRED,
+                    "kc-mcp.spi.confirmer.ciba.enabled=true needs authenticated callers, or"
+                            + " there is nobody whose device could be asked: set kc-mcp.require-caller=true (with"
+                            + " quarkus.oidc.tenant-enabled=true), kc-mcp.delegation=forward|exchange, or"
+                            + " kc-mcp.profile=shared"));
+        }
+        if (givenStore == null && registry != null
+                && registry.extensions(PendingApprovalStore.class).stream().findFirst().isEmpty()) {
+            problems.add(ConfigProblem.error(APPROVAL_STORE_MISSING, NO_STORE));
+        }
+        String tlsName = config.readString(CibaSettings.TLS_CONFIGURATION_NAME);
+        if (givenClients == null) {
+            OutboundClients
+                .tlsProblem(tlsName, tls, config.key(CibaSettings.TLS_CONFIGURATION_NAME.name()),
+                        CibaSettings.TLS_CONFIGURATION_NAME.name())
+                .ifPresent(problems::add);
+        }
+        return problems;
+    }
+
+    /** Once at startup, after {@link #validate}: the client and the store. */
+    @Override
+    public void configure(ProviderConfig config) {
+        CibaSettings s = CibaSettings.from(config, defaultTimeout);
+        PendingApprovalStore selected = givenStore != null || registry == null || !s.enabled() ? givenStore
+                : approvalStore(true, registry);
+        apply(s, selected);
+        if (s.enabled()) {
+            metrics.pendingApprovals(() -> store.countLive(System.currentTimeMillis()));
+            LOG.infof(
+                    "CIBA confirmer on: destructive tools need the caller's approval on their device (client '%s'"
+                            + " at %s, %s, %s flow%s, login hint %s, %d s, approvals in %s)",
+                    s.clientId(), s.issuerFromCaller() ? "the caller's issuer" : s.issuer(),
+                    s.when() == CibaSettings.When.ALWAYS ? "always" : "when the client has no elicitation",
+                    s.flow() == Flow.TWO_STEP ? "two-step" : "blocking",
+                    s.flow() == Flow.TWO_STEP && s.numberMatching() ? " with number matching" : "", s.loginHint(),
+                    s.timeoutSeconds(), store.id());
+        }
+    }
+
+    /** The settings and everything made of them. */
+    private void apply(CibaSettings s, PendingApprovalStore selected) {
+        OutboundClients.Timeouts own = timeouts.with(Optional.ofNullable(s.connectTimeout()),
+                Optional.ofNullable(s.readTimeout()));
+        Client previous = http;
+        Client client = givenClients == null && s.enabled() ? OutboundClients.create(own, s.tlsConfigurationName(), tls,
+                "kc-mcp.spi.confirmer.ciba.tls-configuration-name") : null;
+        this.settings = s;
+        this.readTimeout = own.read();
+        this.http = client;
+        this.clients = givenClients != null ? givenClients : issuer -> new CibaClient(client, issuer, s.clientId(),
+                s.clientSecret(), s.clientAuth(), s.scope(), s.acrValues());
+        this.verifiers = givenVerifiers != null ? givenVerifiers : c -> new CibaIdentityVerifier(c.jwksUri(),
+                s.tokenIssuer() != null ? s.tokenIssuer() : c.issuer(), s.clientId());
+        this.store = selected == null ? new InMemoryPendingApprovalStore() : selected;
+        byIssuer.clear();
+        if (previous != null) {
+            previous.close();
+        }
     }
 
     @Override
@@ -219,31 +314,6 @@ public class CibaConfirmer implements Confirmer {
         if (http != null) {
             http.close();
         }
-    }
-
-    void onStart(@Observes StartupEvent event) {
-        ValidationRun.guard(this::runStartupChecks);
-    }
-
-    private void runStartupChecks() {
-        if (!settings.enabled()) {
-            return;
-        }
-        if (!callersRequired) {
-            throw new IllegalStateException("kc-mcp.spi.confirmer.ciba.enabled=true needs authenticated callers, or"
-                    + " there is nobody whose device could be asked: set kc-mcp.require-caller=true (with"
-                    + " quarkus.oidc.tenant-enabled=true), kc-mcp.delegation=forward|exchange, or"
-                    + " kc-mcp.profile=shared");
-        }
-        metrics.pendingApprovals(() -> store.countLive(System.currentTimeMillis()));
-        LOG.infof(
-                "CIBA confirmer on: destructive tools need the caller's approval on their device (client '%s'"
-                        + " at %s, %s, %s flow%s, login hint %s, %d s, approvals in %s)",
-                settings.clientId(), settings.issuerFromCaller() ? "the caller's issuer" : settings.issuer(),
-                settings.when() == CibaSettings.When.ALWAYS ? "always" : "when the client has no elicitation",
-                settings.flow() == Flow.TWO_STEP ? "two-step" : "blocking",
-                settings.flow() == Flow.TWO_STEP && settings.numberMatching() ? " with number matching" : "",
-                settings.loginHint(), settings.timeoutSeconds(), store.id());
     }
 
     @Override

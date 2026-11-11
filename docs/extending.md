@@ -76,11 +76,19 @@ public class AcmeToolProvider implements ToolProvider {
   `ProviderConfigProperty` list: its settings (`ConfigProperty`) and how they belong together (`ConfigHint`).
   - Properties: types `STRING`, `BOOLEAN`, `INT`, `NUMBER`, `DURATION` (`30`, `500ms`, `30s`, `5m`, `2h`, `1d`,
     `PT30S`), `URL` (absolute, with host), `LIST` (comma separated), `CHOICE` (one of `options`, plus
-    `withAliases(...)`) and `JSON`; label, description, default (as written in the configuration), `asConfidential()`
-    (masked in logs, error messages and `ProviderConfig.toString()`) and `asRequired()`.
-  - Hints: `ConfigHint.group("Client", ...)` for sections in a UI, and `ConfigHint.when("header-value").is("auth",
-    "header")` (or `.isSet("keystore-file")`) for a setting that only matters under a condition, which may also be
-    `enabled`. Advisory, except that a required setting with conditions is required only while they hold.
+    `withAliases(...)`) and `JSON`; default (as written in the configuration), `asConfidential()` (masked in logs,
+    error messages and `ProviderConfig.toString()`) and `asRequired()`. No texts: those are in the message bundles.
+  - Hints: `ConfigHint.group("client", ...)` (a kebab-case id) for sections in a UI, and `ConfigHint.when("header-value").is("auth", "header")` (or
+    `.isSet("keystore-file")`) for a setting that only matters under a condition, which may also be `enabled`.
+    Advisory, except that a required setting with conditions is required only while they hold.
+  - Texts: in `META-INF/kc-mcp/messages.properties` (English, UTF-8) and `META-INF/kc-mcp/messages_<lang>.properties` of the
+    extension's jar, by keys derived from the spec (`ConfigMessageKeys`): `<spi>.<id>.<name>.label` and
+    `.description`, `<spi>.<id>.<name>.option.<option>`, `<spi>.<id>.group.<group>.label` and `.description`
+    (`audit-scrubber.pii.mode.label`). The labels are needed, descriptions and option texts are optional. A text the
+    extension lacks falls back to `config.<name>...`, the shared texts of settings several extensions read
+    (`config.client-secret.label`); a key no bundle has shows as the name and is logged once. `ConfigMessages` merges
+    the bundles of every jar, the providers directory included, and resolves them per locale; `missingLabels(prefix,
+    spec)` lets a test keep the bundle complete.
   - `spec.plus(other)` combines specs; the AuthZEN engine adds the client authentication methods' to its own (a
     `ClientAuthenticatorFactory` has `configSpec()` and `validate` too).
   - Read declared settings with `config.readString(P)`, `readBoolean`, `readInt`, `readLong`, `readNumber`,
@@ -90,20 +98,51 @@ public class AcmeToolProvider implements ToolProvider {
     and `locked` of an access check.
 - `validate(config)` (default none): the extension's own rules between its settings, the ones a spec cannot say
   (settings that exclude each other, one of several, a value that must suit another), as `ConfigProblem`s: severity
-  `ERROR` or `WARNING`, a message naming the full key (`config.key(name)`), the settings concerned. Asked once the
-  values pass the spec's checks.
+  `ERROR` or `WARNING`; a `code`, the key of its text in the bundles (`acme.endpoint-needed`; the server's own are
+  `config.invalid-value`, `config.required`, `config.unknown-key`, `config.validation-failed`), with named `args`
+  (`key`, the full key, and what the code describes; never a confidential value) for its `{name}` placeholders
+  (`acme.endpoint-needed={key}=confirm needs an endpoint`); an English `message` for logs and exceptions naming the
+  full key (`config.key(name)`); the settings concerned. Asked once the values pass the spec's
+  checks; a `ConfigValueException` thrown while reading keeps its problem.
 - Before `configure` the server checks the settings against the spec, then `validate`: warnings (unknown keys
   among them) are logged, errors stop the start in every profile. Access checks are checked by the access check chain
   instead: the server's settings at startup, a system's, realm's or preset's `access.<id>` block (over the server's)
   when it is loaded or saved, placeholders such as `{realm}` filled with sample values first.
   ```java
+  public enum Mode {
+      KEEP, PSEUDONYMIZE, DROP // options keep, pseudonymize, drop; readEnum maps them back
+  }
+
+  private Mode mode;
+  private List<String> targets;
+
   public static final ConfigProperty MODE = ConfigProperty.choice("mode", Mode.class).withDefault("keep");
+  public static final ConfigProperty TARGETS = ConfigProperty.list("targets").withDefault("db");
   public static final ConfigProperty KEY = ConfigProperty.string("pseudonym-key").asConfidential();
-  public static final ConfigSpec SPEC = ConfigSpec.of(MODE, KEY)
-      .withHints(ConfigHint.when(KEY.name()).is(MODE.name(), "pseudonymize"));
+  public static final ConfigSpec SPEC = ConfigSpec.of(MODE, TARGETS, KEY)
+      .withHints(
+          // sections of a generic settings form, in this order
+          ConfigHint.group("scrubbing", MODE.name(), TARGETS.name()),
+          ConfigHint.group("pseudonyms", KEY.name()),
+          // shown only while mode=pseudonymize
+          ConfigHint.when(KEY.name()).is(MODE.name(), "pseudonymize"));
 
   @Override public ConfigSpec configSpec() { return SPEC; }
-  @Override public void configure(ProviderConfig config) { mode = config.readEnum(MODE, Mode.class); }
+  @Override public void configure(ProviderConfig config) {
+      mode = config.readEnum(MODE, Mode.class);
+      targets = config.readList(TARGETS);
+  }
+  ```
+  ```properties
+  # src/main/resources/META-INF/kc-mcp/messages.properties
+  audit-scrubber.pii.mode.label=Mode
+  audit-scrubber.pii.mode.description=What happens to personal data.
+  audit-scrubber.pii.mode.option.pseudonymize=Pseudonymize (keyed hash)
+  audit-scrubber.pii.targets.label=Listeners
+  audit-scrubber.pii.pseudonym-key.label=Pseudonym key
+  audit-scrubber.pii.group.scrubbing.label=Scrubbing
+  audit-scrubber.pii.group.scrubbing.description=What happens to personal data, and where.
+  audit-scrubber.pii.group.pseudonyms.label=Pseudonyms
   ```
 - `isSupported(serverConfig, config)` (default `true`): asked once at startup after `kc-mcp.spi.<spi>.<id>.enabled`; an
   extension that needs a setting, a feature or a capability answers `false` when it is missing and is left out as if

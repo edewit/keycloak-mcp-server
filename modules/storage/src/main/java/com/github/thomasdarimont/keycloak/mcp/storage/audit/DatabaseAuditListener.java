@@ -30,10 +30,7 @@ public class DatabaseAuditListener implements AuditListener {
     public static final String ID = "db";
 
     /** Read by {@link AuditRetention}. */
-    public static final ConfigProperty RETENTION_DAYS = ConfigProperty.integer("retention-days")
-        .withDefault("0")
-        .withLabel("Retention (days)")
-        .withDescription("Deletes audit rows older than this, at startup and then hourly; 0 keeps everything.");
+    public static final ConfigProperty RETENTION_DAYS = ConfigProperty.integer("retention-days").withDefault("0");
 
     public static final ConfigSpec CONFIG_SPEC = ConfigSpec.of(RETENTION_DAYS);
 

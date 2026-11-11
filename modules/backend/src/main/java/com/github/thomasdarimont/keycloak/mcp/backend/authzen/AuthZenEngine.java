@@ -83,9 +83,16 @@ public class AuthZenEngine implements AuthorizationEngine {
     private record ClientKey(String tls, Duration connect, Duration read) {
     }
 
-    private final ProviderConfig config;
-    private final AuthZenSettings.WithoutPdp withoutPdp;
-    private final AuthZenSettings.Default defaultMode;
+    /** Set by {@link #configure}: the defaults of every system's PDP. */
+    private ProviderConfig config;
+    private AuthZenSettings.WithoutPdp withoutPdp;
+    private AuthZenSettings.Default defaultMode;
+    /**
+     * Has the registry admit (configure) this engine, so that the startup checks see its
+     * settings whichever observer runs first; nothing in tests.
+     */
+    private Runnable admission = () -> {
+    };
     private final Function<AuthZenSettings, Client> httpFor;
     private final Clock clock;
     private final Map<String, KeycloakSystem> staticSystems;
@@ -107,12 +114,17 @@ public class AuthZenEngine implements AuthorizationEngine {
     public AuthZenEngine(McpServerConfig server, Instance<TlsConfigurationRegistry> tls, Extensions extensions,
             Instance<SigningKeys> signingKeys, Instance<KeycloakSystems> systems,
             Instance<DefaultExtensionRegistry> registry) {
-        this(ProviderConfig.forExtension(AuthorizationEngine.SPI, AuthZenSettings.ID, server),
+        this(new ProviderConfig(AuthorizationEngine.SPI, AuthZenSettings.ID, Map.of()),
                 tls.isResolvable() ? tls.get() : null, OutboundClients.Timeouts.of(server), staticSystems(server),
                 Clock.systemUTC(), new ClientAuthenticators(extensions.discover(ClientAuthenticatorFactory.class)),
                 systemSigners(signingKeys, systems));
         this.customizerLookup = () -> registry.isResolvable()
                 ? registry.get().extensions(AuthZenRequestCustomizer.class) : List.of();
+        this.admission = () -> {
+            if (registry.isResolvable()) {
+                registry.get().extensions(AuthorizationEngine.class);
+            }
+        };
     }
 
     /**
@@ -149,9 +161,6 @@ public class AuthZenEngine implements AuthorizationEngine {
     AuthZenEngine(ProviderConfig config, TlsConfigurationRegistry tls, OutboundClients.Timeouts timeouts,
             Map<String, KeycloakSystem> staticSystems, Clock clock, ClientAuthenticators authenticators,
             Function<String, Optional<Function<JsonObject, String>>> systemSigners) {
-        this.config = config.withSpec(spec(authenticators));
-        this.withoutPdp = AuthZenSettings.WithoutPdp.from(config);
-        this.defaultMode = AuthZenSettings.Default.from(config);
         this.clock = clock;
         this.staticSystems = Map.copyOf(staticSystems == null ? Map.of() : staticSystems);
         this.authenticators = authenticators;
@@ -161,20 +170,32 @@ public class AuthZenEngine implements AuthorizationEngine {
                 k -> OutboundClients.create(
                         timeouts.with(Optional.ofNullable(k.connect()), Optional.ofNullable(k.read())), k.tls(), tls,
                         AuthZenSettings.PREFIX + "tls-configuration-name"));
+        configure(config);
+    }
+
+    /**
+     * The defaults of every system's PDP,
+     * {@code kc-mcp.spi.authorization-engine.authzen.*}; the PDPs built so far are
+     * dropped.
+     */
+    @Override
+    public void configure(ProviderConfig settings) {
+        this.config = settings.withSpec(spec(authenticators));
+        this.withoutPdp = AuthZenSettings.WithoutPdp.from(config);
+        this.defaultMode = AuthZenSettings.Default.from(config);
+        bySystem.clear();
     }
 
     /** For tests: one JAX-RS client for every PDP, the configured systems from a map. */
     AuthZenEngine(ProviderConfig config, Client http, Clock clock, ClientAuthenticators authenticators,
             Function<String, Optional<Function<JsonObject, String>>> systemSigners,
             Map<String, KeycloakSystem> systems) {
-        this.config = config.withSpec(spec(authenticators));
-        this.withoutPdp = AuthZenSettings.WithoutPdp.from(config);
-        this.defaultMode = AuthZenSettings.Default.from(config);
         this.clock = clock;
         this.staticSystems = Map.copyOf(systems);
         this.httpFor = s -> http;
         this.authenticators = authenticators;
         this.systemSigners = systemSigners;
+        configure(config);
     }
 
     @Override
@@ -258,7 +279,10 @@ public class AuthZenEngine implements AuthorizationEngine {
     }
 
     void onStart(@Observes StartupEvent event) {
-        ValidationRun.guard(this::runStartupChecks);
+        ValidationRun.guard(() -> {
+            admission.run();
+            runStartupChecks();
+        });
     }
 
     /**

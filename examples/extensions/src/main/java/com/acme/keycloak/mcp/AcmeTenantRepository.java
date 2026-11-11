@@ -26,9 +26,7 @@ import com.google.auto.service.AutoService;
 public class AcmeTenantRepository implements KeycloakSystemRepository {
 
     /** {@code kc-mcp.spi.system-repository.acme-tenants.systems} */
-    static final ConfigProperty SYSTEMS = ConfigProperty.string("systems")
-        .withLabel("Tenants")
-        .withDescription("alias=url[|realm] entries, separated by ';'.");
+    static final ConfigProperty SYSTEMS = ConfigProperty.string("systems");
 
     private Map<String, KeycloakSystem> tenants;
 

@@ -219,6 +219,14 @@ public class Extensions {
         return spi + "." + ProviderConfig.configId(id);
     }
 
+    /**
+     * The class loader the extensions come from: the application's, with the jars of the
+     * providers directory when there are any.
+     */
+    public ClassLoader classLoader() {
+        return loader;
+    }
+
     /** The providers directory, {@code null} when none is configured. */
     public Path dir() {
         return dir;

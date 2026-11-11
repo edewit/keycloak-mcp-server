@@ -20,10 +20,8 @@ import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
-import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
-import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.MutableKeycloakSystemRepository;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.Preset;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
@@ -63,10 +61,7 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
 
     public static final String ID = "db";
 
-    public static final ConfigProperty CACHE_SECONDS = ConfigProperty.integer("cache-seconds")
-        .withDefault("10")
-        .withLabel("Cache (seconds)")
-        .withDescription("How long a snapshot of the rows is served before it is reloaded.");
+    public static final ConfigProperty CACHE_SECONDS = ConfigProperty.integer("cache-seconds").withDefault("10");
 
     public static final ConfigSpec CONFIG_SPEC = ConfigSpec.of(CACHE_SECONDS);
 
@@ -80,14 +75,15 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
     }
 
     private final StorageCrypto crypto;
-    private final long cacheMillis;
+    /** Set by {@link #configure}; the default until then. */
+    private long cacheMillis = Long.parseLong(CACHE_SECONDS.defaultValue()) * 1000L;
     private final ReentrantLock reloading = new ReentrantLock();
     private volatile Snapshot snapshot = Snapshot.EMPTY;
 
+    /** Configured by {@link #configure}. */
     @Inject
-    public DatabaseKeycloakSystemRepository(StorageCrypto crypto, McpServerConfig serverConfig) {
-        this(crypto, ProviderConfig.forExtension(KeycloakSystemRepository.SPI, ID, CONFIG_SPEC, serverConfig)
-            .readInt(CACHE_SECONDS));
+    public DatabaseKeycloakSystemRepository(StorageCrypto crypto) {
+        this.crypto = crypto;
     }
 
     /**
@@ -96,6 +92,11 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
     public DatabaseKeycloakSystemRepository(StorageCrypto crypto, int cacheSeconds) {
         this.crypto = crypto;
         this.cacheMillis = Math.max(0, cacheSeconds) * 1000L;
+    }
+
+    @Override
+    public void configure(ProviderConfig config) {
+        this.cacheMillis = Math.max(0, config.readInt(CACHE_SECONDS)) * 1000L;
     }
 
     @Override

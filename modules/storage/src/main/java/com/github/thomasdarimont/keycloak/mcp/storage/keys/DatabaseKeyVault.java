@@ -53,9 +53,7 @@ public class DatabaseKeyVault implements KeyVault {
 
     /** How long a retired key stays in the JWKS, seconds. */
     public static final ConfigProperty RETIRED_KEY_GRACE_SECONDS = ConfigProperty.integer("retired-key-grace-seconds")
-        .withDefault("3600")
-        .withLabel("Retired key grace (seconds)")
-        .withDescription("How long a rotated-away key stays in the JWKS.");
+        .withDefault("3600");
 
     public static final ConfigSpec CONFIG_SPEC = ConfigSpec.of(RETIRED_KEY_GRACE_SECONDS);
 
@@ -63,20 +61,26 @@ public class DatabaseKeyVault implements KeyVault {
 
     private final StorageCrypto crypto;
     private final McpServerConfig serverConfig;
-    private final long retiredKeyGraceMillis;
+    /** Set by {@link #configure}; the default until then. */
+    private long retiredKeyGraceMillis = Long.parseLong(RETIRED_KEY_GRACE_SECONDS.defaultValue()) * 1000L;
     private volatile SigningKeyGenerator generator;
 
     @Inject
     public DatabaseKeyVault(StorageCrypto crypto, McpServerConfig serverConfig) {
-        this(crypto, serverConfig, ProviderConfig.forExtension(KeyVault.SPI, ID, CONFIG_SPEC, serverConfig)
-            .readInt(RETIRED_KEY_GRACE_SECONDS));
-    }
-
-    public DatabaseKeyVault(StorageCrypto crypto, McpServerConfig serverConfig, int retiredKeyGraceSeconds) {
         this.crypto = crypto;
         this.serverConfig = serverConfig;
-        this.retiredKeyGraceMillis = Math.max(0, retiredKeyGraceSeconds) * 1000L;
         this.generator = new DefaultSigningKeyGenerator(serverConfig.jwt().keySize());
+    }
+
+    /** With this grace instead of the configured one, for tests. */
+    public DatabaseKeyVault(StorageCrypto crypto, McpServerConfig serverConfig, int retiredKeyGraceSeconds) {
+        this(crypto, serverConfig);
+        this.retiredKeyGraceMillis = Math.max(0, retiredKeyGraceSeconds) * 1000L;
+    }
+
+    @Override
+    public void configure(ProviderConfig config) {
+        this.retiredKeyGraceMillis = Math.max(0, config.readInt(RETIRED_KEY_GRACE_SECONDS)) * 1000L;
     }
 
     @Override

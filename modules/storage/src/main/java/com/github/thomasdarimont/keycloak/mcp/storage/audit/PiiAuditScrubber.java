@@ -53,30 +53,17 @@ public class PiiAuditScrubber implements AuditScrubber {
         KEEP, PSEUDONYMIZE, DROP
     }
 
-    public static final ConfigProperty MODE = ConfigProperty.choice("mode", Policy.class)
-        .withDefault("keep")
-        .withLabel("Mode")
-        .withDescription("What happens to personal data: keep (nothing happens), pseudonymize (keyed hash) or drop.");
+    public static final ConfigProperty MODE = ConfigProperty.choice("mode", Policy.class).withDefault("keep");
 
-    public static final ConfigProperty ARGS = ConfigProperty.list("args")
-        .withDefault(DEFAULT_PII_ARGS)
-        .withLabel("Personal arguments")
-        .withDescription("Tool argument names treated as personal data; 'id' counts too on user tools.");
+    public static final ConfigProperty ARGS = ConfigProperty.list("args").withDefault(DEFAULT_PII_ARGS);
 
-    public static final ConfigProperty TARGETS = ConfigProperty.list("targets")
-        .withDefault(DatabaseAuditListener.ID)
-        .withLabel("Listeners")
-        .withDescription("Audit listener ids the scrubber applies to, '*' for every listener.");
+    public static final ConfigProperty TARGETS = ConfigProperty.list("targets").withDefault(DatabaseAuditListener.ID);
 
     /**
      * A HMAC key of the scrubber's own, so a storage key rotation keeps the pseudonyms
      * stable.
      */
-    public static final ConfigProperty PSEUDONYM_KEY = ConfigProperty.string("pseudonym-key")
-        .asConfidential()
-        .withLabel("Pseudonym key")
-        .withDescription(
-                "HMAC key of the pseudonyms; defaults to kc-mcp.storage.secret-key, which a rotation changes.");
+    public static final ConfigProperty PSEUDONYM_KEY = ConfigProperty.string("pseudonym-key").asConfidential();
 
     public static final ConfigSpec CONFIG_SPEC = ConfigSpec.of(MODE, ARGS, TARGETS, PSEUDONYM_KEY)
         .withHints(ConfigHint.when(ARGS.name()).is(MODE.name(), "pseudonymize", "drop"),

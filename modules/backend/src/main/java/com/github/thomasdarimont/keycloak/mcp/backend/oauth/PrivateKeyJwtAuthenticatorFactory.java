@@ -36,44 +36,26 @@ public final class PrivateKeyJwtAuthenticatorFactory implements ClientAuthentica
     public static final String ID = "private_key_jwt";
     static final String ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 
-    public static final ConfigProperty KEY_FILE = ConfigProperty.string("jwt-key-file")
-        .withLabel("Key file")
-        .withDescription("PEM file (PKCS#8) of the private key the client assertions are signed with.");
-    public static final ConfigProperty KEYSTORE_FILE = ConfigProperty.string("jwt-keystore-file")
-        .withLabel("Keystore file")
-        .withDescription("Keystore holding the signing key, instead of jwt-key-file.");
+    public static final ConfigProperty KEY_FILE = ConfigProperty.string("jwt-key-file");
+    public static final ConfigProperty KEYSTORE_FILE = ConfigProperty.string("jwt-keystore-file");
     public static final ConfigProperty KEYSTORE_PASSWORD = ConfigProperty.string("jwt-keystore-password")
-        .asConfidential()
-        .withLabel("Keystore password");
-    public static final ConfigProperty KEYSTORE_TYPE = ConfigProperty.string("jwt-keystore-type")
-        .withDefault("PKCS12")
-        .withLabel("Keystore type");
-    public static final ConfigProperty KEY_ALIAS = ConfigProperty.string("jwt-key-alias").withLabel("Key alias");
-    public static final ConfigProperty KEY_PASSWORD = ConfigProperty.string("jwt-key-password")
-        .asConfidential()
-        .withLabel("Key password");
-    public static final ConfigProperty KEY_ID = ConfigProperty.string("jwt-key-id")
-        .withLabel("Key id")
-        .withDescription("kid header of the assertions.");
-    public static final ConfigProperty ALGORITHM = ConfigProperty.string("jwt-algorithm")
-        .withLabel("Algorithm")
-        .withDescription("RS256, PS256/384/512 or ES256/384/512; by default from the key.");
-    public static final ConfigProperty ASSERTION_AUDIENCE = ConfigProperty.string("jwt-assertion-audience")
-        .withLabel("Assertion audience")
-        .withDescription("aud of the assertions; the token endpoint by default.");
+        .asConfidential();
+    public static final ConfigProperty KEYSTORE_TYPE = ConfigProperty.string("jwt-keystore-type").withDefault("PKCS12");
+    public static final ConfigProperty KEY_ALIAS = ConfigProperty.string("jwt-key-alias");
+    public static final ConfigProperty KEY_PASSWORD = ConfigProperty.string("jwt-key-password").asConfidential();
+    public static final ConfigProperty KEY_ID = ConfigProperty.string("jwt-key-id");
+    public static final ConfigProperty ALGORITHM = ConfigProperty.string("jwt-algorithm");
+    public static final ConfigProperty ASSERTION_AUDIENCE = ConfigProperty.string("jwt-assertion-audience");
     public static final ConfigProperty ASSERTION_LIFESPAN = ConfigProperty.integer("jwt-assertion-lifespan")
-        .withDefault("60")
-        .withLabel("Assertion lifespan")
-        .withDescription("Seconds an assertion is valid.");
+        .withDefault("60");
 
     public static final ConfigSpec CONFIG_SPEC = ConfigSpec
         .of(KEY_FILE, KEYSTORE_FILE, KEYSTORE_PASSWORD, KEYSTORE_TYPE, KEY_ALIAS, KEY_PASSWORD, KEY_ID, ALGORITHM,
                 ASSERTION_AUDIENCE, ASSERTION_LIFESPAN)
         .withHints(
-                ConfigHint.group("Client assertion key", KEY_FILE.name(), KEYSTORE_FILE.name(),
-                        KEYSTORE_PASSWORD.name(), KEYSTORE_TYPE.name(), KEY_ALIAS.name(), KEY_PASSWORD.name(),
-                        KEY_ID.name(), ALGORITHM.name()),
-                ConfigHint.group("Client assertion", ASSERTION_AUDIENCE.name(), ASSERTION_LIFESPAN.name()),
+                ConfigHint.group("assertion-key", KEY_FILE.name(), KEYSTORE_FILE.name(), KEYSTORE_PASSWORD.name(),
+                        KEYSTORE_TYPE.name(), KEY_ALIAS.name(), KEY_PASSWORD.name(), KEY_ID.name(), ALGORITHM.name()),
+                ConfigHint.group("assertion", ASSERTION_AUDIENCE.name(), ASSERTION_LIFESPAN.name()),
                 ConfigHint.when(KEYSTORE_PASSWORD.name()).isSet(KEYSTORE_FILE.name()),
                 ConfigHint.when(KEYSTORE_TYPE.name()).isSet(KEYSTORE_FILE.name()),
                 ConfigHint.when(KEY_ALIAS.name()).isSet(KEYSTORE_FILE.name()),
@@ -89,14 +71,23 @@ public final class PrivateKeyJwtAuthenticatorFactory implements ClientAuthentica
         return CONFIG_SPEC;
     }
 
+    /**
+     * Problem code: {@code jwt-key-file} and {@code jwt-keystore-file} both set; args
+     * {@code key}, {@code other}.
+     */
+    public static final String BOTH_KEY_SOURCES = "client-auth.private-key-jwt.both-key-sources";
+
     /** One key source: a PEM file or a keystore; with both the PEM file is used. */
     @Override
     public List<ConfigProblem> validate(ProviderConfig config) {
         if (config.isSet(KEY_FILE) && config.isSet(KEYSTORE_FILE)) {
-            return List.of(ConfigProblem.warning(
-                    config.key(KEY_FILE.name()) + " and " + config.key(KEYSTORE_FILE.name())
-                            + " are both set; the key file is used, the keystore ignored",
-                    KEY_FILE.name(), KEYSTORE_FILE.name()));
+            return List.of(ConfigProblem
+                .warning(BOTH_KEY_SOURCES,
+                        config.key(KEY_FILE.name()) + " and " + config.key(KEYSTORE_FILE.name())
+                                + " are both set; the key file is used, the keystore ignored",
+                        KEY_FILE.name(), KEYSTORE_FILE.name())
+                .withArg("key", config.key(KEY_FILE.name()))
+                .withArg("other", config.key(KEYSTORE_FILE.name())));
         }
         return List.of();
     }

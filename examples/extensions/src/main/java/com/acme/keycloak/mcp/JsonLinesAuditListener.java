@@ -27,10 +27,7 @@ import io.vertx.core.json.JsonObject;
 public class JsonLinesAuditListener implements AuditListener {
 
     /** {@code kc-mcp.spi.audit-listener.acme.file} */
-    static final ConfigProperty FILE = ConfigProperty.string("file")
-        .withDefault("acme-audit.jsonl")
-        .withLabel("File")
-        .withDescription("The JSON lines file the events are appended to.");
+    static final ConfigProperty FILE = ConfigProperty.string("file").withDefault("acme-audit.jsonl");
 
     private Path file;
     private final ReentrantLock lock = new ReentrantLock();

@@ -41,6 +41,12 @@
             <artifactId>smallrye-config-core</artifactId>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <!-- logging of the SPI helpers (ConfigMessages); the server supplies the runtime -->
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>

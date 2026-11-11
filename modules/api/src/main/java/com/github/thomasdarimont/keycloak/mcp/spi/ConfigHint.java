@@ -7,8 +7,9 @@ import java.util.Locale;
 /**
  * How settings belong together, for a UI that renders an extension's settings generically
  * and for the documentation: {@link Group sections} and {@link AppliesWhen conditions}.
- * Advisory: what the server enforces of them is said per hint; every other rule between
- * settings is {@link Extension#validate}'s.
+ * Their texts come from the message bundles ({@link ConfigMessages}). Advisory: what the
+ * server enforces of them is said per hint; every other rule between settings is
+ * {@link Extension#validate}'s.
  */
 public sealed interface ConfigHint permits ConfigHint.Group, ConfigHint.AppliesWhen {
 
@@ -16,15 +17,18 @@ public sealed interface ConfigHint permits ConfigHint.Group, ConfigHint.AppliesW
     List<String> properties();
 
     /**
-     * Settings shown together under a label, in this order.
+     * Settings shown together as a section, in this order. Its title and description come
+     * from the message bundles ({@link ConfigMessageKeys#label(String, Group)}).
      *
-     * @param label e.g. {@code Client authentication}
+     * @param id stable, kebab-case ({@code client}): its message keys derive from it
      */
-    record Group(String label, List<String> properties) implements ConfigHint {
+    record Group(String id, List<String> properties) implements ConfigHint {
+
+        private static final java.util.regex.Pattern ID = java.util.regex.Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*");
 
         public Group {
-            if (label == null || label.isBlank()) {
-                throw new IllegalArgumentException("A group needs a label");
+            if (id == null || !ID.matcher(id).matches()) {
+                throw new IllegalArgumentException("A group needs a kebab-case id, not '" + id + "'");
             }
             properties = List.copyOf(properties);
         }
@@ -88,8 +92,9 @@ public sealed interface ConfigHint permits ConfigHint.Group, ConfigHint.AppliesW
         }
     }
 
-    static Group group(String label, String... properties) {
-        return new Group(label, Arrays.asList(properties));
+    /** @param id stable, kebab-case: the group's message keys derive from it */
+    static Group group(String id, String... properties) {
+        return new Group(id, Arrays.asList(properties));
     }
 
     /** {@code ConfigHint.when("header-value").is("auth", "header")} */

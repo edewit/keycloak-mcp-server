@@ -11,6 +11,7 @@ import org.jboss.resteasy.reactive.client.impl.ClientBuilderImpl;
 
 import com.github.thomasdarimont.keycloak.mcp.config.Durations;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 
 import io.quarkus.tls.TlsConfiguration;
 import io.quarkus.tls.TlsConfigurationRegistry;
@@ -89,12 +90,10 @@ public final class OutboundClients {
         if (tlsConfigurationName == null || tlsConfigurationName.isBlank()) {
             return create(timeouts);
         }
-        if (registry == null) {
-            throw new IllegalStateException(setting + "=" + tlsConfigurationName + " needs the TLS registry");
-        }
-        TlsConfiguration tls = registry.get(tlsConfigurationName)
-            .orElseThrow(() -> new IllegalStateException(setting + "=" + tlsConfigurationName
-                    + " names no TLS configuration: define quarkus.tls." + tlsConfigurationName + ".trust-store.*"));
+        tlsProblem(tlsConfigurationName, registry, setting, null).ifPresent(p -> {
+            throw new IllegalStateException(p.message());
+        });
+        TlsConfiguration tls = registry.get(tlsConfigurationName).orElseThrow();
         // Quarkus REST's ClientBuilder takes key stores, not an SSLContext
         ClientBuilder b = builder(timeouts);
         if (tls.isTrustAll()) {
@@ -103,17 +102,66 @@ public final class OutboundClients {
             }
             b.hostnameVerifier((host, session) -> true);
         }
-        else if (tls.getTrustStore() != null) {
-            b.trustStore(tls.getTrustStore());
-        }
         else {
-            throw new IllegalStateException("TLS configuration '" + tlsConfigurationName + "' (" + setting
-                    + ") has no trust store: set quarkus.tls." + tlsConfigurationName + ".trust-store.*");
+            b.trustStore(tls.getTrustStore());
         }
         if (tls.getHostnameVerificationAlgorithm().filter("NONE"::equalsIgnoreCase).isPresent()) {
             b.hostnameVerifier((host, session) -> true);
         }
         return b.build();
+    }
+
+    /**
+     * Problem code: a TLS configuration name without the TLS registry; args {@code key},
+     * {@code value}.
+     */
+    public static final String TLS_REGISTRY_MISSING = "http.tls-registry-missing";
+
+    /** Problem code: a name of no TLS configuration; args {@code key}, {@code value}. */
+    public static final String TLS_UNKNOWN = "http.tls-unknown";
+
+    /**
+     * Problem code: a TLS configuration without trust store; args {@code key},
+     * {@code value}.
+     */
+    public static final String TLS_NO_TRUST_STORE = "http.tls-no-trust-store";
+
+    /**
+     * Why the named TLS configuration cannot make a client: no registry, an unknown name,
+     * no trust store; empty when it can, or when no name is given.
+     *
+     * @param setting the full key that named it, for the message
+     * @param property the setting's name in its extension's spec, {@code null} for none
+     */
+    public static Optional<ConfigProblem> tlsProblem(String tlsConfigurationName, TlsConfigurationRegistry registry,
+            String setting, String property) {
+        if (tlsConfigurationName == null || tlsConfigurationName.isBlank()) {
+            return Optional.empty();
+        }
+        String[] concerned = property == null ? new String[0] : new String[] { property };
+        String code;
+        String message;
+        Optional<TlsConfiguration> tls = registry == null ? Optional.empty() : registry.get(tlsConfigurationName);
+        if (registry == null) {
+            code = TLS_REGISTRY_MISSING;
+            message = setting + "=" + tlsConfigurationName + " needs the TLS registry";
+        }
+        else if (tls.isEmpty()) {
+            code = TLS_UNKNOWN;
+            message = setting + "=" + tlsConfigurationName + " names no TLS configuration: define quarkus.tls."
+                    + tlsConfigurationName + ".trust-store.*";
+        }
+        else if (!tls.get().isTrustAll() && tls.get().getTrustStore() == null) {
+            code = TLS_NO_TRUST_STORE;
+            message = "TLS configuration '" + tlsConfigurationName + "' (" + setting
+                    + ") has no trust store: set quarkus.tls." + tlsConfigurationName + ".trust-store.*";
+        }
+        else {
+            return Optional.empty();
+        }
+        return Optional.of(ConfigProblem.error(code, message, concerned)
+            .withArg("key", setting)
+            .withArg("value", tlsConfigurationName));
     }
 
     /**

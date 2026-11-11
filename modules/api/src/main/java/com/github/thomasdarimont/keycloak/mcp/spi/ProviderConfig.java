@@ -325,7 +325,14 @@ public final class ProviderConfig {
     public int readInt(ConfigProperty property) {
         long v = readLong(property);
         if (v < Integer.MIN_VALUE || v > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException(key(property.name()) + " is out of range: " + property.display(v + ""));
+            throw new ConfigValueException(ConfigProblem
+                .error(ConfigProblem.INVALID_VALUE,
+                        key(property.name()) + " is out of range: " + property.display(v + ""), property.name())
+                .withArg("key", key(property.name()))
+                .withArg("name", property.name())
+                .withArg("type", property.type().name())
+                .withArg("expected", "a whole number from " + Integer.MIN_VALUE + " to " + Integer.MAX_VALUE)
+                .withArg("value", property.confidential() ? null : v + ""));
         }
         return (int) v;
     }
@@ -418,31 +425,42 @@ public final class ProviderConfig {
             if (v.isEmpty()) {
                 List<ConfigHint.AppliesWhen> conditions = spec.conditions(p.name());
                 if (p.required() && conditions.stream().allMatch(c -> c.holds(this))) {
-                    problems.add(ConfigProblem.error(
-                            key(p.name()) + " is required"
-                                    + (conditions.isEmpty() ? "" : " when " + String.join(" and ",
-                                            conditions.stream().map(ConfigHint.AppliesWhen::describe).toList())),
-                            p.name()));
+                    String when = conditions.isEmpty() ? null
+                            : String.join(" and ", conditions.stream().map(ConfigHint.AppliesWhen::describe).toList());
+                    problems.add(ConfigProblem
+                        .error(ConfigProblem.REQUIRED,
+                                key(p.name()) + " is required" + (when == null ? "" : " when " + when), p.name())
+                        .withArg("key", key(p.name()))
+                        .withArg("name", p.name())
+                        .withArg("conditions", when));
                 }
                 continue;
             }
             try {
                 p.parse(v.get(), key(p.name()));
             }
-            catch (IllegalArgumentException e) {
-                problems.add(ConfigProblem.error(e.getMessage(), p.name()));
+            catch (ConfigValueException e) {
+                problems.add(e.problem());
             }
         }
         for (String k : unknownKeys()) {
-            problems.add(ConfigProblem.warning(
-                    key(k) + " is not a setting of this extension and is ignored; it reads " + declared.keySet(), k));
+            problems
+                .add(ConfigProblem
+                    .warning(ConfigProblem.UNKNOWN_KEY,
+                            key(k) + " is not a setting of this extension and is ignored; it reads "
+                                    + declared.keySet(),
+                            k)
+                    .withArg("key", key(k))
+                    .withArg("known", String.join(",", declared.keySet())));
         }
         return problems;
     }
 
     /**
      * {@link #problems()}, then, if there are no errors among them, the extension's own
-     * rules ({@link Extension#validate}); one that throws counts as an error.
+     * rules ({@link Extension#validate}); one that throws counts as an error
+     * ({@link ConfigValueException}: its problem; else
+     * {@link ConfigProblem#VALIDATION_FAILED}).
      */
     public List<ConfigProblem> problems(Extension extension) {
         List<ConfigProblem> problems = new ArrayList<>(problems());
@@ -450,8 +468,12 @@ public final class ProviderConfig {
             try {
                 problems.addAll(extension.validate(this));
             }
+            catch (ConfigValueException e) {
+                problems.add(e.problem());
+            }
             catch (RuntimeException e) {
-                problems.add(ConfigProblem.error(String.valueOf(e.getMessage())));
+                problems.add(ConfigProblem.error(ConfigProblem.VALIDATION_FAILED, String.valueOf(e.getMessage()))
+                    .withArg("error", String.valueOf(e.getMessage())));
             }
         }
         return problems;
