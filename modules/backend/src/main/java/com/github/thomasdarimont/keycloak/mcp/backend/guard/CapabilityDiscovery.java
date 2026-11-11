@@ -24,8 +24,9 @@ import io.quarkus.runtime.Startup;
 /**
  * Version and enabled features per Keycloak system, read from the admin server info with
  * the server's credentials and cached (like {@link RoleDiscovery}). A configured version
- * ({@code kc-mcp.version}, {@code kc-mcp.systems.<name>.version}) wins over the reported
- * one and stands in when the server info is not readable.
+ * ({@code kc-mcp.systems.<name>.version}, or {@code kc-mcp.system-defaults.version} for
+ * all systems) wins over the reported one and stands in when the server info is not
+ * readable.
  */
 @Startup
 @ApplicationScoped

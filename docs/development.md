@@ -14,6 +14,11 @@ Building, running and testing the server; the modules; formatting; open items.
 conformance/run.sh                              # MCP conformance suite against the packaged server (conformance/README.md)
 ```
 
+Dev mode needs `-pl modules/backend -am`; other goals run from the root. The tests ignore `KC_MCP_*` and `QUARKUS_*`
+variables of the shell (the root pom clears every variable the examples define), so a shell that sourced an example's
+env file still runs the suite; `quarkus:dev` and the packaged server do honour them. `StorageTest` (backend, in-memory H2) always runs.
+IntelliJ: `.run/` holds run configurations for every example and the conformance suite (`examples/gen-run-configs.sh`).
+
 Modules under `modules/`:
 
 - `api`: `keycloak-mcp-server-api`, extension SPI, no Quarkus, packages `com.github.thomasdarimont.keycloak.mcp`
@@ -78,11 +83,6 @@ A tag `v<version>` pushed to GitHub runs `.github/workflows/release.yml`: it set
 build, runs the full verification, and publishes a GitHub release with the two archives attached. The CI workflow
 unpacks the archive and starts it with `kcmcp.sh` on Linux and `kcmcp.bat` on Windows on every push.
 
-Dev mode needs `-pl modules/backend -am`; other goals run from the root. The tests ignore `KC_MCP_*` and `QUARKUS_*`
-variables of the shell (the root pom clears every variable the examples define), so a shell that sourced an example's
-env file still runs the suite; `quarkus:dev` and the packaged server do honour them. `StorageTest` (backend, in-memory H2) always runs.
-IntelliJ: `.run/` holds run configurations for every example and the conformance suite (`examples/gen-run-configs.sh`).
-
 Formatting: [Spotless](https://github.com/diffplug/spotless), [Spring Java Format](https://github.com/spring-io/spring-javaformat)
 with spaces (`etc/eclipse-formatter.prefs`; imports `java|javax|jakarta`, `org`, `com`, rest, static).
 
@@ -94,7 +94,8 @@ management UI (login, sessions, BFF; pages for systems, their realms and signing
 - Model-in-the-loop benchmarks with LM Studio: turns to success, tool-choice errors, tokens per mode
 - Reference skill recipes as prompts
 - Federation sync test against a real LDAP
-- `private_key_jwt` against a JWT-authenticated Keycloak client
+- `private_key_jwt` end to end in a test: Keycloak fetching the server's JWKS, `client_credentials`
+  (`PasswordGrantSessionsIT` covers the token manager against a client-jwt client with a fixed key)
 - Admin API read access to audit rows and signing-key history
 - Management UI pages for secrets, storage and the audit trail (today: placeholders)
 

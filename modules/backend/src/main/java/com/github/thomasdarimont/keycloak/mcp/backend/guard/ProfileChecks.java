@@ -27,11 +27,12 @@ import io.quarkus.runtime.StartupEvent;
 /**
  * Enforces what {@code kc-mcp.security-profile=shared} promises: callers of the MCP
  * endpoint authenticate against an audience (skipped on an instance without the
- * endpoint), outbound hosts are listed, the admin API's tokens carry an audience. Every
- * violation is collected and startup fails with the whole list (the storage encryption is
- * checked by the storage module). Profile {@code local} only warns where a setting leaves
- * a door open that the admin API could walk through. In every profile, a switch set
- * against {@code kc-mcp.instance-role} stops the start. Extensions add their own checks
+ * endpoint), outbound hosts are listed, the admin API's tokens carry an audience, no
+ * system signs in with a person's password (the password grant). Every violation is
+ * collected and startup fails with the whole list (the storage encryption is checked by
+ * the storage module). Profile {@code local} only warns where a setting leaves a door
+ * open that the admin API could walk through. In every profile, a switch set against
+ * {@code kc-mcp.instance-role} stops the start. Extensions add their own checks
  * ({@link ProfileCheck}); their problems join the list, tagged with the check's id.
  */
 @ApplicationScoped
@@ -59,7 +60,7 @@ public class ProfileChecks {
         Settings s = new Settings(config.securityProfile(), callers.oidcEnabled(), audience.isPresent(),
                 !systems.allowedHosts().unrestricted(), config.admin().enabled(), config.admin().issuer().isPresent(),
                 config.admin().audience().filter(v -> !v.isBlank()).isPresent(), config.admin().allowNewSystems(),
-                config.instanceRole(), config.mcp().enabled(), config.ui().enabled());
+                config.instanceRole(), config.mcp().enabled(), config.ui().enabled(), systems.passwordGrantSystems());
         List<ProfileCheck> checks = extensions.extensions(ProfileCheck.class);
         for (ProfileCheck c : checks) {
             LOG.infof("Profile check '%s' registered (%s)", c.id(), c.getClass().getName());
@@ -174,13 +175,26 @@ public class ProfileChecks {
     /** The settings the checks look at, so they can be run without a container. */
     public record Settings(SecurityProfile profile, boolean oidcEnabled, boolean callerAudience,
             boolean hostsRestricted, boolean adminEnabled, boolean adminIssuer, boolean adminAudience,
-            boolean adminAllowsNewSystems, InstanceRole role, boolean mcpEnabled, boolean uiEnabled) {
+            boolean adminAllowsNewSystems, InstanceRole role, boolean mcpEnabled, boolean uiEnabled,
+            List<String> passwordGrantSystems) {
+
+        public Settings {
+            passwordGrantSystems = List.copyOf(passwordGrantSystems);
+        }
+
+        /** Without systems on the password grant. */
+        public Settings(SecurityProfile profile, boolean oidcEnabled, boolean callerAudience, boolean hostsRestricted,
+                boolean adminEnabled, boolean adminIssuer, boolean adminAudience, boolean adminAllowsNewSystems,
+                InstanceRole role, boolean mcpEnabled, boolean uiEnabled) {
+            this(profile, oidcEnabled, callerAudience, hostsRestricted, adminEnabled, adminIssuer, adminAudience,
+                    adminAllowsNewSystems, role, mcpEnabled, uiEnabled, List.of());
+        }
 
         /** An instance of role {@code all} with the MCP endpoint on and the UI off. */
         public Settings(SecurityProfile profile, boolean oidcEnabled, boolean callerAudience, boolean hostsRestricted,
                 boolean adminEnabled, boolean adminIssuer, boolean adminAudience, boolean adminAllowsNewSystems) {
             this(profile, oidcEnabled, callerAudience, hostsRestricted, adminEnabled, adminIssuer, adminAudience,
-                    adminAllowsNewSystems, InstanceRole.ALL, true, false);
+                    adminAllowsNewSystems, InstanceRole.ALL, true, false, List.of());
         }
     }
 
@@ -206,6 +220,12 @@ public class ProfileChecks {
         }
         if (s.adminEnabled() && s.adminIssuer() && !s.adminAudience()) {
             problems.add("an audience on the admin API tokens: kc-mcp.admin.audience (env KC_MCP_ADMIN_AUDIENCE)");
+        }
+        // a person's password stands in for every caller, and the Keycloak audit names
+        // that person for everything the server does
+        if (!s.passwordGrantSystems().isEmpty()) {
+            problems.add("a service client instead of the password grant: kc-mcp.systems.<name>.grant-type="
+                    + "client_credentials for " + String.join(", ", s.passwordGrantSystems()));
         }
         return problems;
     }

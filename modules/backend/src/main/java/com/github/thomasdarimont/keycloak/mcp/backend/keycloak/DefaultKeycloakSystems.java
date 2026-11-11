@@ -22,6 +22,7 @@ import com.github.thomasdarimont.keycloak.mcp.backend.metrics.KcMcpMetrics;
 import com.github.thomasdarimont.keycloak.mcp.backend.spi.Extensions;
 import com.github.thomasdarimont.keycloak.mcp.config.ClientAuth;
 import com.github.thomasdarimont.keycloak.mcp.config.DelegationMode;
+import com.github.thomasdarimont.keycloak.mcp.config.GrantType;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.config.PrivateHosts;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings;
@@ -472,6 +473,18 @@ public class DefaultKeycloakSystems implements KeycloakSystems {
     @Override
     public List<KeycloakAdmin> all() {
         return names().stream().map(this::find).flatMap(Optional::stream).toList();
+    }
+
+    /**
+     * The configured systems that sign in with the password grant; the repositories
+     * refuse it, so only static systems can.
+     */
+    public List<String> passwordGrantSystems() {
+        return staticSystems.all()
+            .stream()
+            .filter(s -> s.grantType() == GrantType.PASSWORD)
+            .map(KeycloakSystem::name)
+            .toList();
     }
 
     public boolean usesPrivateKeyJwt() {

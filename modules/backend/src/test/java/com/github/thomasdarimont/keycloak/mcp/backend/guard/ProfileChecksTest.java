@@ -56,6 +56,21 @@ class ProfileChecksTest {
     }
 
     @Test
+    void sharedRefusesThePasswordGrant() {
+        ProfileChecks.Settings complete = settings(SecurityProfile.SHARED, true, true, true, false, false, false,
+                false);
+        assertTrue(ProfileChecks.problems(complete).isEmpty(), "complete without password grant");
+        ProfileChecks.Settings password = new ProfileChecks.Settings(SecurityProfile.SHARED, true, true, true, false,
+                false, false, false, InstanceRole.ALL, true, false, List.of("default", "prod"));
+        List<String> p = ProfileChecks.problems(password);
+        assertEquals(1, p.size(), p.toString());
+        assertTrue(p.getFirst().contains("grant-type=client_credentials for default, prod"), p.getFirst());
+        ProfileChecks.Settings local = new ProfileChecks.Settings(SecurityProfile.LOCAL, true, true, true, false, false,
+                false, false, InstanceRole.ALL, true, false, List.of("default"));
+        assertTrue(ProfileChecks.problems(local).isEmpty(), "local allows it");
+    }
+
+    @Test
     void localNeverFails() {
         assertTrue(ProfileChecks.problems(settings(SecurityProfile.LOCAL, false, false, false, true, true, false, true))
             .isEmpty());

@@ -69,9 +69,10 @@ export function ensureDefaultPath(): void {
 
 /**
  * In-app navigation that updates history and asks {@link KcMcpApp}'s router to
- * `goto` the path. Prefer this over `pushState` + a synthetic `popstate`: the
- * router's `goto` is async, and leaving the previous page mounted until a later
- * update shows both the old form and the new page.
+ * `goto` the path, for code that navigates after a save or delete; links are
+ * plain `<a href>`, which the router intercepts. (A page left mounted above the
+ * next one comes from a component overriding a DOM member such as `remove()`,
+ * not from the navigation: see docs/development.md.)
  */
 export function navigate(path: string, replace = false): void {
   if (replace) {

@@ -13,7 +13,7 @@ covered by integration tests: the login, sessions in the database, several ident
 back-channel logout. See `modules/backend/src/main/resources/frontend/README.md` for the contract and the development
 loop.
 
-### Information architecture (systems catch-up on PR #3)
+## Pages
 
 | path | page |
 |---|---|
@@ -31,7 +31,7 @@ A system is one Keycloak front door (`url`). Realms are not a top-level nav sect
 `GET`/`PUT`/`DELETE /admin/systems/{alias}/realms[/{realm}]` (mirrored under `/bff/api/...`). Empty `allowedRealms`
 means all realms on that cluster. Realm import / discover and Test connection still need server endpoints.
 
-### Roles
+## Roles
 
 | role | config | access |
 |---|---|---|

@@ -23,6 +23,7 @@ setting, `kc-mcp.instance-role`: an `admin` instance has no MCP endpoint, so the
 | systems registered at runtime on private addresses | allowed (`dynamic-private-hosts=allow`) | only hosts named literally in `allowed-hosts` (`listed`) |
 | outbound Keycloak hosts | unrestricted | `kc-mcp.allowed-hosts` required |
 | admin API with an issuer | | needs `kc-mcp.admin.audience` |
+| `grant-type=password` (a person's account signs in) | allowed | refused: every system needs a service client |
 | database storage | encryption warned about | needs `kc-mcp.storage.secret-key` |
 | MCP traffic log | allowed | refuses to start with it on |
 
