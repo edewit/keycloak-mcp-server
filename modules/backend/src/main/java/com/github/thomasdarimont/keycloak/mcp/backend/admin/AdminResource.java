@@ -1,5 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.admin;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import jakarta.inject.Inject;
@@ -22,8 +23,9 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 
 /**
  * The admin API over HTTP; {@link AdminAccessFilter} lets requests through,
- * {@link AdminSystems} and {@link AdminSecrets} do the work. Bodies and representations
- * are plain maps, Jackson turns them into JSON.
+ * {@link AdminSystems}, {@link AdminSecrets}, {@link AdminStorage} and
+ * {@link AdminExtensions} do the work. Bodies and representations are plain maps, Jackson
+ * turns them into JSON.
  *
  * <pre>
  * PUT    /admin/systems/{alias}              register or replace (body: the systems file fields, signingKey)
@@ -42,6 +44,9 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
  * PUT    /admin/systems/{alias}/realms/{r}   adds or replaces them (labels, Keycloak's realm id, authorization)
  * DELETE /admin/systems/{alias}/realms/{r}   removes them; the system's settings apply again
  * POST   /admin/storage/rekey                re-encrypt everything under the current kc-mcp.storage.secret-key
+ * GET    /admin/extensions                   the installed extensions, with their status and problem counts
+ * GET    /admin/extensions/{spi}/{id}        one extension's settings: spec, values (confidential ones masked),
+ *                                            problems; texts in the Accept-Language
  * </pre>
  */
 @Path(AdminResource.PATH)
@@ -61,6 +66,9 @@ public class AdminResource {
 
     @Inject
     AdminStorage storage;
+
+    @Inject
+    AdminExtensions extensions;
 
     @GET
     @Path("systems")
@@ -167,6 +175,29 @@ public class AdminResource {
     @Path("storage/rekey")
     public Map<String, Object> rekey() {
         return storage.rekey();
+    }
+
+    @GET
+    @Path("extensions")
+    public Map<String, Object> listExtensions(@Context HttpHeaders headers) {
+        return extensions.list(locale(headers));
+    }
+
+    @GET
+    @Path("extensions/{spi}/{id}")
+    public Map<String, Object> extension(@PathParam("spi") String spi, @PathParam("id") String id,
+            @Context HttpHeaders headers) {
+        return extensions.config(spi, id, locale(headers));
+    }
+
+    /** The caller's first language from {@code Accept-Language}; English without one. */
+    static Locale locale(HttpHeaders headers) {
+        for (Locale l : headers.getAcceptableLanguages()) {
+            if (!l.getLanguage().isEmpty() && !"*".equals(l.getLanguage())) {
+                return l;
+            }
+        }
+        return Locale.ROOT;
     }
 
     private static Response saved(Saved saved) {

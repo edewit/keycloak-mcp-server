@@ -19,6 +19,7 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.CheckSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
@@ -101,13 +102,26 @@ public final class AccessCheckChain {
     }
 
     /**
-     * What is wrong with a check's settings, placeholders filled with sample values
-     * (their real values are known per call only): the spec's checks, then the check's
-     * own rules. Logs the warnings about keys among {@code written}.
+     * {@link #problems}, logging the warnings about keys among {@code written}.
      *
      * @return the errors
      */
     private static List<ConfigProblem> report(AccessCheck check, ProviderConfig settings, Set<String> written) {
+        List<ConfigProblem> problems = problems(check, settings);
+        problems.stream()
+            .filter(p -> !p.isError() && p.properties().stream().anyMatch(written::contains))
+            .forEach(p -> LOG.warnf("Access check '%s': %s", check.id(), p.message()));
+        return ConfigProblem.errors(problems);
+    }
+
+    /**
+     * What is wrong with a check's settings, placeholders filled with sample values
+     * (their real values are known per call only): the spec's checks, then the check's
+     * own rules. Nothing when the check declares nothing.
+     *
+     * @param settings the check's settings with its spec
+     */
+    public static List<ConfigProblem> problems(AccessCheck check, ProviderConfig settings) {
         if (settings.spec().isEmpty()) {
             return List.of();
         }
@@ -119,16 +133,17 @@ public final class AccessCheckChain {
                 resolved.put(k, sample.resolve(v));
             }
             catch (IllegalArgumentException e) {
-                problems.add(ConfigProblem.error(INVALID_PLACEHOLDER, settings.key(k) + ": " + e.getMessage(), k)
+                // the message repeats the value: not for a confidential or undeclared one
+                ConfigProperty declared = settings.declared().get(k);
+                String error = declared != null && !declared.confidential() ? e.getMessage()
+                        : "a placeholder is malformed or unknown";
+                problems.add(ConfigProblem.error(INVALID_PLACEHOLDER, settings.key(k) + ": " + error, k)
                     .withArg("key", settings.key(k))
-                    .withArg("error", e.getMessage()));
+                    .withArg("error", error));
             }
         });
         problems.addAll(settings.withValues(resolved).problems(check));
-        problems.stream()
-            .filter(p -> !p.isError() && p.properties().stream().anyMatch(written::contains))
-            .forEach(p -> LOG.warnf("Access check '%s': %s", check.id(), p.message()));
-        return ConfigProblem.errors(problems);
+        return problems;
     }
 
     private static CheckSettings server(AccessCheck c, ProviderConfig cfg) {

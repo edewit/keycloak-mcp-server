@@ -124,6 +124,14 @@ instances on the same database ([Several instances](storage.md#several-instances
   names + `usedBy`, never values. `DELETE`: 409 `secret_in_use` while referenced.
 - `GET /admin/storage`: encryption on/off, current key id, key ids in use per table. `POST /admin/storage/rekey`:
   re-encrypts under the current `kc-mcp.storage.secret-key` ([Database storage](storage.md), key rotation).
+- `GET /admin/extensions`: every installed extension (`spi`, `id`, status, origin, class, whether it declares
+  settings, how many errors and warnings its settings have). `GET /admin/extensions/<spi>/<id>`: its settings, read
+  only: each declared setting with its full key and environment variable, type, default, options, conditions
+  (`appliesWhen`), whether it is set and its value (confidential ones `******`), the groups, the keys the server
+  handles itself (`enabled`, `required`, ...), undeclared keys (values always masked) and the problems the startup
+  checks see, with code, named args and message. Labels, descriptions and messages are in the language of
+  `Accept-Language`, English where no bundle has it, each with its message key ([Extending](extending.md),
+  `configSpec()`).
 - **OpenAPI.** The server serves the API's description at `/q/openapi` (YAML; `?format=json`), with every operation,
   the request and response schemas and the error codes; the source is
   `modules/backend/src/main/resources/META-INF/openapi.yaml`, kept in step with the resource by a test. Swagger UI

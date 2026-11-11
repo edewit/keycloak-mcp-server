@@ -88,7 +88,8 @@ public class AcmeToolProvider implements ToolProvider {
     extension lacks falls back to `config.<name>...`, the shared texts of settings several extensions read
     (`config.client-secret.label`); a key no bundle has shows as the name and is logged once. `ConfigMessages` merges
     the bundles of every jar, the providers directory included, and resolves them per locale; `missingLabels(prefix,
-    spec)` lets a test keep the bundle complete.
+    spec)` lets a test keep the bundle complete. The admin API serves an extension's spec, values (confidential ones
+    masked) and problems with these texts at `GET /admin/extensions/<spi>/<id>` ([Keycloak systems](systems.md)).
   - `spec.plus(other)` combines specs; the AuthZEN engine adds the client authentication methods' to its own (a
     `ClientAuthenticatorFactory` has `configSpec()` and `validate` too).
   - Read declared settings with `config.readString(P)`, `readBoolean`, `readInt`, `readLong`, `readNumber`,

@@ -310,8 +310,11 @@ public class Extensions {
     public record ProviderStatus(String spi, String id, String status, String origin, String className) {
     }
 
-    /** Every extension found so far, by extension point, then order and id. */
-    public List<ProviderStatus> report(McpServerConfig config) {
+    /**
+     * Every extension found so far, each {@code <spi>.<id>} once, by extension point,
+     * then order and id.
+     */
+    public List<Extension> all() {
         Map<String, Extension> all = new LinkedHashMap<>();
         Stream.concat(discovered.values().stream().flatMap(List::stream), madeByServer.stream())
             .filter(Extension.class::isInstance)
@@ -322,9 +325,18 @@ public class Extensions {
             .sorted(Comparator.comparing(Extension::spiName)
                 .thenComparingInt(Extension::order)
                 .thenComparing(Extension::id))
-            .map(e -> new ProviderStatus(e.spiName(), ProviderConfig.configId(e.id()), status(e, config), origin(e),
-                    e.getClass().getName()))
             .toList();
+    }
+
+    /** Every extension found so far, by extension point, then order and id. */
+    public List<ProviderStatus> report(McpServerConfig config) {
+        return all().stream().map(e -> describe(e, config)).toList();
+    }
+
+    /** One extension as the {@code providers} command shows it. */
+    public ProviderStatus describe(Extension e, McpServerConfig config) {
+        return new ProviderStatus(e.spiName(), ProviderConfig.configId(e.id()), status(e, config), origin(e),
+                e.getClass().getName());
     }
 
     private String status(Extension e, McpServerConfig config) {

@@ -24,6 +24,10 @@ tags:
     description: The secrets in the key vault that systems reference as `vault:<name>`; values are never returned
   - name: storage
     description: Encryption of the database storage
+  - name: extensions
+    description: |
+      The installed extensions and their settings, read only (the settings come from the configuration): the spec
+      with its texts in the `Accept-Language`, the values with confidential and undeclared ones masked, the problems
 security:
   - bearer: []
 paths:
@@ -424,6 +428,65 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "503": { $ref: "#/components/responses/StorageDisabled" }
+  /admin/extensions:
+    get:
+      tags: [extensions]
+      summary: The installed extensions
+      description: Every extension of every extension point, with its status and how many problems its settings have.
+      operationId: listExtensions
+      responses:
+        "200":
+          description: The extensions, by extension point, then order and id
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [extensions]
+                properties:
+                  extensions:
+                    type: array
+                    items: { $ref: "#/components/schemas/ExtensionSummary" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/Disabled" }
+  /admin/extensions/{spi}/{id}:
+    parameters:
+      - name: spi
+        in: path
+        required: true
+        description: The extension point, as in `kc-mcp.spi.<spi>.<id>.*`
+        schema: { type: string, example: confirmer }
+      - name: id
+        in: path
+        required: true
+        description: The extension's id, kebab-case
+        schema: { type: string, example: ciba }
+    get:
+      tags: [extensions]
+      summary: One extension's settings
+      description: |
+        The spec (settings, groups, conditions) with its texts in the language of `Accept-Language` (English where
+        a bundle has none), the values as configured (confidential ones as `******`, undeclared ones always masked),
+        the settings the server handles itself (`enabled`, `required`, ...) and the problems the startup checks see.
+      operationId: getExtension
+      parameters:
+        - name: Accept-Language
+          in: header
+          required: false
+          schema: { type: string, example: "de-CH, de;q=0.8" }
+      responses:
+        "200":
+          description: The extension's settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtensionConfig" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: "`unknown_extension`: no such extension installed; or `admin_api_disabled`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 components:
   securitySchemes:
     bearer:
@@ -853,6 +916,120 @@ components:
           additionalProperties:
             type: integer
             format: int64
+    ExtensionSummary:
+      type: object
+      required: [spi, id, status, origin, className, configurable]
+      properties:
+        spi: { type: string, example: confirmer }
+        id: { type: string, example: ciba }
+        displayName: { type: string }
+        description: { type: string }
+        status:
+          type: string
+          description: "`active` or `selected` when it takes part; `disabled`, `not supported`, `not selected`; `available` when nothing asked for it yet"
+        origin:
+          type: string
+          description: "`built-in`, or the jar of the providers directory"
+        className: { type: string }
+        configurable:
+          type: boolean
+          description: Whether it declares settings
+        errors: { type: integer, description: "Problems of severity ERROR (list only)" }
+        warnings: { type: integer, description: "Problems of severity WARNING (list only)" }
+    ExtensionConfig:
+      allOf:
+        - $ref: "#/components/schemas/ExtensionSummary"
+        - type: object
+          required: [keyPrefix, envPrefix, properties, groups, server, undeclared, problems]
+          properties:
+            keyPrefix: { type: string, example: kc-mcp.spi.confirmer.ciba. }
+            envPrefix: { type: string, example: KC_MCP_SPI_CONFIRMER_CIBA_ }
+            properties:
+              type: array
+              items: { $ref: "#/components/schemas/ConfigProperty" }
+            groups:
+              type: array
+              items: { $ref: "#/components/schemas/ConfigGroup" }
+            server:
+              type: object
+              description: Settings the server handles itself (`enabled`, `required`; `default`, `order`, `locked` of an access check)
+              additionalProperties: { type: string }
+            undeclared:
+              type: object
+              description: Settings that are written but not declared; their values are always masked
+              additionalProperties: { type: string, example: "******" }
+            problems:
+              type: array
+              items: { $ref: "#/components/schemas/ConfigProblem" }
+    ConfigProperty:
+      type: object
+      required: [name, key, env, type, label, labelKey, required, confidential, appliesWhen, set]
+      properties:
+        name: { type: string, example: client-secret }
+        key: { type: string, example: kc-mcp.spi.confirmer.ciba.client-secret }
+        env: { type: string, example: KC_MCP_SPI_CONFIRMER_CIBA_CLIENT_SECRET }
+        type:
+          type: string
+          enum: [STRING, BOOLEAN, INT, NUMBER, DURATION, URL, LIST, CHOICE, JSON]
+        label: { type: string, description: In the requested language }
+        labelKey: { type: string, description: The message key of the label }
+        description: { type: [string, "null"] }
+        descriptionKey: { type: string }
+        default: { type: [string, "null"], description: As written in the configuration; masked when confidential }
+        required: { type: boolean, description: While its conditions hold }
+        confidential: { type: boolean }
+        options:
+          type: array
+          description: The options of a CHOICE
+          items:
+            type: object
+            required: [value, label, labelKey]
+            properties:
+              value: { type: string }
+              label: { type: string }
+              labelKey: { type: string }
+        appliesWhen:
+          type: array
+          description: Conditions under which the setting matters, all of them; empty when it always does
+          items:
+            type: object
+            required: [on, values]
+            properties:
+              on: { type: string, description: The setting it depends on }
+              values:
+                type: array
+                description: The values of `on` it applies under; empty when `on` only has to be set
+                items: { type: string }
+        set: { type: boolean, description: Whether it is configured (the default does not count) }
+        value: { type: [string, "null"], description: "As configured; `******` when confidential" }
+    ConfigGroup:
+      type: object
+      required: [id, label, labelKey, properties]
+      properties:
+        id: { type: string, example: client }
+        label: { type: string }
+        labelKey: { type: string }
+        description: { type: [string, "null"] }
+        descriptionKey: { type: string }
+        properties:
+          type: array
+          description: The names of its settings, in order
+          items: { type: string }
+    ConfigProblem:
+      type: object
+      required: [severity, code, message, args, properties]
+      properties:
+        severity: { type: string, enum: [ERROR, WARNING] }
+        code: { type: string, description: "The message key, e.g. `config.invalid-value`", example: config.required }
+        message: { type: string, description: In the requested language }
+        args:
+          type: object
+          description: The message's named arguments; never a confidential value
+          additionalProperties: { type: string }
+        properties:
+          type: array
+          description: The settings concerned
+          items: { type: string }
   responses:
     Unauthorized:
       description: "`unauthorized`: no or no acceptable bearer token; comes with a `WWW-Authenticate: Bearer` challenge"
