@@ -71,7 +71,7 @@ class KeycloakIT {
             .password("admin")
             .build()) {
             RealmResource realm = admin.realm(REALM);
-            String id = realm.clients().findByClientId(clientId).get(0).getId();
+            String id = realm.clients().findByClientId(clientId).getFirst().getId();
             AuthorizationResource authz = realm.clients().get(id).authorization();
             ScopeRepresentation read = new ScopeRepresentation("read");
             authz.scopes().create(read).close();
@@ -726,7 +726,7 @@ class KeycloakIT {
                 assertEquals(false, disabled.getBoolean("enabled"), disabled.encode());
                 assertEquals(false, realm.users().get("legacy@example.com").toRepresentation().isEnabled(),
                         "the write reached the user with that id");
-                assertEquals(true, realm.users().searchByUsername("legacy@example.com", true).get(0).isEnabled(),
+                assertEquals(true, realm.users().searchByUsername("legacy@example.com", true).getFirst().isEnabled(),
                         "not the look-alike");
             }
             finally {

@@ -86,7 +86,7 @@ class ClientAssertionTokenManagerTest {
             assertEquals("kc-admin-api", against26_8_1.scope());
             assertEquals("tok-2", against26_8_1.accessToken(), "the retry without the scope succeeds");
             assertEquals(2, old.bodies.size());
-            assertTrue(old.bodies.get(0).contains("scope=kc-admin-api"), old.bodies.get(0));
+            assertTrue(old.bodies.getFirst().contains("scope=kc-admin-api"), old.bodies.getFirst());
             assertFalse(old.bodies.get(1).contains("scope="), old.bodies.get(1));
             assertNull(against26_8_1.scope(), "refused once, never asked again");
             against26_8_1.invalidate();
@@ -97,7 +97,7 @@ class ClientAssertionTokenManagerTest {
             ClientAssertionTokenManager against26_8_2 = manager(client, current.url());
             assertEquals("tok-1", against26_8_2.accessToken());
             assertEquals(1, current.bodies.size());
-            assertTrue(current.bodies.get(0).contains("scope=kc-admin-api"), current.bodies.get(0));
+            assertTrue(current.bodies.getFirst().contains("scope=kc-admin-api"), current.bodies.getFirst());
             assertEquals("kc-admin-api", against26_8_2.scope());
 
             assertTrue(ClientAssertionTokenManager.isInvalidScope(400, "{\"error\":\"invalid_scope\"}"));

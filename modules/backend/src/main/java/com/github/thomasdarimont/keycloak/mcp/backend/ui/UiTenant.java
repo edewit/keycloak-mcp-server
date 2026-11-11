@@ -198,7 +198,7 @@ public class UiTenant {
                 }
             }
         }
-        return all.stream().filter(i -> !i.hidden()).findFirst().orElse(all.get(0));
+        return all.stream().filter(i -> !i.hidden()).findFirst().orElse(all.getFirst());
     }
 
     /**

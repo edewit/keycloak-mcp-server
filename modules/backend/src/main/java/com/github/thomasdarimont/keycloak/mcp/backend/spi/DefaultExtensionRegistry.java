@@ -221,7 +221,7 @@ public class DefaultExtensionRegistry implements ExtensionRegistry {
             ProviderConfig config) implements ToolProviderContext {
         @Override
         public KeycloakAdmin keycloak() {
-            return systems.defaultName().map(systems::get).orElseGet(() -> systems.all().get(0));
+            return systems.defaultName().map(systems::get).orElseGet(() -> systems.all().getFirst());
         }
     }
 }

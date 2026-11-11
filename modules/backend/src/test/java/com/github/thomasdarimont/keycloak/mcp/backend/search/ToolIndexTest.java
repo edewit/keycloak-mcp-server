@@ -29,7 +29,7 @@ class ToolIndexTest {
     void topHit(String query, String expected) {
         List<SearchHit> hits = index.search(query, null, 5, s -> true);
         assertTrue(!hits.isEmpty(), "no hits for " + query);
-        assertEquals(expected, hits.get(0).spec().name(), query + " -> " + hits);
+        assertEquals(expected, hits.getFirst().spec().name(), query + " -> " + hits);
     }
 
     @Test
@@ -37,14 +37,14 @@ class ToolIndexTest {
         assertEquals(List.of("tomorrow", "weather"), Tokenizer.tokens("tomorrow's weather please"));
         assertTrue(index.search("tomorrow's weather please", null, 5, s -> true).isEmpty(), "no stray 's' hits");
         assertEquals("keycloak_user_search",
-                index.search("the user's account", null, 5, s -> true).get(0).spec().name(),
+                index.search("the user's account", null, 5, s -> true).getFirst().spec().name(),
                 "the possessive is dropped, the rest still matches");
     }
 
     @Test
     void readBeatsWriteOnTie() {
         List<SearchHit> hits = index.search("user", null, 5, s -> true);
-        assertEquals("keycloak_user_search", hits.get(0).spec().name());
+        assertEquals("keycloak_user_search", hits.getFirst().spec().name());
         assertEquals("keycloak_user_set_enabled", hits.get(1).spec().name());
         assertEquals("keycloak_user_delete", hits.get(2).spec().name());
     }
@@ -71,7 +71,7 @@ class ToolIndexTest {
     @Test
     void similarNamesForTypos() {
         List<SearchHit> hits = index.similarNames("keycloak_user_delte", 3, s -> true);
-        assertEquals("keycloak_user_delete", hits.get(0).spec().name());
+        assertEquals("keycloak_user_delete", hits.getFirst().spec().name());
     }
 
     @Test

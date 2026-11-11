@@ -337,17 +337,17 @@ class DatabaseStorageIT {
                 ((RSAPublicKey) vault.findSigningKey(alias).orElseThrow().publicKey()).getModulus());
         List<SigningKeyEntity> history = vault.history(alias);
         assertEquals(2, history.size());
-        assertNull(history.get(0).retiredAt, "newest is current");
+        assertNull(history.getFirst().retiredAt, "newest is current");
         assertTrue(history.get(1).retiredAt != null, "the previous key is retired, not deleted");
-        assertTrue(StorageCrypto.isEncrypted(history.get(0).privateKey), "private key encrypted at rest");
-        assertFalse(StorageCrypto.isEncrypted(history.get(0).publicKey), "public key in the clear");
+        assertTrue(StorageCrypto.isEncrypted(history.getFirst().privateKey), "private key encrypted at rest");
+        assertFalse(StorageCrypto.isEncrypted(history.getFirst().publicKey), "public key in the clear");
 
         // the JWKS publishes the current key first and the retired one for the grace
         // period, so another instance still signing with it is accepted
         List<SigningKey> published = vault.publishedSigningKeys(alias);
         assertEquals(2, published.size());
         assertEquals(((RSAPublicKey) rotated.publicKey()).getModulus(),
-                ((RSAPublicKey) published.get(0).publicKey()).getModulus(), "current first");
+                ((RSAPublicKey) published.getFirst().publicKey()).getModulus(), "current first");
         assertEquals(((RSAPublicKey) created.publicKey()).getModulus(),
                 ((RSAPublicKey) published.get(1).publicKey()).getModulus(), "retired, within the grace period");
         long longAgo = System.currentTimeMillis() - Duration.ofDays(2).toMillis();
@@ -385,9 +385,9 @@ class DatabaseStorageIT {
 
         List<AuditEventEntity> recent = audit.recent(2);
         assertEquals(2, recent.size());
-        assertEquals("whoami", recent.get(0).tool, "newest first");
-        assertNull(recent.get(0).callerSubject, "anonymous");
-        assertNull(recent.get(0).args, "no arguments, no JSON");
+        assertEquals("whoami", recent.getFirst().tool, "newest first");
+        assertNull(recent.getFirst().callerSubject, "anonymous");
+        assertNull(recent.getFirst().args, "no arguments, no JSON");
         AuditEventEntity denied = recent.get(1);
         assertEquals("keycloak_user_delete", denied.tool);
         assertEquals("DESTRUCTIVE", denied.level);

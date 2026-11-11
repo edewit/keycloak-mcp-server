@@ -111,12 +111,12 @@ public class RoleDiscovery {
     /** Roles of the single/default system (tests and single-system setups). */
     public GrantedRoles peek() {
         List<String> current = systems();
-        return current.isEmpty() ? GrantedRoles.UNKNOWN : peek(current.get(0));
+        return current.isEmpty() ? GrantedRoles.UNKNOWN : peek(current.getFirst());
     }
 
     public GrantedRoles get() {
         List<String> current = systems();
-        return current.isEmpty() ? GrantedRoles.UNKNOWN : get(current.get(0));
+        return current.isEmpty() ? GrantedRoles.UNKNOWN : get(current.getFirst());
     }
 
     /**

@@ -344,7 +344,7 @@ public class RealmToolProvider extends AbstractToolProvider {
                             similar.isEmpty() ? null : similar.stream().map(RealmToolProvider::cliName).toList(),
                             "hint", "Call without a name to list all features.");
                 }
-                f = similar.get(0);
+                f = similar.getFirst();
             }
             Map<String, Object> m = feature(f);
             Views.put(m, "label", f.getLabel());

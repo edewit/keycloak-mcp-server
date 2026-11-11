@@ -58,7 +58,7 @@ class MetaToolsTest {
         Map<String, Object> p = payload(meta(false).search(null, null, null, "c1", ExposureMode.HYBRID));
         List<?> cats = (List<?>) p.get("categories");
         assertEquals(3, cats.size());
-        Map<?, ?> users = (Map<?, ?>) cats.get(0);
+        Map<?, ?> users = (Map<?, ?>) cats.getFirst();
         assertEquals("users", users.get("category"));
         assertEquals(3, users.get("tools"));
     }
@@ -86,7 +86,7 @@ class MetaToolsTest {
         Map<String, Object> p = payload(meta(false).search("disable user", null, 2, "c1", ExposureMode.HYBRID));
         List<?> tools = (List<?>) p.get("tools");
         assertEquals(2, tools.size());
-        Map<?, ?> top = (Map<?, ?>) tools.get(0);
+        Map<?, ?> top = (Map<?, ?>) tools.getFirst();
         assertEquals("keycloak_user_set_enabled", top.get("name"));
         assertEquals("write", top.get("level"));
         assertTrue(((Map<?, ?>) top.get("inputSchema")).containsKey("properties"));
@@ -149,8 +149,8 @@ class MetaToolsTest {
                 meta(false).execute("keycloak_user_serach", Map.of(), null, InvocationContext.none()));
         assertEquals("unknown_tool", p.get("error"));
         List<?> dym = (List<?>) p.get("didYouMean");
-        assertEquals("keycloak_user_search", ((Map<?, ?>) dym.get(0)).get("name"));
-        assertTrue(((Map<?, ?>) dym.get(0)).containsKey("inputSchema"));
+        assertEquals("keycloak_user_search", ((Map<?, ?>) dym.getFirst()).get("name"));
+        assertTrue(((Map<?, ?>) dym.getFirst()).containsKey("inputSchema"));
     }
 
     @Test
@@ -292,13 +292,13 @@ class MetaToolsTest {
     void whoamiTranslatesRoleLabels() {
         Map<String, Object> de = payload(forward(roleCatalog()).whoami("de-DE", null, caller(token("manage-users"))));
         List<?> demo = (List<?>) ((Map<?, ?>) de.get("roles")).get("demo");
-        assertEquals("Benutzer verwalten", ((Map<?, ?>) demo.get(0)).get("label"));
+        assertEquals("Benutzer verwalten", ((Map<?, ?>) demo.getFirst()).get("label"));
         assertEquals("de", de.get("labelLanguage"));
         assertEquals("manage", ((Map<?, ?>) ((Map<?, ?>) de.get("can")).get("demo")).get("users"));
         // unsupported languages fall back to English, and say so
         Map<String, Object> fr = payload(forward(roleCatalog()).whoami("fr", null, caller(token("manage-users"))));
         assertEquals("Manage users",
-                ((Map<?, ?>) ((List<?>) ((Map<?, ?>) fr.get("roles")).get("demo")).get(0)).get("label"));
+                ((Map<?, ?>) ((List<?>) ((Map<?, ?>) fr.get("roles")).get("demo")).getFirst()).get("label"));
         assertEquals("en", fr.get("labelLanguage"));
     }
 

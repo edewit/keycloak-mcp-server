@@ -128,7 +128,7 @@ class AcmeExtensionsTest {
         jsonl.onToolCall(forFile);
         var lines = Files.readAllLines(file);
         assertEquals(2, lines.size());
-        JsonObject line = new JsonObject(lines.get(0));
+        JsonObject line = new JsonObject(lines.getFirst());
         assertEquals("keycloak_user_search", line.getString("tool"));
         assertEquals("***", line.getJsonObject("args").getString("email"));
         assertEquals(12, line.getInteger("durationMs"));

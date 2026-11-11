@@ -144,7 +144,7 @@ class TokenExchangeTest {
             String subject = userJwt("realm-admin");
             assertEquals(delegatedJwt(1), x.exchange(subject));
             assertEquals(1, kc.exchanges.size());
-            String request = kc.exchanges.get(0);
+            String request = kc.exchanges.getFirst();
             assertTrue(request.contains("subject_token=" + subject + "&"), request);
             assertTrue(request.contains("subject_token_type=" + TokenExchange.ACCESS_TOKEN_TYPE), request);
             assertTrue(request.contains("actor_token=" + SA_TOKEN + "&"), request);

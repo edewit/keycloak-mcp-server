@@ -100,7 +100,7 @@ public class CapabilityDiscovery {
     /** Capabilities of the single/default system. */
     public ServerCapabilities get() {
         List<String> current = systems();
-        return current.isEmpty() ? ServerCapabilities.UNKNOWN : get(current.get(0));
+        return current.isEmpty() ? ServerCapabilities.UNKNOWN : get(current.getFirst());
     }
 
     /**

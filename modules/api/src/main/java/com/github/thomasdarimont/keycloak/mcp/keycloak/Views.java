@@ -43,7 +43,7 @@ public final class Views {
         }
         if (u.getAttributes() != null && !u.getAttributes().isEmpty()) {
             Map<String, Object> attrs = new LinkedHashMap<>();
-            u.getAttributes().forEach((k, v) -> attrs.put(k, v != null && v.size() == 1 ? v.get(0) : v));
+            u.getAttributes().forEach((k, v) -> attrs.put(k, v != null && v.size() == 1 ? v.getFirst() : v));
             m.put("attributes", attrs);
         }
         return m;

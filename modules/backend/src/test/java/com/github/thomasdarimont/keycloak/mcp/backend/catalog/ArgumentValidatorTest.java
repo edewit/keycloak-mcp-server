@@ -41,8 +41,8 @@ class ArgumentValidatorTest {
     void reportsMissingRequired() {
         var out = ArgumentValidator.validate(schema, Map.of());
         assertFalse(out.valid());
-        assertEquals("id", out.problems().get(0).field());
-        assertEquals("is required", out.problems().get(0).message());
+        assertEquals("id", out.problems().getFirst().field());
+        assertEquals("is required", out.problems().getFirst().message());
     }
 
     @Test
@@ -69,7 +69,7 @@ class ArgumentValidatorTest {
         assertEquals(10, ArgumentValidator.validate(schema, Map.of("id", "x", "count", 500)).values().get("count"));
         var out = ArgumentValidator.validate(schema, Map.of("id", "x", "count", -1));
         assertFalse(out.valid());
-        assertEquals("count", out.problems().get(0).field());
+        assertEquals("count", out.problems().getFirst().field());
     }
 
     @Test

@@ -34,7 +34,7 @@ class ProfileChecksTest {
     void localWarnsAboutOpenRegistrationWithoutHostList() {
         List<String> w = ProfileChecks.warnings(settings(Profile.LOCAL, true, true, false, true, true, true, true));
         assertEquals(1, w.size(), w.toString());
-        assertTrue(w.get(0).contains("kc-mcp.allowed-hosts"), w.get(0));
+        assertTrue(w.getFirst().contains("kc-mcp.allowed-hosts"), w.getFirst());
         assertTrue(
                 ProfileChecks.warnings(settings(Profile.LOCAL, true, true, false, true, true, true, false)).isEmpty(),
                 "closed registration");
@@ -46,7 +46,7 @@ class ProfileChecksTest {
     void sharedListsEveryMissingSetting() {
         List<String> p = ProfileChecks.problems(settings(Profile.SHARED, false, false, false, true, true, false, true));
         assertEquals(4, p.size(), p.toString());
-        assertTrue(p.get(0).contains("quarkus.oidc.tenant-enabled"));
+        assertTrue(p.getFirst().contains("quarkus.oidc.tenant-enabled"));
         assertTrue(p.get(1).contains("quarkus.oidc.token.audience"));
         assertTrue(p.get(2).contains("kc-mcp.allowed-hosts"));
         assertTrue(p.get(3).contains("kc-mcp.admin.audience"));
@@ -119,7 +119,7 @@ class ProfileChecksTest {
         var shared = ProfileChecks.run(ok, List.of(check("flaky", List.of(), List.of(), true)),
                 contexts(Profile.SHARED));
         assertEquals(1, shared.problems().size());
-        assertTrue(shared.problems().get(0).startsWith("[flaky] the check failed"), shared.problems().toString());
+        assertTrue(shared.problems().getFirst().startsWith("[flaky] the check failed"), shared.problems().toString());
 
         var local = ProfileChecks.run(settings(Profile.LOCAL, true, true, true, false, false, false, true),
                 List.of(check("flaky", List.of(), List.of(), true)), contexts(Profile.LOCAL));

@@ -569,8 +569,8 @@ class AuthZenEngineTest {
         c.check(call("prod"));
         c.check(call("staging"));
 
-        assertEquals("kc-mcp-prod", form(tokenRequests.get(0).body()).get("client_id"));
-        assertTrue(form(tokenRequests.get(0).body()).containsKey("client_assertion"));
+        assertEquals("kc-mcp-prod", form(tokenRequests.getFirst().body()).get("client_id"));
+        assertTrue(form(tokenRequests.getFirst().body()).containsKey("client_assertion"));
         assertTrue(tokenRequests.get(1).authorization().startsWith("Basic "));
     }
 

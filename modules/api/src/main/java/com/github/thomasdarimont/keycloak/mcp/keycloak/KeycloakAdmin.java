@@ -92,12 +92,12 @@ public interface KeycloakAdmin extends AccessTokenSource {
         }
         List<UserRepresentation> byName = r.users().searchByUsername(idOrUsername, true);
         if (byName.size() == 1) {
-            return byName.get(0);
+            return byName.getFirst();
         }
         if (byName.isEmpty() && idOrUsername != null && idOrUsername.contains("@")) {
             List<UserRepresentation> byEmail = r.users().searchByEmail(idOrUsername, true);
             if (byEmail.size() == 1) {
-                return byEmail.get(0);
+                return byEmail.getFirst();
             }
         }
         throw ToolException.notFound("User", idOrUsername);
@@ -122,7 +122,7 @@ public interface KeycloakAdmin extends AccessTokenSource {
         }
         List<ClientRepresentation> found = r.clients().findByClientId(idOrClientId);
         if (found.size() == 1) {
-            return found.get(0);
+            return found.getFirst();
         }
         throw ToolException.notFound("Client", idOrClientId);
     }
@@ -158,7 +158,7 @@ public interface KeycloakAdmin extends AccessTokenSource {
         flattenGroups(r.groups().groups(idOrPathOrName, true, 0, 20, false), found);
         List<GroupRepresentation> exact = found.stream().filter(g -> idOrPathOrName.equals(g.getName())).toList();
         if (exact.size() == 1) {
-            return exact.get(0);
+            return exact.getFirst();
         }
         if (exact.size() > 1) {
             throw new ToolException("ambiguous",

@@ -99,7 +99,7 @@ class ToolInvokerTest {
                 Map.of("realm", "demo", "id", "1"), false, ctx);
         Map<String, Object> p = payload(r);
         assertEquals("invalid_arguments", p.get("error"));
-        assertEquals("enabled", ((Map<?, ?>) ((List<?>) p.get("problems")).get(0)).get("field"));
+        assertEquals("enabled", ((Map<?, ?>) ((List<?>) p.get("problems")).getFirst()).get("field"));
         assertTrue(p.containsKey("inputSchema"));
     }
 

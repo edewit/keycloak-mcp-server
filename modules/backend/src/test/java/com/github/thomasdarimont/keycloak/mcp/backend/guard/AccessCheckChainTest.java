@@ -89,7 +89,7 @@ class AccessCheckChainTest {
         AccessCheckChain.Plan plan = p.plan(prod, "acme");
 
         assertEquals(List.of("self-protection", "ticket"), ids(plan));
-        assertEquals("confirm", plan.steps().get(0).settings().get("mode").orElseThrow());
+        assertEquals("confirm", plan.steps().getFirst().settings().get("mode").orElseThrow());
         assertEquals("https://tickets.prod", plan.steps().get(1).settings().get("endpoint").orElseThrow(),
                 "the system's setting over the server's");
         assertEquals("true", plan.steps().get(1).settings().get("enabled").orElseThrow(),
@@ -242,7 +242,7 @@ class AccessCheckChainTest {
                 AccessCheck.SPI, id,
                 Map.of("endpoint", "https://tickets/{realm}/check", "default", "on", "order", "5", "locked", "false")));
         assertEquals("https://tickets/demo/check",
-                p.plan(system("{}"), "demo").steps().get(0).settings().get("endpoint").orElseThrow());
+                p.plan(system("{}"), "demo").steps().getFirst().settings().get("endpoint").orElseThrow());
     }
 
     @Test

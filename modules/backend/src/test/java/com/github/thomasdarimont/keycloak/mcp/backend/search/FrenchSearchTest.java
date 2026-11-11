@@ -46,6 +46,6 @@ class FrenchSearchTest {
         ToolIndex index = new ToolIndex(catalog.all());
         List<SearchHit> hits = index.search(query, null, 5, s -> true);
         assertTrue(!hits.isEmpty(), "no hits for " + query);
-        assertEquals(expected, hits.get(0).spec().name(), query + " -> " + hits);
+        assertEquals(expected, hits.getFirst().spec().name(), query + " -> " + hits);
     }
 }

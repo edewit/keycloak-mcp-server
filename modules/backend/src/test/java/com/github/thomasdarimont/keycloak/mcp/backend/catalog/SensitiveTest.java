@@ -98,10 +98,10 @@ class SensitiveTest {
             .build();
         AuditLogAccess.record(List.of(capture), idp,
                 Map.of("alias", "google", "config", Map.of("clientId", "app", "clientSecret", "very-secret")));
-        Map<?, ?> config = (Map<?, ?>) events.get(0).args().get("config");
+        Map<?, ?> config = (Map<?, ?>) events.getFirst().args().get("config");
         assertEquals(Sensitive.MASK, config.get("clientSecret"));
         assertEquals("app", config.get("clientId"));
-        assertFalse(events.get(0).sensitiveResult());
+        assertFalse(events.getFirst().sensitiveResult());
 
         ToolSpec getSecret = ToolSpec.builder("keycloak_client_get_secret")
             .title("Get client secret")
@@ -140,8 +140,8 @@ class SensitiveTest {
         };
         new DefaultConfirmer().confirm(new ConfirmationRequest(reset, null, "demo",
                 Map.of("id", "u1", "password", "Hunter2!"), false, Caller.NONE, prompter));
-        assertTrue(shown.get(0).contains("u1"), shown.get(0));
-        assertFalse(shown.get(0).contains("Hunter2"), shown.get(0));
+        assertTrue(shown.getFirst().contains("u1"), shown.getFirst());
+        assertFalse(shown.getFirst().contains("Hunter2"), shown.getFirst());
     }
 
     @Test
@@ -175,7 +175,7 @@ class SensitiveTest {
         assertEquals(Sensitive.MASK, connection.get("clientSecret"));
         assertEquals("https://x", connection.get("url"));
         List<?> items = (List<?>) out.get("items");
-        assertEquals(Sensitive.MASK, ((Map<?, ?>) items.get(0)).get("password"));
+        assertEquals(Sensitive.MASK, ((Map<?, ?>) items.getFirst()).get("password"));
         assertEquals("ok", ((Map<?, ?>) items.get(1)).get("name"));
         assertEquals(Sensitive.MASK, ((Map<?, ?>) ((Map<?, ?>) out.get("json")).get("inner")).get("refreshToken"));
 
@@ -219,8 +219,8 @@ class SensitiveTest {
             .build();
         AuditLogAccess.recordResult(List.of(events::add), reset, args,
                 ToolResult.error("tool_failed", "password Hunter2! violates the policy"));
-        assertEquals("tool_failed", events.get(0).outcome());
-        assertFalse(events.get(0).message().contains("Hunter2"), events.get(0).message());
+        assertEquals("tool_failed", events.getFirst().outcome());
+        assertFalse(events.getFirst().message().contains("Hunter2"), events.getFirst().message());
     }
 
     @Test

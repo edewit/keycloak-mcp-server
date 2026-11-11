@@ -77,7 +77,7 @@ class ToolCatalogTest {
     @Test
     void rejectsDuplicateNames() {
         List<ToolSpec> specs = new ArrayList<>(Fixtures.specs());
-        specs.add(Fixtures.specs().get(0));
+        specs.add(Fixtures.specs().getFirst());
         assertThrows(IllegalStateException.class, () -> new ToolCatalog(specs, null, 10, List.of()));
     }
 

@@ -167,7 +167,7 @@ class ProviderSelectionTest {
         McpServerConfig config = config(Map.of("kc-mcp.spi.key-vault.off.enabled", "false"));
         extensions.select(List.of(), List.of(off), SPI, "KeyVault", config);
 
-        Extensions.ProviderStatus status = extensions.report(config).get(0);
+        Extensions.ProviderStatus status = extensions.report(config).getFirst();
         assertEquals("disabled", status.status());
         assertEquals("built-in", status.origin());
     }

@@ -84,7 +84,7 @@ class CibaIT {
         JsonObject args = new JsonObject().put("id", id).put("username", "ciba-approve");
         JsonObject approval = requested(McpClient.text(alice.callTool("keycloak_user_delete", args)));
         assertEquals(1, Entity.delivered.size(), Entity.delivered.toString());
-        Entity.Delivered d = Entity.delivered.get(0);
+        Entity.Delivered d = Entity.delivered.getFirst();
         assertEquals("alice", d.loginHint(), "the caller of the MCP session is asked");
         assertEquals(approval.getString("bindingMessage"), d.bindingMessage());
         assertEquals(approval.getString("code"), d.code(), "the device received the number the chat shows");

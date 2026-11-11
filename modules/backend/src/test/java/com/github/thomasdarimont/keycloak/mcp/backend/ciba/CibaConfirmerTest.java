@@ -251,13 +251,14 @@ class CibaConfirmerTest {
         tokenAnswers.addAll(List.of("authorization_pending", "slow_down", "200"));
         Decision d = confirmer(Map.of()).confirm(request(alice(), Prompter.NONE));
         assertEquals(Decision.Outcome.CONFIRMED, d.outcome(), String.valueOf(d.message()));
-        Map<String, String> bc = backchannelRequests.get(0);
+        Map<String, String> bc = backchannelRequests.getFirst();
         assertEquals("alice", bc.get("login_hint"));
         assertEquals("openid", bc.get("scope"));
         String binding = bc.get("binding_message");
         assertTrue(CibaConfirmer.BINDING_MESSAGE.matcher(binding).matches(), binding);
         assertTrue(binding.startsWith("kc-mcp-"), binding);
-        assertEquals("Basic " + Base64.getEncoder().encodeToString("mcp-ciba:s3cr3t".getBytes()), authHeaders.get(0));
+        assertEquals("Basic " + Base64.getEncoder().encodeToString("mcp-ciba:s3cr3t".getBytes()),
+                authHeaders.getFirst());
     }
 
     @Test
@@ -344,7 +345,7 @@ class CibaConfirmerTest {
         CibaConfirmer c = new CibaConfirmer(settings, "http://fallback/realms/x", null, null, null, true)
             .pollFloor(Duration.ofMillis(50));
         assertEquals(Decision.Outcome.CONFIRMED, c.confirm(request(alice(), Prompter.NONE)).outcome());
-        Map<String, String> bc = backchannelRequests.get(0);
+        Map<String, String> bc = backchannelRequests.getFirst();
         assertEquals("alice@example.com", bc.get("login_hint"));
         assertTrue(bc.get("binding_message").startsWith("ACMECorp!-"), bc.get("binding_message"));
     }
@@ -419,10 +420,10 @@ class CibaConfirmerTest {
                 "mfa", "binding-message", "false"))
             .confirm(request(alice(), Prompter.NONE));
         assertEquals(Decision.Outcome.CONFIRMED, d.outcome());
-        Map<String, String> bc = backchannelRequests.get(0);
+        Map<String, String> bc = backchannelRequests.getFirst();
         assertEquals("mcp-ciba", bc.get("client_id"), "client_secret_post puts the credentials into the form");
         assertEquals("s3cr3t", bc.get("client_secret"));
-        assertEquals(null, authHeaders.get(0), "no Basic header then");
+        assertEquals(null, authHeaders.getFirst(), "no Basic header then");
         assertEquals("5", bc.get("requested_expiry"));
         assertEquals("mfa", bc.get("acr_values"));
         assertTrue(!bc.containsKey("binding_message"), bc.toString());
@@ -448,7 +449,7 @@ class CibaConfirmerTest {
         assertTrue(first.message().contains("number " + code), first.message());
         assertTrue(String.valueOf(first.details().get("howTo")).contains("call again"), first.details().toString());
         assertEquals(1, ((InMemoryPendingApprovalStore) c.store()).size());
-        Map<String, String> bc = backchannelRequests.get(0);
+        Map<String, String> bc = backchannelRequests.getFirst();
         assertEquals(code, bc.get("code"), "the device gets the number as an additional parameter");
         assertEquals("LM Studio", bc.get("requester"));
         assertEquals(DELETE.title() + ": dave (system prod, realm demo)", bc.get("operation"),
@@ -528,7 +529,7 @@ class CibaConfirmerTest {
         Decision first = c.confirm(request(alice(), Prompter.NONE));
         Map<?, ?> approval = (Map<?, ?>) first.details().get("approval");
         assertTrue(!approval.containsKey("code"), approval.toString());
-        Map<String, String> bc = backchannelRequests.get(0);
+        Map<String, String> bc = backchannelRequests.getFirst();
         assertTrue(!bc.containsKey("code") && !bc.containsKey("requester") && !bc.containsKey("operation"),
                 bc.toString());
     }

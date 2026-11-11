@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuditLogTest {
 
-    static final ToolSpec SEARCH = Fixtures.specs().get(0);
+    static final ToolSpec SEARCH = Fixtures.specs().getFirst();
 
     /** Keeps what reaches {@code onToolCall}. */
     static class Recording implements AuditListener {
@@ -67,7 +67,7 @@ class AuditLogTest {
         log.record(SEARCH, "main", "demo", args, ToolResult.error("forbidden", "no manage-users"), ctx, 1_000_000);
 
         assertEquals(1, plain.events.size(), "the successful call was skipped for everyone");
-        AuditEvent full = plain.events.get(0);
+        AuditEvent full = plain.events.getFirst();
         assertEquals("bob", full.args().get("username"), "the plain sink sees the real value");
         assertEquals("***", full.args().get("password"), "secrets are redacted before any scrubber");
         assertEquals("alice", full.caller().name());
@@ -76,7 +76,7 @@ class AuditLogTest {
         assertNull(full.message(), "the second scrubber saw the first one's result");
 
         assertEquals(1, stored.events.size());
-        AuditEvent scrubbed = stored.events.get(0);
+        AuditEvent scrubbed = stored.events.getFirst();
         assertEquals("***", scrubbed.args().get("username"));
         assertEquals(5, scrubbed.args().get("max"));
         assertNull(scrubbed.caller().name());

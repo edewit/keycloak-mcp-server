@@ -166,9 +166,9 @@ class AuthorizationAccessCheckTest {
         call(guard(List.of(a, b), named), "named", "other");
 
         assertTrue(b.seen.isEmpty());
-        assertEquals("2", a.seen.get(0).settings().get("x"), "the realm's over the system's");
+        assertEquals("2", a.seen.getFirst().settings().get("x"), "the realm's over the system's");
         assertEquals("1", a.seen.get(1).settings().get("x"));
-        assertEquals("named", a.seen.get(0).system().orElseThrow().name());
+        assertEquals("named", a.seen.getFirst().system().orElseThrow().name());
     }
 
     @Test

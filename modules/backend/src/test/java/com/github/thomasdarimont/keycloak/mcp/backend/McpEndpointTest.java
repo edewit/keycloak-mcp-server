@@ -136,7 +136,7 @@ class McpEndpointTest {
                 new JsonObject().put("realm", "demo").put("id", "u1").put("password", "hunter2").put("confirm", true));
         List<AuditEvent> events = RecordingAuditListener.EVENTS;
         assertEquals(2, events.size(), events.toString());
-        AuditEvent denied = events.get(0);
+        AuditEvent denied = events.getFirst();
         assertEquals("keycloak_acme_ping", denied.tool());
         assertEquals("blocked_name", denied.outcome());
         assertEquals("direct", denied.via());
