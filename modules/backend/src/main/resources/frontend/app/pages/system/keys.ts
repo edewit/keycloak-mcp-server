@@ -7,7 +7,7 @@ import {
   me,
   rotateSigningKey,
   type System,
-} from '../bff.js';
+} from '../../bff.js';
 
 /** Signing key details and rotate for private_key_jwt systems. */
 @customElement('kc-mcp-system-keys')

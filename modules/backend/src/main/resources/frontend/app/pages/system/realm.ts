@@ -12,8 +12,8 @@ import {
   type System,
   type SystemRealm,
   type SystemRealmSave,
-} from '../bff.js';
-import { navigate, systemHref } from '../router.js';
+} from '../../bff.js';
+import { navigate, systemHref } from '../../router.js';
 
 type FormState = {
   displayName: string;

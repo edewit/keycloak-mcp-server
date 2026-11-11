@@ -7,11 +7,11 @@ import { DEFAULT_PATH, ensureDefaultPath, UI_BASE, type SystemTab } from './rout
 type GotoDetail = { path: string };
 import './kc-mcp-nav.js';
 import './kc-mcp-toolbar.js';
-import './pages/overview-page.js';
-import './pages/placeholder-page.js';
-import './pages/system-page.js';
-import './pages/system-settings.js';
-import './pages/systems-page.js';
+import './pages/overview.js';
+import './pages/placeholder.js';
+import './pages/system/page.js';
+import './pages/system/settings.js';
+import './pages/systems.js';
 
 function notifyNavigate(): void {
   window.dispatchEvent(new Event('kc-mcp-navigate'));
