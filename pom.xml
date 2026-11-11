@@ -39,6 +39,7 @@
         <jandex-maven-plugin.version>3.6.0</jandex-maven-plugin.version>
         <quarkus-web-bundler.version>3.0.0</quarkus-web-bundler.version>
         <mvnpm.lit.version>3.3.3</mvnpm.lit.version>
+        <mvnpm.lit-context.version>1.1.6</mvnpm.lit-context.version>
         <mvnpm.lit-labs-router.version>0.1.4</mvnpm.lit-labs-router.version>
         <mvnpm.urlpattern-polyfill.version>10.1.0</mvnpm.urlpattern-polyfill.version>
         <!-- database kind of the storage module, baked into the backend at build time: h2 or postgresql (-Ppostgresql) -->
@@ -88,6 +89,11 @@
                 <groupId>org.mvnpm</groupId>
                 <artifactId>lit</artifactId>
                 <version>${mvnpm.lit.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mvnpm.at.lit</groupId>
+                <artifactId>context</artifactId>
+                <version>${mvnpm.lit-context.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.mvnpm.at.lit-labs</groupId>

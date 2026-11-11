@@ -1,18 +1,17 @@
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   BffError,
-  Cap,
   deleteSystem,
   getSystem,
-  hasCapability,
   listSystems,
-  me,
   saveSystem,
   type System,
   type SystemSave,
 } from '../../bff.js';
 import { navigate, systemHref, systemsHref } from '../../router.js';
+import { sessionCanWrite, sessionContext, type SessionState } from '../../session-context.js';
 
 type FormState = {
   alias: string;
@@ -243,8 +242,8 @@ export class SystemSettings extends LitElement {
   @state()
   private createBlockedHint: string | null = null;
 
-  @state()
-  private canWrite = false;
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
 
   @state()
   private confirmDelete = false;
@@ -253,6 +252,10 @@ export class SystemSettings extends LitElement {
   private deleteTyped = '';
 
   private secretConfigured = false;
+
+  private get canWrite(): boolean {
+    return sessionCanWrite(this.session);
+  }
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -276,8 +279,6 @@ export class SystemSettings extends LitElement {
     this.deleteTyped = '';
     this.busy = true;
     try {
-      const session = await me();
-      this.canWrite = hasCapability(session, Cap.systemsWrite);
       if (this.create) {
         this.system = null;
         this.secretConfigured = false;

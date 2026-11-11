@@ -1,7 +1,9 @@
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { BffError, Cap, hasCapability, listSystems, me, type System } from '../bff.js';
+import { BffError, listSystems, type System } from '../bff.js';
 import { newSystemHref, systemHref } from '../router.js';
+import { sessionCanWrite, sessionContext, type SessionState } from '../session-context.js';
 
 /** Systems list via GET /bff/api/systems; each row is a Keycloak cluster/environment. */
 @customElement('kc-mcp-systems-page')
@@ -88,14 +90,14 @@ export class SystemsPage extends LitElement {
     }
   `;
 
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
+
   @state()
   private items: System[] = [];
 
   @state()
   private canCreate = false;
-
-  @state()
-  private canWrite = false;
 
   @state()
   private canCreateHint: string | null = null;
@@ -106,6 +108,10 @@ export class SystemsPage extends LitElement {
   @state()
   private busy = false;
 
+  private get canWrite(): boolean {
+    return sessionCanWrite(this.session);
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
     void this.load();
@@ -115,17 +121,16 @@ export class SystemsPage extends LitElement {
     this.busy = true;
     this.error = null;
     try {
-      const [session, data] = await Promise.all([me(), listSystems()]);
-      this.canWrite = hasCapability(session, Cap.systemsWrite);
+      const data = await listSystems();
+      const canWrite = this.canWrite;
       this.items = data.systems ?? [];
-      this.canCreate = !!data.canCreate && this.canWrite;
-      this.canCreateHint = this.canWrite
+      this.canCreate = !!data.canCreate && canWrite;
+      this.canCreateHint = canWrite
         ? (data.canCreateHint ?? null)
         : 'Sign in with the operator role (kc-mcp.admin.role) to register or change systems.';
     } catch (e) {
       this.items = [];
       this.canCreate = false;
-      this.canWrite = false;
       this.canCreateHint = null;
       if (e instanceof BffError) {
         this.error = `${e.status} ${e.code}: ${e.message}`;

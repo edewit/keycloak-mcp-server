@@ -1,7 +1,9 @@
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { hasCapability, type Me } from './bff.js';
+import { customElement, state } from 'lit/decorators.js';
+import { hasCapability } from './bff.js';
 import { DEFAULT_PATH, navPath, routes } from './router.js';
+import { sessionContext, type SessionState } from './session-context.js';
 
 /**
  * Vertical page nav under the masthead (Keycloak Admin Console–style sidebar).
@@ -60,8 +62,8 @@ export class KcMcpNav extends LitElement {
     }
   `;
 
-  @property({ attribute: false })
-  session: Me | null = null;
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
 
   @state()
   private path = DEFAULT_PATH;
@@ -86,7 +88,7 @@ export class KcMcpNav extends LitElement {
   render() {
     const current = navPath(this.path);
     const visible = routes.filter(
-      (route) => !route.capability || hasCapability(this.session, route.capability),
+      (route) => !route.capability || hasCapability(this.session?.me, route.capability),
     );
     return html`
       <nav aria-label="Management">
