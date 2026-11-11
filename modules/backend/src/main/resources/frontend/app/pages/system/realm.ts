@@ -281,7 +281,7 @@ export class SystemRealmPage extends LitElement {
     }
   }
 
-  private async remove(): Promise<void> {
+  private async deleteThisRealm(): Promise<void> {
     if (!this.system || this.deleteTyped !== this.realm) {
       return;
     }
@@ -419,7 +419,7 @@ export class SystemRealmPage extends LitElement {
                     class="danger"
                     type="button"
                     ?disabled=${this.busy || this.deleteTyped !== this.realm}
-                    @click=${() => this.remove()}
+                    @click=${() => this.deleteThisRealm()}
                   >
                     Delete settings
                   </button>

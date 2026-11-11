@@ -395,7 +395,7 @@ export class SystemSettings extends LitElement {
     }
   }
 
-  private async remove(): Promise<void> {
+  private async deleteThisSystem(): Promise<void> {
     if (!this.system || this.deleteTyped !== this.system.alias) {
       return;
     }
@@ -696,7 +696,7 @@ export class SystemSettings extends LitElement {
                     class="danger"
                     type="button"
                     ?disabled=${this.busy || this.deleteTyped !== this.system!.alias}
-                    @click=${() => this.remove()}
+                    @click=${() => this.deleteThisSystem()}
                   >
                     Delete system
                   </button>
