@@ -6,7 +6,8 @@
 # Starts the server with bin/kcmcp.sh from a directory other than the distribution's, with a --config file given as a
 # relative path, and initializes an MCP session; then with two system files in conf/systems/. With a realm file, also starts Keycloak 26.8.2 in Docker with that
 # realm imported, starts the server again with the service-account scenario against it, and runs keycloak_user_search
-# through the MCP protocol: the packaged server administering a real Keycloak.
+# through the MCP protocol: the packaged server administering a real Keycloak. Keycloak is pulled and started in the
+# background at the beginning, so that it boots while the steps that do not need it run.
 set -euo pipefail
 DIST=$1
 REALM=${2:-}
@@ -16,12 +17,25 @@ KC_IMAGE=${KC_IMAGE:-quay.io/keycloak/keycloak:26.8.2}
 INIT='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
 
 SERVER_PID=""
-KC_ID=""
+KC_NAME=""
+KC_RUN_PID=""
 cleanup() {
   [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null && wait "$SERVER_PID" 2>/dev/null || true
-  [ -n "$KC_ID" ] && docker rm -f "$KC_ID" >/dev/null 2>&1 || true
+  [ -n "$KC_RUN_PID" ] && wait "$KC_RUN_PID" 2>/dev/null || true
+  [ -n "$KC_NAME" ] && docker rm -f "$KC_NAME" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+
+if [ -n "$REALM" ]; then
+  # pulled and started now, used from step 2 on; the name lets the cleanup remove it before docker run returned
+  KC_NAME="kcmcp-smoke-keycloak-$$"
+  docker run -d --rm --name "$KC_NAME" -p "$KC_PORT:8080" \
+    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+    -e KC_FEATURES=identity-brokering-api:v2 -e KC_FEATURES_DISABLED=twitter-broker \
+    -v "$(cd "$(dirname "$REALM")" && pwd)/$(basename "$REALM"):/opt/keycloak/data/import/realm.json:ro" \
+    "$KC_IMAGE" start-dev --import-realm > keycloak-run.log 2>&1 &
+  KC_RUN_PID=$!
+fi
 
 mcp() { # $1 body, $2 session id or empty; prints the answer (JSON or SSE), the session id goes to .session
   curl -sS -D headers.txt -X POST "http://localhost:$PORT/mcp" -H 'Content-Type: application/json' \
@@ -107,13 +121,11 @@ echo "show-config masks, validate reports: ok"
 
 if [ -z "$REALM" ]; then exit 0; fi
 
-echo "== 2. Keycloak $KC_IMAGE with the realm $REALM"
-KC_ID=$(docker run -d --rm -p "$KC_PORT:8080" -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-  -e KC_FEATURES=identity-brokering-api:v2 -e KC_FEATURES_DISABLED=twitter-broker \
-  -v "$(cd "$(dirname "$REALM")" && pwd)/$(basename "$REALM"):/opt/keycloak/data/import/realm.json:ro" \
-  "$KC_IMAGE" start-dev --import-realm)
+echo "== 2. Keycloak $KC_IMAGE with the realm $REALM (started at the beginning)"
+if ! wait "$KC_RUN_PID"; then KC_RUN_PID=""; echo "Keycloak did not start:"; cat keycloak-run.log; exit 1; fi
+KC_RUN_PID=""
 for _ in $(seq 1 120); do curl -sf "http://localhost:$KC_PORT/realms/demo" > /dev/null && break; sleep 2; done
-curl -sf "http://localhost:$KC_PORT/realms/demo" > /dev/null || { docker logs "$KC_ID" | tail -20; exit 1; }
+curl -sf "http://localhost:$KC_PORT/realms/demo" > /dev/null || { docker logs "$KC_NAME" | tail -20; exit 1; }
 
 echo "== 3. the service-account scenario against it, keycloak_user_search over MCP"
 cp "$DIST/conf/scenarios/service-account.conf.example" "$DIST/conf/service-account.conf"
