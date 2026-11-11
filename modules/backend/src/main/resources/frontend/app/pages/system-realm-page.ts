@@ -156,6 +156,10 @@ export class SystemRealmPage extends LitElement {
   @property()
   realm = '';
 
+  /** When true, omit the standalone page chrome (used inside the system Realms tab). */
+  @property({ type: Boolean })
+  embedded = false;
+
   @state()
   private system: System | null = null;
 
@@ -328,7 +332,8 @@ export class SystemRealmPage extends LitElement {
       <a class="back" href=${systemHref(this.alias, 'realms')}>← Realms</a>
       <h2>${title}</h2>
       <p class="lead">
-        Realm <code>${this.realm}</code> on system <code>${this.alias}</code>
+        Realm <code>${this.realm}</code>
+        ${this.embedded ? nothing : html` on system <code>${this.alias}</code>`}
         ${this.stored.entry ? html` · MCP <code>${this.stored.entry}</code>` : nothing}
         ${writable ? nothing : html` · read-only`}
       </p>

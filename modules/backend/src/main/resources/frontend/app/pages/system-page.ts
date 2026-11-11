@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { BffError, getSystem, type System } from '../bff.js';
 import { systemHref, systemsHref, type SystemTab } from '../router.js';
 import './system-keys.js';
+import './system-realm-page.js';
 import './system-realms.js';
 import './system-settings.js';
 
@@ -79,6 +80,10 @@ export class SystemPage extends LitElement {
   @property()
   tab: SystemTab = 'settings';
 
+  /** When set on the Realms tab, show that realm's settings instead of the list. */
+  @property()
+  realm = '';
+
   @state()
   private system: System | null = null;
 
@@ -148,7 +153,7 @@ export class SystemPage extends LitElement {
     const s = this.system;
     const title = s.displayName || s.alias;
     const active: SystemTab =
-      this.tab === 'realms' ? 'realms' : this.tab === 'keys' ? 'keys' : 'settings';
+      this.tab === 'realms' || this.realm ? 'realms' : this.tab === 'keys' ? 'keys' : 'settings';
     return html`
       <a class="back" href=${systemsHref()}>← Systems</a>
       <h2>${title}</h2>
@@ -175,7 +180,13 @@ export class SystemPage extends LitElement {
         >
       </nav>
       ${active === 'realms'
-        ? html`<kc-mcp-system-realms .system=${s}></kc-mcp-system-realms>`
+        ? this.realm
+          ? html`<kc-mcp-system-realm-page
+              embedded
+              .alias=${s.alias}
+              .realm=${this.realm}
+            ></kc-mcp-system-realm-page>`
+          : html`<kc-mcp-system-realms .system=${s}></kc-mcp-system-realms>`
         : active === 'keys'
           ? html`<kc-mcp-system-keys
               .system=${s}
