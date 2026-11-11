@@ -1,19 +1,18 @@
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   BffError,
-  Cap,
   deleteSystemRealm,
   getSystem,
   getSystemRealm,
-  hasCapability,
-  me,
   saveSystemRealm,
   type System,
   type SystemRealm,
   type SystemRealmSave,
 } from '../../bff.js';
 import { navigate, systemHref } from '../../router.js';
+import { sessionCanWrite, sessionContext, type SessionState } from '../../session-context.js';
 
 type FormState = {
   displayName: string;
@@ -178,14 +177,18 @@ export class SystemRealmPage extends LitElement {
   @state()
   private savedAt: Date | null = null;
 
-  @state()
-  private canWrite = false;
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
 
   @state()
   private confirmDelete = false;
 
   @state()
   private deleteTyped = '';
+
+  private get canWrite(): boolean {
+    return sessionCanWrite(this.session);
+  }
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -223,8 +226,6 @@ export class SystemRealmPage extends LitElement {
     this.confirmDelete = false;
     this.deleteTyped = '';
     try {
-      const session = await me();
-      this.canWrite = hasCapability(session, Cap.systemsWrite);
       this.system = await getSystem(this.alias);
       this.stored = await getSystemRealm(this.alias, this.realm);
       this.form = this.toForm(this.stored);

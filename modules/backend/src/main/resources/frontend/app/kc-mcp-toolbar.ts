@@ -1,7 +1,9 @@
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
-import { logout, type Me } from './bff.js';
+import { customElement } from 'lit/decorators.js';
+import { logout } from './bff.js';
 import { overviewHref } from './router.js';
+import { sessionContext, type SessionState } from './session-context.js';
 
 /** Top masthead: brand + user / sign-out (nav lives in the sidebar). */
 @customElement('kc-mcp-toolbar')
@@ -50,11 +52,11 @@ export class KcMcpToolbar extends LitElement {
     }
   `;
 
-  @property({ attribute: false })
-  session: Me | null = null;
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
 
   render() {
-    const s = this.session;
+    const s = this.session?.me;
     const signedIn = !!s?.authenticated;
     return html`
       <header>

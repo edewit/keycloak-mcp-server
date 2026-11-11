@@ -1,16 +1,15 @@
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   BffError,
-  Cap,
-  hasCapability,
   listSystemRealms,
-  me,
   saveSystemRealm,
   type System,
   type SystemRealm,
 } from '../../bff.js';
 import { navigate, realmHref, systemHref } from '../../router.js';
+import { sessionCanWrite, sessionContext, type SessionState } from '../../session-context.js';
 
 type Row = {
   realm: string;
@@ -147,11 +146,15 @@ export class SystemRealms extends LitElement {
   @state()
   private error: string | null = null;
 
-  @state()
-  private canWrite = false;
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
 
   @state()
   private addName = '';
+
+  private get canWrite(): boolean {
+    return sessionCanWrite(this.session);
+  }
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -184,8 +187,6 @@ export class SystemRealms extends LitElement {
     this.busy = true;
     this.error = null;
     try {
-      const session = await me();
-      this.canWrite = hasCapability(session, Cap.systemsWrite);
       const list = await listSystemRealms(this.system.alias);
       this.realms = list.realms ?? [];
     } catch (e) {

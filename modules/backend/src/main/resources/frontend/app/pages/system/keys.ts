@@ -1,13 +1,8 @@
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import {
-  BffError,
-  Cap,
-  hasCapability,
-  me,
-  rotateSigningKey,
-  type System,
-} from '../../bff.js';
+import { BffError, rotateSigningKey, type System } from '../../bff.js';
+import { sessionCanWrite, sessionContext, type SessionState } from '../../session-context.js';
 
 /** Signing key details and rotate for private_key_jwt systems. */
 @customElement('kc-mcp-system-keys')
@@ -90,8 +85,8 @@ export class SystemKeys extends LitElement {
   @property({ attribute: false })
   system: System | null = null;
 
-  @state()
-  private canWrite = false;
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
 
   @state()
   private busy = false;
@@ -105,18 +100,8 @@ export class SystemKeys extends LitElement {
   @state()
   private confirmRotate = false;
 
-  connectedCallback(): void {
-    super.connectedCallback();
-    void this.loadCaps();
-  }
-
-  private async loadCaps(): Promise<void> {
-    try {
-      const session = await me();
-      this.canWrite = hasCapability(session, Cap.systemsWrite);
-    } catch (e) {
-      this.report(e);
-    }
+  private get canWrite(): boolean {
+    return sessionCanWrite(this.session);
   }
 
   private async rotate(): Promise<void> {

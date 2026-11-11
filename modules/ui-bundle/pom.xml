@@ -27,6 +27,11 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>org.mvnpm.at.lit</groupId>
+            <artifactId>context</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>org.mvnpm.at.lit-labs</groupId>
             <artifactId>router</artifactId>
             <scope>provided</scope>

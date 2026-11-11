@@ -1,10 +1,10 @@
 import { Router } from '@lit-labs/router';
+import { provide } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { checkSession, login, me, type Me, type SessionCheck } from './bff.js';
 import { DEFAULT_PATH, ensureDefaultPath, UI_BASE, type SystemTab } from './router.js';
-
-type GotoDetail = { path: string };
+import { sessionContext, type SessionState } from './session-context.js';
 import './kc-mcp-nav.js';
 import './kc-mcp-toolbar.js';
 import './pages/overview.js';
@@ -13,6 +13,8 @@ import './pages/system/page.js';
 import './pages/system/settings.js';
 import './pages/systems.js';
 
+type GotoDetail = { path: string };
+
 function notifyNavigate(): void {
   window.dispatchEvent(new Event('kc-mcp-navigate'));
 }
@@ -20,6 +22,7 @@ function notifyNavigate(): void {
 /**
  * Shell: masthead, vertical nav (when signed in), content. Overview is the default section.
  * Routing uses `@lit-labs/router` on pathnames under `/ui/` (served by UiRoutes).
+ * Session is provided via {@link sessionContext} for descendants.
  */
 @customElement('kc-mcp-app')
 export class KcMcpApp extends LitElement {
@@ -221,11 +224,7 @@ export class KcMcpApp extends LitElement {
           notifyNavigate();
           return true;
         },
-        render: () =>
-          html`<kc-mcp-overview-page
-            .session=${this.session}
-            .lastCheck=${this.lastCheck}
-          ></kc-mcp-overview-page>`,
+        render: () => html`<kc-mcp-overview-page></kc-mcp-overview-page>`,
       },
     ],
     {
@@ -240,13 +239,15 @@ export class KcMcpApp extends LitElement {
     },
   );
 
-  @state() private session: Me | null = null;
+  @provide({ context: sessionContext })
+  @state()
+  private sessionState: SessionState = { me: null, lastCheck: null };
+
   @state() private sessionError: string | null = null;
-  @state() private lastCheck: { at: Date; ok: boolean } | null = null;
   private suggestedIdp: string | undefined;
   private checking = false;
   private readonly onVisible = () => {
-    if (document.visibilityState === 'visible' && this.session?.authenticated && !this.checking) {
+    if (document.visibilityState === 'visible' && this.sessionState.me?.authenticated && !this.checking) {
       void this.checkSession();
     }
   };
@@ -296,7 +297,10 @@ export class KcMcpApp extends LitElement {
     this.checking = true;
     try {
       const check: SessionCheck | false = await checkSession();
-      this.lastCheck = { at: new Date(), ok: check !== false };
+      this.sessionState = {
+        ...this.sessionState,
+        lastCheck: { at: new Date(), ok: check !== false },
+      };
       await this.refresh();
     } catch (e) {
       this.sessionError = e instanceof Error ? e.message : String(e);
@@ -307,24 +311,25 @@ export class KcMcpApp extends LitElement {
 
   private async refresh(): Promise<void> {
     try {
-      this.session = await me(this.suggestedIdp);
-      if (this.session.authenticated && this.session.idp) {
-        this.suggestedIdp = this.session.idp;
+      const next = await me(this.suggestedIdp);
+      if (next.authenticated && next.idp) {
+        this.suggestedIdp = next.idp;
       }
+      this.sessionState = { ...this.sessionState, me: next };
       this.sessionError = null;
     } catch (e) {
-      this.session = null;
+      this.sessionState = { ...this.sessionState, me: null };
       this.sessionError = e instanceof Error ? e.message : String(e);
     }
   }
 
   render() {
-    const s = this.session;
+    const s = this.sessionState.me;
     const signedIn = !!s?.authenticated;
     return html`
-      <kc-mcp-toolbar .session=${this.session}></kc-mcp-toolbar>
+      <kc-mcp-toolbar></kc-mcp-toolbar>
       <div class="body">
-        ${signedIn ? html`<kc-mcp-nav .session=${this.session}></kc-mcp-nav>` : nothing}
+        ${signedIn ? html`<kc-mcp-nav></kc-mcp-nav>` : nothing}
         <main>
           ${this.sessionError
             ? html`<section class="card">

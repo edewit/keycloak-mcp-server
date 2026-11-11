@@ -1,7 +1,9 @@
+import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { BffError, listSystems, type Me } from '../bff.js';
+import { customElement, state } from 'lit/decorators.js';
+import { BffError, listSystems } from '../bff.js';
 import { systemsHref } from '../router.js';
+import { sessionContext, type SessionState } from '../session-context.js';
 
 /** Server-at-a-glance landing: whoami, system count, Systems → Realms framing. */
 @customElement('kc-mcp-overview-page')
@@ -64,11 +66,8 @@ export class OverviewPage extends LitElement {
     }
   `;
 
-  @property({ attribute: false })
-  session: Me | null = null;
-
-  @property({ attribute: false })
-  lastCheck: { at: Date; ok: boolean } | null = null;
+  @consume({ context: sessionContext, subscribe: true })
+  private session?: SessionState;
 
   @state()
   private systemCount: number | null = null;
@@ -100,13 +99,14 @@ export class OverviewPage extends LitElement {
   }
 
   render() {
-    const s = this.session;
+    const s = this.session?.me;
     if (!s?.authenticated) {
       return html`
         <h2>Overview</h2>
         <p class="lead">Sign in to manage Keycloak systems through the server-side session (BFF).</p>
       `;
     }
+    const lastCheck = this.session?.lastCheck ?? null;
     return html`
       <h2>Overview</h2>
       <p class="lead">
@@ -139,9 +139,9 @@ export class OverviewPage extends LitElement {
         <dd>${s.sessionExpiresAt ? new Date(s.sessionExpiresAt).toLocaleString() : '–'}</dd>
         <dt>Last session check</dt>
         <dd>
-          ${this.lastCheck
-            ? html`${this.lastCheck.at.toLocaleTimeString()}
-              ${this.lastCheck.ok ? '✓' : html`<span class="error">session ended</span>`}`
+          ${lastCheck
+            ? html`${lastCheck.at.toLocaleTimeString()}
+              ${lastCheck.ok ? '✓' : html`<span class="error">session ended</span>`}`
             : html`<span class="muted">when this tab becomes visible again</span>`}
           <button
             type="button"
