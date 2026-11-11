@@ -27,3 +27,5 @@ serach = "serach"
 delte = "delte"
 delet = "delet"
 disabl = "disabl"
+# the misspelled setting the unknown-key tests of the extension settings write on purpose
+mdoe = "mdoe"
