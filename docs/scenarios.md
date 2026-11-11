@@ -16,7 +16,7 @@ ceiling. Nobody logs in; the MCP endpoint is anonymous and guarded against DNS r
 
 ```mermaid
 flowchart LR
-    M("MCP client<br/>(LM Studio, Claude Code, ...)") -- "MCP over HTTP<br/>no login" --> S("keycloak-mcp-server<br/>profile local")
+    M("MCP client<br/>(LM Studio, Claude Code, ...)") -- "MCP over HTTP<br/>no login" --> S("keycloak-mcp-server<br/>security profile local")
     S -- "client_credentials<br/>client mcp-admin" --> K("Keycloak<br/>realm demo")
     S -- "Admin REST API<br/>service account token" --> K
     classDef client fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
@@ -30,7 +30,7 @@ flowchart LR
     class K keycloak
 ```
 
-[Security](security.md) (profiles, access levels), [Configuration](configuration.md).
+[Security](security.md#the-two-profiles) (security profiles, access levels), [Configuration](configuration.md).
 
 ## 2. Users log in, their token is forwarded
 
@@ -104,7 +104,45 @@ sequenceDiagram
 [Security](security.md#callers), the example's README for the Keycloak setup (consent, Standard Token Exchange,
 the `delegate` permission).
 
-## 4. Several Keycloak systems, one entry per system or realm
+## 4. Cross-App Access: the enterprise IdP vouches for the user
+
+`examples/xaa/`, MCP Enterprise-Managed Authorization: the client trades the user's SSO identity for an ID-JAG at the
+enterprise IdP and redeems it at Keycloak with the JWT authorization grant. There is no login page and no consent screen
+of Keycloak; the IdP's policy decides whether this agent may connect for this user, Keycloak's roles decide what they may
+do. The server is a resource server as in scenario 2 (`KC_MCP_DELEGATION=forward`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as MCP client (agent)
+    participant I as Enterprise IdP
+    participant K as Keycloak (realm acme)
+    participant S as keycloak-mcp-server
+    rect rgba(127,127,127,0.10)
+    C->>S: POST /mcp
+    S-->>C: 401, protected resource metadata: resource, authorization server realm acme
+    C->>I: SSO login (once)
+    I-->>C: ID token of alice
+    end
+    rect rgba(127,127,127,0.10)
+    C->>I: token exchange: subject_token=ID token, requested_token_type=id-jag, audience=realm acme, resource=server
+    I->>I: policy: may alice connect this agent to the server?
+    I-->>C: ID-JAG (iss IdP, sub e-1001, aud realm acme, client_id agent, 5 minutes)
+    C->>K: JWT authorization grant, assertion=ID-JAG
+    K-->>C: access token of the linked Keycloak user (aud server, alice's roles)
+    end
+    rect rgba(127,127,127,0.10)
+    C->>S: POST /mcp ... Bearer <alice>
+    S->>K: Admin REST API with alice's token
+    K-->>S: result, enforced by her realm-management roles
+    S-->>C: tool result
+    end
+```
+
+A user the IdP's policy leaves out gets `access_denied` from the IdP, one without a linked Keycloak account
+`User not found` from Keycloak; the server sees neither. The example's README has the Keycloak and IdP setup.
+
+## 5. Several Keycloak systems, one entry per system or realm
 
 Every Keycloak the server administers is a named system (`kc-mcp.systems.<name>.*`, a systems file, or the admin API).
 A client at the root names the system in each call; a client bound to an entry does not and cannot reach another one.
@@ -140,12 +178,14 @@ flowchart LR
 
 [Several Keycloak systems](systems.md), `examples/multi-tenant/`.
 
-## 5. A shared server per environment
+## 6. A shared server per environment
 
 One deployment per environment behind a load balancer, several instances on one database: systems, keys, secrets,
 pending approvals, UI logins and the audit trail are shared; MCP sessions of older clients stay on the instance that
-opened them. The admin API can run on an instance of its own on the internal network, with the MCP endpoint switched
-off there.
+opened them. `kc-mcp.instance-role` splits what an instance serves (`examples/split-deployment/`): the `mcp` instances
+behind the public ingress serve only the MCP endpoint, one `admin` instance on the internal network serves the admin API
+and the management UI. The two accept tokens of different audiences, and they use different database users, so even a
+compromised MCP instance cannot change what the admin side configured.
 
 ```mermaid
 flowchart TB
@@ -154,28 +194,28 @@ flowchart TB
         C2("MCP client")
     end
     LB("Load balancer<br/>affinity for clients that hold MCP sessions")
-    subgraph mcp["MCP-facing instances (profile shared)"]
-        I1("instance 1<br/>kc-mcp.admin.enabled=false")
-        I2("instance 2<br/>kc-mcp.admin.enabled=false")
+    subgraph mcp["MCP instances (security profile shared)"]
+        I1("instance 1<br/>kc-mcp.instance-role=mcp<br/>tokens for keycloak-mcp-server")
+        I2("instance 2<br/>kc-mcp.instance-role=mcp")
     end
-    ADM("admin instance (internal network)<br/>admin API, management UI,<br/>kc-mcp.mcp.enabled=false")
+    ADM("admin instance (internal network)<br/>kc-mcp.instance-role=admin<br/>admin API, management UI,<br/>tokens for keycloak-mcp-admin-api")
     DB[("PostgreSQL<br/>systems, keys, secrets,<br/>approvals, sessions, audit")]
     K1("Keycloak A")
     K2("Keycloak B")
-    OPS("Operator / automation<br/>issuer token or admin token")
+    OPS("Operator / automation<br/>browser or admin token")
     C1 --> LB
     C2 --> LB
     LB --> I1
     LB --> I2
-    I1 --> DB
+    I1 -- "user kcmcp_mcp: reads systems, keys,<br/>appends audit rows" --> DB
     I2 --> DB
-    ADM --> DB
+    ADM -- "user kcmcp_admin: owns the schema,<br/>runs the migrations" --> DB
     OPS --> ADM
     I1 --> K1
     I1 --> K2
     I2 --> K1
     I2 --> K2
-    K1 -. "fetches JWKS per system" .-> LB
+    K1 -. "fetches JWKS per system" .-> ADM
     classDef client fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
     classDef server fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
     classDef keycloak fill:#ccfbf1,stroke:#0d9488,color:#134e4a
@@ -190,11 +230,14 @@ flowchart TB
     style mcp fill:transparent,stroke:#7c3aed,stroke-dasharray:5 4
 ```
 
-[Database storage](storage.md#several-instances-on-one-database), [Security](security.md) (profile `shared`).
+`/admin` answers 404 on an `mcp` instance and `/mcp` on the `admin` one; switching either back on explicitly stops the
+start instead of quietly winning. [Database storage](storage.md#several-instances-on-one-database),
+[Security](security.md#the-two-profiles) (security profile `shared`, instance roles).
 
-## 6. Registering a system at runtime
+## 7. Registering a system at runtime
 
-With the database storage and the admin API on (`examples/dynamic-systems/`), a system is registered with one request.
+With the database storage and the admin API on (`examples/dynamic-systems/`), a system is registered with one request,
+or with *Add system* in the management UI (scenario 8), which sends the same request through its BFF.
 The server creates the system's `private_key_jwt` key in its vault and publishes the public key per system; Keycloak's
 client is configured with that JWKS URL, so no secret changes hands.
 
@@ -221,8 +264,48 @@ sequenceDiagram
 ```
 
 [Several Keycloak systems](systems.md#admin-api-registering-systems-at-runtime), the OpenAPI document at `/q/openapi`.
+`bin/kcmcp.sh start-dev` of a distribution brings the database and `kc-mcp.dynamic-systems=true` along
+([Development mode](configuration.md#development-mode-start-dev)).
 
-## 7. Approval on the user's device (CIBA)
+## 8. The management UI: the server signs people in
+
+`examples/management-ui/`: a browser UI at `/ui` for systems, their realms and signing keys, with a backend-for-frontend
+under `/bff`. The server is the OpenID Connect relying party; the browser holds only an HttpOnly cookie with an opaque
+id, and the tokens stay in the database, encrypted like the other secrets. The operator role (`kc-mcp.admin.role`) may
+read and write, an optional viewer role only read; the BFF enforces that, the UI only hides what the user may not do.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant S as keycloak-mcp-server (/ui, /bff)
+    participant DB as Database
+    participant K as Keycloak
+    rect rgba(127,127,127,0.10)
+    B->>S: GET /ui/systems
+    S-->>B: the app, /bff/me says not signed in
+    B->>S: GET /bff/login
+    S-->>B: redirect to Keycloak (client keycloak-mcp-ui, code + PKCE)
+    B->>K: login
+    K-->>B: redirect to /bff/login with the code
+    B->>S: GET /bff/login?code=...
+    S->>K: code for tokens
+    S->>DB: session row: tokens encrypted
+    S-->>B: cookie with an opaque session id (HttpOnly, Secure)
+    end
+    rect rgba(127,127,127,0.10)
+    B->>S: PUT /bff/api/systems/acme (cookie, CSRF header)
+    S->>S: operator role in the session's access token?
+    S->>DB: store the system, as PUT /admin/systems/acme
+    S-->>B: the system, secrets masked
+    end
+    Note over K,S: logout in Keycloak: POST /bff/backchannel-logout deletes the session row
+```
+
+[Management UI](management-ui.md) (roles, several identity providers, sessions),
+[Development](development.md#management-ui) (working on the UI).
+
+## 9. Approval on the user's device (CIBA)
 
 The built-in `ciba` confirmer (`examples/ciba-confirm/`) takes the decision on a destructive tool out of the channel the
 model controls: the server files a backchannel authentication request for the signed-in user, the chat shows a number,
@@ -257,10 +340,11 @@ sequenceDiagram
 
 [CIBA confirmation](ciba-confirmation.md).
 
-## 8. What every call goes through
+## 10. What every call goes through
 
 Whatever the scenario, a tool call runs the same pipeline; a refusal at any step is a structured error that says what to
-do next, and is audited like any other outcome.
+do next, and is audited like any other outcome. An outside policy service comes after the server's own checks, so it can
+only take away what Keycloak's roles allow, never add to it.
 
 ```mermaid
 flowchart LR
@@ -268,7 +352,8 @@ flowchart LR
     B --> C("entry binding, arguments<br/>system and realm pinned?<br/>validation, coercion")
     C --> D("target<br/>system and realm resolved,<br/>explicit target")
     D --> E("per-call access<br/>allowed realms, roles,<br/>access checks (policies, self-protection)")
-    E --> F("confirmation<br/>elicitation, confirm flag,<br/>Confirmer, CIBA")
+    E --> X("external authorization<br/>an AuthZEN PDP, when the<br/>system or realm asks for it")
+    X --> F("confirmation<br/>elicitation, confirm flag,<br/>Confirmer, CIBA")
     F --> G("handler<br/>Admin REST API with the<br/>identity of the scenario")
     G --> H("audit<br/>caller, tool, outcome, refusals too,<br/>secrets redacted")
     classDef client fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
@@ -278,10 +363,11 @@ flowchart LR
     classDef confirm fill:#ffe4e6,stroke:#e11d48,color:#881337
     classDef audit fill:#e2e8f0,stroke:#64748b,color:#1e293b
     class A client
-    class B,C,D,E server
+    class B,C,D,E,X server
     class F confirm
     class G keycloak
     class H audit
 ```
 
-[Tools](tools.md), [Security](security.md), [Extending](extending.md) (your own checks and confirmers).
+[Tools](tools.md), [Security](security.md), [External authorization](authzen.md), [Extending](extending.md) (your own
+checks, authorization engines and confirmers).
