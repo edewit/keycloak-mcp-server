@@ -17,40 +17,92 @@
         margin: 0;
         min-height: 100vh;
         font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-        color: #1f2328;
-        background: #f6f8fa;
+      }
+
+      /*
+       * Document owns the shell layout. Session is a light-DOM host that provides
+       * context; toolbar, nav and outlet are siblings that update independently.
+       */
+      kc-mcp-session {
+        --fg: #1f2328;
+        --muted: #656d76;
+        --bg: #f6f8fa;
+        --card: #ffffff;
+        --border: #d0d7de;
+        --error: #cf222e;
+        --pre-bg: #f6f8fa;
+        --accent: #1f6feb;
+        --nav-width: 13.5rem;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        color: var(--fg);
+        background: var(--bg);
       }
       @media (prefers-color-scheme: dark) {
-        body {
-          color: #e6edf3;
-          background: #0d1117;
+        kc-mcp-session {
+          --fg: #e6edf3;
+          --muted: #8b949e;
+          --bg: #0d1117;
+          --card: #161b22;
+          --border: #30363d;
+          --error: #ff7b72;
+          --pre-bg: #0d1117;
+          --accent: #2f81f7;
         }
       }
-      /* Visible until the custom element upgrades and takes over. */
-      kc-mcp-app:not(:defined) {
-        display: block;
-        box-sizing: border-box;
-        min-height: 100vh;
-        padding: 1.5rem;
+
+      kc-mcp-session[state='loading'] > :not(.boot) {
+        display: none;
       }
+      kc-mcp-session:not([state='loading']) > .boot {
+        display: none;
+      }
+      kc-mcp-session:not(:defined) > :not(.boot) {
+        display: none;
+      }
+
       .boot {
-        margin: 0;
+        box-sizing: border-box;
+        padding: 1.5rem;
         max-width: 36rem;
-        color: #656d76;
+        color: var(--muted, #656d76);
       }
       .boot h1 {
         margin: 0 0 0.5rem;
         font-size: 1.1rem;
-        color: inherit;
+        color: var(--fg, inherit);
       }
       .boot p {
         margin: 0;
       }
-      @media (prefers-color-scheme: dark) {
-        .boot {
-          color: #8b949e;
+
+      .layout {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+      .layout kc-mcp-nav {
+        flex: 0 0 var(--nav-width);
+        align-self: stretch;
+      }
+      .layout > main {
+        flex: 1;
+        min-width: 0;
+        padding: 1.5rem;
+        display: grid;
+        gap: 1rem;
+        align-content: start;
+      }
+      @media (max-width: 640px) {
+        .layout {
+          flex-direction: column;
+        }
+        .layout kc-mcp-nav {
+          flex: none;
         }
       }
+
       noscript {
         display: block;
         box-sizing: border-box;
@@ -74,12 +126,19 @@
     {#bundle /}
   </head>
   <body>
-    <kc-mcp-app>
+    <kc-mcp-session state="loading">
       <div class="boot">
         <h1>Keycloak MCP</h1>
         <p>Loading the management UI…</p>
       </div>
-    </kc-mcp-app>
+      <kc-mcp-toolbar></kc-mcp-toolbar>
+      <div class="layout">
+        <kc-mcp-nav></kc-mcp-nav>
+        <main>
+          <kc-mcp-outlet></kc-mcp-outlet>
+        </main>
+      </div>
+    </kc-mcp-session>
     <noscript>
       <h1>Keycloak MCP</h1>
       <p>

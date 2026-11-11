@@ -86,6 +86,9 @@ export class KcMcpNav extends LitElement {
   }
 
   render() {
+    if (!this.session?.me?.authenticated) {
+      return nothing;
+    }
     const current = navPath(this.path);
     const visible = routes.filter(
       (route) => !route.capability || hasCapability(this.session?.me, route.capability),
