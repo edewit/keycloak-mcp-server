@@ -40,8 +40,11 @@ public class TwoKeycloaksTestResource extends ForwardTestResource {
         other.start();
         otherBase = "http://" + other.getHost() + ":" + other.getMappedPort(8080);
         // the first Keycloak's master realm gets the same public client: a system may
-        // move there (replacement test)
-        post("/admin/realms/master/clients", consumer());
+        // move there (replacement test); the shared Keycloak may have it from an earlier
+        // run
+        if (new JsonArray(get("/admin/realms/master/clients?clientId=mcp-consumer")).isEmpty()) {
+            post("/admin/realms/master/clients", consumer());
+        }
         String admin = otherToken("admin-cli", "admin", "admin");
         HttpResponse<String> r = HttpClient.newHttpClient()
             .send(HttpRequest.newBuilder(URI.create(otherBase + "/admin/realms/master/clients"))

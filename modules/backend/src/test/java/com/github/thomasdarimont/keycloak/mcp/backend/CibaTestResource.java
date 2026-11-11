@@ -91,6 +91,12 @@ public class CibaTestResource extends ForwardTestResource {
         }
     }
 
+    /** The authentication channel URI is a container setting: a Keycloak of its own. */
+    @Override
+    protected boolean shared() {
+        return false;
+    }
+
     @Override
     protected void customize(GenericContainer<?> container) {
         try {

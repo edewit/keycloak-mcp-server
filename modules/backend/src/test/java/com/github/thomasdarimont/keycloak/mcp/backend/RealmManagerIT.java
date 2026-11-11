@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * "realm-manager" access level: client_credentials against a service account holding only
- * view-users and view-clients in realm demo. Tools needing other roles must be hidden and
+ * view-users and view-clients in realm mgr. Tools needing other roles must be hidden and
  * refused before reaching Keycloak.
  */
 @QuarkusTest

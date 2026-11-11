@@ -27,8 +27,8 @@ public class UiTestResource extends ForwardTestResource {
         // never sees; Docker Desktop routes the name to the loopback instead.
         config.put("quarkus.http.host", "0.0.0.0");
         try {
-            publicClient("keycloak-mcp-ui", "*");
-            publicClient("keycloak-mcp-ui-2", "*");
+            publicClientIfAbsent("keycloak-mcp-ui", "*");
+            publicClientIfAbsent("keycloak-mcp-ui-2", "*");
         }
         catch (IOException | InterruptedException e) {
             throw new IllegalStateException("Keycloak bootstrap of the UI clients failed", e);

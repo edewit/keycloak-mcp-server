@@ -5,13 +5,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.utility.DockerImageName;
 
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import io.vertx.core.json.JsonArray;
@@ -22,7 +19,9 @@ import io.vertx.core.json.JsonObject;
  * {@code mcp-consumer} whose tokens carry {@code aud=mcp-admin}, {@code alice} with
  * {@code realm-admin}, {@code carol} with {@code view-users} only, and a second client
  * {@code other-app} without the audience. The server runs in delegation mode
- * {@code forward} with the OIDC tenant on and no credentials of its own.
+ * {@code forward} with the OIDC tenant on and no credentials of its own. The realm lives
+ * in the {@link SharedKeycloak} unless a subclass needs a Keycloak of its own
+ * ({@link #shared()}).
  */
 public class ForwardTestResource implements QuarkusTestResourceLifecycleManager {
 
@@ -35,19 +34,15 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
     @Override
     @SuppressWarnings("resource")
     public Map<String, String> start() {
-        keycloak = new GenericContainer<>(DockerImageName.parse(KeycloakTestResource.IMAGE)).withExposedPorts(8080)
-            .withEnv("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
-            .withEnv("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
-            .withEnv("KC_FEATURES", "identity-brokering-api:v2")
-            .withEnv("KC_FEATURES_DISABLED", "twitter-broker")
-            .withCommand("start-dev")
-            // back-channel logout posts from the container to the test server on the host
-            .withExtraHost("host.docker.internal", "host-gateway")
-            .waitingFor(
-                    Wait.forLogMessage(".*Keycloak .* started in .*\\n", 1).withStartupTimeout(Duration.ofMinutes(3)));
-        customize(keycloak);
-        keycloak.start();
-        base = "http://" + keycloak.getHost() + ":" + keycloak.getMappedPort(8080);
+        if (shared()) {
+            base = SharedKeycloak.base();
+        }
+        else {
+            keycloak = SharedKeycloak.newContainer();
+            customize(keycloak);
+            keycloak.start();
+            base = "http://" + keycloak.getHost() + ":" + keycloak.getMappedPort(8080);
+        }
         try {
             bootstrap();
             bootstrapMore();
@@ -60,7 +55,19 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
         return config;
     }
 
-    /** Hook for subclasses: more container settings before it starts. */
+    /**
+     * Hook for subclasses: whether the {@link SharedKeycloak} serves, the demo realm set
+     * up there once for every test class. A subclass that {@link #customize}s the
+     * container answers {@code false} and gets its own.
+     */
+    protected boolean shared() {
+        return true;
+    }
+
+    /**
+     * Hook for subclasses that are not {@link #shared()}: more container settings before
+     * it starts.
+     */
     protected void customize(GenericContainer<?> container) {
     }
 
@@ -94,6 +101,10 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
         adminToken = new JsonObject(form("/realms/master/protocol/openid-connect/token",
                 "grant_type=password&client_id=admin-cli&username=admin&password=admin"))
             .getString("access_token");
+        if (exists("/admin/realms/demo")) {
+            // the shared Keycloak: an earlier test class set the realm up, the same way
+            return;
+        }
         post("/admin/realms", new JsonObject().put("realm", "demo").put("enabled", true));
         String scopeId = post("/admin/realms/demo/client-scopes",
                 new JsonObject().put("name", "keycloak-mcp")
@@ -118,6 +129,25 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
 
     private String publicClient(String clientId) throws IOException, InterruptedException {
         return publicClient(clientId, "http://127.0.0.1:*/*");
+    }
+
+    /** A public client of the demo realm, unless one of that client id exists already. */
+    String publicClientIfAbsent(String clientId, String redirectUri) throws IOException, InterruptedException {
+        JsonArray found = new JsonArray(get("/admin/realms/demo/clients?clientId=" + clientId));
+        return found.isEmpty() ? publicClient(clientId, redirectUri) : found.getJsonObject(0).getString("id");
+    }
+
+    /** Whether the Admin API has the resource: 200 or 404. */
+    boolean exists(String path) throws IOException, InterruptedException {
+        HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(base + path))
+            .header("Authorization", "Bearer " + adminToken)
+            .GET()
+            .build(), HttpResponse.BodyHandlers.ofString());
+        if (r.statusCode() == 404) {
+            return false;
+        }
+        check(r, path);
+        return true;
     }
 
     /** A public PKCE client of the demo realm with one redirect URI pattern. */
@@ -251,6 +281,7 @@ public class ForwardTestResource implements QuarkusTestResourceLifecycleManager 
         }
     }
 
+    /** Stops a Keycloak of its own; the shared one outlives the test class. */
     @Override
     public void stop() {
         if (keycloak != null) {

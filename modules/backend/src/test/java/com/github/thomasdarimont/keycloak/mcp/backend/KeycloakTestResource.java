@@ -1,37 +1,20 @@
 package com.github.thomasdarimont.keycloak.mcp.backend;
 
-import java.time.Duration;
 import java.util.Map;
-
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.utility.DockerImageName;
 
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 
 /**
- * Starts a throw-away Keycloak (start-dev) and points the server at it with password
- * auth. Image overridable with {@code -Dkeycloak.image=...}.
+ * Points the server at the {@link SharedKeycloak} with password auth, the master realm's
+ * admin. Image overridable with {@code -Dkeycloak.image=...}.
  */
 public class KeycloakTestResource implements QuarkusTestResourceLifecycleManager {
 
     static final String IMAGE = System.getProperty("keycloak.image", "quay.io/keycloak/keycloak:26.8.2");
 
-    private GenericContainer<?> keycloak;
-
     @Override
-    @SuppressWarnings("resource")
     public Map<String, String> start() {
-        keycloak = new GenericContainer<>(DockerImageName.parse(IMAGE)).withExposedPorts(8080)
-            .withEnv("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
-            .withEnv("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
-            .withEnv("KC_FEATURES", "identity-brokering-api:v2")
-            .withEnv("KC_FEATURES_DISABLED", "twitter-broker")
-            .withCommand("start-dev")
-            .waitingFor(
-                    Wait.forLogMessage(".*Keycloak .* started in .*\\n", 1).withStartupTimeout(Duration.ofMinutes(3)));
-        keycloak.start();
-        String url = "http://" + keycloak.getHost() + ":" + keycloak.getMappedPort(8080);
+        String url = SharedKeycloak.base();
         return Map.ofEntries(Map.entry("kc-mcp.system-defaults.grant-type", "password"),
                 Map.entry("kc-mcp.system-defaults.auth-realm", "master"),
                 Map.entry("kc-mcp.system-defaults.username", "admin"),
@@ -48,10 +31,8 @@ public class KeycloakTestResource implements QuarkusTestResourceLifecycleManager
                 Map.entry("kc-mcp.spi.access-check.no-escalation.default", "on"));
     }
 
+    /** The shared Keycloak outlives the test class. */
     @Override
     public void stop() {
-        if (keycloak != null) {
-            keycloak.stop();
-        }
     }
 }
