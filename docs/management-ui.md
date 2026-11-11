@@ -5,25 +5,31 @@
 A browser UI for the server at `/ui`, with its backend-for-frontend (BFF) under `/bff`.
 
 **Status: work in progress.** Sign in at Keycloak, land on Overview, browse **Systems** (each system is a Keycloak
-cluster / environment), open a system for **Settings** (connection and realm allowlist) and **Realms** (managed realms
-and MCP entries). Create / replace mutable systems via the BFF. Secrets and Storage are placeholders (vault provenance
-and encryption / system sources later — no secret writing in the UI). The plumbing underneath is covered by
-integration tests: the login, sessions in the database, several identity providers, session checks and back-channel
-logout. See `modules/backend/src/main/resources/frontend/README.md` for the contract and the development loop.
+cluster / environment), open a system for **Settings** (connection and realm allowlist), **Realms** (allowlist merged
+with per-realm settings from the admin realm API) and **Keys** (signing key / rotate). Create, replace and delete
+mutable systems via the BFF; edit realm labels and presets on their own pages. Secrets and Storage are placeholders
+(vault provenance and encryption / system sources later — no secret writing in the UI). The plumbing underneath is
+covered by integration tests: the login, sessions in the database, several identity providers, session checks and
+back-channel logout. See `modules/backend/src/main/resources/frontend/README.md` for the contract and the development
+loop.
 
-### Information architecture (stage 0)
+### Information architecture (systems catch-up on PR #3)
 
 | path | page |
 |---|---|
 | `/ui/overview` | who you are, system count; framing for systems → realms |
 | `/ui/systems` | list of systems with source, read-only marker, realms summary |
 | `/ui/systems/new` | create a mutable system |
-| `/ui/systems/{alias}` | system Settings (default tab) |
-| `/ui/systems/{alias}/realms` | Realms view (allowlist / all realms, MCP entries); edit allowlist under Settings |
+| `/ui/systems/{alias}` | system Settings (default tab): connection, allowlist, trusted issuers, delete |
+| `/ui/systems/{alias}/realms` | Realms: allowlist + stored settings, MCP entries, add settings |
+| `/ui/systems/{alias}/realms/{realm}` | realm labels, realm id, preset; delete settings |
+| `/ui/systems/{alias}/keys` | signing key details; rotate (operator, mutable / writable vault) |
 | `/ui/secrets`, `/ui/storage` | stubs |
 
-A system is one Keycloak front door (`url`). Realms are not a top-level nav section: the server only knows
-`allowedRealms` / `defaultRealm` per system. Empty `allowedRealms` means all realms on that cluster.
+A system is one Keycloak front door (`url`). Realms are not a top-level nav section: the allowlist is
+`allowedRealms` / `defaultRealm` on the system; stored per-realm settings use
+`GET`/`PUT`/`DELETE /admin/systems/{alias}/realms[/{realm}]` (mirrored under `/bff/api/...`). Empty `allowedRealms`
+means all realms on that cluster. Realm import / discover and Test connection still need server endpoints.
 
 ### Roles
 
@@ -34,7 +40,7 @@ A system is one Keycloak front door (`url`). Realms are not a top-level nav sect
 
 The BFF enforces; the UI hides what `/bff/me` `capabilities` does not list (`systems:read`, `systems:write`,
 `secrets:read`, `storage:read`). An operator sees everything a viewer sees. The bearer admin API is unchanged and still
-requires the operator role.
+requires the operator role. One `systems:write` covers systems, realms and key rotate.
 
 ## How it works
 
@@ -99,8 +105,12 @@ which provider and subject it belongs to.
 | `GET /bff/me` | who is signed in, providers, `admin` / `viewer`, and `capabilities` |
 | `GET /bff/login[?idp=<alias>]` | starts the login, then `/ui/overview` |
 | `GET /bff/logout` | RP-initiated logout, session row deleted |
-| `GET /bff/api/systems[/{alias}]` | the systems, as `GET /admin/systems`; operator (`kc-mcp.admin.role`) or viewer (`kc-mcp.ui.viewer-role`) |
+| `GET /bff/api/systems[/{alias}]` | the systems, as `GET /admin/systems`; operator or viewer |
 | `PUT /bff/api/systems/{alias}` | replace a mutable system; operator only (+ CSRF header) |
+| `DELETE /bff/api/systems/{alias}` | remove a mutable system; operator only (+ CSRF) |
+| `POST /bff/api/systems/{alias}/signing-key` | rotate the signing key; operator only (+ CSRF) |
+| `GET /bff/api/systems/{alias}/realms[/{realm}]` | realm settings, as the admin API |
+| `PUT` / `DELETE /bff/api/systems/{alias}/realms/{realm}` | add, replace or remove realm settings; operator (+ CSRF) |
 | `POST /bff/check-session` | the session check above |
 | `POST /bff/backchannel-logout` | for the identity provider, not the browser |
 

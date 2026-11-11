@@ -190,9 +190,10 @@ public class AdminSystems {
         checkSecrets(system);
         checkTools(system, catalog);
         // the stored realms stay, and overlay the new block: checked together
+        KeycloakSystem toSave = system;
         KeycloakSystem withRealms = owner.isPresent()
-                ? systems.repository().find(system.name()).map(old -> system.withRealms(old.realms())).orElse(system)
-                : system;
+                ? systems.repository().find(toSave.name()).map(old -> toSave.withRealms(old.realms())).orElse(toSave)
+                : toSave;
         checkAccess(withRealms);
         if (system.clientAuth() == ClientAuth.PRIVATE_KEY_JWT && !keys.configuredKey()) {
             Object mode = body.get("signingKey");

@@ -10,6 +10,7 @@ import java.util.TreeSet;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -52,9 +53,15 @@ import io.quarkus.vertx.http.runtime.CurrentVertxRequest;
  * POST /bff/check-session  is the session still alive at the provider (UserSessionCheck); 200 {"active": true, ...}
  *                       with a re-sent cookie, 401 {"active": false} when it ended elsewhere, 503 when the provider
  *                       cannot be asked
- * GET /bff/api/systems           the known systems, as GET /admin/systems (operator or viewer role)
- * GET /bff/api/systems/{alias}   one system, as GET /admin/systems/{alias}
- * PUT /bff/api/systems/{alias}   replace a mutable system, as PUT /admin/systems/{alias} (operator + CSRF header)
+ * GET /bff/api/systems                     the known systems, as GET /admin/systems (operator or viewer role)
+ * GET /bff/api/systems/{alias}             one system, as GET /admin/systems/{alias}
+ * PUT /bff/api/systems/{alias}             replace a mutable system, as PUT /admin/systems/{alias} (operator + CSRF)
+ * DELETE /bff/api/systems/{alias}          remove a mutable system (operator + CSRF)
+ * POST /bff/api/systems/{alias}/signing-key  rotate the signing key (operator + CSRF)
+ * GET /bff/api/systems/{alias}/realms      realm settings for the system
+ * GET /bff/api/systems/{alias}/realms/{r}  one realm's settings
+ * PUT /bff/api/systems/{alias}/realms/{r}  add or replace realm settings (operator + CSRF)
+ * DELETE /bff/api/systems/{alias}/realms/{r}  remove realm settings (operator + CSRF)
  * POST /bff/backchannel-logout   the provider ends sessions (OIDC back-channel logout, BackChannelLogoutResource)
  * </pre>
  */
@@ -218,5 +225,47 @@ public class UiResource {
             @Context HttpHeaders headers) {
         var saved = systems.save(body, alias, AdminResource.publicBase(config.hostname(), uri, headers));
         return Response.status(saved.replaced() ? 200 : 201).entity(saved.representation()).build();
+    }
+
+    @DELETE
+    @Path("api/systems/{alias}")
+    public Response deleteSystem(@PathParam("alias") String alias) {
+        systems.delete(alias);
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("api/systems/{alias}/signing-key")
+    public Map<String, Object> rotateSigningKey(@PathParam("alias") String alias, @Context UriInfo uri,
+            @Context HttpHeaders headers) {
+        return systems.rotate(alias, AdminResource.publicBase(config.hostname(), uri, headers));
+    }
+
+    @GET
+    @Path("api/systems/{alias}/realms")
+    public Map<String, Object> realms(@PathParam("alias") String alias) {
+        return systems.realms(alias);
+    }
+
+    @GET
+    @Path("api/systems/{alias}/realms/{realm}")
+    public Map<String, Object> realm(@PathParam("alias") String alias, @PathParam("realm") String realm) {
+        return systems.realm(alias, realm);
+    }
+
+    @PUT
+    @Path("api/systems/{alias}/realms/{realm}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response putRealm(@PathParam("alias") String alias, @PathParam("realm") String realm,
+            Map<String, Object> body) {
+        var saved = systems.saveRealm(alias, realm, body);
+        return Response.status(saved.replaced() ? 200 : 201).entity(saved.representation()).build();
+    }
+
+    @DELETE
+    @Path("api/systems/{alias}/realms/{realm}")
+    public Response deleteRealm(@PathParam("alias") String alias, @PathParam("realm") String realm) {
+        systems.deleteRealm(alias, realm);
+        return Response.noContent().build();
     }
 }

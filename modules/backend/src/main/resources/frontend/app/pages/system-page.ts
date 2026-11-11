@@ -2,10 +2,11 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { BffError, getSystem, type System } from '../bff.js';
 import { systemHref, systemsHref, type SystemTab } from '../router.js';
+import './system-keys.js';
 import './system-realms.js';
 import './system-settings.js';
 
-/** System detail: header, Settings | Realms tabs, child outlet. */
+/** System detail: header, Settings | Realms | Keys tabs, child outlet. */
 @customElement('kc-mcp-system-page')
 export class SystemPage extends LitElement {
   static styles = css`
@@ -122,6 +123,15 @@ export class SystemPage extends LitElement {
     }
   }
 
+  private onSaved(event: Event): void {
+    const detail = (event as CustomEvent<System>).detail;
+    if (detail?.alias) {
+      this.system = detail;
+    } else {
+      void this.load();
+    }
+  }
+
   render() {
     if (!this.alias) {
       return html`<p class="error">No system selected.</p>`;
@@ -137,7 +147,8 @@ export class SystemPage extends LitElement {
     }
     const s = this.system;
     const title = s.displayName || s.alias;
-    const active = this.tab === 'realms' ? 'realms' : 'settings';
+    const active: SystemTab =
+      this.tab === 'realms' ? 'realms' : this.tab === 'keys' ? 'keys' : 'settings';
     return html`
       <a class="back" href=${systemsHref()}>← Systems</a>
       <h2>${title}</h2>
@@ -157,14 +168,24 @@ export class SystemPage extends LitElement {
           aria-current=${active === 'realms' ? 'page' : nothing}
           >Realms</a
         >
+        <a
+          href=${systemHref(s.alias, 'keys')}
+          aria-current=${active === 'keys' ? 'page' : nothing}
+          >Keys</a
+        >
       </nav>
       ${active === 'realms'
         ? html`<kc-mcp-system-realms .system=${s}></kc-mcp-system-realms>`
-        : html`<kc-mcp-system-settings
-            embedded
-            .alias=${s.alias}
-            @system-saved=${() => this.load()}
-          ></kc-mcp-system-settings>`}
+        : active === 'keys'
+          ? html`<kc-mcp-system-keys
+              .system=${s}
+              @system-saved=${(e: Event) => this.onSaved(e)}
+            ></kc-mcp-system-keys>`
+          : html`<kc-mcp-system-settings
+              embedded
+              .alias=${s.alias}
+              @system-saved=${(e: Event) => this.onSaved(e)}
+            ></kc-mcp-system-settings>`}
     `;
   }
 }
