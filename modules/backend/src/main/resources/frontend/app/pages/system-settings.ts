@@ -12,7 +12,7 @@ import {
   type System,
   type SystemSave,
 } from '../bff.js';
-import { systemHref, systemsHref } from '../router.js';
+import { navigate, systemHref, systemsHref } from '../router.js';
 
 type FormState = {
   alias: string;
@@ -371,8 +371,11 @@ export class SystemSettings extends LitElement {
     try {
       const saved = await saveSystem(alias, body);
       if (this.create) {
-        history.pushState({}, '', systemHref(saved.alias));
-        window.dispatchEvent(new PopStateEvent('popstate'));
+        // Drop the create form before the router swaps in the system page; leave
+        // busy so we don't flash the empty create chrome while goto runs.
+        this.form = null;
+        this.system = null;
+        navigate(systemHref(saved.alias), true);
         return;
       }
       this.system = saved;
@@ -385,7 +388,9 @@ export class SystemSettings extends LitElement {
     } catch (e) {
       this.report(e);
     } finally {
-      this.busy = false;
+      if (this.form !== null || !this.create) {
+        this.busy = false;
+      }
     }
   }
 
@@ -397,8 +402,9 @@ export class SystemSettings extends LitElement {
     this.error = null;
     try {
       await deleteSystem(this.system.alias);
-      history.pushState({}, '', systemsHref());
-      window.dispatchEvent(new PopStateEvent('popstate'));
+      this.form = null;
+      this.system = null;
+      navigate(systemsHref(), true);
     } catch (e) {
       this.report(e);
       this.busy = false;
@@ -421,7 +427,7 @@ export class SystemSettings extends LitElement {
       return html`<p class="error">No system selected.</p>`;
     }
     if (!this.form && this.busy) {
-      return html`<p class="lead">Loading…</p>`;
+      return html`<p class="lead">${this.create ? 'Opening system…' : 'Loading…'}</p>`;
     }
     if (this.create && this.createBlockedHint) {
       return html`

@@ -3,6 +3,8 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { checkSession, login, me, type Me, type SessionCheck } from './bff.js';
 import { DEFAULT_PATH, ensureDefaultPath, UI_BASE, type SystemTab } from './router.js';
+
+type GotoDetail = { path: string };
 import './kc-mcp-nav.js';
 import './kc-mcp-toolbar.js';
 import './pages/overview-page.js';
@@ -127,7 +129,7 @@ export class KcMcpApp extends LitElement {
           notifyNavigate();
           return true;
         },
-        render: () => html`<kc-mcp-system-settings create></kc-mcp-system-settings>`,
+        render: () => html`<kc-mcp-system-settings .create=${true}></kc-mcp-system-settings>`,
       },
       {
         name: 'system-realm',
@@ -243,6 +245,14 @@ export class KcMcpApp extends LitElement {
     }
   };
 
+  private readonly onGoto = (event: Event) => {
+    const path = (event as CustomEvent<GotoDetail>).detail?.path;
+    if (path) {
+      void this.router.goto(path);
+      notifyNavigate();
+    }
+  };
+
   private systemTab(tab: string | undefined): SystemTab {
     if (tab === 'realms' || tab === 'keys') {
       return tab;
@@ -259,11 +269,13 @@ export class KcMcpApp extends LitElement {
       window.history.replaceState(null, '', url.pathname + url.search + url.hash);
     }
     super.connectedCallback();
+    window.addEventListener('kc-mcp-goto', this.onGoto);
     void this.refresh();
     this.trackActivity();
   }
 
   disconnectedCallback(): void {
+    window.removeEventListener('kc-mcp-goto', this.onGoto);
     document.removeEventListener('visibilitychange', this.onVisible);
     window.removeEventListener('focus', this.onVisible);
     super.disconnectedCallback();

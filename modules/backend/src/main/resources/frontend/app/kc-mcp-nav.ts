@@ -108,5 +108,6 @@ declare global {
   }
   interface WindowEventMap {
     'kc-mcp-navigate': Event;
+    'kc-mcp-goto': CustomEvent<{ path: string }>;
   }
 }
