@@ -10,7 +10,6 @@ import './kc-mcp-toolbar.js';
 import './pages/overview-page.js';
 import './pages/placeholder-page.js';
 import './pages/system-page.js';
-import './pages/system-realm-page.js';
 import './pages/system-settings.js';
 import './pages/systems-page.js';
 
@@ -138,11 +137,13 @@ export class KcMcpApp extends LitElement {
           notifyNavigate();
           return true;
         },
+        // Same shell as the Realms tab so list → detail only swaps the inner view.
         render: ({ alias, realm }) =>
-          html`<kc-mcp-system-realm-page
+          html`<kc-mcp-system-page
             .alias=${alias ?? ''}
+            tab="realms"
             .realm=${realm ?? ''}
-          ></kc-mcp-system-realm-page>`,
+          ></kc-mcp-system-page>`,
       },
       {
         name: 'system-tab',
@@ -161,6 +162,7 @@ export class KcMcpApp extends LitElement {
           html`<kc-mcp-system-page
             .alias=${alias ?? ''}
             .tab=${this.systemTab(tab)}
+            .realm=${''}
           ></kc-mcp-system-page>`,
       },
       {
@@ -171,7 +173,11 @@ export class KcMcpApp extends LitElement {
           return true;
         },
         render: ({ alias }) =>
-          html`<kc-mcp-system-page .alias=${alias ?? ''} tab="settings"></kc-mcp-system-page>`,
+          html`<kc-mcp-system-page
+            .alias=${alias ?? ''}
+            tab="settings"
+            .realm=${''}
+          ></kc-mcp-system-page>`,
       },
       {
         name: 'systems',

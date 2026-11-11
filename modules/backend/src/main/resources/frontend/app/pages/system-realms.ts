@@ -227,8 +227,11 @@ export class SystemRealms extends LitElement {
     this.busy = true;
     this.error = null;
     try {
-      await saveSystemRealm(this.system.alias, realm, { displayName: realm });
-      navigate(realmHref(this.system.alias, realm));
+      const alias = this.system.alias;
+      await saveSystemRealm(alias, realm, { displayName: realm });
+      // Leave the list before the shell swaps in the realm detail.
+      this.realms = [];
+      navigate(realmHref(alias, realm), true);
     } catch (e) {
       this.report(e);
       this.busy = false;
