@@ -111,6 +111,12 @@ export class KcMcpApp extends LitElement {
     .muted {
       color: var(--muted);
     }
+    ::slotted(.boot) {
+      display: block;
+      padding: 1.5rem;
+      color: var(--muted);
+      max-width: 36rem;
+    }
     @media (max-width: 640px) {
       .body {
         flex-direction: column;
@@ -325,6 +331,10 @@ export class KcMcpApp extends LitElement {
 
   render() {
     const s = this.sessionState.me;
+    // Until /bff/me returns, keep the light-DOM boot content from index.html visible.
+    if (!s && !this.sessionError) {
+      return html`<slot></slot>`;
+    }
     const signedIn = !!s?.authenticated;
     return html`
       <kc-mcp-toolbar></kc-mcp-toolbar>
@@ -337,17 +347,15 @@ export class KcMcpApp extends LitElement {
                 <p class="error">${this.sessionError}</p>
                 <button class="secondary" type="button" @click=${() => this.refresh()}>Retry</button>
               </section>`
-            : !s
-              ? html`<section class="card"><p class="muted">Loading…</p></section>`
-              : !s.authenticated
-                ? this.renderSignIn(s)
-                : html`<section
-                    class="card"
-                    @check-session=${() => this.checkSession()}
-                    @session-lost=${() => this.refresh()}
-                  >
-                    ${this.router.outlet()}
-                  </section>`}
+            : !s?.authenticated
+              ? this.renderSignIn(s!)
+              : html`<section
+                  class="card"
+                  @check-session=${() => this.checkSession()}
+                  @session-lost=${() => this.refresh()}
+                >
+                  ${this.router.outlet()}
+                </section>`}
         </main>
       </div>
     `;
