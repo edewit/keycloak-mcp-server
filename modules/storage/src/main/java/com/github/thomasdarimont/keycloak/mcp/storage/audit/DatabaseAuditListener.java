@@ -6,6 +6,8 @@ import jakarta.transaction.Transactional;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 
 import io.quarkus.arc.lookup.LookupIfProperty;
@@ -27,9 +29,22 @@ public class DatabaseAuditListener implements AuditListener {
 
     public static final String ID = "db";
 
+    /** Read by {@link AuditRetention}. */
+    public static final ConfigProperty RETENTION_DAYS = ConfigProperty.integer("retention-days")
+        .withDefault("0")
+        .withLabel("Retention (days)")
+        .withDescription("Deletes audit rows older than this, at startup and then hourly; 0 keeps everything.");
+
+    public static final ConfigSpec CONFIG_SPEC = ConfigSpec.of(RETENTION_DAYS);
+
     @Override
     public String id() {
         return ID;
+    }
+
+    @Override
+    public ConfigSpec configSpec() {
+        return CONFIG_SPEC;
     }
 
     @Override

@@ -639,7 +639,7 @@ class AuthZenEngineTest {
     void misconfigurationIsReported() {
         assertThrows(IllegalStateException.class, () -> AuthZenSettings
             .from(new ProviderConfig("authzen", Map.of("enabled", "true", "url", base, "auth", "header")), null));
-        assertThrows(IllegalArgumentException.class, () -> AuthZenSettings
+        assertThrows(IllegalStateException.class, () -> AuthZenSettings
             .from(new ProviderConfig("authzen", Map.of("enabled", "true", "url", "ftp://pdp")), null));
     }
 

@@ -11,7 +11,10 @@ import org.junit.jupiter.api.Test;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigHint;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.smallrye.config.PropertiesConfigSource;
@@ -104,7 +107,7 @@ class ConfigPropertyTest {
         ProviderConfig c = config(
                 Map.of("page-size", "many", "mode", "maybe", "pdp.url", "localhost:8080/pdp", "pin", "12x4"),
                 List.of(SIZE, MODE, ENDPOINT, pin, NEEDED));
-        List<String> problems = c.problems();
+        List<String> problems = c.problems().stream().map(ConfigProblem::message).toList();
         assertEquals(5, problems.size(), problems.toString());
         assertTrue(problems.contains("kc-mcp.spi.audit-listener.acme.page-size must be a whole number, not 'many'"));
         assertTrue(problems
@@ -134,7 +137,7 @@ class ConfigPropertyTest {
     void variablesMapToTheDeclaredNames() {
         Map<String, String> env = Map.of("KC_MCP_SPI_AUDIT_LISTENER_ACME_PDP_URL", "https://pdp",
                 "KC_MCP_SPI_AUDIT_LISTENER_ACME_PAGE_SIZE", "5", "KC_MCP_SPI_AUDIT_LISTENER_ACME_OTHER_THING", "y");
-        ProviderConfig c = ProviderConfig.forExtension("audit-listener", "acme", Map.of(), env, ALL);
+        ProviderConfig c = ProviderConfig.forExtension("audit-listener", "acme", Map.of(), env, ConfigSpec.of(ALL));
         assertEquals("https://pdp", c.get("pdp.url").orElseThrow());
         assertEquals(5, c.readInt(SIZE));
         assertEquals("y", c.get("other-thing").orElseThrow(), "undeclared keys keep the kebab-case guess");
@@ -145,6 +148,12 @@ class ConfigPropertyTest {
         assertThrows(IllegalArgumentException.class, () -> ConfigProperty.integer("n").withDefault("ten"));
         assertThrows(IllegalArgumentException.class, () -> ConfigProperty.choice("c"));
         assertThrows(IllegalArgumentException.class, () -> config(Map.of(), List.of(TEXT, TEXT)));
+        assertThrows(IllegalArgumentException.class,
+                () -> ConfigSpec.of(TEXT).withHints(ConfigHint.when(TEXT.name()).is("nope", "x")),
+                "a condition on an undeclared setting");
+        assertThrows(IllegalArgumentException.class, () -> ConfigSpec.of(TEXT).withHints(ConfigHint.group("G", "nope")),
+                "a group of undeclared settings");
+        ConfigSpec.of(TEXT).withHints(ConfigHint.when(TEXT.name()).is("enabled", "true"));
     }
 
     private static McpServerConfig server(Map<String, String> values) {
@@ -156,6 +165,7 @@ class ConfigPropertyTest {
 
     private static final class Declaring implements AuditListener {
         boolean configured;
+        List<ConfigProblem> rules = List.of();
 
         @Override
         public String id() {
@@ -163,8 +173,13 @@ class ConfigPropertyTest {
         }
 
         @Override
-        public List<ConfigProperty> configProperties() {
-            return List.of(MODE);
+        public ConfigSpec configSpec() {
+            return ConfigSpec.of(MODE);
+        }
+
+        @Override
+        public List<ConfigProblem> validate(ProviderConfig config) {
+            return rules;
         }
 
         @Override
@@ -193,5 +208,87 @@ class ConfigPropertyTest {
         assertTrue(Extensions.usable(e, "AuditListener",
                 server(Map.of("kc-mcp.spi.audit-listener.declaring.mdoe", "drop"))));
         assertTrue(e.configured);
+    }
+
+    @Test
+    void aliasesStandForTheirOption() {
+        ConfigProperty mode = ConfigProperty.choice("mode", "off", "reject", "confirm")
+            .withAliases("true", "reject", "false", "off");
+        assertEquals("reject", mode.parse("TRUE"));
+        assertEquals("off", mode.parse("false"));
+        assertEquals("confirm", mode.parse("confirm"));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> mode.parse("maybe"));
+        assertEquals("'mode' must be one of off, reject, confirm, not 'maybe'", e.getMessage(),
+                "aliases are accepted, not offered");
+        assertThrows(IllegalArgumentException.class, () -> mode.withAliases("yes", "accept"));
+    }
+
+    @Test
+    void enumOptionsAreKebabCase() {
+        enum Flow {
+            TWO_STEP, BLOCKING
+        }
+        ConfigProperty flow = ConfigProperty.choice("flow", Flow.class);
+        assertEquals(List.of("two-step", "blocking"), flow.options());
+        assertEquals(Flow.TWO_STEP, config(Map.of("flow", "two-step"), List.of(flow)).readEnum(flow, Flow.class));
+    }
+
+    @Test
+    void messagesNameWhereTheSettingsAreWritten() {
+        ProviderConfig c = config(Map.of("page-size", "x"), ALL).describedAs("kc-mcp.systems.prod.acme.");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> c.readInt(SIZE));
+        assertEquals("kc-mcp.systems.prod.acme.page-size must be a whole number, not 'x'", e.getMessage());
+    }
+
+    @Test
+    void theExtensionsOwnRulesRunAfterTheSpecsChecks() {
+        Declaring e = new Declaring();
+        e.rules = List.of(ConfigProblem.error("acme rule broken", "mode"));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> Extensions.usable(e, "AuditListener", server(Map.of())));
+        assertTrue(ex.getMessage().contains("acme rule broken"), ex.getMessage());
+
+        e.rules = List.of(ConfigProblem.warning("acme rule looks odd", "mode"));
+        assertTrue(Extensions.usable(e, "AuditListener", server(Map.of())), "a warning is only logged");
+
+        ProviderConfig malformed = new ProviderConfig("audit-listener", "declaring", Map.of("mode", "maybe"),
+                e.configSpec());
+        e.rules = null; // would throw if called
+        assertEquals(1, malformed.problems(e).size(), "rules are not asked while the values do not parse");
+    }
+
+    @Test
+    void aRequiredSettingWithConditionsIsRequiredWhileTheyHold() {
+        ConfigProperty auth = ConfigProperty.choice("auth", "none", "header").withDefault("none");
+        ConfigProperty value = ConfigProperty.string("header-value").asRequired();
+        ConfigSpec spec = ConfigSpec.of(auth, value).withHints(ConfigHint.when(value.name()).is(auth.name(), "header"));
+
+        assertTrue(new ProviderConfig("acme", Map.of(), spec).problems().isEmpty(), "auth=none by default");
+        List<ConfigProblem> problems = new ProviderConfig("acme", Map.of("auth", "HEADER"), spec).problems();
+        assertEquals(List.of("kc-mcp.spi.acme.header-value is required when auth=header"),
+                problems.stream().map(ConfigProblem::message).toList());
+        assertEquals(List.of("header-value"), problems.getFirst().properties());
+        assertTrue(
+                new ProviderConfig("acme", Map.of("auth", "header", "header-value", "x"), spec).problems().isEmpty());
+
+        ConfigSpec onEnabled = ConfigSpec.of(value).withHints(ConfigHint.when(value.name()).is("enabled", "true"));
+        assertTrue(new ProviderConfig("acme", Map.of(), onEnabled).problems().isEmpty());
+        assertEquals(1, new ProviderConfig("acme", Map.of("enabled", "TRUE"), onEnabled).problems().size(),
+                "a server's own key can be the condition");
+        ConfigSpec onSet = ConfigSpec.of(TEXT, value).withHints(ConfigHint.when(value.name()).isSet(TEXT.name()));
+        assertEquals(1, new ProviderConfig("acme", Map.of("text", "x"), onSet).problems().size());
+    }
+
+    @Test
+    void specsCombineTheFirstDeclarationWinning() {
+        ConfigProperty secret = ConfigProperty.string("client-secret").asConfidential();
+        ConfigSpec own = ConfigSpec.of(TEXT, ConfigProperty.string("client-secret"))
+            .withHints(ConfigHint.group("Own", "text"));
+        ConfigSpec other = ConfigSpec.of(secret, FLAG).withHints(ConfigHint.when(FLAG.name()).isSet(secret.name()));
+        ConfigSpec both = own.plus(other);
+        assertEquals(List.of("text", "client-secret", "flag"), List.copyOf(both.names()));
+        assertFalse(both.property("client-secret").orElseThrow().confidential(), "declared here first");
+        assertEquals(2, both.hints().size());
+        assertEquals(both, both.plus(other), "hints come along once");
     }
 }

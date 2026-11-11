@@ -43,6 +43,7 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApproval;
 import com.github.thomasdarimont.keycloak.mcp.confirm.PendingApprovalStore;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
@@ -248,6 +249,11 @@ public class CibaConfirmer implements Confirmer {
     @Override
     public String id() {
         return CibaSettings.ID;
+    }
+
+    @Override
+    public ConfigSpec configSpec() {
+        return CibaSettings.CONFIG_SPEC;
     }
 
     @Override

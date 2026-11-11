@@ -294,10 +294,18 @@ class PolicyChecksTest {
 
     @Test
     void selfProtectionSettingsParse() {
-        assertEquals(PolicySettings.SelfProtection.REJECT, PolicySettings.SelfProtection.parse("true"));
-        assertEquals(PolicySettings.SelfProtection.OFF, PolicySettings.SelfProtection.parse("false"));
-        assertEquals(PolicySettings.SelfProtection.CONFIRM, PolicySettings.SelfProtection.parse(" Confirm "));
-        assertThrows(IllegalArgumentException.class, () -> PolicySettings.SelfProtection.parse("maybe"));
+        assertEquals(PolicySettings.SelfProtection.REJECT, selfProtection("true"));
+        assertEquals(PolicySettings.SelfProtection.OFF, selfProtection("false"));
+        assertEquals(PolicySettings.SelfProtection.CONFIRM, selfProtection(" Confirm "));
+        assertThrows(IllegalArgumentException.class, () -> selfProtection("maybe"));
+    }
+
+    private static PolicySettings.SelfProtection selfProtection(String mode) {
+        return PolicySettings
+            .forCheck(SelfProtectionCheck.ID,
+                    new com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig("access-check",
+                            SelfProtectionCheck.ID, Map.of("mode", mode)))
+            .selfProtection();
     }
 
     @Test

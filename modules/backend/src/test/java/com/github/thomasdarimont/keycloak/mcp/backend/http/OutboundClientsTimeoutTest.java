@@ -123,7 +123,7 @@ class OutboundClientsTimeoutTest {
             .from(new ProviderConfig(CibaSettings.ID, Map.of("connect-timeout", "500ms", "read-timeout", "15")), 120);
         assertEquals(Duration.ofMillis(500), own.connectTimeout());
         assertEquals(Duration.ofSeconds(15), own.readTimeout(), "a bare number is seconds");
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+        IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> CibaSettings.from(new ProviderConfig(CibaSettings.ID, Map.of("read-timeout", "soon")), 120));
         assertTrue(e.getMessage().contains("kc-mcp.spi.confirmer.ciba.read-timeout"), e.getMessage());
         assertEquals(Optional.empty(), OutboundClients.duration(Optional.of(" "), "x"));

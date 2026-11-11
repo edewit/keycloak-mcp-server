@@ -2,6 +2,7 @@ package com.github.thomasdarimont.keycloak.mcp.storage.audit;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,6 +13,7 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.audit.PiiAuditScrubber.Policy;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
@@ -125,9 +127,11 @@ class PiiAuditScrubberTest {
     @Test
     void declaresItsSettings() {
         ProviderConfig config = new ProviderConfig(AuditScrubber.SPI, PiiAuditScrubber.ID,
-                Map.of("mdoe", "drop", "pseudonym-key", "k", "mode", "drop"), PiiAuditScrubber.CONFIG_PROPERTIES);
+                Map.of("mdoe", "drop", "pseudonym-key", "k", "mode", "drop"), PiiAuditScrubber.CONFIG_SPEC);
         assertEquals(Set.of("mdoe"), config.unknownKeys());
         assertEquals("******", config.display().get("pseudonym-key"));
-        assertTrue(config.problems().isEmpty());
+        assertEquals(List.of(List.of("mdoe")), config.problems().stream().map(ConfigProblem::properties).toList(),
+                "only the unknown key, as a warning");
+        assertFalse(config.problems().getFirst().isError());
     }
 }

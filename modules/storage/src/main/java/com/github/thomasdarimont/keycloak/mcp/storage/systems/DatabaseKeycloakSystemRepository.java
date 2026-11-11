@@ -29,6 +29,8 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.Preset;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SystemTimestamps;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.ToolSettings;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
@@ -61,8 +63,12 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
 
     public static final String ID = "db";
 
-    /** Default of {@code kc-mcp.spi.system-repository.db.cache-seconds}. */
-    public static final int DEFAULT_CACHE_SECONDS = 10;
+    public static final ConfigProperty CACHE_SECONDS = ConfigProperty.integer("cache-seconds")
+        .withDefault("10")
+        .withLabel("Cache (seconds)")
+        .withDescription("How long a snapshot of the rows is served before it is reloaded.");
+
+    public static final ConfigSpec CONFIG_SPEC = ConfigSpec.of(CACHE_SECONDS);
 
     private static final String ENABLED_IN_ORDER = "enabled = true order by createdAt, alias";
 
@@ -80,8 +86,8 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
 
     @Inject
     public DatabaseKeycloakSystemRepository(StorageCrypto crypto, McpServerConfig serverConfig) {
-        this(crypto, ProviderConfig.forExtension(KeycloakSystemRepository.SPI, ID, serverConfig)
-            .getInt("cache-seconds", DEFAULT_CACHE_SECONDS));
+        this(crypto, ProviderConfig.forExtension(KeycloakSystemRepository.SPI, ID, CONFIG_SPEC, serverConfig)
+            .readInt(CACHE_SECONDS));
     }
 
     /**
@@ -95,6 +101,11 @@ public class DatabaseKeycloakSystemRepository implements MutableKeycloakSystemRe
     @Override
     public String id() {
         return ID;
+    }
+
+    @Override
+    public ConfigSpec configSpec() {
+        return CONFIG_SPEC;
     }
 
     @Override

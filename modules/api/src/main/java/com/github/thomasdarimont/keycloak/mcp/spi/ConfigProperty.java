@@ -1,14 +1,13 @@
 package com.github.thomasdarimont.keycloak.mcp.spi;
 
 import java.net.URI;
-import java.time.Duration;
-import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Map;
 
+import com.github.thomasdarimont.keycloak.mcp.config.Durations;
 import com.github.thomasdarimont.keycloak.mcp.config.SettingValues;
 
 import io.vertx.core.json.DecodeException;
@@ -16,7 +15,7 @@ import io.vertx.core.json.Json;
 
 /**
  * One setting of an {@link Extension}, {@code kc-mcp.spi.<spi>.<id>.<name>}, as the
- * extension declares it in {@link Extension#configProperties()}: like Keycloak's
+ * extension declares it in its {@link Extension#configSpec()}: like Keycloak's
  * {@code ProviderConfigProperty}, the metadata the server checks the configuration
  * against at startup (unknown keys, malformed values), shows in the admin API and
  * generates documentation from. {@link ProviderConfig#readInt(ConfigProperty)} and its
@@ -36,18 +35,18 @@ import io.vertx.core.json.Json;
  * @param description one or two sentences for the UI and the docs
  * @param defaultValue as it would be written in the configuration, {@code null} for none
  * @param options the allowed values of a {@link Type#CHOICE}, empty otherwise
+ * @param aliases further spellings of a choice's options, lowercase, to the option they
+ * stand for ({@code true} for {@code reject}); accepted, not shown as options
  * @param confidential the value is masked wherever it is shown: UI, admin API, logs,
  * error messages
  * @param required startup refuses the extension when the setting is missing and has no
  * default
  */
 public record ConfigProperty(String name, Type type, String label, String description, String defaultValue,
-        List<String> options, boolean confidential, boolean required) {
+        List<String> options, Map<String, String> aliases, boolean confidential, boolean required) {
 
     /** Shown instead of a {@link #confidential} value. */
     public static final String MASK = "******";
-
-    private static final Pattern DURATION = Pattern.compile("(\\d+)(ms|s|m|h|d)?");
 
     /** How a value is written and what it parses to. */
     public enum Type {
@@ -61,7 +60,8 @@ public record ConfigProperty(String name, Type type, String label, String descri
         NUMBER,
         /**
          * {@code 30} (seconds), {@code 500ms}, {@code 30s}, {@code 5m}, {@code 2h},
-         * {@code 1d} or ISO-8601 ({@code PT30S}); {@link Duration}.
+         * {@code 1d} or ISO-8601 ({@code PT30S}), as {@link Durations};
+         * {@link java.time.Duration}.
          */
         DURATION,
         /**
@@ -71,7 +71,10 @@ public record ConfigProperty(String name, Type type, String label, String descri
         URL,
         /** Comma separated, trimmed, empty entries dropped; {@code List<String>}. */
         LIST,
-        /** One of {@link ConfigProperty#options()}, case-insensitive; the option. */
+        /**
+         * One of {@link ConfigProperty#options()} or {@link ConfigProperty#aliases()},
+         * case-insensitive; the option.
+         */
         CHOICE,
         /**
          * A JSON value; {@code JsonObject}, {@code JsonArray}, {@link String},
@@ -90,16 +93,23 @@ public record ConfigProperty(String name, Type type, String label, String descri
         label = label == null || label.isBlank() ? name : label;
         description = description == null ? "" : description;
         options = options == null ? List.of() : List.copyOf(options);
+        aliases = aliases == null ? Map.of() : Map.copyOf(aliases);
         if (type == Type.CHOICE && options.isEmpty()) {
             throw new IllegalArgumentException("Choice '" + name + "' needs options");
         }
-        if (type != Type.CHOICE && !options.isEmpty()) {
+        if (type != Type.CHOICE && !(options.isEmpty() && aliases.isEmpty())) {
             throw new IllegalArgumentException("Only a choice has options, not '" + name + "' (" + type + ")");
+        }
+        for (String target : aliases.values()) {
+            if (!options.contains(target)) {
+                throw new IllegalArgumentException(
+                        "An alias of '" + name + "' stands for '" + target + "', which is not one of " + options);
+            }
         }
     }
 
     public static ConfigProperty of(String name, Type type) {
-        return new ConfigProperty(name, type, null, null, null, List.of(), false, false);
+        return new ConfigProperty(name, type, null, null, null, List.of(), Map.of(), false, false);
     }
 
     public static ConfigProperty string(String name) {
@@ -135,23 +145,29 @@ public record ConfigProperty(String name, Type type, String label, String descri
     }
 
     public static ConfigProperty choice(String name, String... options) {
-        return new ConfigProperty(name, Type.CHOICE, null, null, null, Arrays.asList(options), false, false);
+        return new ConfigProperty(name, Type.CHOICE, null, null, null, Arrays.asList(options), Map.of(), false, false);
     }
 
-    /** The options of a choice from an enum's constants, lowercase. */
+    /**
+     * The options of a choice from an enum's constants, lowercase, {@code -} for
+     * {@code _} ({@code TWO_STEP} is {@code two-step}), as
+     * {@link ProviderConfig#readEnum} maps them back.
+     */
     public static <E extends Enum<E>> ConfigProperty choice(String name, Class<E> options) {
         return choice(name,
                 Arrays.stream(options.getEnumConstants())
-                    .map(e -> e.name().toLowerCase(Locale.ROOT))
+                    .map(e -> e.name().toLowerCase(Locale.ROOT).replace('_', '-'))
                     .toArray(String[]::new));
     }
 
     public ConfigProperty withLabel(String label) {
-        return new ConfigProperty(name, type, label, description, defaultValue, options, confidential, required);
+        return new ConfigProperty(name, type, label, description, defaultValue, options, aliases, confidential,
+                required);
     }
 
     public ConfigProperty withDescription(String description) {
-        return new ConfigProperty(name, type, label, description, defaultValue, options, confidential, required);
+        return new ConfigProperty(name, type, label, description, defaultValue, options, aliases, confidential,
+                required);
     }
 
     /**
@@ -159,22 +175,38 @@ public record ConfigProperty(String name, Type type, String label, String descri
      * default fails where it is declared
      */
     public ConfigProperty withDefault(String defaultValue) {
-        ConfigProperty p = new ConfigProperty(name, type, label, description, defaultValue, options, confidential,
-                required);
+        ConfigProperty p = new ConfigProperty(name, type, label, description, defaultValue, options, aliases,
+                confidential, required);
         if (defaultValue != null) {
             p.parse(defaultValue);
         }
         return p;
     }
 
+    /**
+     * Further spellings of the options, accepted as the option they stand for.
+     *
+     * @param pairs alias, option, alias, option, ...
+     */
+    public ConfigProperty withAliases(String... pairs) {
+        if (pairs.length % 2 != 0) {
+            throw new IllegalArgumentException("Aliases of '" + name + "' come in pairs: alias, option");
+        }
+        Map<String, String> more = new LinkedHashMap<>(aliases);
+        for (int i = 0; i < pairs.length; i += 2) {
+            more.put(pairs[i].toLowerCase(Locale.ROOT), pairs[i + 1]);
+        }
+        return new ConfigProperty(name, type, label, description, defaultValue, options, more, confidential, required);
+    }
+
     /** Masks the value wherever it is shown. */
     public ConfigProperty asConfidential() {
-        return new ConfigProperty(name, type, label, description, defaultValue, options, true, required);
+        return new ConfigProperty(name, type, label, description, defaultValue, options, aliases, true, required);
     }
 
     /** Startup refuses the extension when the setting is missing and has no default. */
     public ConfigProperty asRequired() {
-        return new ConfigProperty(name, type, label, description, defaultValue, options, confidential, true);
+        return new ConfigProperty(name, type, label, description, defaultValue, options, aliases, confidential, true);
     }
 
     /** The value as it may be shown: {@link #MASK} when confidential. */
@@ -227,7 +259,14 @@ public record ConfigProperty(String name, Type type, String label, String descri
                     throw invalid(key, value, "a number");
                 }
             }
-            case DURATION -> parseDuration(key, v, value);
+            case DURATION -> {
+                try {
+                    yield Durations.parse(v);
+                }
+                catch (RuntimeException e) {
+                    throw invalid(key, value, "a duration such as 30s, 500ms, 5m or PT30S");
+                }
+            }
             case URL -> {
                 try {
                     URI uri = new URI(v);
@@ -242,10 +281,18 @@ public record ConfigProperty(String name, Type type, String label, String descri
                 }
             }
             case LIST -> List.copyOf(SettingValues.csv(v));
-            case CHOICE -> options.stream()
-                .filter(o -> o.equalsIgnoreCase(v))
-                .findFirst()
-                .orElseThrow(() -> invalid(key, value, "one of " + String.join(", ", options)));
+            case CHOICE -> {
+                for (String o : options) {
+                    if (o.equalsIgnoreCase(v)) {
+                        yield o;
+                    }
+                }
+                String aliased = aliases.get(v.toLowerCase(Locale.ROOT));
+                if (aliased != null) {
+                    yield aliased;
+                }
+                throw invalid(key, value, "one of " + String.join(", ", options));
+            }
             case JSON -> {
                 try {
                     yield Json.decodeValue(v);
@@ -254,30 +301,6 @@ public record ConfigProperty(String name, Type type, String label, String descri
                     throw invalid(key, value, "a JSON value");
                 }
             }
-        };
-    }
-
-    private Duration parseDuration(String key, String v, String value) {
-        try {
-            if (v.regionMatches(true, 0, "P", 0, 1)) {
-                return Duration.parse(v.toUpperCase(Locale.ROOT));
-            }
-        }
-        catch (DateTimeParseException e) {
-            throw invalid(key, value, "a duration such as 30s, 5m or PT30S");
-        }
-        Matcher m = DURATION.matcher(v.toLowerCase(Locale.ROOT));
-        if (!m.matches()) {
-            throw invalid(key, value, "a duration such as 30s, 5m or PT30S");
-        }
-        long n = Long.parseLong(m.group(1));
-        String unit = m.group(2) == null ? "s" : m.group(2);
-        return switch (unit) {
-            case "ms" -> Duration.ofMillis(n);
-            case "m" -> Duration.ofMinutes(n);
-            case "h" -> Duration.ofHours(n);
-            case "d" -> Duration.ofDays(n);
-            default -> Duration.ofSeconds(n);
         };
     }
 

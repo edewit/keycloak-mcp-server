@@ -1,9 +1,12 @@
 package com.github.thomasdarimont.keycloak.mcp.oauth;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.vertx.core.json.JsonObject;
@@ -25,6 +28,24 @@ public interface ClientAuthenticatorFactory {
      * there is one ({@code private_key_jwt}).
      */
     String id();
+
+    /**
+     * The settings the method reads from the settings of the component that fetches the
+     * tokens ({@code client-secret}, {@code jwt-key-file}): that component adds them to
+     * its own spec, so they are checked, masked and documented with its settings. Empty
+     * by default: nothing declared.
+     */
+    default ConfigSpec configSpec() {
+        return ConfigSpec.EMPTY;
+    }
+
+    /**
+     * The method's rules between its settings, as {@code Extension#validate}: called by
+     * the component that fetches tokens with this method, on its settings.
+     */
+    default List<ConfigProblem> validate(ProviderConfig config) {
+        return List.of();
+    }
 
     /**
      * @throws IllegalStateException when a setting the method needs is missing or wrong;

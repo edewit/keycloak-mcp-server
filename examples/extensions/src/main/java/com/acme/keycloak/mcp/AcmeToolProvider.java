@@ -12,6 +12,8 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.Views;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.tools.AbstractToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProvider;
 import com.github.thomasdarimont.keycloak.mcp.tools.ToolProviderContext;
@@ -26,9 +28,20 @@ import com.google.auto.service.AutoService;
 @AutoService(ToolProvider.class)
 public class AcmeToolProvider extends AbstractToolProvider {
 
+    /** {@code kc-mcp.spi.tools.acme.company} */
+    static final ConfigProperty COMPANY = ConfigProperty.string("company")
+        .withDefault("ACME")
+        .withLabel("Company")
+        .withDescription("Shown in the tool titles.");
+
     @Override
     public String id() {
         return "acme";
+    }
+
+    @Override
+    public ConfigSpec configSpec() {
+        return ConfigSpec.of(COMPANY);
     }
 
     @Override
@@ -43,7 +56,7 @@ public class AcmeToolProvider extends AbstractToolProvider {
 
     @Override
     public List<ToolSpec> tools(ToolProviderContext ctx) {
-        String company = ctx.config().get("company", "ACME"); // kc-mcp.spi.tools.acme.company
+        String company = ctx.config().readString(COMPANY);
         return List.of(
                 // READ: needs view-users in the realm, visible to everyone who has it
                 tool("keycloak_acme_user_summary").title(company + ": user summary")

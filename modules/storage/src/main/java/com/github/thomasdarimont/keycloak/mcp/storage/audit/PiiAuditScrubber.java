@@ -1,7 +1,6 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.audit;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -15,7 +14,9 @@ import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditScrubber;
 import com.github.thomasdarimont.keycloak.mcp.config.SettingValues;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigHint;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
@@ -77,7 +78,10 @@ public class PiiAuditScrubber implements AuditScrubber {
         .withDescription(
                 "HMAC key of the pseudonyms; defaults to kc-mcp.storage.secret-key, which a rotation changes.");
 
-    public static final List<ConfigProperty> CONFIG_PROPERTIES = List.of(MODE, ARGS, TARGETS, PSEUDONYM_KEY);
+    public static final ConfigSpec CONFIG_SPEC = ConfigSpec.of(MODE, ARGS, TARGETS, PSEUDONYM_KEY)
+        .withHints(ConfigHint.when(ARGS.name()).is(MODE.name(), "pseudonymize", "drop"),
+                ConfigHint.when(TARGETS.name()).is(MODE.name(), "pseudonymize", "drop"),
+                ConfigHint.when(PSEUDONYM_KEY.name()).is(MODE.name(), "pseudonymize"));
 
     private final StorageCrypto storageCrypto;
     private Policy policy = Policy.KEEP;
@@ -108,8 +112,8 @@ public class PiiAuditScrubber implements AuditScrubber {
     }
 
     @Override
-    public List<ConfigProperty> configProperties() {
-        return CONFIG_PROPERTIES;
+    public ConfigSpec configSpec() {
+        return CONFIG_SPEC;
     }
 
     @Override

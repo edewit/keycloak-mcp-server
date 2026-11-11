@@ -1,10 +1,14 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.policies;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
  * One of the built-in policy checks as the access check chain runs it: the settings of
@@ -48,6 +52,23 @@ final class ConfiguredPolicyCheck implements AccessCheck {
     @Override
     public boolean enabledByDefault() {
         return enabledByDefault;
+    }
+
+    @Override
+    public ConfigSpec configSpec() {
+        return PolicySettings.spec(id);
+    }
+
+    /** What the check would refuse the calls for: settings that do not parse. */
+    @Override
+    public List<ConfigProblem> validate(ProviderConfig config) {
+        try {
+            PolicySettings.forCheck(id, config);
+            return List.of();
+        }
+        catch (IllegalArgumentException e) {
+            return List.of(ConfigProblem.error(e.getMessage()));
+        }
     }
 
     @Override

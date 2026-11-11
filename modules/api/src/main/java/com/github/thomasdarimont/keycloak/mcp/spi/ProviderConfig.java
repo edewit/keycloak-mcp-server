@@ -41,11 +41,12 @@ import com.github.thomasdarimont.keycloak.mcp.web.UserSessionStore;
  * {@code kc-mcp.spi.access-check.acme-ticket-checker.*} /
  * {@code KC_MCP_SPI_ACCESS_CHECK_ACME_TICKET_CHECKER_*}; see {@link #configId(String)}.
  * <p>
- * Settings the extension declares ({@link Extension#configProperties()}) are best read
- * with {@link #readString(ConfigProperty)}, {@link #readInt(ConfigProperty)} and their
+ * Settings the extension declares ({@link Extension#configSpec()}) are best read with
+ * {@link #readString(ConfigProperty)}, {@link #readInt(ConfigProperty)} and their
  * siblings, which apply the declared default and parse by the declared type;
- * {@link #problems()} and {@link #unknownKeys()} check the settings against the
- * declaration. {@link #toString()} shows only declared, non-confidential values.
+ * {@link #problems()} checks the settings against the spec, {@link #problems(Extension)}
+ * with the extension's own rules. {@link #toString()} shows only declared,
+ * non-confidential values.
  */
 public final class ProviderConfig {
 
@@ -67,6 +68,12 @@ public final class ProviderConfig {
      */
     public static final Set<String> RESERVED_KEYS = Set.of("enabled", "required");
 
+    /**
+     * Settings the server handles for every access check besides {@link #RESERVED_KEYS}:
+     * {@code default}, {@code order}, {@code locked}.
+     */
+    public static final Set<String> ACCESS_CHECK_KEYS = Set.of("default", "order", "locked");
+
     /** The extension points served by exactly one extension. */
     public static final Set<String> SINGLE_PROVIDER_SPIS = Set.of(KeyVault.SPI, SigningKeyGenerator.SPI,
             UserSessionStore.SPI, PendingApprovalStore.SPI);
@@ -74,28 +81,44 @@ public final class ProviderConfig {
     private final String spi;
     private final String providerId;
     private final Map<String, String> values;
+    private final ConfigSpec spec;
     private final Map<String, ConfigProperty> declared;
+    /**
+     * Where the settings are written, for messages; {@code null}:
+     * {@link #providerPrefix()}.
+     */
+    private final String shownPrefix;
 
     /** Settings of an extension point's extension. */
     public ProviderConfig(String spi, String providerId, Map<String, String> values) {
-        this(spi, providerId, values, List.of());
+        this(spi, providerId, values, ConfigSpec.EMPTY);
     }
 
-    /**
-     * Settings of an extension point's extension, with the extension's declared
-     * properties.
-     */
+    /** Settings of an extension point's extension, with the extension's spec. */
+    public ProviderConfig(String spi, String providerId, Map<String, String> values, ConfigSpec spec) {
+        this(spi, providerId, values, spec, null);
+    }
+
+    /** Settings of an extension point's extension, with these declared properties. */
     public ProviderConfig(String spi, String providerId, Map<String, String> values, List<ConfigProperty> declared) {
+        this(spi, providerId, values, ConfigSpec.of(declared), null);
+    }
+
+    private ProviderConfig(String spi, String providerId, Map<String, String> values, ConfigSpec spec,
+            String shownPrefix) {
+        this.shownPrefix = shownPrefix;
         this.spi = spi;
         this.providerId = configId(providerId);
         this.values = values == null ? Map.of() : Map.copyOf(values);
+        this.spec = spec == null ? ConfigSpec.EMPTY : spec;
         Map<String, ConfigProperty> byName = new LinkedHashMap<>();
-        for (ConfigProperty p : declared == null ? List.<ConfigProperty>of() : declared) {
-            if (byName.putIfAbsent(p.name(), p) != null) {
-                throw new IllegalArgumentException("'" + p.name() + "' is declared twice for " + this.providerId);
-            }
-        }
+        this.spec.properties().forEach(p -> byName.put(p.name(), p));
         this.declared = Collections.unmodifiableMap(byName);
+    }
+
+    /** Settings with a spec, without an extension point, for tests. */
+    public ProviderConfig(String providerId, Map<String, String> values, ConfigSpec spec) {
+        this(null, providerId, values, spec);
     }
 
     /** Settings with declared properties, without an extension point, for tests. */
@@ -110,19 +133,16 @@ public final class ProviderConfig {
 
     /** The settings of an extension. */
     public static ProviderConfig forExtension(Extension extension, McpServerConfig config) {
-        return forExtension(extension.spiName(), extension.id(), extension.configProperties(), config);
+        return forExtension(extension.spiName(), extension.id(), extension.configSpec(), config);
     }
 
     /** The settings of an extension, with the process environment. */
     public static ProviderConfig forExtension(String spi, String extensionId, McpServerConfig config) {
-        return forExtension(spi, extensionId, List.of(), config);
+        return forExtension(spi, extensionId, ConfigSpec.EMPTY, config);
     }
 
-    /**
-     * The settings of an extension that declares these properties, with the process
-     * environment.
-     */
-    public static ProviderConfig forExtension(String spi, String extensionId, List<ConfigProperty> declared,
+    /** The settings of an extension with this spec, with the process environment. */
+    public static ProviderConfig forExtension(String spi, String extensionId, ConfigSpec declared,
             McpServerConfig config) {
         Map<String, Map<String, Map<String, String>>> spis = new LinkedHashMap<>();
         config.spi().forEach((name, settings) -> spis.put(name, settings.extensions()));
@@ -159,20 +179,19 @@ public final class ProviderConfig {
      */
     public static ProviderConfig forExtension(String spi, String extensionId,
             Map<String, Map<String, Map<String, String>>> spis, Map<String, String> env) {
-        return forExtension(spi, extensionId, spis, env, List.of());
+        return forExtension(spi, extensionId, spis, env, ConfigSpec.EMPTY);
     }
 
     /**
-     * {@link #forExtension(String, String, Map, Map)} for an extension that declares
-     * these properties: a variable whose remainder matches a declared name apart from
-     * case and separators gets that name, so {@code _PAGE_SIZE} reads {@code page-size}
-     * and {@code _PDP_URL} reads {@code pdp.url} when that is what is declared.
+     * {@link #forExtension(String, String, Map, Map)} for an extension with this spec: a
+     * variable whose remainder matches a declared name apart from case and separators
+     * gets that name, so {@code _PAGE_SIZE} reads {@code page-size} and {@code _PDP_URL}
+     * reads {@code pdp.url} when that is what is declared.
      */
     public static ProviderConfig forExtension(String spi, String extensionId,
-            Map<String, Map<String, Map<String, String>>> spis, Map<String, String> env,
-            List<ConfigProperty> declared) {
+            Map<String, Map<String, Map<String, String>>> spis, Map<String, String> env, ConfigSpec declared) {
         Map<String, String> declaredByVariable = new LinkedHashMap<>();
-        for (ConfigProperty p : declared == null ? List.<ConfigProperty>of() : declared) {
+        for (ConfigProperty p : declared == null ? List.<ConfigProperty>of() : declared.properties()) {
             declaredByVariable.put(variableForm(p.name()), p.name());
         }
         Map<String, String> values = new LinkedHashMap<>();
@@ -255,14 +274,31 @@ public final class ProviderConfig {
         return get(key).map(v -> Integer.parseInt(v.trim())).orElse(defaultValue);
     }
 
+    /** The extension's spec; {@link ConfigSpec#EMPTY} when it declares nothing. */
+    public ConfigSpec spec() {
+        return spec;
+    }
+
     /** The properties the extension declares, by name, in declaration order. */
     public Map<String, ConfigProperty> declared() {
         return declared;
     }
 
-    /** The full key of a setting: {@code kc-mcp.spi.<spi>.<id>.<name>}. */
+    /**
+     * The full key of a setting, as messages name it:
+     * {@code kc-mcp.spi.<spi>.<id>.<name>}, or under the prefix of {@link #describedAs}.
+     */
     public String key(String name) {
-        return providerPrefix() + name;
+        return (shownPrefix != null ? shownPrefix : providerPrefix()) + name;
+    }
+
+    /**
+     * These settings with messages naming them under another prefix, where they were
+     * written: {@code kc-mcp.systems.<name>.authorization.authzen.} for a system's
+     * settings merged over the server's.
+     */
+    public ProviderConfig describedAs(String prefix) {
+        return new ProviderConfig(spi, providerId, values, spec, prefix);
     }
 
     /** The setting as written, else the declared default. */
@@ -370,16 +406,23 @@ public final class ProviderConfig {
     }
 
     /**
-     * What is wrong with the declared settings: a malformed value, a required one that is
-     * missing. Empty when all is well; confidential values are not repeated.
+     * What is wrong with the settings as declared: errors for a malformed value and for a
+     * missing required one (required while its {@link ConfigHint.AppliesWhen conditions}
+     * hold), warnings for keys the extension does not declare. Empty when the extension
+     * declares nothing; confidential values are not repeated.
      */
-    public List<String> problems() {
-        List<String> problems = new ArrayList<>();
+    public List<ConfigProblem> problems() {
+        List<ConfigProblem> problems = new ArrayList<>();
         for (ConfigProperty p : declared.values()) {
             Optional<String> v = raw(p);
             if (v.isEmpty()) {
-                if (p.required()) {
-                    problems.add(key(p.name()) + " is required");
+                List<ConfigHint.AppliesWhen> conditions = spec.conditions(p.name());
+                if (p.required() && conditions.stream().allMatch(c -> c.holds(this))) {
+                    problems.add(ConfigProblem.error(
+                            key(p.name()) + " is required"
+                                    + (conditions.isEmpty() ? "" : " when " + String.join(" and ",
+                                            conditions.stream().map(ConfigHint.AppliesWhen::describe).toList())),
+                            p.name()));
                 }
                 continue;
             }
@@ -387,15 +430,36 @@ public final class ProviderConfig {
                 p.parse(v.get(), key(p.name()));
             }
             catch (IllegalArgumentException e) {
-                problems.add(e.getMessage());
+                problems.add(ConfigProblem.error(e.getMessage(), p.name()));
+            }
+        }
+        for (String k : unknownKeys()) {
+            problems.add(ConfigProblem.warning(
+                    key(k) + " is not a setting of this extension and is ignored; it reads " + declared.keySet(), k));
+        }
+        return problems;
+    }
+
+    /**
+     * {@link #problems()}, then, if there are no errors among them, the extension's own
+     * rules ({@link Extension#validate}); one that throws counts as an error.
+     */
+    public List<ConfigProblem> problems(Extension extension) {
+        List<ConfigProblem> problems = new ArrayList<>(problems());
+        if (ConfigProblem.errors(problems).isEmpty()) {
+            try {
+                problems.addAll(extension.validate(this));
+            }
+            catch (RuntimeException e) {
+                problems.add(ConfigProblem.error(String.valueOf(e.getMessage())));
             }
         }
         return problems;
     }
 
     /**
-     * The settings that are written but not declared, minus {@link #RESERVED_KEYS}; empty
-     * when the extension declares nothing, as then nothing can be told apart.
+     * The settings that are written but not declared, minus the {@link #reserved} ones;
+     * empty when the extension declares nothing, as then nothing can be told apart.
      */
     public Set<String> unknownKeys() {
         if (declared.isEmpty()) {
@@ -403,7 +467,7 @@ public final class ProviderConfig {
         }
         return values.keySet()
             .stream()
-            .filter(k -> !declared.containsKey(k) && !RESERVED_KEYS.contains(k))
+            .filter(k -> !declared.containsKey(k) && !reserved(k))
             .collect(Collectors.toCollection(TreeSet::new));
     }
 
@@ -416,9 +480,27 @@ public final class ProviderConfig {
         Map<String, String> shown = new TreeMap<>();
         values.forEach((k, v) -> {
             ConfigProperty p = declared.get(k);
-            shown.put(k, p != null ? p.display(v) : RESERVED_KEYS.contains(k) ? v : ConfigProperty.MASK);
+            shown.put(k, p != null ? p.display(v) : reserved(k) ? v : ConfigProperty.MASK);
         });
         return shown;
+    }
+
+    /**
+     * Whether the server handles the key itself: {@link #RESERVED_KEYS}, and
+     * {@link #ACCESS_CHECK_KEYS} under {@code access-check}.
+     */
+    public boolean reserved(String key) {
+        return RESERVED_KEYS.contains(key) || (AccessCheck.SPI.equals(spi) && ACCESS_CHECK_KEYS.contains(key));
+    }
+
+    /** These settings with other values, the same declaration. */
+    public ProviderConfig withValues(Map<String, String> other) {
+        return new ProviderConfig(spi, providerId, other, spec, shownPrefix);
+    }
+
+    /** These settings checked against another spec. */
+    public ProviderConfig withSpec(ConfigSpec other) {
+        return new ProviderConfig(spi, providerId, values, other, shownPrefix);
     }
 
     /** {@code kc-mcp.spi.<spi>.<id>.{key=value, ...}} with {@link #display()}. */

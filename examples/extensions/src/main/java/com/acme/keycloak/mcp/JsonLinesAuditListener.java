@@ -9,6 +9,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.google.auto.service.AutoService;
 
@@ -23,6 +25,12 @@ import io.vertx.core.json.JsonObject;
  */
 @AutoService(AuditListener.class)
 public class JsonLinesAuditListener implements AuditListener {
+
+    /** {@code kc-mcp.spi.audit-listener.acme.file} */
+    static final ConfigProperty FILE = ConfigProperty.string("file")
+        .withDefault("acme-audit.jsonl")
+        .withLabel("File")
+        .withDescription("The JSON lines file the events are appended to.");
 
     private Path file;
     private final ReentrantLock lock = new ReentrantLock();
@@ -41,8 +49,13 @@ public class JsonLinesAuditListener implements AuditListener {
     }
 
     @Override
+    public ConfigSpec configSpec() {
+        return ConfigSpec.of(FILE);
+    }
+
+    @Override
     public void configure(ProviderConfig config) {
-        file = Path.of(config.get("file", file.toString()));
+        file = Path.of(config.readString(FILE));
     }
 
     @Override

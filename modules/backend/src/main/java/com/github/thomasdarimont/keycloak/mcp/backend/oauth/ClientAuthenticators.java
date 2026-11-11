@@ -9,6 +9,9 @@ import java.util.TreeSet;
 
 import com.github.thomasdarimont.keycloak.mcp.oauth.ClientAuthenticator;
 import com.github.thomasdarimont.keycloak.mcp.oauth.ClientAuthenticatorFactory;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
+import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
  * The {@link ClientAuthenticatorFactory}s by method id. The first factory of an id wins,
@@ -46,6 +49,32 @@ public final class ClientAuthenticators {
                     + " is not a known client authentication method; known: " + new TreeSet<>(byId.keySet()));
         }
         return f.create(context);
+    }
+
+    /**
+     * The specs of every method, each name once (the first factory's declaration wins):
+     * what a component that fetches tokens declares besides its own.
+     */
+    public ConfigSpec configSpec() {
+        ConfigSpec spec = ConfigSpec.EMPTY;
+        for (ClientAuthenticatorFactory f : byId.values()) {
+            spec = spec.plus(f.configSpec());
+        }
+        return spec;
+    }
+
+    /**
+     * The rules of the named method on these settings; an error when no factory serves
+     * the method.
+     */
+    public List<ConfigProblem> validate(String method, ProviderConfig config, String setting) {
+        ClientAuthenticatorFactory f = byId.get(normalize(method));
+        if (f == null) {
+            return List
+                .of(ConfigProblem.error(setting + "=" + method + " is not a known client authentication method; known: "
+                        + new TreeSet<>(byId.keySet()), "client-auth"));
+        }
+        return f.validate(config);
     }
 
     /**

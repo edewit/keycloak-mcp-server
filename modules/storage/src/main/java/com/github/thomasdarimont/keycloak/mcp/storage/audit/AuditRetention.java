@@ -28,8 +28,6 @@ import io.quarkus.scheduler.Scheduled;
 @ApplicationScoped
 public class AuditRetention {
 
-    public static final String RETENTION_DAYS = "retention-days";
-
     private static final Logger LOG = Logger.getLogger(AuditRetention.class);
 
     @Inject
@@ -56,8 +54,11 @@ public class AuditRetention {
 
     /** The configured retention in days; {@code 0} for none. */
     public int retentionDays() {
-        return Math.max(0, ProviderConfig.forExtension(AuditListener.SPI, DatabaseAuditListener.ID, serverConfig)
-            .getInt(RETENTION_DAYS, 0));
+        return Math.max(0,
+                ProviderConfig
+                    .forExtension(AuditListener.SPI, DatabaseAuditListener.ID, DatabaseAuditListener.CONFIG_SPEC,
+                            serverConfig)
+                    .readInt(DatabaseAuditListener.RETENTION_DAYS));
     }
 
     /**

@@ -55,18 +55,34 @@ public interface Extension {
     }
 
     /**
-     * The settings this extension reads, {@code kc-mcp.spi.<spi>.<id>.<name>}: the server
-     * checks them at startup before {@link #configure} (a malformed value or a missing
-     * required one counts as a failing {@code configure}, unknown keys are logged), maps
-     * environment variables to the declared names, masks the confidential ones and shows
-     * them in the admin API. {@code enabled} and {@code required} are the server's
-     * ({@link ProviderConfig#RESERVED_KEYS}) and not declared here.
+     * How this extension is configured: the settings it reads,
+     * {@code kc-mcp.spi.<spi>.<id>.<name>} ({@link ConfigProperty}), and how they belong
+     * together ({@link ConfigHint}). The server checks the settings against it at startup
+     * before {@link #configure} (a malformed value, or a missing required one, stops the
+     * start; unknown keys are logged), maps environment variables to the declared names,
+     * masks the confidential ones and shows the spec in the admin API. {@code enabled}
+     * and {@code required} are the server's ({@link ProviderConfig#RESERVED_KEYS}) and
+     * not declared here.
      * <p>
      * Called before {@link #configure}, possibly on an instance that will not be
-     * configured, so return constants: a {@code static final} list on the class. Empty
-     * (the default) means undeclared: nothing is checked.
+     * configured, so return a constant: a {@code static final} spec on the class.
+     * {@link ConfigSpec#EMPTY} (the default) means undeclared: nothing is checked.
      */
-    default List<ConfigProperty> configProperties() {
+    default ConfigSpec configSpec() {
+        return ConfigSpec.EMPTY;
+    }
+
+    /**
+     * The extension's own rules between its settings, which the spec cannot say: two that
+     * exclude each other, one of several that must be set, a value that must suit
+     * another. Called after the settings passed the spec's checks, at startup before
+     * {@link #configure}, and wherever the server takes settings for the extension
+     * elsewhere (a system's or realm's block of an access check). Name the settings by
+     * {@link ProviderConfig#key}, so the message says where they are written.
+     *
+     * @return the problems, errors and warnings; empty when all is well
+     */
+    default List<ConfigProblem> validate(ProviderConfig config) {
         return List.of();
     }
 

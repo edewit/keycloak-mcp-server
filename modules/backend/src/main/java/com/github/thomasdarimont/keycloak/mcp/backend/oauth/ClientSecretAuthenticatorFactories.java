@@ -6,6 +6,8 @@ import java.util.Base64;
 
 import com.github.thomasdarimont.keycloak.mcp.oauth.ClientAuthenticator;
 import com.github.thomasdarimont.keycloak.mcp.oauth.ClientAuthenticatorFactory;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.google.auto.service.AutoService;
 
 /**
@@ -14,6 +16,14 @@ import com.google.auto.service.AutoService;
  * parameters). Setting: {@code client-secret}.
  */
 public final class ClientSecretAuthenticatorFactories {
+
+    /** The client's secret. */
+    public static final ConfigProperty CLIENT_SECRET = ConfigProperty.string("client-secret")
+        .asConfidential()
+        .withLabel("Client secret")
+        .withDescription("Secret of the client, for client_secret_basic and client_secret_post.");
+
+    static final ConfigSpec SPEC = ConfigSpec.of(CLIENT_SECRET);
 
     private ClientSecretAuthenticatorFactories() {
     }
@@ -29,8 +39,13 @@ public final class ClientSecretAuthenticatorFactories {
         }
 
         @Override
+        public ConfigSpec configSpec() {
+            return SPEC;
+        }
+
+        @Override
         public ClientAuthenticator create(Context context) {
-            String secret = context.require(ID, "client-secret");
+            String secret = context.require(ID, CLIENT_SECRET.name());
             String credentials = Base64.getEncoder()
                 .encodeToString((enc(context.clientId()) + ":" + enc(secret)).getBytes(StandardCharsets.UTF_8));
             return request -> request.header("Authorization", "Basic " + credentials);
@@ -48,8 +63,13 @@ public final class ClientSecretAuthenticatorFactories {
         }
 
         @Override
+        public ConfigSpec configSpec() {
+            return SPEC;
+        }
+
+        @Override
         public ClientAuthenticator create(Context context) {
-            String secret = context.require(ID, "client-secret");
+            String secret = context.require(ID, CLIENT_SECRET.name());
             String clientId = context.clientId();
             return request -> request.param("client_id", clientId).param("client_secret", secret);
         }

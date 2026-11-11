@@ -20,6 +20,8 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.DefaultSigningKeyGenerato
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeyVault;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKey;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.SigningKeyGenerator;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.github.thomasdarimont.keycloak.mcp.storage.StorageEnabledInterceptorFactory;
 import com.github.thomasdarimont.keycloak.mcp.storage.crypto.StorageCrypto;
@@ -50,8 +52,12 @@ public class DatabaseKeyVault implements KeyVault {
     public static final String ID = "db";
 
     /** How long a retired key stays in the JWKS, seconds. */
-    public static final String RETIRED_KEY_GRACE_SECONDS = "retired-key-grace-seconds";
-    public static final int DEFAULT_RETIRED_KEY_GRACE_SECONDS = 3600;
+    public static final ConfigProperty RETIRED_KEY_GRACE_SECONDS = ConfigProperty.integer("retired-key-grace-seconds")
+        .withDefault("3600")
+        .withLabel("Retired key grace (seconds)")
+        .withDescription("How long a rotated-away key stays in the JWKS.");
+
+    public static final ConfigSpec CONFIG_SPEC = ConfigSpec.of(RETIRED_KEY_GRACE_SECONDS);
 
     private static final Logger LOG = Logger.getLogger(DatabaseKeyVault.class);
 
@@ -62,8 +68,8 @@ public class DatabaseKeyVault implements KeyVault {
 
     @Inject
     public DatabaseKeyVault(StorageCrypto crypto, McpServerConfig serverConfig) {
-        this(crypto, serverConfig, ProviderConfig.forExtension(KeyVault.SPI, ID, serverConfig)
-            .getInt(RETIRED_KEY_GRACE_SECONDS, DEFAULT_RETIRED_KEY_GRACE_SECONDS));
+        this(crypto, serverConfig, ProviderConfig.forExtension(KeyVault.SPI, ID, CONFIG_SPEC, serverConfig)
+            .readInt(RETIRED_KEY_GRACE_SECONDS));
     }
 
     public DatabaseKeyVault(StorageCrypto crypto, McpServerConfig serverConfig, int retiredKeyGraceSeconds) {
@@ -76,6 +82,11 @@ public class DatabaseKeyVault implements KeyVault {
     @Override
     public String id() {
         return ID;
+    }
+
+    @Override
+    public ConfigSpec configSpec() {
+        return CONFIG_SPEC;
     }
 
     @Override

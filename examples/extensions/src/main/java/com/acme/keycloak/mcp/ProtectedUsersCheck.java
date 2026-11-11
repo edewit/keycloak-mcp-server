@@ -3,6 +3,8 @@ package com.acme.keycloak.mcp;
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Category;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.google.auto.service.AutoService;
 
@@ -14,6 +16,12 @@ import com.google.auto.service.AutoService;
  */
 @AutoService(AccessCheck.class)
 public class ProtectedUsersCheck implements AccessCheck {
+
+    /** {@code kc-mcp.spi.access-check.acme-protected-users.prefix} */
+    static final ConfigProperty PREFIX = ConfigProperty.string("prefix")
+        .withDefault("svc-")
+        .withLabel("Protected prefix")
+        .withDescription("Users whose name starts with it are refused to change.");
 
     private String prefix;
 
@@ -31,8 +39,13 @@ public class ProtectedUsersCheck implements AccessCheck {
     }
 
     @Override
+    public ConfigSpec configSpec() {
+        return ConfigSpec.of(PREFIX);
+    }
+
+    @Override
     public void configure(ProviderConfig config) {
-        prefix = config.get("prefix", prefix);
+        prefix = config.readString(PREFIX);
     }
 
     @Override

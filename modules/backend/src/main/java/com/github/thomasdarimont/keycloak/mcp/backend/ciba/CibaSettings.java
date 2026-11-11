@@ -1,12 +1,14 @@
 package com.github.thomasdarimont.keycloak.mcp.backend.ciba;
 
 import java.time.Duration;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.List;
 
-import com.github.thomasdarimont.keycloak.mcp.backend.http.OutboundClients;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Confirmer;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigHint;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
@@ -69,73 +71,144 @@ public record CibaSettings(boolean enabled, String issuer, String tokenIssuer, S
         Duration connectTimeout, Duration readTimeout) {
 
     public enum Flow {
-        TWO_STEP, BLOCKING;
-
-        static Flow parse(String v) {
-            return switch (v.trim().toLowerCase(Locale.ROOT).replace('_', '-')) {
-                case "two-step", "2-step", "async" -> TWO_STEP;
-                case "blocking", "wait", "sync" -> BLOCKING;
-                default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.confirmer.ciba.flow must be two-step or blocking, not '" + v + "'");
-            };
-        }
+        TWO_STEP, BLOCKING
     }
 
     public enum ClientAuth {
-        BASIC, POST;
-
-        static ClientAuth parse(String v) {
-            return switch (v.trim().toLowerCase(Locale.ROOT).replace('-', '_')) {
-                case "basic", "client_secret_basic" -> BASIC;
-                case "post", "client_secret_post" -> POST;
-                default -> throw new IllegalArgumentException("kc-mcp.spi.confirmer.ciba.client-auth must be"
-                        + " client_secret_basic or client_secret_post, not '" + v + "'");
-            };
-        }
+        BASIC, POST
     }
 
     public static final String ID = "ciba";
 
     public enum When {
-        ALWAYS, WITHOUT_ELICITATION;
-
-        static When parse(String v) {
-            return switch (v.trim().toLowerCase(Locale.ROOT).replace('_', '-')) {
-                case "always" -> ALWAYS;
-                case "without-elicitation", "no-elicitation", "fallback" -> WITHOUT_ELICITATION;
-                default -> throw new IllegalArgumentException(
-                        "kc-mcp.spi.confirmer.ciba.when must be always or" + " without-elicitation, not '" + v + "'");
-            };
-        }
+        ALWAYS, WITHOUT_ELICITATION
     }
+
+    public static final ConfigProperty ISSUER = ConfigProperty.string("issuer")
+        .withDefault("caller")
+        .withLabel("Issuer")
+        .withDescription("Issuer URL of the CIBA client, or caller for the issuer of the caller's token.");
+    public static final ConfigProperty TOKEN_ISSUER = ConfigProperty.string("token-issuer")
+        .withLabel("Token issuer")
+        .withDescription("The iss of the provider's tokens when it differs from the URL the server reaches it at.");
+    public static final ConfigProperty CLIENT_ID = ConfigProperty.string("client-id")
+        .asRequired()
+        .withLabel("Client id")
+        .withDescription("The confidential client registered for CIBA.");
+    public static final ConfigProperty CLIENT_SECRET = ConfigProperty.string("client-secret")
+        .asConfidential()
+        .asRequired()
+        .withLabel("Client secret");
+    public static final ConfigProperty CLIENT_AUTH = ConfigProperty
+        .choice("client-auth", "client_secret_basic", "client_secret_post")
+        .withAliases("basic", "client_secret_basic", "client-secret-basic", "client_secret_basic", "post",
+                "client_secret_post", "client-secret-post", "client_secret_post")
+        .withDefault("client_secret_basic")
+        .withLabel("Client authentication");
+    public static final ConfigProperty SCOPE = ConfigProperty.string("scope").withDefault("openid").withLabel("Scope");
+    public static final ConfigProperty ACR_VALUES = ConfigProperty.string("acr-values")
+        .withLabel("ACR values")
+        .withDescription("Optional acr_values, e.g. to demand a second factor on the device.");
+    public static final ConfigProperty LOGIN_HINT = ConfigProperty.string("login-hint")
+        .withDefault("username")
+        .withLabel("Login hint")
+        .withDescription("username (the caller's name) or the token claim the provider resolves the user by.");
+    public static final ConfigProperty BINDING_MESSAGE = ConfigProperty.bool("binding-message")
+        .withDefault("true")
+        .withLabel("Binding message");
+    public static final ConfigProperty BINDING_MESSAGE_PREFIX = ConfigProperty.string("binding-message-prefix")
+        .withDefault("kc-mcp")
+        .withLabel("Binding message prefix");
+    public static final ConfigProperty REQUESTED_EXPIRY = ConfigProperty.bool("requested-expiry")
+        .withDefault("false")
+        .withLabel("Requested expiry")
+        .withDescription("Whether to ask for requested_expiry = the timeout.");
+    public static final ConfigProperty TIMEOUT_SECONDS = ConfigProperty.integer("timeout-seconds")
+        .withLabel("Timeout (seconds)")
+        .withDescription("How long to wait for the approval; kc-mcp.confirm-timeout-seconds by default.");
+    public static final ConfigProperty WHEN = ConfigProperty.choice("when", When.class)
+        .withAliases("without_elicitation", "without-elicitation", "no-elicitation", "without-elicitation",
+                "no_elicitation", "without-elicitation", "fallback", "without-elicitation")
+        .withDefault("always")
+        .withLabel("When")
+        .withDescription("always, or without-elicitation to let a client that can ask the human itself do so.");
+    public static final ConfigProperty FLOW = ConfigProperty.choice("flow", Flow.class)
+        .withAliases("two_step", "two-step", "2-step", "two-step", "2_step", "two-step", "async", "two-step", "wait",
+                "blocking", "sync", "blocking")
+        .withDefault("two-step")
+        .withLabel("Flow")
+        .withDescription("two-step: answer at once and collect the approval with the next call; blocking: wait.");
+    public static final ConfigProperty NUMBER_MATCHING = ConfigProperty.bool("number-matching")
+        .withDefault("true")
+        .withLabel("Number matching");
+    public static final ConfigProperty EXTRA_PARAMETERS = ConfigProperty.bool("extra-parameters")
+        .withDefault("true")
+        .withLabel("Extra parameters")
+        .withDescription("Send requester and operation as additional request parameters.");
+    public static final ConfigProperty POLL_WAIT_SECONDS = ConfigProperty.integer("poll-wait-seconds")
+        .withDefault("5")
+        .withLabel("Poll wait (seconds)");
+    public static final ConfigProperty TLS_CONFIGURATION_NAME = ConfigProperty.string("tls-configuration-name")
+        .withLabel("TLS configuration");
+    public static final ConfigProperty CONNECT_TIMEOUT = ConfigProperty.duration("connect-timeout")
+        .withLabel("Connect timeout")
+        .withDescription("Unset: kc-mcp.http.connect-timeout.");
+    public static final ConfigProperty READ_TIMEOUT = ConfigProperty.duration("read-timeout")
+        .withLabel("Read timeout")
+        .withDescription("Unset: kc-mcp.http.read-timeout.");
+
+    /**
+     * The client is required once CIBA is switched on ({@code enabled=true}): a
+     * confidential client with the CIBA grant.
+     */
+    public static final ConfigSpec CONFIG_SPEC = ConfigSpec
+        .of(ISSUER, TOKEN_ISSUER, CLIENT_ID, CLIENT_SECRET, CLIENT_AUTH, SCOPE, ACR_VALUES, LOGIN_HINT, BINDING_MESSAGE,
+                BINDING_MESSAGE_PREFIX, REQUESTED_EXPIRY, TIMEOUT_SECONDS, WHEN, FLOW, NUMBER_MATCHING,
+                EXTRA_PARAMETERS, POLL_WAIT_SECONDS, TLS_CONFIGURATION_NAME, CONNECT_TIMEOUT, READ_TIMEOUT)
+        .withHints(
+                ConfigHint.group("OpenID provider", ISSUER.name(), TOKEN_ISSUER.name(), TLS_CONFIGURATION_NAME.name(),
+                        CONNECT_TIMEOUT.name(), READ_TIMEOUT.name()),
+                ConfigHint.group("Client", CLIENT_ID.name(), CLIENT_SECRET.name(), CLIENT_AUTH.name(), SCOPE.name()),
+                ConfigHint.group("Authentication request", LOGIN_HINT.name(), ACR_VALUES.name(), BINDING_MESSAGE.name(),
+                        BINDING_MESSAGE_PREFIX.name(), REQUESTED_EXPIRY.name(), EXTRA_PARAMETERS.name()),
+                ConfigHint.group("Approval", WHEN.name(), FLOW.name(), NUMBER_MATCHING.name(), TIMEOUT_SECONDS.name(),
+                        POLL_WAIT_SECONDS.name()),
+                ConfigHint.when(CLIENT_ID.name()).is("enabled", "true"),
+                ConfigHint.when(CLIENT_SECRET.name()).is("enabled", "true"),
+                ConfigHint.when(BINDING_MESSAGE_PREFIX.name()).is(BINDING_MESSAGE.name(), "true"),
+                ConfigHint.when(NUMBER_MATCHING.name()).is(FLOW.name(), "two-step"),
+                ConfigHint.when(POLL_WAIT_SECONDS.name()).is(FLOW.name(), "two-step"));
 
     public static CibaSettings from(McpServerConfig server) {
-        return from(ProviderConfig.forExtension(Confirmer.SPI, ID, server), server.confirmTimeoutSeconds());
+        return from(ProviderConfig.forExtension(Confirmer.SPI, ID, CONFIG_SPEC, server),
+                server.confirmTimeoutSeconds());
     }
 
-    public static CibaSettings from(ProviderConfig config, int defaultTimeout) {
-        boolean enabled = config.getBoolean("enabled", false);
-        Optional<String> clientId = config.get("client-id").filter(v -> !v.isBlank());
-        Optional<String> secret = config.get("client-secret").filter(v -> !v.isBlank());
-        if (enabled && (clientId.isEmpty() || secret.isEmpty())) {
-            throw new IllegalStateException("kc-mcp.spi.confirmer.ciba.enabled=true needs"
-                    + " kc-mcp.spi.confirmer.ciba.client-id and client-secret (a confidential Keycloak client with"
-                    + " the CIBA grant enabled)");
+    public static CibaSettings from(ProviderConfig settings, int defaultTimeout) {
+        ProviderConfig config = settings.withSpec(CONFIG_SPEC)
+            .describedAs(ProviderConfig.PREFIX + Confirmer.SPI + "." + ID + ".");
+        List<ConfigProblem> errors = ConfigProblem.errors(config.problems());
+        if (!errors.isEmpty()) {
+            boolean client = errors.stream()
+                .anyMatch(p -> p.properties().contains(CLIENT_ID.name())
+                        || p.properties().contains(CLIENT_SECRET.name()));
+            throw new IllegalStateException(ConfigProblem.describe(errors)
+                    + (client ? " (a confidential Keycloak client with the CIBA grant enabled)" : ""));
         }
-        return new CibaSettings(enabled, config.get("issuer", "caller"),
-                config.get("token-issuer").filter(v -> !v.isBlank()).orElse(null), clientId.orElse(null),
-                secret.orElse(null), ClientAuth.parse(config.get("client-auth", "client_secret_basic")),
-                config.get("scope", "openid"), config.get("acr-values").filter(v -> !v.isBlank()).orElse(null),
-                config.get("login-hint", "username"), config.getBoolean("binding-message", true),
-                config.get("binding-message-prefix", "kc-mcp"), config.getBoolean("requested-expiry", false),
-                config.getInt("timeout-seconds", defaultTimeout), When.parse(config.get("when", "always")),
-                Flow.parse(config.get("flow", "two-step")), config.getBoolean("number-matching", true),
-                config.getBoolean("extra-parameters", true), config.getInt("poll-wait-seconds", 5),
-                config.get("tls-configuration-name").filter(v -> !v.isBlank()).orElse(null),
-                OutboundClients.duration(config.get("connect-timeout"), "kc-mcp.spi.confirmer.ciba.connect-timeout")
-                    .orElse(null),
-                OutboundClients.duration(config.get("read-timeout"), "kc-mcp.spi.confirmer.ciba.read-timeout")
-                    .orElse(null));
+        boolean enabled = config.getBoolean("enabled", false);
+        String clientId = config.readString(CLIENT_ID);
+        String secret = config.readString(CLIENT_SECRET);
+        ClientAuth clientAuth = "client_secret_post".equals(config.readChoice(CLIENT_AUTH)) ? ClientAuth.POST
+                : ClientAuth.BASIC;
+        return new CibaSettings(enabled, config.readString(ISSUER), config.readString(TOKEN_ISSUER), clientId, secret,
+                clientAuth, config.readString(SCOPE), config.readString(ACR_VALUES), config.readString(LOGIN_HINT),
+                config.readBoolean(BINDING_MESSAGE), config.readString(BINDING_MESSAGE_PREFIX),
+                config.readBoolean(REQUESTED_EXPIRY),
+                config.isSet(TIMEOUT_SECONDS) ? config.readInt(TIMEOUT_SECONDS) : defaultTimeout,
+                config.readEnum(WHEN, When.class), config.readEnum(FLOW, Flow.class),
+                config.readBoolean(NUMBER_MATCHING), config.readBoolean(EXTRA_PARAMETERS),
+                config.readInt(POLL_WAIT_SECONDS), config.readString(TLS_CONFIGURATION_NAME),
+                config.readDuration(CONNECT_TIMEOUT), config.readDuration(READ_TIMEOUT));
     }
 
     /** Whether the issuer comes from the caller's token. */

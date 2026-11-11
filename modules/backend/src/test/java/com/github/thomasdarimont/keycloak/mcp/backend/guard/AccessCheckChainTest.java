@@ -9,6 +9,9 @@ import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.vertx.core.json.JsonObject;
@@ -192,5 +195,70 @@ class AccessCheckChainTest {
         assertTrue(step(plan, "ticket").error().orElseThrow().contains("realm.id"));
         assertTrue(step(plan, "group-scope").error().orElseThrow().contains("not a placeholder"));
         assertTrue(step(plan, "self-protection").error().isEmpty());
+    }
+
+    /** A check that declares a choice and a URL. */
+    static AccessCheck declaring(String id) {
+        return new AccessCheck() {
+            @Override
+            public String id() {
+                return id;
+            }
+
+            @Override
+            public ConfigSpec configSpec() {
+                return ConfigSpec.of(ConfigProperty.choice("mode", "reject", "confirm").withDefault("reject"),
+                        ConfigProperty.url("endpoint"));
+            }
+
+            @Override
+            public List<ConfigProblem> validate(ProviderConfig config) {
+                return "confirm".equals(config.readChoice(configSpec().property("mode").orElseThrow()))
+                        && config.get("endpoint").isEmpty()
+                                ? List
+                                    .of(ConfigProblem.error(config.key("mode") + "=confirm needs an endpoint", "mode"))
+                                : List.of();
+            }
+
+            @Override
+            public Decision check(Context context) {
+                return Decision.allow();
+            }
+        };
+    }
+
+    @Test
+    void malformedServerSettingsOfADeclaringCheckStopTheStart() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> new AccessCheckChain(List.of(declaring("ticket")),
+                        id -> new ProviderConfig(AccessCheck.SPI, id, Map.of("mode", "maybe"))));
+        assertTrue(e.getMessage().contains("kc-mcp.spi.access-check.ticket.mode must be one of reject, confirm"),
+                e.getMessage());
+    }
+
+    @Test
+    void placeholdersAndTheServersOwnKeysPass() {
+        AccessCheckChain p = new AccessCheckChain(List.of(declaring("ticket")), id -> new ProviderConfig(
+                AccessCheck.SPI, id,
+                Map.of("endpoint", "https://tickets/{realm}/check", "default", "on", "order", "5", "locked", "false")));
+        assertEquals("https://tickets/demo/check",
+                p.plan(system("{}"), "demo").steps().get(0).settings().get("endpoint").orElseThrow());
+    }
+
+    @Test
+    void aBlockWithAMalformedValueIsRefusedNamingWhereItIsWritten() {
+        AccessCheckChain p = new AccessCheckChain(List.of(declaring("ticket")),
+                id -> new ProviderConfig(AccessCheck.SPI, id, Map.of()));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> p.validate(access("{\"ticket\": {\"mode\": \"maybe\"}}"), "kc-mcp.systems.prod.access."));
+        assertTrue(e.getMessage().startsWith("kc-mcp.systems.prod.access.ticket.mode must be one of"), e.getMessage());
+        IllegalArgumentException placeholder = assertThrows(IllegalArgumentException.class,
+                () -> p.validate(access("{\"ticket\": {\"endpoint\": \"https://t/{nope}\"}}"), "access."));
+        assertTrue(placeholder.getMessage().contains("{nope} is not a placeholder"), placeholder.getMessage());
+        IllegalArgumentException rule = assertThrows(IllegalArgumentException.class,
+                () -> p.validate(access("{\"ticket\": {\"mode\": \"Confirm\"}}"), "access."));
+        assertEquals("access.ticket.mode=confirm needs an endpoint", rule.getMessage(), "the check's own rule");
+        p.validate(access("{\"ticket\": {\"mode\": \"Confirm\", \"endpoint\": \"https://t\", \"other\": \"x\"}}"),
+                "access.");
     }
 }

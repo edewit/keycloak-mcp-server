@@ -31,7 +31,9 @@ import jakarta.inject.Inject;
 
 import org.jboss.logging.Logger;
 
+import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.Extension;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
@@ -460,9 +462,10 @@ public class Extensions {
      * Every place that picks extensions asks here, so the rules and the log lines are the
      * same for all extension points.
      * <p>
-     * Settings the extension declares ({@link Extension#configProperties()}) are checked
-     * first: unknown keys are logged, a malformed or missing required value stops the
-     * start whatever the profile, as a typo must not quietly switch a control off.
+     * Settings the extension declares ({@link Extension#configSpec()}) are checked first,
+     * then its own rules ({@link Extension#validate}): warnings (unknown keys) are
+     * logged, errors (a malformed or missing required value) stop the start whatever the
+     * profile, as a typo must not quietly switch a control off.
      * <p>
      * Fail closed where it matters: an extension marked
      * {@code kc-mcp.spi.<spi>.<id>.required=true} that is switched off or unsupported
@@ -484,15 +487,18 @@ public class Extensions {
             LOG.infof("%s '%s' disabled by configuration", kind, e.id());
             return false;
         }
-        Set<String> unknown = settings.unknownKeys();
-        if (!unknown.isEmpty()) {
-            LOG.warnf("%s '%s' ignores unknown settings %s; it reads %s", kind, e.id(),
-                    unknown.stream().map(settings::key).toList(), settings.declared().keySet());
-        }
-        List<String> problems = settings.problems();
-        if (!problems.isEmpty()) {
-            throw new IllegalStateException(
-                    kind + " '" + e.id() + "' is misconfigured: " + String.join("; ", problems));
+        // an access check's settings may hold placeholders and are merged with the
+        // systems' and realms': the access check chain checks them
+        if (!AccessCheck.SPI.equals(e.spiName())) {
+            List<ConfigProblem> problems = settings.problems(e);
+            problems.stream()
+                .filter(p -> !p.isError())
+                .forEach(p -> LOG.warnf("%s '%s': %s", kind, e.id(), p.message()));
+            List<ConfigProblem> errors = ConfigProblem.errors(problems);
+            if (!errors.isEmpty()) {
+                throw new IllegalStateException(
+                        kind + " '" + e.id() + "' is misconfigured: " + ConfigProblem.describe(errors));
+            }
         }
         boolean supported;
         try {

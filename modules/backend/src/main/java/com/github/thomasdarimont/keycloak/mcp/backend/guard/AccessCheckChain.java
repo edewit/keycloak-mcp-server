@@ -11,11 +11,14 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 
+import org.jboss.logging.Logger;
+
 import com.github.thomasdarimont.keycloak.mcp.access.AccessCheck;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.AccessSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.CheckSettings;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 /**
@@ -28,6 +31,8 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
  * {@link Plan#missing()}: the calls they would govern are refused.
  */
 public final class AccessCheckChain {
+
+    private static final Logger LOG = Logger.getLogger(AccessCheckChain.class);
 
     /** Server settings that are about the check's place, not passed to it. */
     static final Set<String> META = Set.of("enabled", "default", "order", "locked", "required", "provider");
@@ -80,8 +85,42 @@ public final class AccessCheckChain {
                 // removed from the server, whoever contributed it
                 continue;
             }
+            List<ConfigProblem> errors = report(c, cfg.withSpec(c.configSpec()), cfg.keys());
+            if (!errors.isEmpty()) {
+                throw new IllegalStateException(
+                        "Access check '" + c.id() + "' is misconfigured: " + ConfigProblem.describe(errors));
+            }
             known.put(id, new Known(c, server(c, cfg), cfg.getBoolean("locked", false)));
         }
+    }
+
+    /**
+     * What is wrong with a check's settings, placeholders filled with sample values
+     * (their real values are known per call only): the spec's checks, then the check's
+     * own rules. Logs the warnings about keys among {@code written}.
+     *
+     * @return the errors
+     */
+    private static List<ConfigProblem> report(AccessCheck check, ProviderConfig settings, Set<String> written) {
+        if (settings.spec().isEmpty()) {
+            return List.of();
+        }
+        Placeholders sample = new Placeholders(null, "x", r -> Optional.of("x"));
+        Map<String, String> resolved = new LinkedHashMap<>();
+        List<ConfigProblem> problems = new ArrayList<>();
+        settings.asMap().forEach((k, v) -> {
+            try {
+                resolved.put(k, sample.resolve(v));
+            }
+            catch (IllegalArgumentException e) {
+                problems.add(ConfigProblem.error(settings.key(k) + ": " + e.getMessage(), k));
+            }
+        });
+        problems.addAll(settings.withValues(resolved).problems(check));
+        problems.stream()
+            .filter(p -> !p.isError() && p.properties().stream().anyMatch(written::contains))
+            .forEach(p -> LOG.warnf("Access check '%s': %s", check.id(), p.message()));
+        return ConfigProblem.errors(problems);
     }
 
     private static CheckSettings server(AccessCheck c, ProviderConfig cfg) {
@@ -153,7 +192,8 @@ public final class AccessCheckChain {
             catch (IllegalArgumentException ex) {
                 error = Optional.of("access." + e.getKey() + ": " + ex.getMessage());
             }
-            steps.add(new Step(k.check(), new ProviderConfig(AccessCheck.SPI, e.getKey(), settings),
+            steps.add(new Step(k.check(),
+                    new ProviderConfig(AccessCheck.SPI, e.getKey(), settings, k.check().configSpec()),
                     effective.order().orElse(k.check().order()), error));
         }
         steps.sort(Comparator.comparingInt(Step::order).thenComparing(s -> ProviderConfig.configId(s.check().id())));
@@ -185,6 +225,18 @@ public final class AccessCheckChain {
                 throw new IllegalArgumentException(where + e.getKey() + ": the access check '" + e.getKey()
                         + "' is locked by the server (" + ProviderConfig.PREFIX + AccessCheck.SPI + "." + e.getKey()
                         + ".locked=true); systems and realms cannot change it");
+            }
+            else {
+                Known k = known.get(e.getKey());
+                // the block over the server's settings: a value may need another to make
+                // sense, and the block names only what differs
+                ProviderConfig effective = new ProviderConfig(AccessCheck.SPI, e.getKey(),
+                        k.server().overlay(e.getValue()).settings(), k.check().configSpec())
+                    .describedAs(where + e.getKey() + ".");
+                List<ConfigProblem> errors = report(k.check(), effective, e.getValue().settings().keySet());
+                if (!errors.isEmpty()) {
+                    throw new IllegalArgumentException(ConfigProblem.describe(errors));
+                }
             }
         }
     }

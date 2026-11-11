@@ -39,6 +39,8 @@ import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.Presets;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.RealmSettings;
 import com.github.thomasdarimont.keycloak.mcp.oauth.ClientAuthenticatorFactory;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProblem;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 
 import io.quarkus.runtime.StartupEvent;
@@ -147,7 +149,7 @@ public class AuthZenEngine implements AuthorizationEngine {
     AuthZenEngine(ProviderConfig config, TlsConfigurationRegistry tls, OutboundClients.Timeouts timeouts,
             Map<String, KeycloakSystem> staticSystems, Clock clock, ClientAuthenticators authenticators,
             Function<String, Optional<Function<JsonObject, String>>> systemSigners) {
-        this.config = config;
+        this.config = config.withSpec(spec(authenticators));
         this.withoutPdp = AuthZenSettings.WithoutPdp.from(config);
         this.defaultMode = AuthZenSettings.Default.from(config);
         this.clock = clock;
@@ -165,7 +167,7 @@ public class AuthZenEngine implements AuthorizationEngine {
     AuthZenEngine(ProviderConfig config, Client http, Clock clock, ClientAuthenticators authenticators,
             Function<String, Optional<Function<JsonObject, String>>> systemSigners,
             Map<String, KeycloakSystem> systems) {
-        this.config = config;
+        this.config = config.withSpec(spec(authenticators));
         this.withoutPdp = AuthZenSettings.WithoutPdp.from(config);
         this.defaultMode = AuthZenSettings.Default.from(config);
         this.clock = clock;
@@ -178,6 +180,40 @@ public class AuthZenEngine implements AuthorizationEngine {
     @Override
     public String id() {
         return AuthZenSettings.ID;
+    }
+
+    /** The engine's own settings, then those of the client authentication methods. */
+    @Override
+    public ConfigSpec configSpec() {
+        return config.spec();
+    }
+
+    private static ConfigSpec spec(ClientAuthenticators authenticators) {
+        return authenticators == null ? AuthZenSettings.CONFIG_SPEC
+                : AuthZenSettings.CONFIG_SPEC.plus(authenticators.configSpec());
+    }
+
+    /**
+     * The defaults' rules ({@link AuthZenSettings#rules}) and those of the client
+     * authentication they name; a system's settings are checked when it is validated.
+     */
+    @Override
+    public List<ConfigProblem> validate(ProviderConfig settings) {
+        List<ConfigProblem> problems = new java.util.ArrayList<>(AuthZenSettings.rules(settings, null));
+        problems.addAll(authenticationRules(settings));
+        return problems;
+    }
+
+    /**
+     * The rules of the client authentication method of {@code auth=client-credentials}.
+     */
+    private List<ConfigProblem> authenticationRules(ProviderConfig settings) {
+        if (authenticators == null || settings.readString(AuthZenSettings.URL) == null || settings
+            .readEnum(AuthZenSettings.AUTH, AuthZenSettings.Auth.class) != AuthZenSettings.Auth.CLIENT_CREDENTIALS) {
+            return List.of();
+        }
+        return authenticators.validate(settings.readString(AuthZenSettings.CLIENT_AUTH).trim(), settings,
+                settings.key(AuthZenSettings.CLIENT_AUTH.name()));
     }
 
     @Override
@@ -351,6 +387,16 @@ public class AuthZenEngine implements AuthorizationEngine {
             tokens = systemClientTokens(keycloak.get(), http, settings, signer);
         }
         else if (settings.auth() == AuthZenSettings.Auth.CLIENT_CREDENTIALS) {
+            ProviderConfig shown = merged.describedAs(AuthZenSettings.systemPrefix(system));
+            List<ConfigProblem> problems = authenticationRules(shown);
+            problems.stream()
+                .filter(p -> !p.isError())
+                .forEach(p -> LOG.warnf("AuthZEN%s: %s", system == null ? "" : " for system '" + system + "'",
+                        p.message()));
+            List<ConfigProblem> errors = ConfigProblem.errors(problems);
+            if (!errors.isEmpty()) {
+                throw new IllegalStateException(ConfigProblem.describe(errors));
+            }
             var authenticator = authenticators.create(settings.clientAuth(), new ClientAuthenticatorFactory.Context(
                     settings.clientId(), settings.tokenUrl(), merged, AuthZenSettings.systemPrefix(system), signer));
             tokens = new ClientCredentialsTokens(http, settings.tokenUrl(), authenticator, settings.scope(), clock);

@@ -8,6 +8,8 @@ import java.util.Optional;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystemRepository;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
+import com.github.thomasdarimont.keycloak.mcp.spi.ConfigSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import com.google.auto.service.AutoService;
 
@@ -22,6 +24,11 @@ import com.google.auto.service.AutoService;
  */
 @AutoService(KeycloakSystemRepository.class)
 public class AcmeTenantRepository implements KeycloakSystemRepository {
+
+    /** {@code kc-mcp.spi.system-repository.acme-tenants.systems} */
+    static final ConfigProperty SYSTEMS = ConfigProperty.string("systems")
+        .withLabel("Tenants")
+        .withDescription("alias=url[|realm] entries, separated by ';'.");
 
     private Map<String, KeycloakSystem> tenants;
 
@@ -39,8 +46,13 @@ public class AcmeTenantRepository implements KeycloakSystemRepository {
     }
 
     @Override
+    public ConfigSpec configSpec() {
+        return ConfigSpec.of(SYSTEMS);
+    }
+
+    @Override
     public void configure(ProviderConfig config) {
-        tenants = parse(config.get("systems", ""));
+        tenants = parse(config.isSet(SYSTEMS) ? config.readString(SYSTEMS) : "");
     }
 
     /**
@@ -49,7 +61,7 @@ public class AcmeTenantRepository implements KeycloakSystemRepository {
      */
     @Override
     public boolean isSupported(McpServerConfig serverConfig, ProviderConfig config) {
-        return !config.get("systems", "").isBlank();
+        return config.isSet(SYSTEMS);
     }
 
     @Override
