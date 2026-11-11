@@ -10,7 +10,7 @@ import {
   type System,
   type SystemRealm,
 } from '../bff.js';
-import { realmHref, systemHref } from '../router.js';
+import { navigate, realmHref, systemHref } from '../router.js';
 
 type Row = {
   realm: string;
@@ -228,8 +228,7 @@ export class SystemRealms extends LitElement {
     this.error = null;
     try {
       await saveSystemRealm(this.system.alias, realm, { displayName: realm });
-      history.pushState({}, '', realmHref(this.system.alias, realm));
-      window.dispatchEvent(new PopStateEvent('popstate'));
+      navigate(realmHref(this.system.alias, realm));
     } catch (e) {
       this.report(e);
       this.busy = false;

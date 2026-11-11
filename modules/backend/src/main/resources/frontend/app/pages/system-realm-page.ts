@@ -13,7 +13,7 @@ import {
   type SystemRealm,
   type SystemRealmSave,
 } from '../bff.js';
-import { systemHref } from '../router.js';
+import { navigate, systemHref } from '../router.js';
 
 type FormState = {
   displayName: string;
@@ -284,8 +284,9 @@ export class SystemRealmPage extends LitElement {
     this.error = null;
     try {
       await deleteSystemRealm(this.alias, this.realm);
-      history.pushState({}, '', systemHref(this.alias, 'realms'));
-      window.dispatchEvent(new PopStateEvent('popstate'));
+      this.form = null;
+      this.stored = null;
+      navigate(systemHref(this.alias, 'realms'), true);
     } catch (e) {
       this.report(e);
       this.busy = false;

@@ -66,3 +66,18 @@ export function ensureDefaultPath(): void {
     history.replaceState({}, '', DEFAULT_PATH + location.search);
   }
 }
+
+/**
+ * In-app navigation that updates history and asks {@link KcMcpApp}'s router to
+ * `goto` the path. Prefer this over `pushState` + a synthetic `popstate`: the
+ * router's `goto` is async, and leaving the previous page mounted until a later
+ * update shows both the old form and the new page.
+ */
+export function navigate(path: string, replace = false): void {
+  if (replace) {
+    history.replaceState({}, '', path);
+  } else {
+    history.pushState({}, '', path);
+  }
+  window.dispatchEvent(new CustomEvent('kc-mcp-goto', { detail: { path } }));
+}
