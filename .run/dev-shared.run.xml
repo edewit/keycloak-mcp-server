@@ -7,7 +7,7 @@
           <option name="delegateBuildToMaven" value="false" />
           <option name="environmentProperties">
             <map>
-              <entry key="KC_MCP_PROFILE" value="shared" />
+              <entry key="KC_MCP_SECURITY_PROFILE" value="shared" />
               <entry key="KC_MCP_SYSTEMS_DEFAULT_URL" value="http://localhost:8080" />
               <entry key="KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM" value="demo" />
               <entry key="KC_MCP_DELEGATION" value="forward" />

@@ -76,7 +76,7 @@ Systems file and admin API (`PUT /admin/systems/<alias>`, a realm's with `PUT /a
 A preset is a named set of settings that systems and realms reference instead of repeating them, as a Keycloak client
 profile bundles executors. It holds sections, the same ones a system or realm has: `access`, the access checks, and
 `tools`, the [tool restrictions](security.md#tool-restrictions-per-system-and-realm).
-(The name is not "profile": `kc-mcp.profile` is the deployment profile, and Quarkus has profiles of its own.) A preset
+(The name is not "profile": `kc-mcp.security-profile` is the security profile, and Quarkus has profiles of its own.) A preset
 may extend one other preset: the parent's settings first, its own over them.
 
 ```properties

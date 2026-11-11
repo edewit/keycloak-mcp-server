@@ -17,7 +17,7 @@ JSON, no Quarkus; automatic module `com.github.thomasdarimont.keycloak.mcp.api`)
 - `catalog`: `ToolSpec`, `ToolCall`, `ToolResult`, `InputSchema`, `Category`, `ToolLevel`, prompt descriptions
 - `keycloak`: `KeycloakAdmin`, `KeycloakSystems`, `KeycloakSystemRepository`, `KeyVault`, `SigningKeyGenerator`,
   capabilities, host allow list, `Views`
-- `config`: server configuration interface, `Profile`, `ProfileCheck`
+- `config`: server configuration interface, `SecurityProfile`, `ProfileCheck`
 
 ```java
 public class AcmeToolProvider implements ToolProvider {
@@ -319,7 +319,7 @@ a local one, as the standard replacement for the external-to-internal token exch
 
 ## Profile checks
 
-`ProfileCheck` (`@AutoService` or CDI bean) adds to the startup checks of `kc-mcp.profile`: an extension states what
+`ProfileCheck` (`@AutoService` or CDI bean) adds to the startup checks of `kc-mcp.security-profile`: an extension states what
 its own feature needs to be safe (an audit file outside `/tmp`, a ticket system over HTTPS, a setting that must not keep
 its default on a shared server). `problems(ctx)` stop the start, reported together with the built-in ones and tagged
 `[id]`; `warnings(ctx)` are logged. The check decides per profile (`ctx.shared()`), and gets its own settings

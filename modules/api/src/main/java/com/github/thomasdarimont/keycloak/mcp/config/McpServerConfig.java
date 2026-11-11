@@ -18,15 +18,26 @@ import io.smallrye.config.WithParentName;
 public interface McpServerConfig {
 
     /**
-     * Deployment profile: {@code local} (default, one person's machine) or {@code shared}
+     * Security profile: {@code local} (default, one person's machine) or {@code shared}
      * (a server others reach over the network). The profile sets the defaults of
      * {@link #requireCaller()}, {@link #confirmFallback()} and {@link #explicitTarget()}
      * and, as {@code shared}, refuses to start without caller authentication with an
-     * audience, {@link #allowedHosts()}, an admin API audience and an encrypted storage.
+     * audience (where the instance serves the MCP endpoint, {@link #instanceRole()}),
+     * {@link #allowedHosts()}, an admin API audience and an encrypted storage.
      */
     @WithDefault("local")
-    @WithConverter(Profile.Converter.class)
-    Profile profile();
+    @WithConverter(SecurityProfile.Converter.class)
+    SecurityProfile securityProfile();
+
+    /**
+     * What this instance serves: {@code all} (default), {@code mcp} (the MCP endpoint
+     * only) or {@code admin} (the admin API and the management UI only). Sets the
+     * defaults of {@code kc-mcp.mcp.enabled}, {@code kc-mcp.admin.enabled} and
+     * {@code kc-mcp.ui.enabled}; one of them set against the role stops the start.
+     */
+    @WithDefault("all")
+    @WithConverter(InstanceRole.Converter.class)
+    InstanceRole instanceRole();
 
     /**
      * The Keycloak systems, one block each: {@code kc-mcp.systems.<name>.url} and the
@@ -170,7 +181,7 @@ public interface McpServerConfig {
 
     /** Effective value: {@link #requireCaller()}, or always in profile {@code shared}. */
     default boolean callerRequired() {
-        return requireCaller() || profile().shared();
+        return requireCaller() || securityProfile().shared();
     }
 
     /**
@@ -205,7 +216,7 @@ public interface McpServerConfig {
 
     /** Effective value of {@link #confirmFallback()}, by profile when unset. */
     default ConfirmFallback effectiveConfirmFallback() {
-        return confirmFallback().orElse(profile().shared() ? ConfirmFallback.DENY : ConfirmFallback.FLAG);
+        return confirmFallback().orElse(securityProfile().shared() ? ConfirmFallback.DENY : ConfirmFallback.FLAG);
     }
 
     /**
@@ -219,7 +230,7 @@ public interface McpServerConfig {
 
     /** Effective value of {@link #explicitTarget()}, by profile when unset. */
     default ExplicitTarget effectiveExplicitTarget() {
-        return explicitTarget().orElse(profile().shared() ? ExplicitTarget.DESTRUCTIVE : ExplicitTarget.OFF);
+        return explicitTarget().orElse(securityProfile().shared() ? ExplicitTarget.DESTRUCTIVE : ExplicitTarget.OFF);
     }
 
     /**
@@ -234,7 +245,7 @@ public interface McpServerConfig {
 
     /** Effective value of {@link #dynamicPrivateHosts()}, by profile when unset. */
     default PrivateHosts effectiveDynamicPrivateHosts() {
-        return dynamicPrivateHosts().orElse(profile().shared() ? PrivateHosts.LISTED : PrivateHosts.ALLOW);
+        return dynamicPrivateHosts().orElse(securityProfile().shared() ? PrivateHosts.LISTED : PrivateHosts.ALLOW);
     }
 
     /**

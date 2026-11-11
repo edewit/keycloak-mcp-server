@@ -526,7 +526,7 @@ public class Extensions {
             supported = e.isSupported(config, settings);
         }
         catch (RuntimeException ex) {
-            if (required || config.profile().shared()) {
+            if (required || config.securityProfile().shared()) {
                 throw new IllegalStateException(kind + " '" + e.id()
                         + "' could not be configured or cannot tell whether it works with this" + " configuration ("
                         + ex + "); " + (required ? "it is required" : "profile shared") + " does not start without it",

@@ -97,6 +97,7 @@ the database connection.
 | `kc-mcp.storage.secret-key`     |                             | AES-256-GCM key for stored private keys, client secrets, passwords; base64 of 32 bytes or passphrase (Argon2id) |
 | `kc-mcp.storage.previous-secret-keys` |                       | rotated-away keys (csv) that still decrypt; rows are rewritten under `secret-key` at startup and by `POST /admin/storage/rekey` |
 | `kc-mcp.spi.audit-scrubber.pii.pseudonym-key` | `secret-key`   | HMAC key of the audit pseudonyms, independent of storage key rotation |
+| `kc-mcp.instance-role`          | `all`                       | what this instance serves: `all`, `mcp` (the MCP endpoint only: admin API and UI off) or `admin` (admin API on, MCP endpoint off, the UI as configured); a switch below set against the role stops the start ([Several instances](storage.md#several-instances-on-one-database)) |
 | `kc-mcp.mcp.enabled`            | `true`                      | `false`: the MCP endpoint and its entries answer a plain 404 (no hint at what else the instance serves); for an instance that serves only the admin API or the UI ([Several instances](storage.md#several-instances-on-one-database)) |
 | `kc-mcp.admin.enabled` / `token` / `issuer` / `audience` / `role` | `false` / / / / `realm:admin` | admin API at `/admin`: static token and/or trusted issuer with role |
 | `kc-mcp.admin.allow-new-systems` | `true`                     | `false`: the admin API changes known systems only, new aliases answer 403 `registration_closed` |
@@ -110,7 +111,7 @@ the database connection.
 | `kc-mcp.admin-api-scope`        | `kc-admin-api`              | scope requested with Admin API tokens and advertised to MCP clients (Keycloak 26.8.2+ audience check); dropped on `invalid_scope`; blank: none |
 | `kc-mcp.dns-rebinding-protection` | `auto`                    | `auto` (on while anonymous), `on`, `off`: `Host`/`Origin` of MCP requests must be localhost or in `kc-mcp.dns-rebinding-allowed-hosts` |
 | `kc-mcp.dev-mode`               | `false`                     | what `bin/kcmcp.sh start-dev` sets; see [Development mode](#development-mode-start-dev) |
-| `kc-mcp.profile`                | `local`                     | `local` or `shared`: defaults of the four rows below, and `shared` refuses to start without caller authentication + audience, `allowed-hosts`, admin audience, storage `secret-key` ([Guardrails](security.md#guardrails)) |
+| `kc-mcp.security-profile`       | `local`                     | `local` or `shared`: defaults of the four rows below, and `shared` refuses to start without caller authentication + audience (on instances that serve the MCP endpoint, see `kc-mcp.instance-role`), `allowed-hosts`, admin audience, storage `secret-key` ([Guardrails](security.md#guardrails)) |
 | `kc-mcp.require-caller`         | `false`, `shared`: always   | refuse anonymous requests with the OAuth challenge even with `delegation=off` |
 | `kc-mcp.confirm-fallback`       | `flag`, `shared`: `deny`    | without elicitation: `flag` accepts `confirm: true`, `deny` refuses destructive tools |
 | `kc-mcp.explicit-target`        | `off`, `shared`: `destructive` | `destructive` or `write` tools must pass `system` (several systems) and `realm` instead of the defaults |

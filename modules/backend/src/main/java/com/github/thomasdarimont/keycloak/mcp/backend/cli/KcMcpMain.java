@@ -113,7 +113,7 @@ public class KcMcpMain implements Callable<Integer> {
             System.err.println(
                     "development mode (start-dev): profile local, startup checks warn, Keycloak at http://localhost:8080 "
                             + "unless a system is configured, session cookies without Secure; use 'start' for a shared server");
-            System.setProperty("kc-mcp.profile", "local");
+            System.setProperty("kc-mcp.security-profile", "local");
             System.setProperty("kc-mcp.startup-check", "warn");
             System.setProperty("kc-mcp.dev-mode", "true");
         }

@@ -11,8 +11,9 @@ audits every call. Flags on the server never grant more than Keycloak would.
 
 ### The two profiles
 
-`KC_MCP_PROFILE` sets the security defaults in one switch. `local` (the default) is one person's machine; `shared` is a
-server other people reach over the network.
+`KC_MCP_SECURITY_PROFILE` (`kc-mcp.security-profile`) sets the security defaults in one switch. `local` (the default) is one
+person's machine; `shared` is a server other people reach over the network. What an instance serves is a separate
+setting, `kc-mcp.instance-role`: an `admin` instance has no MCP endpoint, so the MCP endpoint row does not apply to it.
 
 | | `local` | `shared` |
 |---|---|---|
@@ -284,7 +285,7 @@ require an audience). `KC_MCP_DELEGATION` then decides whose identity reaches Ke
 |---|---|---|---|
 | admin calls run as | the service account | the caller's own token | a delegated token Keycloak exchanges the caller's for: `sub` the caller, `act` the server's client |
 | roles that count | the service account's (role filter) | the caller's `realm-management` roles from their token, per call; Keycloak enforces again | the delegated token's: the caller's roles within the client's role scope; Keycloak enforces again |
-| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` or `KC_MCP_PROFILE=shared` | `401` with `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` | as forward |
+| anonymous requests | allowed unless `KC_MCP_REQUIRE_CALLER=true` or `KC_MCP_SECURITY_PROFILE=shared` | `401` with `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` | as forward |
 | server credentials | required | optional (the policies provider falls back to them for lookups) | the client's `client_credentials` (secret or `private_key_jwt`); no admin role on it |
 | Keycloak side | | a public client with an *Audience* mapper for the server | plus consent on that client, *Standard Token Exchange* on the server's client, an Admin Permissions `delegate` grant for it; Keycloak 26.8+ with `--features=token-exchange-delegation,parameterized-scopes` (preview) |
 

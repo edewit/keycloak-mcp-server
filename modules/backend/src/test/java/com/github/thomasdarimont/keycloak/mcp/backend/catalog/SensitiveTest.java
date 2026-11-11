@@ -20,8 +20,8 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.Sensitive;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
-import com.github.thomasdarimont.keycloak.mcp.config.Profile;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext;
+import com.github.thomasdarimont.keycloak.mcp.config.SecurityProfile;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Prompter;
 
@@ -147,14 +147,14 @@ class SensitiveTest {
     @Test
     void trafficLoggingStopsASharedServerAndWarnsALocalOne() {
         TrafficLoggingProfileCheck check = new TrafficLoggingProfileCheck();
-        ProfileCheckContext sharedOn = new ProfileCheckContext(Profile.SHARED, true, null, null,
+        ProfileCheckContext sharedOn = new ProfileCheckContext(SecurityProfile.SHARED, true, null, null,
                 name -> Optional.of("true"));
         assertEquals(1, check.problems(sharedOn).size());
-        ProfileCheckContext localOn = new ProfileCheckContext(Profile.LOCAL, false, null, null,
+        ProfileCheckContext localOn = new ProfileCheckContext(SecurityProfile.LOCAL, false, null, null,
                 name -> Optional.of("true"));
         assertTrue(check.problems(localOn).isEmpty());
         assertEquals(1, check.warnings(localOn).size());
-        ProfileCheckContext sharedOff = new ProfileCheckContext(Profile.SHARED, true, null, null,
+        ProfileCheckContext sharedOff = new ProfileCheckContext(SecurityProfile.SHARED, true, null, null,
                 name -> Optional.of("false"));
         assertTrue(check.problems(sharedOff).isEmpty());
     }

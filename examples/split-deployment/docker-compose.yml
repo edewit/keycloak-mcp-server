@@ -1,0 +1,149 @@
+# One server, two instance roles, two database users. The admin instance (internal network) owns the schema and
+# registers systems; the MCP instance (public ingress) serves the tools and can only read what the admin side
+# configured. ./demo.sh registers the system "acme", calls tools as users, and shows what each side cannot do.
+# See README.md.
+#
+#   ../../mvnw -f ../../pom.xml package -DskipTests -Ppostgresql    # the PostgreSQL build of the server
+#   docker compose up -d --build && ./demo.sh
+#
+# Ports: PostgreSQL 5491, Keycloak 8093, admin instance 8094, MCP instance 8095 (next to dynamic-systems' 5490, 8090-8092)
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - ./init/postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5491:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: ["start-dev"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: http://localhost:8093
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_FEATURES: identity-brokering-api:v2
+      KC_FEATURES_DISABLED: twitter-broker
+    ports:
+      - "127.0.0.1:8093:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  # Internal network only: the admin API, the schema owner, the audit retention. No MCP endpoint.
+  admin:
+    build:
+      context: ../..
+      dockerfile: modules/backend/src/main/docker/Dockerfile.jvm
+    environment:
+      QUARKUS_HTTP_PORT: "8081"
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      KC_MCP_INSTANCE_ROLE: admin
+      KC_MCP_SECURITY_PROFILE: shared
+      # the writer: owns the schema, Liquibase migrates it at startup
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/kcmcp
+      QUARKUS_DATASOURCE_USERNAME: kcmcp_admin
+      QUARKUS_DATASOURCE_PASSWORD: kcmcp-admin
+      KC_MCP_STORAGE_SECRET_KEY: demo-storage-key-change-me
+      # one instance purges, the one that may delete
+      KC_MCP_SPI_AUDIT_LISTENER_DB_RETENTION_DAYS: "30"
+      KC_MCP_STATIC_SYSTEMS: "false"
+      KC_MCP_DYNAMIC_SYSTEMS: "true"
+      # automation uses the static token, people an access token of a master realm admin
+      KC_MCP_ADMIN_TOKEN: demo-admin-token
+      KC_MCP_ADMIN_ISSUER: http://keycloak:8080/realms/master
+      # an audience of its own: a token minted for the MCP endpoint (keycloak-mcp-server) never opens the admin API
+      KC_MCP_ADMIN_AUDIENCE: keycloak-mcp-admin-api
+      KC_MCP_ALLOWED_HOSTS: keycloak:8080
+      KC_MCP_STARTUP_CHECK: "off"
+    ports:
+      - "127.0.0.1:8094:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+
+  # Once the admin instance has migrated the schema: what the MCP side may do (init/grants.sql). Run again after an
+  # upgrade: docker compose run --rm grants
+  grants:
+    image: postgres:17-alpine
+    environment:
+      PGHOST: postgres
+      PGDATABASE: kcmcp
+      PGUSER: kcmcp_admin
+      PGPASSWORD: kcmcp-admin
+    volumes:
+      - ./init/grants.sql:/grants.sql:ro
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "waiting for the admin instance to migrate the schema"
+        until [ "$$(psql -tAc "select count(*) from pg_tables where tablename in ('kc_mcp_system','kc_mcp_realm','kc_mcp_secret','kc_mcp_signing_key','kc_mcp_audit_event','kc_mcp_pending_approval')" 2>/dev/null)" = "6" ] \
+          && [ "$$(psql -tAc "select count(*) from databasechangeloglock where locked" 2>/dev/null)" = "0" ]; do sleep 2; done
+        psql -v ON_ERROR_STOP=1 -f /grants.sql && echo "grants applied"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Public ingress: the MCP endpoint only, people log in, calls run with their own token. Reads the configuration,
+  # cannot change it.
+  mcp:
+    build:
+      context: ../..
+      dockerfile: modules/backend/src/main/docker/Dockerfile.jvm
+    environment:
+      QUARKUS_HTTP_PORT: "8081"
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      KC_MCP_INSTANCE_ROLE: mcp
+      KC_MCP_SECURITY_PROFILE: shared
+      # the reader: no migrations, it may not create tables
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/kcmcp
+      QUARKUS_DATASOURCE_USERNAME: kcmcp_mcp
+      QUARKUS_DATASOURCE_PASSWORD: kcmcp-mcp
+      QUARKUS_LIQUIBASE_MIGRATE_AT_START: "false"
+      KC_MCP_STORAGE_SECRET_KEY: demo-storage-key-change-me
+      KC_MCP_STATIC_SYSTEMS: "false"
+      KC_MCP_DYNAMIC_SYSTEMS: "true"
+      KC_MCP_ALLOWED_HOSTS: keycloak:8080
+      KC_MCP_TOOL_EXPOSURE: hybrid
+      KC_MCP_STARTUP_CHECK: "off"
+      KC_MCP_DELEGATION: forward
+      KC_MCP_SYSTEMS_DEFAULT_URL: http://keycloak:8080
+      KC_MCP_SYSTEMS_DEFAULT_AUTH_REALM: master
+      QUARKUS_OIDC_TENANT_ENABLED: "true"
+      # only tokens minted for the MCP server (audience mapper on mcp-consumer)
+      QUARKUS_OIDC_TOKEN_AUDIENCE: keycloak-mcp-server
+    ports:
+      - "8095:8081"
+    depends_on:
+      grants:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+
+volumes:
+  pgdata:

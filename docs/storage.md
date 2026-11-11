@@ -94,10 +94,22 @@ and the same `kc-mcp.storage.secret-key` on every instance.
 
 Two instances creating a first signing key at the same time both succeed: both keys are published, the newest signs.
 
-**Instances with different roles.** The same database also lets the roles split: the MCP-facing instances behind the
-public ingress run with `kc-mcp.admin.enabled=false` (and the UI off), and one instance on the internal network runs the
-admin API and the management UI with `kc-mcp.mcp.enabled=false`, so its MCP endpoint and entries answer a plain 404 and the admin API is never reachable from where the MCP clients are. Systems registered there, their keys
-and secrets reach the MCP instances within `cache-seconds`, as in the table above.
+**Instances with different roles.** The same database also lets the roles split, with `kc-mcp.instance-role`:
+
+- `mcp` for the instances behind the public ingress: the MCP endpoint only, the admin API and the UI off;
+- `admin` for one instance on the internal network: the admin API (and the management UI when enabled), its MCP
+  endpoint and entries answer a plain 404, so the admin API is never reachable from where the MCP clients are.
+
+The role sets the defaults of `kc-mcp.mcp.enabled`, `kc-mcp.admin.enabled` and `kc-mcp.ui.enabled`; one of them set
+against it stops the start. In profile `shared`, an `admin` instance needs no caller authentication, since it has no
+callers. Systems registered there, their keys and secrets reach the MCP instances within `cache-seconds`, as in the
+table above.
+
+The two sides can also use two database users, so that the MCP instances cannot change what the admin side
+configured: they read systems, realms, secrets and keys, append audit rows and keep the CIBA approvals, nothing more.
+The admin instance owns the schema and runs the migrations; the MCP instances run with
+`quarkus.liquibase.migrate-at-start=false`, and the audit retention runs on the admin instance. The grants and a
+working setup: [`examples/split-deployment/`](../examples/split-deployment/).
 
 **MCP sessions and several instances.** The streamable HTTP transport keeps a session (the `Mcp-Session-Id` the
 `initialize` answer hands out) in the memory of the instance that opened it: the MCP server extension's

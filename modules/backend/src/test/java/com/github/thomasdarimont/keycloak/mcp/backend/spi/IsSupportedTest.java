@@ -110,9 +110,9 @@ class IsSupportedTest {
     @Test
     void aFailingIsSupportedStopsASharedServer() {
         Picky p = new Picky("picky");
-        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
-                () -> Extensions.usable(p, "Confirmer",
-                        config(Map.of("kc-mcp.spi.audit-listener.picky.boom", "true", "kc-mcp.profile", "shared"))));
+        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, () -> Extensions.usable(p,
+                "Confirmer",
+                config(Map.of("kc-mcp.spi.audit-listener.picky.boom", "true", "kc-mcp.security-profile", "shared"))));
         assertTrue(e.getMessage().contains("profile shared"), e.getMessage());
         assertFalse(Extensions.usable(p, "Confirmer", config(Map.of("kc-mcp.spi.audit-listener.picky.boom", "true"))),
                 "local: logged and left out");

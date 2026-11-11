@@ -5,11 +5,12 @@
     ./mcp-call.py http://localhost:8091/mcp/systems/acme/acme-dev keycloak_user_search '{"search": "alice"}'
     ./mcp-call.py --login alice:alice-demo http://localhost:8092/mcp/systems/acme/acme-dev whoami
 
---login fetches a token for the user from Keycloak (http://localhost:8090, public client mcp-consumer, password
-grant) in the realm given after @, else the realm of the entry URL, and sends it as a Bearer token: what an MCP
-client does after the browser login.
+--login fetches a token for the user from Keycloak ($KEYCLOAK_URL, default http://localhost:8090, public client
+mcp-consumer, password grant) in the realm given after @, else the realm of the entry URL, and sends it as a Bearer
+token: what an MCP client does after the browser login.
 """
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -28,7 +29,8 @@ def login(spec, url):
     # kc-admin-api: the scope Keycloak 26.8.2+ wants on Admin API tokens (older servers ignore it)
     form = urlencode({"grant_type": "password", "client_id": "mcp-consumer", "scope": "kc-admin-api",
                       "username": username, "password": password})
-    request = urllib.request.Request(f"http://localhost:8090/realms/{realm}/protocol/openid-connect/token",
+    keycloak = os.environ.get("KEYCLOAK_URL", "http://localhost:8090")
+    request = urllib.request.Request(f"{keycloak}/realms/{realm}/protocol/openid-connect/token",
                                      form.encode(), {"content-type": "application/x-www-form-urlencoded"})
     with urllib.request.urlopen(request) as response:
         return json.loads(response.read())["access_token"]

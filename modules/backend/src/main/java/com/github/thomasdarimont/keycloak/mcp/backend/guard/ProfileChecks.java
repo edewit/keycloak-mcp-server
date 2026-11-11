@@ -13,10 +13,11 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
 import com.github.thomasdarimont.keycloak.mcp.backend.keycloak.DefaultKeycloakSystems;
+import com.github.thomasdarimont.keycloak.mcp.config.InstanceRole;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
-import com.github.thomasdarimont.keycloak.mcp.config.Profile;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheck;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext;
+import com.github.thomasdarimont.keycloak.mcp.config.SecurityProfile;
 import com.github.thomasdarimont.keycloak.mcp.config.ValidationRun;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
@@ -24,11 +25,13 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 import io.quarkus.runtime.StartupEvent;
 
 /**
- * Enforces what {@code kc-mcp.profile=shared} promises: callers authenticate against an
- * audience, outbound hosts are listed, the admin API's tokens carry an audience. Every
+ * Enforces what {@code kc-mcp.security-profile=shared} promises: callers of the MCP
+ * endpoint authenticate against an audience (skipped on an instance without the
+ * endpoint), outbound hosts are listed, the admin API's tokens carry an audience. Every
  * violation is collected and startup fails with the whole list (the storage encryption is
  * checked by the storage module). Profile {@code local} only warns where a setting leaves
- * a door open that the admin API could walk through. Extensions add their own checks
+ * a door open that the admin API could walk through. In every profile, a switch set
+ * against {@code kc-mcp.instance-role} stops the start. Extensions add their own checks
  * ({@link ProfileCheck}); their problems join the list, tagged with the check's id.
  */
 @ApplicationScoped
@@ -53,39 +56,71 @@ public class ProfileChecks {
         Optional<String> audience = ConfigProvider.getConfig()
             .getOptionalValue("quarkus.oidc.token.audience", String.class)
             .filter(v -> !v.isBlank());
-        Settings s = new Settings(config.profile(), callers.oidcEnabled(), audience.isPresent(),
+        Settings s = new Settings(config.securityProfile(), callers.oidcEnabled(), audience.isPresent(),
                 !systems.allowedHosts().unrestricted(), config.admin().enabled(), config.admin().issuer().isPresent(),
-                config.admin().audience().filter(v -> !v.isBlank()).isPresent(), config.admin().allowNewSystems());
+                config.admin().audience().filter(v -> !v.isBlank()).isPresent(), config.admin().allowNewSystems(),
+                config.instanceRole(), config.mcp().enabled(), config.ui().enabled());
         List<ProfileCheck> checks = extensions.extensions(ProfileCheck.class);
         for (ProfileCheck c : checks) {
             LOG.infof("Profile check '%s' registered (%s)", c.id(), c.getClass().getName());
         }
         Findings findings = run(s, checks,
-                id -> new ProfileCheckContext(config.profile(), callers.required(), config,
+                id -> new ProfileCheckContext(config.securityProfile(), callers.required(), config,
                         ProviderConfig.forExtension(ProfileCheck.SPI, id, config),
                         name -> ConfigProvider.getConfig().getOptionalValue(name, String.class)));
+        List<String> conflicts = roleConflicts(s);
+        if (!conflicts.isEmpty()) {
+            throw new IllegalStateException(
+                    "kc-mcp.instance-role=" + s.role().id() + " contradicts: " + String.join("; ", conflicts));
+        }
+        if (s.role() != InstanceRole.ALL) {
+            LOG.infof("Instance role %s: MCP endpoint %s, admin API %s, management UI %s", s.role().id(),
+                    onOff(s.mcpEnabled()), onOff(s.adminEnabled()), onOff(s.uiEnabled()));
+        }
         if (!findings.problems().isEmpty()) {
-            throw new IllegalStateException("Startup checks of profile " + config.profile().name().toLowerCase()
+            throw new IllegalStateException("Startup checks of profile " + config.securityProfile().name().toLowerCase()
                     + " failed: " + String.join("; ", findings.problems()));
         }
         for (String w : findings.warnings()) {
             LOG.warn(w);
         }
         String host = ConfigProvider.getConfig().getOptionalValue("quarkus.http.host", String.class).orElse("");
-        if (!callers.required() && !isLoopback(host)) {
+        if (s.mcpEnabled() && !callers.required() && !isLoopback(host)) {
             LOG.warnf("The MCP endpoint is anonymous and listens on %s: everyone who reaches this address administers"
                     + " Keycloak with the server's credentials. Bind to 127.0.0.1 (quarkus.http.host), or require"
-                    + " callers (kc-mcp.require-caller / kc-mcp.profile=shared).",
+                    + " callers (kc-mcp.require-caller / kc-mcp.security-profile=shared).",
                     host.isEmpty() ? "all interfaces" : host);
         }
         LOG.infof(
                 "Profile %s: callers %s, confirm-fallback %s, explicit-target %s, outbound hosts %s,"
                         + " dynamic-private-hosts %s",
-                config.profile().name().toLowerCase(), callers.required() ? "required" : "optional",
+                config.securityProfile().name().toLowerCase(), callers.required() ? "required" : "optional",
                 config.effectiveConfirmFallback().name().toLowerCase(),
                 config.effectiveExplicitTarget().name().toLowerCase(),
                 s.hostsRestricted() ? systems.allowedHosts().patterns() : "unrestricted",
                 config.effectiveDynamicPrivateHosts().name().toLowerCase());
+    }
+
+    private static String onOff(boolean on) {
+        return on ? "on" : "off";
+    }
+
+    /**
+     * Switches set against the instance role, in every profile: the role is what the
+     * operator meant, a switch that contradicts it is a mistake in one of the two.
+     */
+    public static List<String> roleConflicts(Settings s) {
+        List<String> out = new ArrayList<>();
+        if (!s.role().servesMcp() && s.mcpEnabled()) {
+            out.add("kc-mcp.mcp.enabled=true (an admin instance serves no MCP endpoint)");
+        }
+        if (!s.role().servesAdmin() && s.adminEnabled()) {
+            out.add("kc-mcp.admin.enabled=true (an mcp instance serves no admin API)");
+        }
+        if (!s.role().servesAdmin() && s.uiEnabled()) {
+            out.add("kc-mcp.ui.enabled=true (an mcp instance serves no management UI)");
+        }
+        return out;
     }
 
     /** Whether a listen address only reaches this machine. */
@@ -107,7 +142,7 @@ public class ProfileChecks {
      */
     public static Findings run(Settings s, List<ProfileCheck> checks, Function<String, ProfileCheckContext> contexts) {
         List<String> problems = new ArrayList<>(
-                problems(s).stream().map(p -> "kc-mcp.profile=shared needs " + p).toList());
+                problems(s).stream().map(p -> "kc-mcp.security-profile=shared needs " + p).toList());
         List<String> warnings = new ArrayList<>(warnings(s));
         for (ProfileCheck c : checks) {
             ProfileCheckContext ctx = contexts.apply(c.id());
@@ -137,8 +172,16 @@ public class ProfileChecks {
     }
 
     /** The settings the checks look at, so they can be run without a container. */
-    public record Settings(Profile profile, boolean oidcEnabled, boolean callerAudience, boolean hostsRestricted,
-            boolean adminEnabled, boolean adminIssuer, boolean adminAudience, boolean adminAllowsNewSystems) {
+    public record Settings(SecurityProfile profile, boolean oidcEnabled, boolean callerAudience,
+            boolean hostsRestricted, boolean adminEnabled, boolean adminIssuer, boolean adminAudience,
+            boolean adminAllowsNewSystems, InstanceRole role, boolean mcpEnabled, boolean uiEnabled) {
+
+        /** An instance of role {@code all} with the MCP endpoint on and the UI off. */
+        public Settings(SecurityProfile profile, boolean oidcEnabled, boolean callerAudience, boolean hostsRestricted,
+                boolean adminEnabled, boolean adminIssuer, boolean adminAudience, boolean adminAllowsNewSystems) {
+            this(profile, oidcEnabled, callerAudience, hostsRestricted, adminEnabled, adminIssuer, adminAudience,
+                    adminAllowsNewSystems, InstanceRole.ALL, true, false);
+        }
     }
 
     /** What {@code shared} refuses to start without; empty for {@code local}. */
@@ -147,11 +190,13 @@ public class ProfileChecks {
         if (!s.profile().shared()) {
             return problems;
         }
-        if (!s.oidcEnabled()) {
+        // without the MCP endpoint (instance role admin) there are no callers to
+        // authenticate
+        if (s.mcpEnabled() && !s.oidcEnabled()) {
             problems.add("authenticated callers: quarkus.oidc.tenant-enabled=true (env QUARKUS_OIDC_TENANT_ENABLED)"
                     + " with quarkus.oidc.auth-server-url pointing at the realm that issues the caller tokens");
         }
-        if (!s.callerAudience()) {
+        if (s.mcpEnabled() && !s.callerAudience()) {
             problems.add("an audience on the caller tokens: quarkus.oidc.token.audience (env"
                     + " QUARKUS_OIDC_TOKEN_AUDIENCE), so that tokens issued for other services are refused");
         }
@@ -176,9 +221,9 @@ public class ProfileChecks {
                     + " URL may point anywhere the server can reach (set kc-mcp.allowed-hosts, or"
                     + " kc-mcp.admin.allow-new-systems=false)");
         }
-        if (!s.oidcEnabled()) {
+        if (s.mcpEnabled() && !s.oidcEnabled()) {
             warnings.add("Profile local: the MCP endpoint is anonymous and every call runs with the server's own"
-                    + " credentials; for a server other people reach set kc-mcp.profile=shared");
+                    + " credentials; for a server other people reach set kc-mcp.security-profile=shared");
         }
         return warnings;
     }

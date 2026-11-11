@@ -8,7 +8,7 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
 /**
  * What a {@link ProfileCheck} looks at.
  *
- * @param profile the deployment profile ({@code kc-mcp.profile})
+ * @param profile the security profile ({@code kc-mcp.security-profile})
  * @param callersRequired whether the MCP endpoint refuses anonymous requests
  * @param serverConfig the server's configuration; {@code null} in tests that do not need
  * it
@@ -16,11 +16,11 @@ import com.github.thomasdarimont.keycloak.mcp.spi.ProviderConfig;
  * @param properties any configuration property by name ({@code quarkus.http.host}, ...),
  * blank values as absent
  */
-public record ProfileCheckContext(Profile profile, boolean callersRequired, McpServerConfig serverConfig,
+public record ProfileCheckContext(SecurityProfile profile, boolean callersRequired, McpServerConfig serverConfig,
         ProviderConfig config, Function<String, Optional<String>> properties) {
 
     public ProfileCheckContext {
-        profile = profile == null ? Profile.LOCAL : profile;
+        profile = profile == null ? SecurityProfile.LOCAL : profile;
         properties = properties == null ? name -> Optional.empty() : properties;
     }
 

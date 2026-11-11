@@ -4,6 +4,8 @@ import java.util.List;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
+import org.hibernate.Session;
+
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditEvent;
 import com.github.thomasdarimont.keycloak.mcp.audit.AuditListener;
 import com.github.thomasdarimont.keycloak.mcp.spi.ConfigProperty;
@@ -54,27 +56,52 @@ public class DatabaseAuditListener implements AuditListener {
         return "one kc_mcp_audit_event row per tool call";
     }
 
+    /**
+     * The row as a plain insert instead of {@code persist()}: Hibernate would ask for the
+     * generated id, which costs read access to the table on some databases (the
+     * PostgreSQL driver appends {@code RETURNING *}). The id is not needed afterwards, so
+     * the audit trail stays append-only for a database user that may insert rows but not
+     * read them (the MCP instances of a split deployment,
+     * {@code examples/split-deployment}).
+     * <p>
+     * The statement is plain SQL-92 and leaves {@code id} to the column's identity
+     * default, so it runs on every database the changelog creates the table on. The
+     * parameters carry the column names and are bound with their Java type, so a
+     * {@code null} is bound as a null of that type instead of whatever the dialect picks
+     * for an untyped one.
+     */
+    static final String INSERT = """
+            insert into kc_mcp_audit_event (occurred_at, tool, level, system_alias, realm, args, outcome, message,
+                via, caller_subject, caller_name, caller_realm, delegated, client_name, connection_id, duration_ms)
+            values (:occurred_at, :tool, :level, :system_alias, :realm, :args, :outcome, :message,
+                :via, :caller_subject, :caller_name, :caller_realm, :delegated, :client_name, :connection_id,
+                :duration_ms)
+            """;
+
     @Override
     @Transactional
     public void onToolCall(AuditEvent event) {
-        AuditEventEntity e = new AuditEventEntity();
-        e.occurredAt = event.at() == null ? System.currentTimeMillis() : event.at().toEpochMilli();
-        e.tool = event.tool();
-        e.level = event.level() == null ? "READ" : event.level().name();
-        e.system = event.system();
-        e.realm = event.realm();
-        e.args = event.args().isEmpty() ? null : new JsonObject(event.args()).encode();
-        e.outcome = event.outcome();
-        e.message = event.message();
-        e.via = event.via();
-        e.callerSubject = event.caller().subject();
-        e.callerName = event.caller().name();
-        e.callerRealm = event.caller().realm();
-        e.delegated = event.caller().delegated();
-        e.clientName = event.clientName();
-        e.connectionId = event.connectionId();
-        e.durationMs = event.duration() == null ? 0 : event.duration().toMillis();
-        e.persist();
+        AuditEventEntity.getEntityManager()
+            .unwrap(Session.class)
+            .createNativeMutationQuery(INSERT)
+            .setParameter("occurred_at", event.at() == null ? System.currentTimeMillis() : event.at().toEpochMilli(),
+                    Long.class)
+            .setParameter("tool", event.tool(), String.class)
+            .setParameter("level", event.level() == null ? "READ" : event.level().name(), String.class)
+            .setParameter("system_alias", event.system(), String.class)
+            .setParameter("realm", event.realm(), String.class)
+            .setParameter("args", event.args().isEmpty() ? null : new JsonObject(event.args()).encode(), String.class)
+            .setParameter("outcome", event.outcome(), String.class)
+            .setParameter("message", event.message(), String.class)
+            .setParameter("via", event.via(), String.class)
+            .setParameter("caller_subject", event.caller().subject(), String.class)
+            .setParameter("caller_name", event.caller().name(), String.class)
+            .setParameter("caller_realm", event.caller().realm(), String.class)
+            .setParameter("delegated", event.caller().delegated(), Boolean.class)
+            .setParameter("client_name", event.clientName(), String.class)
+            .setParameter("connection_id", event.connectionId(), String.class)
+            .setParameter("duration_ms", event.duration() == null ? 0L : event.duration().toMillis(), Long.class)
+            .executeUpdate();
     }
 
     /** The newest events, newest first. */

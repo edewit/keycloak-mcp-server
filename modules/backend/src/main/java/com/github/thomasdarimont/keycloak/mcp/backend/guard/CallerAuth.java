@@ -28,6 +28,11 @@ public class CallerAuth {
     private final DelegationMode delegation;
     private final boolean required;
     private final boolean oidcEnabled;
+    /**
+     * Whether this instance serves the MCP endpoint at all
+     * ({@code kc-mcp.instance-role}).
+     */
+    private final boolean endpoint;
 
     private final Optional<String> defaultTenantProblem;
 
@@ -39,7 +44,7 @@ public class CallerAuth {
                     .getOptionalValue(DefaultTenantInterceptorFactory.AUTH_SERVER_URL, String.class)
                     .filter(v -> !v.isBlank())
                     .isPresent(),
-                staticSystems(config));
+                staticSystems(config), config.mcp().enabled());
     }
 
     public CallerAuth(DelegationMode delegation, boolean requireCaller, boolean oidcEnabled) {
@@ -48,6 +53,16 @@ public class CallerAuth {
 
     public CallerAuth(DelegationMode delegation, boolean requireCaller, boolean oidcEnabled, boolean authServerUrlSet,
             List<String> staticSystems) {
+        this(delegation, requireCaller, oidcEnabled, authServerUrlSet, staticSystems, true);
+    }
+
+    /**
+     * @param endpoint {@code false} on an instance without the MCP endpoint (instance
+     * role {@code admin}): it has no callers, so their authentication is not checked
+     */
+    public CallerAuth(DelegationMode delegation, boolean requireCaller, boolean oidcEnabled, boolean authServerUrlSet,
+            List<String> staticSystems, boolean endpoint) {
+        this.endpoint = endpoint;
         this.delegation = delegation;
         this.required = requireCaller || delegation.delegating();
         this.oidcEnabled = oidcEnabled;
@@ -72,6 +87,9 @@ public class CallerAuth {
     }
 
     void validate(@Observes StartupEvent event) {
+        if (!endpoint) {
+            return;
+        }
         ValidationRun.guard(this::requireCallerAuthentication);
         ValidationRun.guard(this::requireDefaultTenant);
     }
@@ -85,7 +103,7 @@ public class CallerAuth {
     private void requireCallerAuthentication() {
         if (required && !oidcEnabled) {
             throw new IllegalStateException("kc-mcp.delegation=" + delegation.name().toLowerCase()
-                    + " / kc-mcp.require-caller=true / kc-mcp.profile=shared need the MCP endpoint to authenticate"
+                    + " / kc-mcp.require-caller=true / kc-mcp.security-profile=shared need the MCP endpoint to authenticate"
                     + " callers: set " + "quarkus.oidc.tenant-enabled=true (env QUARKUS_OIDC_TENANT_ENABLED) and point "
                     + "quarkus.oidc.auth-server-url at the realm that issues the caller tokens");
         }

@@ -186,7 +186,7 @@
                             <excludedEnvironmentVariable>KC_MCP_JWT_KEY_FILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_KEYS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_MODEL_CONFIRMATION_TRUSTED_ROLES</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_PROFILE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SECURITY_PROFILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_PROVIDERS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_READ_ONLY</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE</excludedEnvironmentVariable>
@@ -280,7 +280,7 @@
                             <excludedEnvironmentVariable>KC_MCP_JWT_KEY_FILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_KEYS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_MODEL_CONFIRMATION_TRUSTED_ROLES</excludedEnvironmentVariable>
-                            <excludedEnvironmentVariable>KC_MCP_PROFILE</excludedEnvironmentVariable>
+                            <excludedEnvironmentVariable>KC_MCP_SECURITY_PROFILE</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_PROVIDERS_DIR</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_READ_ONLY</excludedEnvironmentVariable>
                             <excludedEnvironmentVariable>KC_MCP_SPI_AUDIT_LISTENER_ACME_FILE</excludedEnvironmentVariable>

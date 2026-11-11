@@ -45,8 +45,8 @@ public class StorageStartup {
             .orElse("(no quarkus.datasource.jdbc.url)");
         LOG.infof("Database storage on: systems, signing keys, secrets and audit events in %s", redact(url));
         if (!crypto.enabled()) {
-            if (server.profile().shared()) {
-                throw new IllegalStateException("kc-mcp.profile=shared needs an encrypted storage: set"
+            if (server.securityProfile().shared()) {
+                throw new IllegalStateException("kc-mcp.security-profile=shared needs an encrypted storage: set"
                         + " kc-mcp.storage.secret-key (env KC_MCP_STORAGE_SECRET_KEY, openssl rand -base64 32), else"
                         + " private keys and secrets are stored in plain text");
             }

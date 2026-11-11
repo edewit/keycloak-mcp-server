@@ -24,8 +24,8 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.InputSchema;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolLevel;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
-import com.github.thomasdarimont.keycloak.mcp.config.Profile;
 import com.github.thomasdarimont.keycloak.mcp.config.ProfileCheckContext;
+import com.github.thomasdarimont.keycloak.mcp.config.SecurityProfile;
 import com.github.thomasdarimont.keycloak.mcp.confirm.ConfirmationRequest;
 import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystem;
@@ -151,13 +151,13 @@ class AcmeExtensionsTest {
     @Test
     void auditFileCheckStopsASharedServerAndWarnsALocalOne() {
         AuditFileProfileCheck check = new AuditFileProfileCheck();
-        Function<Map<String, String>, ProfileCheckContext> shared = props -> new ProfileCheckContext(Profile.SHARED,
-                true, null, null, name -> Optional.ofNullable(props.get(name)));
+        Function<Map<String, String>, ProfileCheckContext> shared = props -> new ProfileCheckContext(
+                SecurityProfile.SHARED, true, null, null, name -> Optional.ofNullable(props.get(name)));
         assertEquals(1, check.problems(shared.apply(Map.of())).size(), "unset");
         assertEquals(1, check.problems(shared.apply(Map.of(AuditFileProfileCheck.FILE, "/tmp/a.jsonl"))).size(),
                 "temporary");
         assertTrue(check.problems(shared.apply(Map.of(AuditFileProfileCheck.FILE, "/var/log/acme/a.jsonl"))).isEmpty());
-        var local = new ProfileCheckContext(Profile.LOCAL, false, null, null, name -> Optional.empty());
+        var local = new ProfileCheckContext(SecurityProfile.LOCAL, false, null, null, name -> Optional.empty());
         assertTrue(check.problems(local).isEmpty(), "local: never stops");
         assertEquals(1, check.warnings(local).size());
     }

@@ -1,0 +1,28 @@
+# Faster iterations: run the freshly packaged server from target/quarkus-app instead of building an image.
+#
+#   ../../mvnw -f ../../pom.xml package -DskipTests -Ppostgresql
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d        # no --build
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml restart admin mcp   # after the next package
+services:
+  mcp:
+    build: !reset null
+    image: registry.access.redhat.com/ubi9/openjdk-21-runtime:1.24
+    volumes:
+      - ../../modules/backend/target/quarkus-app:/deployments:ro
+    environment:
+      JAVA_APP_JAR: /deployments/quarkus-run.jar
+      JAVA_OPTS_APPEND: -Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager
+      KC_MCP_PROVIDERS_DIR: /deployments/providers
+    entrypoint: ["/opt/jboss/container/java/run/run-java.sh"]
+    command: ["start"]
+  admin:
+    build: !reset null
+    image: registry.access.redhat.com/ubi9/openjdk-21-runtime:1.24
+    volumes:
+      - ../../modules/backend/target/quarkus-app:/deployments:ro
+    environment:
+      JAVA_APP_JAR: /deployments/quarkus-run.jar
+      JAVA_OPTS_APPEND: -Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager
+      KC_MCP_PROVIDERS_DIR: /deployments/providers
+    entrypoint: ["/opt/jboss/container/java/run/run-java.sh"]
+    command: ["start"]

@@ -103,7 +103,7 @@ LM Studio: copy `mcp-oauth.json` (`"auth": {"CLIENT_ID": "mcp-consumer"}`), conn
 | `carol / carol-demo` | `/mcp-support` → `view-users`, `view-events` | "list users" works, "disable dave" → `forbidden`, missing `manage-users`; `search_tools` already marks such tools `allowed: false` |
 | `bob / bob-demo` | none | every tool → `forbidden` ("no admin roles in realm 'demo'") |
 
-`env/shared.env` is the same stack under `KC_MCP_PROFILE=shared`, the settings a server other people reach needs:
+`env/shared.env` is the same stack under `KC_MCP_SECURITY_PROFILE=shared`, the settings a server other people reach needs:
 authenticated callers with an audience, the Keycloak host listed, `confirm: true` no longer accepted (destructive tools
 need a client with elicitation, LM Studio has none, so "delete dave" is refused with `confirmation_required`), and
 destructive tools must pass `realm` although a default realm is set. Remove `KC_MCP_ALLOWED_HOSTS` from the file to

@@ -61,7 +61,7 @@ class SecurityMatrixTest {
     @Test
     void localProfileKeepsTheConvenientDefaults() {
         McpServerConfig c = config(Map.of());
-        assertFalse(c.profile().shared());
+        assertFalse(c.securityProfile().shared());
         assertFalse(c.callerRequired());
         assertEquals(ConfirmFallback.FLAG, c.effectiveConfirmFallback());
         assertEquals(ExplicitTarget.OFF, c.effectiveExplicitTarget());
@@ -70,8 +70,8 @@ class SecurityMatrixTest {
 
     @Test
     void sharedProfileTurnsEveryDefaultAround() {
-        McpServerConfig c = config(Map.of("kc-mcp.profile", "shared"));
-        assertTrue(c.profile().shared());
+        McpServerConfig c = config(Map.of("kc-mcp.security-profile", "shared"));
+        assertTrue(c.securityProfile().shared());
         assertTrue(c.callerRequired(), "require-caller is implied");
         assertEquals(ConfirmFallback.DENY, c.effectiveConfirmFallback());
         assertEquals(ExplicitTarget.DESTRUCTIVE, c.effectiveExplicitTarget());
@@ -80,7 +80,7 @@ class SecurityMatrixTest {
 
     @Test
     void explicitSettingsWinOverTheProfile() {
-        McpServerConfig loosened = config(Map.of("kc-mcp.profile", "shared", "kc-mcp.confirm-fallback", "flag",
+        McpServerConfig loosened = config(Map.of("kc-mcp.security-profile", "shared", "kc-mcp.confirm-fallback", "flag",
                 "kc-mcp.explicit-target", "off", "kc-mcp.dynamic-private-hosts", "allow"));
         assertEquals(ConfirmFallback.FLAG, loosened.effectiveConfirmFallback());
         assertEquals(ExplicitTarget.OFF, loosened.effectiveExplicitTarget());
