@@ -1,10 +1,10 @@
 import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { BffError, listSystems, type System } from '../bff.js';
-import '../kc-mcp-help.js';
-import { newSystemHref, systemHref } from '../router.js';
-import { sessionCanWrite, sessionContext, type SessionState } from '../session-context.js';
+import { BffError, listSystems, type System } from '../../bff.js';
+import '../../kc-mcp-help.js';
+import { newSystemHref, systemHref } from '../../router.js';
+import { sessionCanWrite, sessionContext, type SessionState } from '../../session-context.js';
 
 /** Systems list via GET /bff/api/systems; each row is a Keycloak cluster/environment. */
 @customElement('kc-mcp-systems-page')

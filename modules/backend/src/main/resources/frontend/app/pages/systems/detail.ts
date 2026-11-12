@@ -7,7 +7,7 @@ import './realm.js';
 import './realms.js';
 import './settings.js';
 
-/** System detail: header, Settings | Realms | Keys tabs, child outlet. */
+/** One system: header, Settings | Realms | Keys tabs, child outlet. */
 @customElement('kc-mcp-system-page')
 export class SystemPage extends LitElement {
   static styles = css`
