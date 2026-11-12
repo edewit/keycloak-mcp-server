@@ -5,12 +5,12 @@ import { customElement } from 'lit/decorators.js';
 import { login, type Me } from './bff.js';
 import { auditHref, DEFAULT_PATH, ensureDefaultPath, UI_BASE, type SystemTab } from './router.js';
 import { sessionContext, type SessionState } from './session-context.js';
-import './pages/audit.js';
+import './pages/audit/page.js';
 import './pages/overview.js';
 import './pages/placeholder.js';
-import './pages/system/page.js';
-import './pages/system/settings.js';
-import './pages/systems.js';
+import './pages/systems/detail.js';
+import './pages/systems/page.js';
+import './pages/systems/settings.js';
 
 type GotoDetail = { path: string };
 
