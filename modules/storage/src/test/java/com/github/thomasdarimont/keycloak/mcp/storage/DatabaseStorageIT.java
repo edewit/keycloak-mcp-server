@@ -377,11 +377,33 @@ class DatabaseStorageIT {
         String subject = UUID.randomUUID().toString();
         Caller alice = Caller.of(subject, "alice", "tenant", Set.of("realm:admin"));
         Instant at = Instant.now();
-        audit.onToolCall(new AuditEvent(at, "keycloak_user_delete", ToolLevel.DESTRUCTIVE, "tenant-a", "tenant",
-                Map.of("id", "bob", "password", "***"), "forbidden", "missing manage-users", "execute_tool",
-                alice.asDelegated(), "lm-studio", "conn-1", Duration.ofMillis(42)));
-        audit.onToolCall(new AuditEvent(at.plusMillis(1), "whoami", ToolLevel.READ, null, null, Map.of(), "ok", null,
-                "direct", Caller.NONE, "-", "-", Duration.ofMillis(1)));
+        audit.onToolCall(AuditEvent.builder()
+            .at(at)
+            .tool("keycloak_user_delete")
+            .level(ToolLevel.DESTRUCTIVE)
+            .system("tenant-a")
+            .realm("tenant")
+            .args(Map.of("id", "bob", "password", "***"))
+            .outcome("forbidden")
+            .message("missing manage-users")
+            .via("execute_tool")
+            .caller(alice.asDelegated())
+            .clientName("lm-studio")
+            .connectionId("conn-1")
+            .duration(Duration.ofMillis(42))
+            .build());
+        audit.onToolCall(AuditEvent.builder()
+            .at(at.plusMillis(1))
+            .tool("whoami")
+            .level(ToolLevel.READ)
+            .args(Map.of())
+            .outcome("ok")
+            .via("direct")
+            .caller(Caller.NONE)
+            .clientName("-")
+            .connectionId("-")
+            .duration(Duration.ofMillis(1))
+            .build());
 
         List<AuditEventEntity> recent = audit.recent(2);
         assertEquals(2, recent.size());
@@ -456,8 +478,18 @@ class DatabaseStorageIT {
         Caller caller = Caller.of(subject, "old-timer", "tenant", Set.of());
         Instant now = Instant.now();
         for (int daysAgo : new int[] { 31, 400, 29, 0 }) {
-            audit.onToolCall(new AuditEvent(now.minus(Duration.ofDays(daysAgo)), "whoami", ToolLevel.READ, null, null,
-                    Map.of("daysAgo", daysAgo), "ok", null, "direct", caller, "-", "-", Duration.ofMillis(1)));
+            audit.onToolCall(AuditEvent.builder()
+                .at(now.minus(Duration.ofDays(daysAgo)))
+                .tool("whoami")
+                .level(ToolLevel.READ)
+                .args(Map.of("daysAgo", daysAgo))
+                .outcome("ok")
+                .via("direct")
+                .caller(caller)
+                .clientName("-")
+                .connectionId("-")
+                .duration(Duration.ofMillis(1))
+                .build());
         }
         assertEquals(4, audit.byCaller(subject, 10).size());
 

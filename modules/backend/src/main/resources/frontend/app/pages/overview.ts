@@ -2,6 +2,7 @@ import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { BffError, listSystems } from '../bff.js';
+import '../kc-mcp-help.js';
 import { systemsHref } from '../router.js';
 import { sessionContext, type SessionState } from '../session-context.js';
 
@@ -108,12 +109,14 @@ export class OverviewPage extends LitElement {
     }
     const lastCheck = this.session?.lastCheck ?? null;
     return html`
-      <h2>Overview</h2>
-      <p class="lead">
-        A <strong>system</strong> is one Keycloak cluster or environment (for example qa or prod), reached through a
-        single front-door URL. Under each system you manage which <strong>realms</strong> the MCP server may use — all
-        realms, or an explicit allowlist. Open <a href=${systemsHref()}>Systems</a> to browse them.
-      </p>
+      <h2>
+        Overview
+        <kc-mcp-help label="About systems and realms">
+          A <strong>system</strong> is one Keycloak cluster or environment (for example qa or prod), reached through a
+          single front-door URL. Under each system you manage which <strong>realms</strong> the MCP server may use — all
+          realms, or an explicit allowlist. Open <a href=${systemsHref()}>Systems</a> to browse them.
+        </kc-mcp-help>
+      </h2>
 
       <h3>You</h3>
       <dl>

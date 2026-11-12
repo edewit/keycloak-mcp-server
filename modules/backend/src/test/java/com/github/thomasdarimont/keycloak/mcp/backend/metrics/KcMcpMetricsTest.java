@@ -45,8 +45,20 @@ class KcMcpMetricsTest {
 
     private static AuditEvent event(String tool, ToolLevel level, String outcome, String realm) {
         Caller alice = Caller.of("sub-1", "alice", "demo", Set.of("realm:admin"));
-        return new AuditEvent(Instant.now(), tool, level, "prod", realm, Map.of("username", "dave", "password", "***"),
-                outcome, null, "execute_tool", alice, "LM Studio", "conn-1", Duration.ofMillis(42));
+        return AuditEvent.builder()
+            .at(Instant.now())
+            .tool(tool)
+            .level(level)
+            .system("prod")
+            .realm(realm)
+            .args(Map.of("username", "dave", "password", "***"))
+            .outcome(outcome)
+            .via("execute_tool")
+            .caller(alice)
+            .clientName("LM Studio")
+            .connectionId("conn-1")
+            .duration(Duration.ofMillis(42))
+            .build();
     }
 
     private MetricData metric(Collection<MetricData> all, String name) {

@@ -1,6 +1,9 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.audit;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
@@ -72,10 +75,11 @@ public class DatabaseAuditListener implements AuditListener {
      */
     static final String INSERT = """
             insert into kc_mcp_audit_event (occurred_at, tool, level, system_alias, realm, args, outcome, message,
-                via, caller_subject, caller_name, caller_realm, delegated, client_name, connection_id, duration_ms)
+                via, caller_subject, caller_name, caller_realm, delegated, client_name, connection_id, duration_ms,
+                trace_id, span_id)
             values (:occurred_at, :tool, :level, :system_alias, :realm, :args, :outcome, :message,
                 :via, :caller_subject, :caller_name, :caller_realm, :delegated, :client_name, :connection_id,
-                :duration_ms)
+                :duration_ms, :trace_id, :span_id)
             """;
 
     @Override
@@ -101,6 +105,8 @@ public class DatabaseAuditListener implements AuditListener {
             .setParameter("client_name", event.clientName(), String.class)
             .setParameter("connection_id", event.connectionId(), String.class)
             .setParameter("duration_ms", event.duration() == null ? 0L : event.duration().toMillis(), Long.class)
+            .setParameter("trace_id", event.traceId(), String.class)
+            .setParameter("span_id", event.spanId(), String.class)
             .executeUpdate();
     }
 
@@ -116,6 +122,60 @@ public class DatabaseAuditListener implements AuditListener {
         return AuditEventEntity.find("callerSubject = ?1", Sort.descending("occurredAt", "id"), subject)
             .page(0, Math.max(1, limit))
             .list();
+    }
+
+    /**
+     * One page of the events the query matches, in its order (newest first by default),
+     * and their number on all pages (a count with the same filter, using the same
+     * indexes). One row more than the page is read to tell whether a next page exists.
+     */
+    @Transactional
+    public AuditQuery.Page search(AuditQuery query) {
+        AuditQuery.Where where = query.where();
+        List<AuditEventEntity> rows = AuditEventEntity.find(where.jpql() + query.orderBy(), where.params())
+            .range(0, query.limit())
+            .list();
+        AuditQuery.Where all = query.whereOfAllPages();
+        long total = AuditEventEntity.count(all.jpql(), all.params());
+        if (rows.size() <= query.limit()) {
+            return new AuditQuery.Page(rows, Optional.empty(), total);
+        }
+        List<AuditEventEntity> page = rows.subList(0, query.limit());
+        return new AuditQuery.Page(List.copyOf(page), Optional.of(AuditQuery.Cursor.of(page.getLast(), query.sort())),
+                total);
+    }
+
+    /** One event by its id. */
+    @Transactional
+    public Optional<AuditEventEntity> find(long id) {
+        return AuditEventEntity.findByIdOptional(id);
+    }
+
+    /** The columns {@link #values} completes, by the name the API uses. */
+    public static final Map<String, String> VALUE_FIELDS = Map.of("caller", "callerName", "system", "system", "realm",
+            "realm", "tool", "tool");
+
+    /**
+     * The distinct values of one column that contain a text, case-insensitively, in
+     * order: completions for a filter. The field is one of {@link #VALUE_FIELDS}.
+     */
+    @Transactional
+    public List<String> values(String field, String containing, int limit) {
+        String property = VALUE_FIELDS.get(field);
+        if (property == null) {
+            throw new IllegalArgumentException("field: one of " + VALUE_FIELDS.keySet());
+        }
+        String text = containing == null ? "" : containing.trim().toLowerCase(Locale.ROOT);
+        String jpql = "select distinct e." + property + " from AuditEventEntity e where e." + property + " is not null"
+                + (text.isEmpty() ? "" : " and lower(e." + property + ") like :text escape '!'") + " order by e."
+                + property;
+        var query = AuditEventEntity.getEntityManager()
+            .createQuery(jpql, String.class)
+            .setMaxResults(Math.max(1, limit));
+        if (!text.isEmpty()) {
+            query.setParameter("text", "%" + text.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
+        }
+        return query.getResultList();
     }
 
     @Transactional

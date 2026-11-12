@@ -24,8 +24,10 @@ class UiCapabilitiesTest {
         Caller alice = Caller.of("a", "alice", "demo", Set.of("realm:admin"));
         assertTrue(UiCapabilities.canAccessApi(alice, config));
         assertTrue(UiCapabilities.canWrite(alice, config));
-        assertEquals(List.of(UiCapabilities.SYSTEMS_READ, UiCapabilities.SECRETS_READ, UiCapabilities.STORAGE_READ,
-                UiCapabilities.SYSTEMS_WRITE), UiCapabilities.forCaller(alice, config));
+        assertEquals(
+                List.of(UiCapabilities.SYSTEMS_READ, UiCapabilities.SECRETS_READ, UiCapabilities.STORAGE_READ,
+                        UiCapabilities.AUDIT_READ, UiCapabilities.SYSTEMS_WRITE),
+                UiCapabilities.forCaller(alice, config));
     }
 
     @Test
@@ -35,8 +37,8 @@ class UiCapabilitiesTest {
         Caller carol = Caller.of("c", "carol", "demo", Set.of("realm-management.view-users"));
         assertTrue(UiCapabilities.isViewer(carol, config));
         assertFalse(UiCapabilities.canWrite(carol, config));
-        assertEquals(List.of(UiCapabilities.SYSTEMS_READ, UiCapabilities.SECRETS_READ, UiCapabilities.STORAGE_READ),
-                UiCapabilities.forCaller(carol, config));
+        assertEquals(List.of(UiCapabilities.SYSTEMS_READ, UiCapabilities.SECRETS_READ, UiCapabilities.STORAGE_READ,
+                UiCapabilities.AUDIT_READ), UiCapabilities.forCaller(carol, config));
     }
 
     @Test

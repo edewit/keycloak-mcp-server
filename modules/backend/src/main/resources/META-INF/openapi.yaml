@@ -3,8 +3,8 @@ info:
   title: keycloak-mcp-server admin API
   version: "1.0"
   description: |
-    Registers Keycloak systems at runtime, keeps the secrets they reference and manages the encryption of the
-    database storage. Off by default: `kc-mcp.admin.enabled=true` turns it on, and it needs the database storage
+    Registers Keycloak systems at runtime, keeps the secrets they reference, manages the encryption of the
+    database storage and reads the audit trail. Off by default: `kc-mcp.admin.enabled=true` turns it on, and it needs the database storage
     (`quarkus.datasource.jdbc.url`) with `kc-mcp.dynamic-systems=true` to have somewhere to register systems in.
     With the API off every request answers 404 `admin_api_disabled`.
 
@@ -24,6 +24,8 @@ tags:
     description: The secrets in the key vault that systems reference as `vault:<name>`; values are never returned
   - name: storage
     description: Encryption of the database storage
+  - name: audit
+    description: The audit trail of tool calls kept in the database storage, read only
   - name: extensions
     description: |
       The installed extensions and their settings, read only (the settings come from the configuration): the spec
@@ -424,6 +426,171 @@ paths:
         "404": { $ref: "#/components/responses/Disabled" }
         "409":
           description: "`encryption_disabled`: no `kc-mcp.storage.secret-key` to re-encrypt with"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/StorageDisabled" }
+  /admin/audit:
+    get:
+      tags: [audit]
+      summary: The audit trail, newest first unless sorted otherwise
+      description: |
+        One event per finished tool call (denials and reads included), filtered by the parameters given (AND) and
+        paged: `next` continues after the page's last event, so new events arriving meanwhile do not shift the pages.
+        Arguments hold what the `pii` audit scrubber let through when the event was written; secrets were redacted
+        before.
+      operationId: searchAudit
+      parameters:
+        - name: subject
+          in: query
+          description: The caller's token `sub`, exactly
+          schema: { type: string }
+        - name: caller
+          in: query
+          description: The caller's name, exactly
+          schema: { type: string }
+        - name: traceId
+          in: query
+          description: The OpenTelemetry trace id of the call, exactly
+          schema: { type: string }
+        - name: anonymous
+          in: query
+          description: "`only`: calls without a caller; `exclude`: calls with one; both when left out"
+          schema: { type: string, enum: [only, exclude] }
+        - name: sort
+          in: query
+          description: "What the events are ordered by: the time, the duration or the caller's name"
+          schema: { type: string, enum: [when, took, caller], default: when }
+        - name: order
+          in: query
+          description: "`desc` (newest, slowest, Z first) or `asc`"
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: system
+          in: query
+          description: The system alias
+          schema: { type: string }
+        - name: realm
+          in: query
+          description: The realm
+          schema: { type: string }
+        - name: tool
+          in: query
+          description: "The tool name, e.g. `keycloak_user_delete`"
+          schema: { type: string }
+        - name: level
+          in: query
+          description: The tool's level
+          schema: { type: string, enum: [READ, WRITE, DESTRUCTIVE] }
+        - name: outcome
+          in: query
+          description: "`ok`, `error` for every refusal and failure, or one error code such as `access_denied`"
+          schema: { type: string }
+        - name: from
+          in: query
+          description: Earliest moment, inclusive
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          description: Latest moment, exclusive
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          description: Page size, 50 by default
+          schema: { type: integer, minimum: 1, maximum: 500 }
+        - name: cursor
+          in: query
+          description: "The `next` of the previous page, asked for with the same `sort` and `order`"
+          schema: { type: string }
+        - name: args
+          in: query
+          description: "Include the arguments of every event; without it an event only carries `hasArgs`"
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: One page of events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuditEvent" }
+                  next:
+                    type: [string, "null"]
+                    description: The cursor of the next page; null on the last
+                  total:
+                    type: integer
+                    format: int64
+                    description: How many events the filter matches on all pages together
+        "400":
+          description: "`invalid_query`: a parameter out of range or unreadable"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/Disabled" }
+        "503": { $ref: "#/components/responses/StorageDisabled" }
+  /admin/audit/{id}:
+    get:
+      tags: [audit]
+      summary: One audit event with its arguments
+      description: |
+        Arguments may hold personal data (what the `pii` audit scrubber let through), so the list leaves them out
+        unless asked with `args=true`; this hands them out one event at a time.
+      operationId: auditEvent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: The event
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditEvent" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: "`unknown_event`: no event with that id; `admin_api_disabled`: the API is off"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/StorageDisabled" }
+  /admin/audit/values/{field}:
+    get:
+      tags: [audit]
+      summary: Completions for the filters of the audit trail
+      description: |
+        The distinct values of one field recorded in the audit trail that contain a text (case-insensitive), in
+        order, at most 20.
+      operationId: auditValues
+      parameters:
+        - name: field
+          in: path
+          required: true
+          schema: { type: string, enum: [caller, system, realm, tool] }
+        - name: containing
+          in: query
+          description: Text the values contain; empty for the first values
+          schema: { type: string }
+      responses:
+        "200":
+          description: The values
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  values:
+                    type: array
+                    items: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: "`unknown_field`: no completions for that field; `admin_api_disabled`: the API is off"
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -897,6 +1064,32 @@ components:
           example:
             systems: { "k1": 3 }
             signing_keys: { "k1": 2, "k0": 1 }
+    AuditEvent:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        at: { type: string, format: date-time }
+        tool: { type: string }
+        level: { type: string, enum: [READ, WRITE, DESTRUCTIVE] }
+        system: { type: [string, "null"] }
+        realm: { type: [string, "null"] }
+        outcome: { type: string, description: "`ok` or the error code" }
+        message: { type: [string, "null"] }
+        traceId: { type: [string, "null"], description: "The OpenTelemetry trace the call ran in, 32 hex digits; null when tracing was off" }
+        spanId: { type: [string, "null"], description: "The span of that trace, 16 hex digits" }
+        hasArgs: { type: boolean, description: Whether arguments were recorded }
+        args: { type: object, description: "The arguments, secrets replaced by `***`; only with `args=true` or for one event" }
+        via: { type: [string, "null"], description: "`direct` or `execute_tool`" }
+        caller:
+          type: object
+          properties:
+            subject: { type: [string, "null"] }
+            name: { type: [string, "null"] }
+            realm: { type: [string, "null"] }
+            delegated: { type: boolean, description: Keycloak was called with the caller's own token }
+        client: { type: [string, "null"], description: The MCP client's name }
+        connectionId: { type: [string, "null"] }
+        durationMs: { type: integer, format: int64 }
     RekeyResult:
       type: object
       required: [currentKeyId, rewritten, remaining]

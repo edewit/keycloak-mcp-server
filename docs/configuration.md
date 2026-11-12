@@ -145,6 +145,7 @@ the database connection.
 | `quarkus.http.cors.origins`     | local origins               | browser MCP clients; set to the client origin(s) in production |
 | `quarkus.otel.sdk.disabled`     | `true`                      | `false` exports metrics and traces to `quarkus.otel.exporter.otlp.endpoint` ([Metrics](metrics.md)) |
 | `kc-mcp.metrics.include-realm` | `false`                    | tool call metrics carry the realm |
+| `kc-mcp.ui.trace-url`           |                             | where the Audit page links an event's trace: a URL with `{traceId}` (and `{spanId}`), e.g. `https://jaeger.example.com/trace/{traceId}`; unset: the ids without a link |
 | `kc-mcp.ui.viewer-role`         |                             | optional read-only management UI role (`realm:<role>` or `<client>.<role>`); unset: only `kc-mcp.admin.role` opens `/bff/api` |
 | `kc-mcp.ui.tls-configuration-name` |                        | named `quarkus.tls` configuration (trust store) for the server's own calls to the UI's identity providers: discovery, keys, session checks |
 | `kc-mcp.truststore-paths`       |                             | additional trusted certificates for outbound TLS: PEM or unencrypted PKCS12 files, directories ([HTTPS and trusted certificates](tls.md)) |

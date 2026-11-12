@@ -20,10 +20,15 @@ export const routes: NavRoute[] = [
   { path: `${UI_BASE}/systems`, label: 'Systems', capability: 'systems:read' },
   { path: `${UI_BASE}/secrets`, label: 'Secrets', capability: 'secrets:read' },
   { path: `${UI_BASE}/storage`, label: 'Storage', capability: 'storage:read' },
+  { path: `${UI_BASE}/audit`, label: 'Audit', capability: 'audit:read' },
 ];
 
 export function overviewHref(): string {
   return `${UI_BASE}/overview`;
+}
+
+export function auditHref(): string {
+  return `${UI_BASE}/audit`;
 }
 
 export function systemsHref(): string {

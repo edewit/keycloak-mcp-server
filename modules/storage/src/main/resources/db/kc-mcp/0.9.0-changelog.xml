@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema version 0.9.0: the trace an audited call ran in. -->
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="13-audit-trace" author="keycloak-mcp-server">
+        <comment>The OpenTelemetry trace and span of an audited tool call, to find it in a tracing or logging system;
+            null when tracing is off</comment>
+        <addColumn tableName="kc_mcp_audit_event">
+            <!-- 32 hex digits -->
+            <column name="trace_id" type="varchar(32)"/>
+            <!-- 16 hex digits -->
+            <column name="span_id" type="varchar(16)"/>
+        </addColumn>
+        <createIndex tableName="kc_mcp_audit_event" indexName="ix_kc_mcp_audit_event_trace">
+            <column name="trace_id"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

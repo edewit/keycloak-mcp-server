@@ -130,6 +130,6 @@ asks the human itself, so the model calls right away and relays the answer inste
 | `timeout-seconds` | `confirm-timeout-seconds` | how long to wait; capped by the provider's `expires_in` |
 | `when` | `always` | `without-elicitation`: only for clients that cannot ask the human themselves |
 | `flow` | `two-step` | or `blocking` (the call waits for the device; no number matching) |
-| `number-matching` | `true` | two-step: send a two-digit `code` the device asks the user for; shown to the model |
+| `number-matching` | `true` | two-step: send a two-digit `code` the device asks the user for; shown to the model in `approval.code` and `howTo`, never in the message, so the audit trail does not record it |
 | `extra-parameters` | `true` | send `requester` and `operation` as additional request parameters |
 | `poll-wait-seconds` | `5` | two-step: how long the collecting call waits for the device before answering `pending` |

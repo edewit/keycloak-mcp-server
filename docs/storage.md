@@ -72,6 +72,11 @@ reloads at once). A tool call costs no query, and event-loop threads get the sna
 
 ## Audit retention and personal data
 
+- **Traces.** With tracing on (`quarkus.otel.sdk.disabled=false`), an event records the OpenTelemetry `trace_id` and
+  `span_id` of the span the server runs each tool call in (`kc_mcp.tool <name>`), so the call is found in the tracing or logging system and, the other
+  way round, a trace in the audit trail (`GET /admin/audit?traceId=`). Without tracing both stay empty.
+- **Reading.** `GET /admin/audit` filters and pages the rows ([admin API](systems.md)), and the management UI's
+  *Audit* page shows them to operators and viewers. In a split deployment only the admin instance reads them.
 - **Retention.** `kc-mcp.spi.audit-listener.db.retention-days` deletes older events at startup and then hourly, one statement on
   the `occurred_at` index. Unset keeps everything, like Keycloak's event store without expiration.
 - **Personal data.** The `pii` audit scrubber decides what of it reaches the rows (`kc-mcp.spi.audit-scrubber.pii.mode`):
@@ -142,5 +147,4 @@ taken from the request itself (the caller from the token, system and realm from 
 ## From code
 
 `DatabaseKeycloakSystemRepository` (`save`, `rename`, `setEnabled`, `delete`), `DatabaseKeyVault` (`createSigningKey`
-retires the previous row, `putSecret`) and `DatabaseAuditListener` (`recent`, `byCaller`) are injectable. An admin API
-over the audit rows is on the roadmap.
+retires the previous row, `putSecret`) and `DatabaseAuditListener` (`recent`, `byCaller`, `search` with an `AuditQuery`) are injectable.

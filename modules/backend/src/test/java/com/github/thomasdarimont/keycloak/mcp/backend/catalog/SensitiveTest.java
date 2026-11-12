@@ -160,8 +160,17 @@ class SensitiveTest {
     }
 
     static AuditEvent event() {
-        return new AuditEvent(Instant.now(), "t", null, null, null, Map.of(), "ok", null, "direct", Caller.NONE, "-",
-                "-", Duration.ZERO);
+        return AuditEvent.builder()
+            .at(Instant.now())
+            .tool("t")
+            .args(Map.of())
+            .outcome("ok")
+            .via("direct")
+            .caller(Caller.NONE)
+            .clientName("-")
+            .connectionId("-")
+            .duration(Duration.ZERO)
+            .build();
     }
 
     @Test

@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -31,6 +32,10 @@ import com.github.thomasdarimont.keycloak.mcp.confirm.Decision;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakAdmin;
 import com.github.thomasdarimont.keycloak.mcp.keycloak.KeycloakSystems;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.trace.TracerProvider;
+import io.opentelemetry.context.Scope;
 import io.quarkiverse.mcp.server.InputRequiredException;
 import io.vertx.core.json.JsonObject;
 
@@ -59,10 +64,16 @@ public class ToolInvoker {
     private ConfirmFallback confirmFallback = ConfirmFallback.FLAG;
     private ConfirmationGuidance guidance = ConfirmationGuidance.standalone();
 
+    /** Records nothing unless the server hands in the tracer of its OpenTelemetry SDK. */
+    private Tracer tracer = TracerProvider.noop().get(TRACER);
+
+    static final String TRACER = "keycloak-mcp-server";
+
     @Inject
     public ToolInvoker(ToolCatalog catalog, AccessPolicy policy, ConfirmerChain confirmer, McpServerConfig config,
-            KeycloakSystems systems, AuditLog audit) {
+            KeycloakSystems systems, AuditLog audit, Tracer tracer) {
         this(catalog, policy, confirmer, config.resultMaxItems(), systems, config.delegation(), audit);
+        this.tracer = tracer;
         this.confirmTimeout = Duration.ofSeconds(config.confirmTimeoutSeconds());
         this.explicitTarget = config.effectiveExplicitTarget();
         this.confirmFallback = config.effectiveConfirmFallback();
@@ -126,7 +137,35 @@ public class ToolInvoker {
         this.audit = audit;
     }
 
+    /**
+     * Runs the call in a span of its own ({@code kc_mcp.tool <name>}, with the tool and
+     * its level as attributes, no argument or caller): the MCP transport runs a tool
+     * outside the context of the HTTP request, so without it nothing the call does (the
+     * requests to Keycloak, the log lines) and no audit event would belong to a trace.
+     * The span continues the current trace when there is one and starts one otherwise.
+     */
     public ToolResult invoke(ToolSpec spec, Map<String, Object> rawArgs, boolean confirmFlag, InvocationContext ctx) {
+        Span span = tracer.spanBuilder("kc_mcp.tool " + spec.name())
+            .setAttribute("kc_mcp.tool", spec.name())
+            .setAttribute("kc_mcp.level", spec.level().name().toLowerCase(Locale.ROOT))
+            .startSpan();
+        try (Scope scope = span.makeCurrent()) {
+            ToolResult result = invokeInSpan(spec, rawArgs, confirmFlag, ctx);
+            if (result.isError() && result.payload() instanceof Map<?, ?> m && m.get("error") != null) {
+                span.setAttribute("kc_mcp.outcome", String.valueOf(m.get("error")));
+            }
+            else {
+                span.setAttribute("kc_mcp.outcome", result.isError() ? "error" : "ok");
+            }
+            return result;
+        }
+        finally {
+            span.end();
+        }
+    }
+
+    private ToolResult invokeInSpan(ToolSpec spec, Map<String, Object> rawArgs, boolean confirmFlag,
+            InvocationContext ctx) {
         long start = System.nanoTime();
         ToolResult result;
         String realm = null;
@@ -137,7 +176,7 @@ public class ToolInvoker {
                         + "caller; connect through an authenticated (OAuth) MCP session first.");
             }
             else if (delegation.delegating() && !ctx.caller().delegated()) {
-                return invoke(spec, rawArgs, confirmFlag, ctx.withCaller(ctx.caller().asDelegated()));
+                return invokeInSpan(spec, rawArgs, confirmFlag, ctx.withCaller(ctx.caller().asDelegated()));
             }
             else if (!policy.permits(spec)) {
                 result = policy.forbids(spec, null).orElseThrow();

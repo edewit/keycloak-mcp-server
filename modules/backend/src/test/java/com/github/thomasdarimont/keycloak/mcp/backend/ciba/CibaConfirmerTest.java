@@ -446,7 +446,10 @@ class CibaConfirmerTest {
         assertEquals("requested", approval.get("status"));
         String code = String.valueOf(approval.get("code"));
         assertTrue(code.matches("[1-9][0-9]"), code);
-        assertTrue(first.message().contains("number " + code), first.message());
+        // the message is what the audit trail keeps: the number must not be in it
+        assertFalse(first.message().contains("number " + code), first.message());
+        assertTrue(first.message().contains("approval.code"), first.message());
+        assertTrue(String.valueOf(first.details().get("howTo")).contains("number " + code), first.details().toString());
         assertTrue(String.valueOf(first.details().get("howTo")).contains("call again"), first.details().toString());
         assertEquals(1, ((InMemoryPendingApprovalStore) c.store()).size());
         Map<String, String> bc = backchannelRequests.getFirst();
@@ -463,6 +466,8 @@ class CibaConfirmerTest {
         Map<String, Object> pendingApproval = (Map<String, Object>) waiting.details().get("approval");
         assertEquals("pending", pendingApproval.get("status"));
         assertEquals(code, pendingApproval.get("code"), "same request, same number");
+        assertFalse(waiting.message().contains("number " + code), waiting.message());
+        assertTrue(waiting.message().contains("approval.code"), waiting.message());
         assertEquals(1, backchannelRequests.size(), "no second request was filed");
 
         tokenAnswers.add("200");

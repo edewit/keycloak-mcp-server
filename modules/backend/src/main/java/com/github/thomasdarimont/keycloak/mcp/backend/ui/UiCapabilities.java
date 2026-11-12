@@ -19,6 +19,7 @@ public final class UiCapabilities {
     public static final String SYSTEMS_WRITE = "systems:write";
     public static final String SECRETS_READ = "secrets:read";
     public static final String STORAGE_READ = "storage:read";
+    public static final String AUDIT_READ = "audit:read";
 
     private UiCapabilities() {
     }
@@ -59,6 +60,7 @@ public final class UiCapabilities {
         out.add(SYSTEMS_READ);
         out.add(SECRETS_READ);
         out.add(STORAGE_READ);
+        out.add(AUDIT_READ);
         if (canWrite(caller, config)) {
             out.add(SYSTEMS_WRITE);
         }

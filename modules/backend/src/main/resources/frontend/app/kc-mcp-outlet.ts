@@ -3,8 +3,9 @@ import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { login, type Me } from './bff.js';
-import { DEFAULT_PATH, ensureDefaultPath, UI_BASE, type SystemTab } from './router.js';
+import { auditHref, DEFAULT_PATH, ensureDefaultPath, UI_BASE, type SystemTab } from './router.js';
 import { sessionContext, type SessionState } from './session-context.js';
+import './pages/audit.js';
 import './pages/overview.js';
 import './pages/placeholder.js';
 import './pages/system/page.js';
@@ -35,6 +36,10 @@ export class KcMcpOutlet extends LitElement {
       padding: 1rem 1.25rem;
       color: var(--fg, inherit);
       max-width: 56rem;
+    }
+    /* tables with many columns (the audit trail) use the screen; forms stay narrow */
+    .card.wide {
+      max-width: 120rem;
     }
     h2 {
       font-size: 1rem;
@@ -167,6 +172,15 @@ export class KcMcpOutlet extends LitElement {
           ></kc-mcp-placeholder-page>`,
       },
       {
+        name: 'audit',
+        path: `${UI_BASE}/audit`,
+        enter: async () => {
+          notifyNavigate();
+          return true;
+        },
+        render: () => html`<kc-mcp-audit-page></kc-mcp-audit-page>`,
+      },
+      {
         name: 'overview',
         path: `${UI_BASE}/overview`,
         enter: async () => {
@@ -233,7 +247,8 @@ export class KcMcpOutlet extends LitElement {
     if (!s.authenticated) {
       return this.renderSignIn(s);
     }
-    return html`<section class="card">${this.router.outlet()}</section>`;
+    const wide = location.pathname.startsWith(auditHref());
+    return html`<section class="card ${wide ? 'wide' : ''}">${this.router.outlet()}</section>`;
   }
 
   private renderSignIn(s: Me) {

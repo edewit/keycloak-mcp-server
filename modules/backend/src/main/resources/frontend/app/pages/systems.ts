@@ -2,6 +2,7 @@ import { consume } from '@lit/context';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { BffError, listSystems, type System } from '../bff.js';
+import '../kc-mcp-help.js';
 import { newSystemHref, systemHref } from '../router.js';
 import { sessionCanWrite, sessionContext, type SessionState } from '../session-context.js';
 
@@ -160,11 +161,13 @@ export class SystemsPage extends LitElement {
 
   render() {
     return html`
-      <h2>Systems</h2>
-      <p>
-        Keycloak clusters and environments known to this server. Each system has a front-door URL and zero or more
-        managed realms (all realms, or an explicit allowlist).
-      </p>
+      <h2>
+        Systems
+        <kc-mcp-help label="About systems">
+          Keycloak clusters and environments known to this server. Each system has a front-door URL and zero or more
+          managed realms (all realms, or an explicit allowlist).
+        </kc-mcp-help>
+      </h2>
       <div class="row">
         ${this.canCreate
           ? html`<a class="btn" href=${newSystemHref()}>Add system</a>`

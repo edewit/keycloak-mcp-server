@@ -12,6 +12,7 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
@@ -23,9 +24,9 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
 
 /**
  * The admin API over HTTP; {@link AdminAccessFilter} lets requests through,
- * {@link AdminSystems}, {@link AdminSecrets}, {@link AdminStorage} and
- * {@link AdminExtensions} do the work. Bodies and representations are plain maps, Jackson
- * turns them into JSON.
+ * {@link AdminSystems}, {@link AdminSecrets}, {@link AdminStorage}, {@link AdminAudit}
+ * and {@link AdminExtensions} do the work. Bodies and representations are plain maps,
+ * Jackson turns them into JSON.
  *
  * <pre>
  * PUT    /admin/systems/{alias}              register or replace (body: the systems file fields, signingKey)
@@ -44,6 +45,12 @@ import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
  * PUT    /admin/systems/{alias}/realms/{r}   adds or replaces them (labels, Keycloak's realm id, authorization)
  * DELETE /admin/systems/{alias}/realms/{r}   removes them; the system's settings apply again
  * POST   /admin/storage/rekey                re-encrypt everything under the current kc-mcp.storage.secret-key
+ * GET    /admin/audit                        the audit trail, newest first: ?subject= caller= system= realm= tool=
+ *                                            level= outcome=ok|error|<code> from= to= (ISO-8601) limit= cursor=
+ *                                            traceId= anonymous=only|exclude sort=when|took|caller order=asc|desc
+ *                                            args=true (without it an event only says hasArgs)
+ * GET    /admin/audit/{id}                   one event with its arguments
+ * GET    /admin/audit/values/{field}         recorded callers, systems, realms or tools containing ?containing=
  * GET    /admin/extensions                   the installed extensions, with their status and problem counts
  * GET    /admin/extensions/{spi}/{id}        one extension's settings: spec, values (confidential ones masked),
  *                                            problems; texts in the Accept-Language
@@ -69,6 +76,9 @@ public class AdminResource {
 
     @Inject
     AdminExtensions extensions;
+
+    @Inject
+    AdminAudit audit;
 
     @GET
     @Path("systems")
@@ -175,6 +185,25 @@ public class AdminResource {
     @Path("storage/rekey")
     public Map<String, Object> rekey() {
         return storage.rekey();
+    }
+
+    @GET
+    @Path("audit")
+    public Map<String, Object> audit(@Context UriInfo uri) {
+        return audit.search(uri.getQueryParameters());
+    }
+
+    @GET
+    @Path("audit/{id: \\d+}")
+    public Map<String, Object> auditEvent(@PathParam("id") long id) {
+        return audit.get(id);
+    }
+
+    @GET
+    @Path("audit/values/{field}")
+    public Map<String, Object> auditValues(@PathParam("field") String field,
+            @QueryParam("containing") String containing) {
+        return audit.values(field, containing);
     }
 
     @GET

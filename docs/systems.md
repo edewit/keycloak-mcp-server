@@ -124,6 +124,17 @@ instances on the same database ([Several instances](storage.md#several-instances
   names + `usedBy`, never values. `DELETE`: 409 `secret_in_use` while referenced.
 - `GET /admin/storage`: encryption on/off, current key id, key ids in use per table. `POST /admin/storage/rekey`:
   re-encrypts under the current `kc-mcp.storage.secret-key` ([Database storage](storage.md), key rotation).
+- `GET /admin/audit`: the audit trail, newest first, 50 events a page (`limit` up to 500). Filters, combined with AND:
+  `subject` (token `sub`), `caller` (name), `system`, `realm`, `tool`, `level` (`READ`, `WRITE`, `DESTRUCTIVE`),
+  `outcome` (`ok`, `error` for every refusal and failure, or one error code), `from` / `to` (ISO-8601, `to`
+  exclusive), `traceId` (the OpenTelemetry trace of the call), `anonymous=only` or `exclude` (calls without, or only with, a caller). `sort=when|took|caller` with
+  `order=asc|desc` orders by time (the default, newest first), duration or caller name. An event says whether it has arguments (`hasArgs`); the
+  arguments themselves come with `args=true`, or one event at a time from `GET /admin/audit/<id>`, since they may hold
+  personal data. `next` in the answer is the `cursor` of the following page; new events do not shift the pages. `total`
+  counts the matching events on all pages. `GET /admin/audit/values/{caller|system|realm|tool}?containing=`: up to 20
+  recorded values containing a text, for completing the filters. The CIBA number-matching code never reaches the trail
+  (it travels in `approval.code`, not the message); rows of older builds show it as `**`. 503
+  `storage_disabled` without the database storage ([Audit retention and personal data](storage.md#audit-retention-and-personal-data)).
 - `GET /admin/extensions`: every installed extension (`spi`, `id`, status, origin, class, whether it declares
   settings, how many errors and warnings its settings have). `GET /admin/extensions/<spi>/<id>`: its settings, read
   only: each declared setting with its full key and environment variable, type, default, options, conditions

@@ -626,6 +626,17 @@ public interface McpServerConfig {
          * before).
          */
         Optional<String> viewerRole();
+
+        /**
+         * Where the management UI links the trace of an audit event to: the URL of a
+         * tracing or logging system with {@code {traceId}} (and optionally
+         * {@code {spanId}}) in it, e.g.
+         * {@code https://jaeger.example.com/trace/{traceId}} or a Grafana Explore link
+         * that searches Loki for the id. Unset, the ids are shown without a link. Events
+         * carry a trace only while tracing is on
+         * ({@code quarkus.otel.sdk.disabled=false}).
+         */
+        Optional<String> traceUrl();
     }
 
     /** One identity provider of the management UI. */

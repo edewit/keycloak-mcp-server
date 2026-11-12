@@ -32,6 +32,8 @@ export interface Me {
   /** True when the session holds kc-mcp.ui.viewer-role (read-only), if configured. */
   viewer?: boolean;
   viewerRole?: string;
+  /** Where an audit event's trace is linked to: a URL with `{traceId}` (and `{spanId}`); unset: no link. */
+  traceUrl?: string;
   /** BFF-enforced capabilities; the UI only hides. */
   capabilities?: string[];
   sessionExpiresAt?: string;
@@ -43,6 +45,7 @@ export const Cap = {
   systemsWrite: 'systems:write',
   secretsRead: 'secrets:read',
   storageRead: 'storage:read',
+  auditRead: 'audit:read',
 } as const;
 
 export function hasCapability(me: Me | null | undefined, capability: string): boolean {
@@ -282,6 +285,86 @@ export const deleteSystemRealm = (alias: string, realm: string): Promise<void> =
   call<void>(`/api/systems/${encodeURIComponent(alias)}/realms/${encodeURIComponent(realm)}`, {
     method: 'DELETE',
   });
+
+/** One tool call of the audit trail (GET /bff/api/audit). */
+export interface AuditEvent {
+  id: number;
+  /** ISO-8601 instant. */
+  at: string;
+  tool: string;
+  level: 'READ' | 'WRITE' | 'DESTRUCTIVE';
+  system?: string | null;
+  realm?: string | null;
+  /** `ok` or the error code. */
+  outcome: string;
+  message?: string | null;
+  /** The OpenTelemetry trace and span the call ran in; null when tracing was off. */
+  traceId?: string | null;
+  spanId?: string | null;
+  /** Whether arguments were recorded; the list does not carry them. */
+  hasArgs: boolean;
+  /** The arguments, secrets replaced by `***`: only on one event fetched with {@link getAuditEvent}. */
+  args?: Record<string, unknown> | string;
+  via?: string | null;
+  caller: { subject?: string | null; name?: string | null; realm?: string | null; delegated: boolean };
+  client?: string | null;
+  connectionId?: string | null;
+  durationMs: number;
+}
+
+export interface AuditPage {
+  events: AuditEvent[];
+  /** Cursor of the next page; null on the last. */
+  next: string | null;
+  /** How many events the filter matches on all pages together. */
+  total: number;
+}
+
+/** Filters of GET /bff/api/audit; unset or empty ones are left out. */
+export interface AuditFilter {
+  subject?: string;
+  caller?: string;
+  system?: string;
+  realm?: string;
+  tool?: string;
+  level?: string;
+  /** `ok`, `error` or one error code. */
+  outcome?: string;
+  /** `only`: calls without a caller; `exclude`: calls with one. */
+  anonymous?: string;
+  /** `when` (default), `took` or `caller`, with `order` `desc` (default) or `asc`. */
+  sort?: string;
+  order?: string;
+  /** ISO-8601 instants; `to` is exclusive. */
+  from?: string;
+  to?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+/** One page of the audit trail, newest first (GET /bff/api/audit). */
+export const searchAudit = (filter: AuditFilter = {}): Promise<AuditPage> => {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filter)) {
+    if (value !== undefined && value !== null && `${value}`.trim() !== '') {
+      params.set(key, `${value}`.trim());
+    }
+  }
+  const query = params.toString();
+  return call<AuditPage>(`/api/audit${query ? `?${query}` : ''}`);
+};
+
+/** One event with its arguments (GET /bff/api/audit/{id}). */
+export const getAuditEvent = (id: number): Promise<AuditEvent> => call<AuditEvent>(`/api/audit/${id}`);
+
+/** Fields of the audit trail with completions. */
+export type AuditValueField = 'caller' | 'system' | 'realm' | 'tool';
+
+/** Recorded values of a field that contain a text, at most 20 (GET /bff/api/audit/values/{field}). */
+export const auditValues = async (field: AuditValueField, containing: string): Promise<string[]> => {
+  const query = containing.trim() ? `?containing=${encodeURIComponent(containing.trim())}` : '';
+  return (await call<{ values: string[] }>(`/api/audit/values/${field}${query}`)).values;
+};
 
 /** Full-page navigations: the code flow and the RP-initiated logout are redirects, not fetches. */
 export const login = (idp: Idp): void => {

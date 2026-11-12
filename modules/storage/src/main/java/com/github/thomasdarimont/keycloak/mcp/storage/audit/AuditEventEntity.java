@@ -80,4 +80,11 @@ public class AuditEventEntity extends PanacheEntityBase {
 
     @Column(name = "duration_ms", nullable = false)
     public long durationMs;
+
+    /** The OpenTelemetry trace the call ran in, 32 hex digits; null without tracing. */
+    @Column(name = "trace_id", length = 32)
+    public String traceId;
+
+    @Column(name = "span_id", length = 16)
+    public String spanId;
 }

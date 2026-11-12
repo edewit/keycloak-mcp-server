@@ -47,9 +47,21 @@ class PiiAuditScrubberTest {
         .withToken("raw", Map.of("email", "alice@example.com"));
 
     static AuditEvent userUpdate() {
-        return new AuditEvent(Instant.now(), "keycloak_user_update", ToolLevel.WRITE, "main", "demo",
-                Map.of("id", "bob", "email", "bob@example.com", "realm", "demo", "enabled", true), "not_found",
-                "User 'bob' not found", "direct", ALICE.withoutToken(), "lm-studio", "c1", Duration.ofMillis(5));
+        return AuditEvent.builder()
+            .at(Instant.now())
+            .tool("keycloak_user_update")
+            .level(ToolLevel.WRITE)
+            .system("main")
+            .realm("demo")
+            .args(Map.of("id", "bob", "email", "bob@example.com", "realm", "demo", "enabled", true))
+            .outcome("not_found")
+            .message("User 'bob' not found")
+            .via("direct")
+            .caller(ALICE.withoutToken())
+            .clientName("lm-studio")
+            .connectionId("c1")
+            .duration(Duration.ofMillis(5))
+            .build();
     }
 
     @Test
@@ -105,9 +117,20 @@ class PiiAuditScrubberTest {
         assertEquals("sub-1", s.caller().subject());
         assertEquals(Set.of("realm:admin"), s.caller().roles());
 
-        AuditEvent client = new AuditEvent(Instant.now(), "keycloak_client_delete", ToolLevel.DESTRUCTIVE, "main",
-                "demo", Map.of("id", "my-app", "email", "x"), "ok", null, "direct", Caller.NONE, "-", "-",
-                Duration.ZERO);
+        AuditEvent client = AuditEvent.builder()
+            .at(Instant.now())
+            .tool("keycloak_client_delete")
+            .level(ToolLevel.DESTRUCTIVE)
+            .system("main")
+            .realm("demo")
+            .args(Map.of("id", "my-app", "email", "x"))
+            .outcome("ok")
+            .via("direct")
+            .caller(Caller.NONE)
+            .clientName("-")
+            .connectionId("-")
+            .duration(Duration.ZERO)
+            .build();
         AuditEvent scrubbedClient = scrubber.scrub(client, DB);
         assertEquals("my-app", scrubbedClient.args().get("id"), "ids of other tools stay");
         assertTrue(scrubbedClient.caller().isAnonymous());

@@ -28,6 +28,7 @@ import jakarta.ws.rs.core.UriInfo;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
+import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminAudit;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminResource;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminSystems;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.SecurityIdentityCallerProvider;
@@ -62,6 +63,9 @@ import io.quarkus.vertx.http.runtime.CurrentVertxRequest;
  * GET /bff/api/systems/{alias}/realms/{r}  one realm's settings
  * PUT /bff/api/systems/{alias}/realms/{r}  add or replace realm settings (operator + CSRF)
  * DELETE /bff/api/systems/{alias}/realms/{r}  remove realm settings (operator + CSRF)
+ * GET /bff/api/audit                      the audit trail, as GET /admin/audit (operator or viewer role)
+ * GET /bff/api/audit/{id}                 one event with its arguments, as GET /admin/audit/{id}
+ * GET /bff/api/audit/values/{field}       completions for its filters, as GET /admin/audit/values/{field}
  * POST /bff/backchannel-logout   the provider ends sessions (OIDC back-channel logout, BackChannelLogoutResource)
  * </pre>
  */
@@ -80,6 +84,8 @@ public class UiResource {
     Instance<JsonWebToken> idToken;
     @Inject
     AdminSystems systems;
+    @Inject
+    AdminAudit audit;
     @Inject
     UiTenant tenant;
     @Inject
@@ -133,6 +139,8 @@ public class UiResource {
         out.put("viewer", viewer);
         UiCapabilities.viewerRole(config).ifPresent(r -> out.put("viewerRole", r));
         out.put("capabilities", UiCapabilities.forCaller(caller, config));
+        // where the UI links an audit event's trace to (a tracing or logging system)
+        config.ui().traceUrl().map(String::trim).filter(u -> !u.isEmpty()).ifPresent(u -> out.put("traceUrl", u));
         if (idToken.isResolvable() && idToken.get().getRawToken() != null) {
             long exp = idToken.get().getExpirationTime();
             if (exp > 0) {
@@ -267,5 +275,24 @@ public class UiResource {
     public Response deleteRealm(@PathParam("alias") String alias, @PathParam("realm") String realm) {
         systems.deleteRealm(alias, realm);
         return Response.noContent().build();
+    }
+
+    @GET
+    @Path("api/audit")
+    public Map<String, Object> audit(@Context UriInfo uri) {
+        return audit.search(uri.getQueryParameters());
+    }
+
+    @GET
+    @Path("api/audit/{id: \\d+}")
+    public Map<String, Object> auditEvent(@PathParam("id") long id) {
+        return audit.get(id);
+    }
+
+    @GET
+    @Path("api/audit/values/{field}")
+    public Map<String, Object> auditValues(@PathParam("field") String field,
+            @QueryParam("containing") String containing) {
+        return audit.values(field, containing);
     }
 }

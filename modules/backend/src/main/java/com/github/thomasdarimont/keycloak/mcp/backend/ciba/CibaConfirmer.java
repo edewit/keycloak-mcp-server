@@ -640,7 +640,12 @@ public class CibaConfirmer implements Confirmer {
             approval.put("code", p.code());
         }
         approval.put("expiresInSeconds", left);
-        String code = p.code() == null ? "" : " The device asks for the number " + p.code() + ".";
+        // the number stays out of the message: the message is what the audit trail keeps,
+        // and whoever reads the trail while a request is pending must not learn the
+        // number
+        // the device asks for. It travels in approval.code and howTo, which reach the
+        // model only.
+        String code = p.code() == null ? "" : " The device asks for the number given in approval.code.";
         String message = fresh
                 ? "'" + p.operation() + "' needs " + p.loginHint() + "'s approval on their device: a request"
                         + bindingNote(p.bindingMessage()) + " was sent." + code

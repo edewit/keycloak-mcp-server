@@ -19,6 +19,9 @@ import com.github.thomasdarimont.keycloak.mcp.catalog.ToolResult;
 import com.github.thomasdarimont.keycloak.mcp.catalog.ToolSpec;
 import com.github.thomasdarimont.keycloak.mcp.spi.ExtensionRegistry;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+
 /**
  * Builds the {@link AuditEvent} of a finished call and hands it to every listener: the
  * built-in log line first, then listeners found through the ServiceLoader and CDI.
@@ -74,6 +77,20 @@ public class AuditLog {
         return scrubbers;
     }
 
+    /**
+     * The trace a span belongs to; {@code null} outside a trace (tracing off, no
+     * request).
+     */
+    static String traceId(Span span) {
+        SpanContext c = span.getSpanContext();
+        return c.isValid() ? c.getTraceId() : null;
+    }
+
+    static String spanId(Span span) {
+        SpanContext c = span.getSpanContext();
+        return c.isValid() ? c.getSpanId() : null;
+    }
+
     public void record(ToolSpec spec, String system, String realm, Map<String, Object> args, ToolResult result,
             InvocationContext ctx, long nanos) {
         String outcome = "ok";
@@ -90,9 +107,23 @@ public class AuditLog {
             // no structured error: the code only, never the result itself
             outcome = "error";
         }
-        AuditEvent event = new AuditEvent(Instant.now(), spec.name(), spec.level(), system, realm,
-                Sensitive.redact(spec.inputSchema(), args), outcome, message, ctx.via(), ctx.caller().withoutToken(),
-                ctx.clientName(), ctx.connectionId(), Duration.ofNanos(nanos), spec.sensitiveResult());
+        AuditEvent event = AuditEvent.builder()
+            .at(Instant.now())
+            .tool(spec.name())
+            .level(spec.level())
+            .system(system)
+            .realm(realm)
+            .args(Sensitive.redact(spec.inputSchema(), args))
+            .outcome(outcome)
+            .message(message)
+            .via(ctx.via())
+            .caller(ctx.caller().withoutToken())
+            .clientName(ctx.clientName())
+            .connectionId(ctx.connectionId())
+            .duration(Duration.ofNanos(nanos))
+            .sensitiveResult(spec.sensitiveResult())
+            .build()
+            .withTrace(traceId(Span.current()), spanId(Span.current()));
         for (AuditListener l : listeners) {
             try {
                 AuditEvent scrubbed = event;

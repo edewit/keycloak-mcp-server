@@ -100,10 +100,21 @@ class AcmeExtensionsTest {
 
     @Test
     void scrubberMasksEmailsAndTheConsoleMessage(@TempDir Path dir) throws Exception {
-        AuditEvent event = new AuditEvent(Instant.parse("2026-11-06T10:00:00Z"), "keycloak_user_search", ToolLevel.READ,
-                "default", "acme-dev", Map.of("email", "alice@acme.example", "search", "ali"), "ok", "2 users found",
-                "direct", Caller.of("sub", "alice", "acme-dev", Set.of()), "lm-studio", "conn-1",
-                Duration.ofMillis(12));
+        AuditEvent event = AuditEvent.builder()
+            .at(Instant.parse("2026-11-06T10:00:00Z"))
+            .tool("keycloak_user_search")
+            .level(ToolLevel.READ)
+            .system("default")
+            .realm("acme-dev")
+            .args(Map.of("email", "alice@acme.example", "search", "ali"))
+            .outcome("ok")
+            .message("2 users found")
+            .via("direct")
+            .caller(Caller.of("sub", "alice", "acme-dev", Set.of()))
+            .clientName("lm-studio")
+            .connectionId("conn-1")
+            .duration(Duration.ofMillis(12))
+            .build();
         NoEmailScrubber scrubber = new NoEmailScrubber();
         Path file = dir.resolve("audit.jsonl");
         JsonLinesAuditListener jsonl = new JsonLinesAuditListener(file);
