@@ -8,10 +8,17 @@ import java.util.Set;
  * The few directory questions the built-in policy checks ask. Role keys use the
  * {@code RoleRef} syntax: {@code realm:<role>} and {@code <clientId>.<role>}. Implemented
  * against the admin client by {@link KeycloakDirectory}; tests use an in-memory fake.
+ * <p>
+ * "Empty" answers mean the thing does not exist. A lookup that cannot tell (the caller
+ * may not read it, the server failed) throws instead: the checks would otherwise judge an
+ * operation on a smaller picture than the real one and allow what they should refuse.
  */
 public interface RealmDirectory {
 
-    /** User id in {@code realm} for a caller subject (user id) or username. */
+    /**
+     * User id in {@code realm} for a caller subject (user id) or username; empty when
+     * there is no such user.
+     */
     Optional<String> userId(String realm, String subjectOrUsername);
 
     /** Effective roles of a user: direct, group-inherited and composite-expanded. */
@@ -26,7 +33,10 @@ public interface RealmDirectory {
     /** Paths of the groups a user is a direct member of. */
     List<String> groupPaths(String realm, String userId);
 
-    /** Full path of a group given by id, path or unique name. */
+    /**
+     * Full path of a group given by id, path or unique name; empty when there is no such
+     * group.
+     */
     Optional<String> groupPath(String realm, String groupRef);
 
     /**

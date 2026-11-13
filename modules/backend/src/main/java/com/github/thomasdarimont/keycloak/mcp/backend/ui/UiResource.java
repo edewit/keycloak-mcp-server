@@ -181,9 +181,13 @@ public class UiResource {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("active", true);
         out.put("checkedAt", Instant.now().toString());
+        // false: no refresh token, the session ends with its ID token
+        out.put("renewable", result.renewable());
         long ageSeconds = result.idTokenExpiresAt() == null ? -1
                 : Math.max(0, result.idTokenExpiresAt().getEpochSecond() - Instant.now().getEpochSecond())
-                        + tenant.idp(alias).map(i -> i.sessionAgeExtension().toSeconds()).orElse(0L);
+                        // the extension is renewal by refresh token: none without one
+                        + (result.renewable()
+                                ? tenant.idp(alias).map(i -> i.sessionAgeExtension().toSeconds()).orElse(0L) : 0L);
         if (result.idTokenExpiresAt() != null) {
             out.put("sessionExpiresAt", result.idTokenExpiresAt().toString());
             out.put("cookieExpiresAt", Instant.now().plusSeconds(ageSeconds).toString());

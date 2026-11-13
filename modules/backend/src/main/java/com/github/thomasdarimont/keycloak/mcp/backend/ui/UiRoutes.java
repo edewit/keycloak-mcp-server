@@ -96,6 +96,11 @@ public class UiRoutes {
             throw new IllegalStateException("kc-mcp.ui.enabled=true needs an identity provider: kc-mcp.ui.issuer or"
                     + " kc-mcp.ui.idps.<alias>.issuer.");
         }
+        for (UiTenant.Idp idp : idps) {
+            for (String warning : UiTenant.warnings(idp)) {
+                LOG.warnf("Management UI, identity provider %s: %s", idp.alias(), warning);
+            }
+        }
         UserSessionStore kept = store.get();
         metrics.uiSessions(() -> kept.countLive(System.currentTimeMillis()));
         // each URL with spaces around it, so that terminals can link it

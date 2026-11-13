@@ -6,10 +6,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.IntStream;
+import jakarta.ws.rs.WebApplicationException;
 
 import org.junit.jupiter.api.Test;
 import org.keycloak.representations.idm.ClientMappingsRepresentation;
@@ -99,6 +101,8 @@ class KeycloakDirectoryTest {
         final Map<String, MappingsRepresentation> mappingsOfGroup = new HashMap<>();
         final Map<String, Set<RoleRepresentation>> compositesOfRole = new HashMap<>();
         final List<GroupRepresentation> groupsOfU1 = List.of(group("/a/b"), group("/a/c"));
+        /** Groups whose lookup Keycloak answers with this status instead. */
+        final Map<String, Integer> failingGroups = new HashMap<>();
 
         FakeAdmin() {
             RoleRepresentation admin = realmRole("admin-id", "admin", true);
@@ -160,6 +164,10 @@ class KeycloakDirectoryTest {
                     }
                     case "getGroupByPath" -> {
                         count("group " + args[0]);
+                        Integer status = failingGroups.get((String) args[0]);
+                        if (status != null) {
+                            throw new WebApplicationException(status);
+                        }
                         return group((String) args[0]);
                     }
                     case "groups" -> {
@@ -242,5 +250,21 @@ class KeycloakDirectoryTest {
 
         assertEquals(2, fake.calls("mappings /a/b"), "mappings may have changed between calls");
         assertEquals(1, fake.calls("client rm-uuid"), "a client's id does not");
+    }
+
+    @Test
+    void aGroupThatDoesNotExistIsNoneButOneThatCannotBeReadFailsTheLookup() {
+        FakeAdmin fake = new FakeAdmin();
+        fake.failingGroups.put("/gone", 404);
+        fake.failingGroups.put("/hidden", 403);
+        fake.failingGroups.put("/broken", 503);
+        KeycloakDirectory directory = new KeycloakDirectory(fake.admin());
+
+        assertEquals(Optional.of("/a/b"), directory.groupPath("demo", "/a/b"));
+        assertEquals(Optional.empty(), directory.groupPath("demo", "/gone"));
+        for (String path : List.of("/hidden", "/broken")) {
+            ToolException e = assertThrows(ToolException.class, () -> directory.groupPath("demo", path));
+            assertEquals("policy_lookup_failed", e.code(), e.getMessage());
+        }
     }
 }

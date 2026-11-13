@@ -36,6 +36,30 @@ public interface UserSessionStore extends Extension {
     void delete(String id);
 
     /**
+     * Removes a session only while it still holds {@code refreshToken}: the session check
+     * redeemed that token and the provider refused it, but with rotating refresh tokens
+     * another request, on this instance or another one, may have renewed the session in
+     * the meantime, and a renewed session must stay. Comparing and removing are one step,
+     * so a renewal saved concurrently is either seen (the session stays) or saved after
+     * the removal.
+     * <p>
+     * The default reads, compares and removes in separate calls, which leaves a short
+     * window between them; stores shared by several instances should override it with an
+     * atomic operation (a row lock, a compare-and-delete script, a versioned remove).
+     *
+     * @return the session as it is now when it was kept (renewed), empty when it was
+     * removed or was gone already
+     */
+    default Optional<UserSession> deleteUnlessRenewed(String id, String refreshToken) {
+        Optional<UserSession> now = find(id);
+        if (now.isPresent() && !java.util.Objects.equals(now.get().refreshToken(), refreshToken)) {
+            return now;
+        }
+        delete(id);
+        return Optional.empty();
+    }
+
+    /**
      * Removes every session whose {@link UserSession#expiresAt()} lies before
      * {@code now}; how many.
      */

@@ -25,6 +25,14 @@ public class FakeDirectory implements RealmDirectory {
         return this;
     }
 
+    final Set<String> lookupFails = new HashSet<>();
+
+    /** Looking the group up fails (Keycloak answers 403): the caller may not read it. */
+    FakeDirectory lookupFails(String groupRef) {
+        lookupFails.add(groupRef);
+        return this;
+    }
+
     final Map<String, Set<String>> userOrgs = new HashMap<>();
     final Map<String, Set<String>> groupOrgs = new HashMap<>();
 
@@ -72,6 +80,9 @@ public class FakeDirectory implements RealmDirectory {
 
     @Override
     public Optional<String> groupPath(String realm, String groupRef) {
+        if (lookupFails.contains(groupRef)) {
+            throw new ToolException("policy_lookup_failed", "Group '" + groupRef + "' could not be read (HTTP 403).");
+        }
         if (groupRoles.containsKey(groupRef)) {
             return Optional.of(groupRef);
         }

@@ -260,6 +260,10 @@ where it can also be switched off or reordered.
 | `<each>.anonymous` | `allow` | `deny`: guarded tools are refused without a known caller |
 | `<each>.super-roles` | `realm:admin, realm-management.realm-admin` | holders bypass the group scope and escalation checks; for self-protection they count as administrative access |
 
+A group, user or role the checks must look up and Keycloak does not let them read (403, 5xx) fails the call
+(`access_check_failed`, naming what could not be read) instead of passing as outside every scope or without roles;
+only a 404 counts as "does not exist", which leaves the not-found answer to the tool.
+
 ```properties
 kc-mcp.spi.access-check.group-scope.default=on
 kc-mcp.spi.access-check.group-scope.scope=organization

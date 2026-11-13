@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
-import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 
 import org.keycloak.admin.client.resource.RealmResource;
@@ -62,8 +61,17 @@ public class KeycloakDirectory implements RealmDirectory {
             UserRepresentation u = kc.findUser(realm, subjectOrUsername);
             return Optional.ofNullable(u.getId());
         }
-        catch (ToolException | WebApplicationException e) {
-            return Optional.empty();
+        catch (ToolException e) {
+            if ("not_found".equals(e.code())) {
+                return Optional.empty();
+            }
+            throw e;
+        }
+        catch (WebApplicationException e) {
+            if (status(e) == 404) {
+                return Optional.empty();
+            }
+            throw unreadable("User '" + subjectOrUsername + "'", realm, e);
         }
     }
 
@@ -91,8 +99,17 @@ public class KeycloakDirectory implements RealmDirectory {
                 default -> kc.clientResource(realm, ref.client()).roles().get(ref.role()).toRepresentation();
             };
         }
-        catch (NotFoundException | ToolException e) {
-            return Set.of();
+        catch (ToolException e) {
+            if ("not_found".equals(e.code())) {
+                return Set.of();
+            }
+            throw e;
+        }
+        catch (WebApplicationException e) {
+            if (status(e) == 404) {
+                return Set.of();
+            }
+            throw unreadable("Role '" + roleKey + "'", realm, e);
         }
         Set<String> out = new TreeSet<>();
         expand(realm, List.of(role), out, new HashSet<>());
@@ -111,8 +128,20 @@ public class KeycloakDirectory implements RealmDirectory {
         try {
             return Optional.ofNullable(kc.findGroup(realm, groupRef).getPath());
         }
-        catch (ToolException | WebApplicationException e) {
-            return Optional.empty();
+        catch (ToolException e) {
+            if ("not_found".equals(e.code())) {
+                return Optional.empty();
+            }
+            // ambiguous: the policies cannot tell which group is meant either
+            throw e;
+        }
+        catch (WebApplicationException e) {
+            if (status(e) == 404) {
+                return Optional.empty();
+            }
+            // a group the caller may change but not read would otherwise pass as one
+            // outside every scope and without roles
+            throw unreadable("Group '" + groupRef + "'", realm, e);
         }
     }
 
@@ -160,6 +189,15 @@ public class KeycloakDirectory implements RealmDirectory {
 
     // ---- helpers
     // ------------------------------------------------------------------------------------------------
+
+    private static int status(WebApplicationException e) {
+        return e.getResponse() == null ? 0 : e.getResponse().getStatus();
+    }
+
+    private static ToolException unreadable(String what, String realm, WebApplicationException e) {
+        return new ToolException("policy_lookup_failed", what + " in realm '" + realm + "' could not be read (HTTP "
+                + status(e) + "), so the policies cannot judge this call.");
+    }
 
     static List<String> ancestorPaths(String path) {
         List<String> out = new ArrayList<>();
@@ -303,9 +341,15 @@ public class KeycloakDirectory implements RealmDirectory {
                     return kc.realm(realm).clients().get(uuid).toRepresentation().getClientId();
                 }
                 catch (WebApplicationException e) {
-                    return uuid;
+                    // not remembered: the next evaluation asks again
+                    return null;
                 }
             });
+            if (clientId == null) {
+                // a key no caller holds: the role still counts, under a name that
+                // matches nothing
+                return role.getContainerId() + "." + role.getName();
+            }
             return clientId + "." + role.getName();
         }
         return "realm:" + role.getName();

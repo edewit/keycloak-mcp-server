@@ -98,7 +98,8 @@ instances on the same database ([Several instances](storage.md#several-instances
   person's token from the authorization code flow, or a service account's from the client credentials grant, so Keycloak
   governs who administers the server, with expiry and revocation. The static `kc-mcp.admin.token` is the alternative for
   bootstrapping and simple automation; it never expires and is only as safe as the file or variable holding it. One of
-  issuer and token is required.
+  issuer and token is required. Only tokens of the admin issuer count: without `kc-mcp.admin.issuer` the API takes the
+  static token alone, and an MCP caller's access token is refused whatever roles it carries.
 - `PUT /admin/systems/<alias>`: systems file fields (`displayName`, `description`, `url`, `issuer`, `authRealm`,
   `clientId`, `clientAuth`, `defaultRealm`, `allowedRealms`, `trustedIssuers`, `version`, `clientSecret`,
   `access`, `tools`, `preset`, `presets` ([Access checks](access-checks.md))) into the first

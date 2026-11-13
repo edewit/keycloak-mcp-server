@@ -655,6 +655,26 @@ public interface McpServerConfig {
          * ({@code quarkus.otel.sdk.disabled=false}).
          */
         Optional<String> traceUrl();
+
+        /**
+         * Scopes the sign-in asks for besides {@code openid}, for the default provider
+         * and every named one without its own. A provider that issues a refresh token
+         * only when asked needs it here: Microsoft Entra ID and Auth0
+         * {@code offline_access}. Never {@code offline_access} for Keycloak: that is an
+         * offline token, which outlives the SSO session, so the session check would keep
+         * a session the user ended.
+         */
+        Optional<List<String>> scopes();
+
+        /**
+         * Extra query parameters of the authorization request, for the default provider
+         * and every named one without its own; Google issues a refresh token with
+         * {@code access_type=offline} (and, for users who signed in before,
+         * {@code prompt=consent}). The parameters of the code flow itself
+         * ({@code client_id}, {@code redirect_uri}, {@code scope}, {@code state}, ...)
+         * cannot be set.
+         */
+        Map<String, String> authParams();
     }
 
     /** One identity provider of the management UI. */
@@ -684,6 +704,12 @@ public interface McpServerConfig {
          * setting of that name.
          */
         Optional<Boolean> hideOnLoginPage();
+
+        /** Falls back to {@link Ui#scopes()}. */
+        Optional<List<String>> scopes();
+
+        /** Falls back to {@link Ui#authParams()} when empty. */
+        Map<String, String> authParams();
     }
 
     /**

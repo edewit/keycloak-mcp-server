@@ -64,6 +64,7 @@ It needs the [database storage](storage.md) and HTTPS.
 | `QUARKUS_TLS_KEY_STORE_PEM_UI_CERT` / `_KEY`, `quarkus.http.ssl-port` | HTTPS; `etc/mkcert.sh` writes `.certs/localhost*.pem` for local use; behind a TLS proxy set `quarkus.http.proxy.proxy-address-forwarding=true` instead |
 | `kc-mcp.ui.tls-configuration-name` | a named trust store for the server's own calls to the identity providers (private CA) |
 | `kc-mcp.ui.connect-timeout` / `read-timeout` | timeouts of those calls, default `kc-mcp.http.*` |
+| `kc-mcp.ui.scopes` / `kc-mcp.ui.auth-params.<name>` | scopes besides `openid` and extra parameters of the authorization request, also per provider (`kc-mcp.ui.idps.<alias>.scopes`, `.auth-params.<name>`, used instead of the top-level ones when set); for providers that issue a refresh token only when asked ([below](#providers-without-a-refresh-token)) |
 
 `./mvnw package` bundles the UI with Quarkus Web Bundler; turn it off at runtime with `kc-mcp.ui.enabled=false`.
 A `-Pdist` build ships the same bundle as a static jar (`modules/ui-bundle`) without the extension, which cannot run
@@ -94,12 +95,37 @@ which provider and subject it belongs to.
 - **Session check.** The UI calls `POST /bff/check-session` whenever its tab becomes visible again. The server redeems
   the refresh token at the provider, which proves the SSO session still exists and extends it, and renews the stored
   tokens and the cookie. A session that ended elsewhere (account console, another application, an administrator, the
-  idle timeout) answers 401 `session_ended` and loses its row; 503 when the provider cannot be asked.
+  idle timeout) answers 401 `session_ended` and loses its row; 503 when the provider cannot be asked. Only
+  `invalid_grant` ends a session: a refusal of the server's client (`invalid_client`, ...) is a 503 and the session
+  stays. Concurrent checks of one session share one refresh, and a check whose (rotated) refresh token was already
+  replaced by another request keeps the renewed session instead of deleting it.
 - **Back-channel logout.** `POST /bff/backchannel-logout` takes the provider's logout token, verifies it against the
   provider its `iss` and `aud` name, and deletes the sessions with that issuer and `sid` (or subject) at once, on every
   instance. On the Keycloak client: *Backchannel logout URL* `<server>/bff/backchannel-logout`, *session required* on.
 - **Several instances.** Set `QUARKUS_OIDC_KC_MCP_UI_<ALIAS>_AUTHENTICATION_STATE_SECRET` so any instance can finish a
   login another one started; the session rows are shared through the database.
+
+### Providers without a refresh token
+
+The session check and the renewal both redeem the refresh token. A session without one lasts as long as its ID token:
+the check reports it active without asking the provider (`"renewable": false`), ends it once the ID token expired,
+and the cookie gets no `session-age-extension`. A logout at the provider (another application, an administrator)
+then reaches the server only through the back-channel logout; without one, keep the provider's ID token lifetime
+short.
+
+Keycloak issues a refresh token in the authorization code flow unless the client's *Use refresh tokens* switch
+(*Advanced* › *OpenID Connect Compatibility Modes*) is off; leave it on. Other providers need asking:
+
+| provider | settings |
+|---|---|
+| Microsoft Entra ID | `kc-mcp.ui.idps.<alias>.scopes=offline_access` |
+| Auth0, Okta | `scopes=offline_access`; Auth0 also *Allow Offline Access* on the API, Okta the *Refresh Token* grant on the app |
+| Google | `auth-params.access_type=offline`, `auth-params.prompt=consent` (Google issues a refresh token only at consent) |
+
+Never `offline_access` at Keycloak: that is an offline token, which survives the SSO session, so the session check
+would keep sessions the user ended. The server warns at startup when a provider whose issuer is a Keycloak realm asks
+for it. The code flow's own parameters (`client_id`, `redirect_uri`, `scope`, `state`, `nonce`, PKCE, ...) cannot be
+set through `auth-params`; startup fails on them.
 
 ## Endpoints
 

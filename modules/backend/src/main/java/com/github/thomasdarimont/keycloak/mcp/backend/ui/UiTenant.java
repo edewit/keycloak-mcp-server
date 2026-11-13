@@ -3,8 +3,10 @@ package com.github.thomasdarimont.keycloak.mcp.backend.ui;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
@@ -71,18 +73,175 @@ public class UiTenant {
     private static final String SESSION_COOKIE_PREFIX = OidcUtils.SESSION_COOKIE_NAME + "_" + TENANT_PREFIX;
     private static final String STATE_COOKIE_PREFIX = OidcUtils.STATE_COOKIE_NAME + "_" + TENANT_PREFIX;
 
+    /**
+     * Authorization request parameters the code flow sets itself; configured
+     * {@code auth-params} cannot replace them.
+     */
+    static final Set<String> RESERVED_PARAMS = Set.of("response_type", "client_id", "redirect_uri", "scope", "state",
+            "nonce", "code_challenge", "code_challenge_method", "response_mode", "request", "request_uri");
+
     /** One identity provider of the UI. */
-    public record Idp(String alias, String displayName, String issuer, String clientId, Optional<String> clientSecret,
-            Duration sessionAgeExtension, boolean hidden) {
+    public static final class Idp {
+        private final String alias;
+        private final String displayName;
+        private final String issuer;
+        private final String clientId;
+        private final Optional<String> clientSecret;
+        private final Duration sessionAgeExtension;
+        private final boolean hidden;
+        private final List<String> scopes;
+        private final Map<String, String> authParams;
+
+        private Idp(Builder b) {
+            this.alias = b.alias;
+            this.displayName = b.displayName == null ? b.alias : b.displayName;
+            this.issuer = b.issuer;
+            this.clientId = b.clientId;
+            this.clientSecret = b.clientSecret == null ? Optional.empty() : b.clientSecret;
+            this.sessionAgeExtension = b.sessionAgeExtension == null ? Duration.ZERO : b.sessionAgeExtension;
+            this.hidden = b.hidden;
+            this.scopes = List.copyOf(b.scopes);
+            this.authParams = Map.copyOf(b.authParams);
+        }
+
+        public static Builder builder(String alias) {
+            return new Builder(alias);
+        }
+
+        public String alias() {
+            return alias;
+        }
+
+        public String displayName() {
+            return displayName;
+        }
+
+        public String issuer() {
+            return issuer;
+        }
+
+        public String clientId() {
+            return clientId;
+        }
+
+        public Optional<String> clientSecret() {
+            return clientSecret;
+        }
+
+        public Duration sessionAgeExtension() {
+            return sessionAgeExtension;
+        }
+
+        public boolean hidden() {
+            return hidden;
+        }
+
+        /** Scopes the sign-in asks for besides {@code openid}. */
+        public List<String> scopes() {
+            return scopes;
+        }
+
+        /** Extra query parameters of the authorization request. */
+        public Map<String, String> authParams() {
+            return authParams;
+        }
+
         public String tenantId() {
             return TENANT_PREFIX + alias;
+        }
+
+        /**
+         * Whether the issuer looks like a Keycloak realm ({@code .../realms/<realm>}),
+         * where {@code offline_access} means an offline token.
+         */
+        boolean keycloakIssuer() {
+            return issuer != null && issuer.matches(".*/realms/[^/]+/?$");
         }
 
         public String describe() {
             return alias + " -> " + issuer + " as " + clientId
                     + (clientSecret.filter(v -> !v.isBlank()).isPresent() ? " (confidential, PKCE" : " (public, PKCE")
                     + ", sessions renewed for " + sessionAgeExtension + " past the ID token"
+                    + (scopes.isEmpty() ? "" : ", scopes " + scopes)
+                    + (authParams.isEmpty() ? "" : ", parameters " + authParams.keySet())
                     + (hidden ? ", hidden on the login page)" : ")");
+        }
+
+        @Override
+        public String toString() {
+            return describe();
+        }
+
+        public static final class Builder {
+            private final String alias;
+            private String displayName;
+            private String issuer;
+            private String clientId;
+            private Optional<String> clientSecret;
+            private Duration sessionAgeExtension;
+            private boolean hidden;
+            private List<String> scopes = List.of();
+            private Map<String, String> authParams = Map.of();
+
+            private Builder(String alias) {
+                this.alias = alias;
+            }
+
+            public Builder displayName(String displayName) {
+                this.displayName = displayName;
+                return this;
+            }
+
+            public Builder issuer(String issuer) {
+                this.issuer = issuer;
+                return this;
+            }
+
+            public Builder clientId(String clientId) {
+                this.clientId = clientId;
+                return this;
+            }
+
+            public Builder clientSecret(Optional<String> clientSecret) {
+                this.clientSecret = clientSecret;
+                return this;
+            }
+
+            public Builder sessionAgeExtension(Duration sessionAgeExtension) {
+                this.sessionAgeExtension = sessionAgeExtension;
+                return this;
+            }
+
+            public Builder hidden(boolean hidden) {
+                this.hidden = hidden;
+                return this;
+            }
+
+            public Builder scopes(List<String> scopes) {
+                this.scopes = scopes.stream()
+                    .map(String::trim)
+                    .filter(v -> !v.isEmpty() && !v.equals("openid"))
+                    .toList();
+                return this;
+            }
+
+            public Builder authParams(Map<String, String> authParams) {
+                this.authParams = authParams;
+                return this;
+            }
+
+            /**
+             * @throws IllegalStateException for a parameter the code flow sets itself
+             */
+            public Idp build() {
+                for (String name : authParams.keySet()) {
+                    if (RESERVED_PARAMS.contains(name.toLowerCase(Locale.ROOT))) {
+                        throw new IllegalStateException("Identity provider '" + alias + "': auth-params." + name
+                                + " is set by the code flow itself and cannot be configured.");
+                    }
+                }
+                return new Idp(this);
+            }
         }
     }
 
@@ -120,18 +279,45 @@ public class UiTenant {
     public List<Idp> idps() {
         Map<String, McpServerConfig.IdpSettings> named = config.ui().idps();
         List<Idp> out = new ArrayList<>();
+        McpServerConfig.Ui ui = config.ui();
         if (named.isEmpty()) {
-            out.add(new Idp(DEFAULT_ALIAS, "Sign in", defaultIssuer(), config.ui().clientId(),
-                    config.ui().clientSecret(), config.ui().sessionAgeExtension(), false));
+            out.add(Idp.builder(DEFAULT_ALIAS)
+                .displayName("Sign in")
+                .issuer(defaultIssuer())
+                .clientId(ui.clientId())
+                .clientSecret(ui.clientSecret())
+                .sessionAgeExtension(ui.sessionAgeExtension())
+                .scopes(ui.scopes().orElse(List.of()))
+                .authParams(ui.authParams())
+                .build());
             return out;
         }
         for (Map.Entry<String, McpServerConfig.IdpSettings> e : named.entrySet()) {
             McpServerConfig.IdpSettings s = e.getValue();
-            out.add(new Idp(e.getKey(), s.displayName().filter(v -> !v.isBlank()).orElse(e.getKey()), s.issuer(),
-                    s.clientId().filter(v -> !v.isBlank()).orElse(config.ui().clientId()),
-                    s.clientSecret().filter(v -> !v.isBlank()).or(config.ui()::clientSecret),
-                    s.sessionAgeExtension().orElse(config.ui().sessionAgeExtension()),
-                    s.hideOnLoginPage().orElse(false)));
+            out.add(Idp.builder(e.getKey())
+                .displayName(s.displayName().filter(v -> !v.isBlank()).orElse(e.getKey()))
+                .issuer(s.issuer())
+                .clientId(s.clientId().filter(v -> !v.isBlank()).orElse(ui.clientId()))
+                .clientSecret(s.clientSecret().filter(v -> !v.isBlank()).or(ui::clientSecret))
+                .sessionAgeExtension(s.sessionAgeExtension().orElse(ui.sessionAgeExtension()))
+                .hidden(s.hideOnLoginPage().orElse(false))
+                .scopes(s.scopes().or(ui::scopes).orElse(List.of()))
+                .authParams(s.authParams().isEmpty() ? ui.authParams() : s.authParams())
+                .build());
+        }
+        return out;
+    }
+
+    /**
+     * What is worth a warning about a provider's sign-in settings: {@code offline_access}
+     * at Keycloak, whose offline tokens outlive the SSO session.
+     */
+    static List<String> warnings(Idp idp) {
+        List<String> out = new ArrayList<>();
+        if (idp.keycloakIssuer() && idp.scopes().contains("offline_access")) {
+            out.add("scope offline_access at Keycloak issues offline tokens, which outlive the SSO session: the"
+                    + " session check keeps sessions the user ended elsewhere. Remove it; Keycloak issues a refresh"
+                    + " token without it.");
         }
         return out;
     }
@@ -238,6 +424,8 @@ public class UiTenant {
             .javaScriptAutoRedirect(false)
             .verifyAccessToken(true)
             .sessionAgeExtension(idp.sessionAgeExtension())
+            .scopes(idp.scopes())
+            .extraParams(idp.authParams())
             .end()
             .roles()
             .source(Roles.Source.accesstoken)

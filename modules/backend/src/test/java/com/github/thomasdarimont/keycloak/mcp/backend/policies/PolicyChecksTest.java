@@ -99,6 +99,25 @@ class PolicyChecksTest {
     }
 
     @Test
+    void aGroupTheCallerCannotReadIsNeitherInScopeNorHarmless() {
+        // /admins grants realm:admin, which alice lacks; the lookup answers 403
+        dir.lookupFails("/admins");
+        ToolSpec join = tool("keycloak_group_member_add", "groupId", "userId");
+        Map<String, Object> args = Map.of("groupId", "/admins", "userId", "carol");
+        ToolException scope = assertThrows(ToolException.class,
+                () -> new GroupScopeCheck(dir, settings(PolicySettings.GroupScope.GROUP, null, false))
+                    .check(ctx(join, ALICE, args)));
+        assertEquals("policy_lookup_failed", scope.code());
+        NoEscalationCheck escalation = new NoEscalationCheck(dir, settings(PolicySettings.GroupScope.OFF, null, false));
+        assertEquals("policy_lookup_failed",
+                assertThrows(ToolException.class, () -> escalation.check(ctx(join, ALICE, args))).code());
+        assertEquals("policy_lookup_failed",
+                assertThrows(ToolException.class, () -> escalation
+                    .check(ctx(tool("keycloak_default_group_add", "groupId"), ALICE, Map.of("groupId", "/admins"))))
+                    .code());
+    }
+
+    @Test
     void groupScopeByOrganization() {
         GroupScopeCheck check = new GroupScopeCheck(dir, settings(PolicySettings.GroupScope.ORGANIZATION, null, false));
         ToolSpec add = tool("keycloak_group_member_add", "groupId", "userId");

@@ -199,15 +199,22 @@ public interface KeycloakAdmin extends AccessTokenSource {
             try {
                 return r.groups().group(idOrPathOrName).toRepresentation();
             }
-            catch (NotFoundException e) {
-                // fall through
+            catch (WebApplicationException e) {
+                // the Quarkus REST client answers a 404 with the plain exception: not an
+                // id then, try the name; anything else (403, 5xx) is no answer
+                if (e.getResponse() == null || e.getResponse().getStatus() != 404) {
+                    throw e;
+                }
             }
         }
         if (idOrPathOrName != null && idOrPathOrName.startsWith("/")) {
             try {
                 return r.getGroupByPath(idOrPathOrName);
             }
-            catch (NotFoundException e) {
+            catch (WebApplicationException e) {
+                if (e.getResponse() == null || e.getResponse().getStatus() != 404) {
+                    throw e;
+                }
                 throw ToolException.notFound("Group", idOrPathOrName);
             }
         }

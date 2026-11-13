@@ -1,8 +1,10 @@
 package com.github.thomasdarimont.keycloak.mcp.storage.web;
 
+import java.util.Objects;
 import java.util.Optional;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 
 import org.jboss.logging.Logger;
@@ -59,7 +61,9 @@ public class DatabaseUserSessionStore implements UserSessionStore {
     @Override
     @Transactional
     public void save(UserSession session) {
-        UserSessionEntity e = UserSessionEntity.findById(session.id());
+        // locked like deleteUnlessRenewed: an update of a row deleted meanwhile would
+        // fail, losing the renewal; after a delete the row is inserted again instead
+        UserSessionEntity e = UserSessionEntity.findById(session.id(), LockModeType.PESSIMISTIC_WRITE);
         if (e == null) {
             e = new UserSessionEntity();
             e.id = session.id();
@@ -95,6 +99,31 @@ public class DatabaseUserSessionStore implements UserSessionStore {
         if (id != null && !id.isBlank()) {
             UserSessionEntity.deleteById(id);
         }
+    }
+
+    /**
+     * Atomic through a row lock ({@code SELECT ... FOR UPDATE}): the stored refresh token
+     * is encrypted with a fresh nonce on every save, so it cannot be compared in the
+     * {@code DELETE} itself. A concurrent {@link #save} waits for the lock and then
+     * either finds the row gone and inserts it again (its renewal wins) or, saved before,
+     * is seen here and keeps the session.
+     */
+    @Override
+    @Transactional
+    public Optional<UserSession> deleteUnlessRenewed(String id, String refreshToken) {
+        if (id == null || id.isBlank()) {
+            return Optional.empty();
+        }
+        UserSessionEntity e = UserSessionEntity.findById(id, LockModeType.PESSIMISTIC_WRITE);
+        if (e == null) {
+            return Optional.empty();
+        }
+        UserSession now = toSession(e);
+        if (e.expiresAt > System.currentTimeMillis() && !Objects.equals(now.refreshToken(), refreshToken)) {
+            return Optional.of(now);
+        }
+        e.delete();
+        return Optional.empty();
     }
 
     @Override

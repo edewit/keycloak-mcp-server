@@ -50,8 +50,9 @@ import io.vertx.ext.web.RoutingContext;
  * <p>
  * Requests to the admin API get the tenant {@code kc-mcp-admin} pointing at
  * {@code kc-mcp.admin.issuer}, whatever the default tenant is; one carrying the static
- * {@code kc-mcp.admin.token} gets a disabled tenant, so OIDC leaves it alone and the
- * admin filter checks the token.
+ * {@code kc-mcp.admin.token}, and every one when no issuer is configured, gets a disabled
+ * tenant, so OIDC leaves it alone and the admin filter checks the token. The default
+ * tenant, which verifies MCP callers, never verifies an admin request.
  * <p>
  * Requests to the BFF of the management UI ({@code /bff/*}) get the web-app tenant of the
  * identity provider they belong to ({@code kc-mcp-ui-<alias>}, {@link UiTenant}):
@@ -108,20 +109,19 @@ public class EntryTenantResolver implements TenantConfigResolver {
     }
 
     /**
-     * The tenant of an admin request: none at all for the static token (OIDC skips the
-     * request), the trusted issuer's for everything else, the default tenant when no
-     * issuer is configured.
+     * The tenant of an admin request: none at all for the static token or without a
+     * trusted issuer (OIDC skips the request, the admin filter decides), the trusted
+     * issuer's for everything else. Never the default tenant: its tokens are MCP
+     * callers'.
      */
     OidcTenantConfig adminTenant(String authorization) {
-        if (AdminAccessFilter.staticTokenMatches(authorization, config.admin().token().orElse(null))) {
+        Optional<String> issuer = config.admin().issuer().filter(v -> !v.isBlank());
+        if (issuer.isEmpty()
+                || AdminAccessFilter.staticTokenMatches(authorization, config.admin().token().orElse(null))) {
             return OidcTenantConfig.builder().tenantId("kc-mcp-admin-token").tenantEnabled(false).build();
         }
-        Optional<String> issuer = config.admin().issuer().filter(v -> !v.isBlank());
-        if (issuer.isEmpty()) {
-            return null;
-        }
         var builder = OidcTenantConfig.builder()
-            .tenantId("kc-mcp-admin")
+            .tenantId(AdminAccessFilter.ADMIN_TENANT)
             .authServerUrl(issuer.get())
             .applicationType(io.quarkus.oidc.runtime.OidcTenantConfig.ApplicationType.SERVICE);
         config.admin().audience().filter(v -> !v.isBlank()).ifPresent(a -> builder.token().audience(a).end());

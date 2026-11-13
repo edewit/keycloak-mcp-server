@@ -8,9 +8,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jakarta.persistence.LockModeType;
 
 import org.junit.jupiter.api.Test;
 
@@ -537,6 +543,74 @@ class DatabaseStorageIT {
         assertEquals(1, store.deleteExpired(now));
         assertEquals(0, store.deleteExpired(now));
         store.delete("unknown");
+    }
+
+    static UserSession session(String id, String refreshToken, long expiresAt) {
+        return new UserSession(id, "corp", "https://sso.example.com/realms/corp", "sub-1", "sid-1", "id.token",
+                "access.token", refreshToken, 300L, "openid", System.currentTimeMillis(), expiresAt);
+    }
+
+    @Test
+    void aSessionIsDeletedOnlyWhileItHoldsTheRefusedRefreshToken() {
+        UserSessionStore store = sessionStores.get();
+        long later = System.currentTimeMillis() + 60_000;
+        String id = UUID.randomUUID().toString();
+        store.save(session(id, "rt-1", later));
+        // renewed meanwhile: kept, and the caller learns the renewed session
+        store.save(session(id, "rt-2", later));
+        assertEquals("rt-2", store.deleteUnlessRenewed(id, "rt-1").orElseThrow().refreshToken());
+        assertTrue(store.find(id).isPresent());
+        // still the refused token: removed
+        assertTrue(store.deleteUnlessRenewed(id, "rt-2").isEmpty());
+        assertTrue(store.find(id).isEmpty());
+        // gone already, or expired whatever its token: nothing to keep
+        assertTrue(store.deleteUnlessRenewed(id, "rt-2").isEmpty());
+        store.save(session(id, "rt-3", System.currentTimeMillis() - 1));
+        assertTrue(store.deleteUnlessRenewed(id, "rt-1").isEmpty());
+        assertNull(QuarkusTransaction.requiringNew().call(() -> UserSessionEntity.findById(id)));
+        // a renewal saved after the removal brings the session back
+        store.save(session(id, "rt-4", later));
+        assertEquals("rt-4", store.find(id).orElseThrow().refreshToken());
+        store.delete(id);
+    }
+
+    @Test
+    void aRenewalSavedWhileTheDeleteWaitsIsSeen() throws Exception {
+        UserSessionStore store = sessionStores.get();
+        long later = System.currentTimeMillis() + 60_000;
+        String id = UUID.randomUUID().toString();
+        store.save(session(id, "rt-1", later));
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch deleteStarted = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            // another instance renewing: holds the row while it saves the rotated token
+            Future<?> renewal = pool.submit(() -> QuarkusTransaction.requiringNew().run(() -> {
+                UserSessionEntity.findById(id, LockModeType.PESSIMISTIC_WRITE);
+                locked.countDown();
+                try {
+                    deleteStarted.await(5, TimeUnit.SECONDS);
+                    Thread.sleep(300);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                store.save(session(id, "rt-2", later));
+            }));
+            assertTrue(locked.await(5, TimeUnit.SECONDS));
+            Future<Optional<UserSession>> delete = pool.submit(() -> {
+                deleteStarted.countDown();
+                return store.deleteUnlessRenewed(id, "rt-1");
+            });
+            renewal.get(10, TimeUnit.SECONDS);
+            assertEquals("rt-2", delete.get(10, TimeUnit.SECONDS).orElseThrow().refreshToken(),
+                    "the delete waited for the row and saw the renewal");
+        }
+        finally {
+            pool.shutdownNow();
+        }
+        assertEquals("rt-2", store.find(id).orElseThrow().refreshToken());
+        store.delete(id);
     }
 
     @Inject
