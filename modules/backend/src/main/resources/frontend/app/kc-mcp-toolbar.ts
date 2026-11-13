@@ -11,44 +11,53 @@ export class KcMcpToolbar extends LitElement {
   static styles = css`
     :host {
       display: block;
-      color: var(--fg, inherit);
+      color: var(--kc-mcp-c-masthead--Color, var(--masthead-fg, #fff));
     }
     header {
       display: flex;
       align-items: center;
       gap: 1.25rem;
-      padding: 0.75rem 1.5rem;
-      border-bottom: 1px solid var(--border, #d0d7de);
-      background: var(--card, #fff);
-      min-height: 3.25rem;
+      padding: 0 var(--kc-mcp-c-masthead--PaddingX, 1.5rem);
+      border-bottom: 1px solid var(--kc-mcp-c-masthead--BorderColor, var(--masthead-border, #444548));
+      background: var(--kc-mcp-c-masthead--BackgroundColor, var(--masthead-bg, #151515));
+      min-height: var(--kc-mcp-c-masthead--Height, 4rem);
       box-sizing: border-box;
     }
     h1 {
-      font-size: 1.1rem;
+      font-family: var(--font-heading, 'Red Hat Display', sans-serif);
+      font-size: 1.125rem;
+      font-weight: var(--kc-mcp-global--FontWeight--normal, 400);
       margin: 0;
       flex: 1;
+      letter-spacing: 0.01em;
     }
     h1 a {
       color: inherit;
       text-decoration: none;
     }
     h1 a:hover {
-      text-decoration: underline;
+      color: var(--accent, #1fa7f8);
     }
     .row {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.5rem;
+      gap: 0.75rem;
       align-items: center;
+      color: var(--kc-mcp-c-masthead--Color--muted, var(--masthead-muted, #c7c7c7));
+      font-size: var(--kc-mcp-global--FontSize--sm, 0.875rem);
     }
     button {
       font: inherit;
-      padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--border, #8b949e);
+      padding: 0.35rem 1rem;
+      border-radius: var(--button-radius, 999px);
+      border: 1px solid var(--kc-mcp-c-masthead--BorderColor, var(--masthead-border, #444548));
       background: transparent;
-      color: var(--fg, inherit);
+      color: var(--kc-mcp-c-masthead--Color, var(--masthead-fg, #fff));
       cursor: pointer;
+    }
+    button:hover {
+      border-color: var(--kc-mcp-c-masthead--Color--muted, var(--masthead-muted, #c7c7c7));
+      background: color-mix(in srgb, #fff 8%, transparent);
     }
   `;
 

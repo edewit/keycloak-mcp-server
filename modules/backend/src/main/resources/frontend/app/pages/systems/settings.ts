@@ -88,15 +88,15 @@ export class SystemSettings extends LitElement {
     }
     .lead {
       margin: 0 0 1rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font-size: 0.9rem;
     }
     .lead code {
       font-size: 0.85em;
     }
     fieldset {
-      border: 1px solid var(--border, #d0d7de);
-      border-radius: 8px;
+      border: 1px solid var(--border, #d2d2d2);
+      border-radius: var(--radius, 6px);
       margin: 0 0 1rem;
       padding: 0.85rem 1rem 1rem;
       min-width: 0;
@@ -116,7 +116,7 @@ export class SystemSettings extends LitElement {
       flex-direction: column;
       gap: 0.3rem;
       font-size: 0.85rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .span-2 {
       grid-column: 1 / -1;
@@ -126,9 +126,9 @@ export class SystemSettings extends LitElement {
     textarea {
       font: inherit;
       color: var(--fg, inherit);
-      background: var(--bg, #f6f8fa);
-      border: 1px solid var(--border, #d0d7de);
-      border-radius: 6px;
+      background: var(--bg, #f0f0f0);
+      border: 1px solid var(--border, #d2d2d2);
+      border-radius: var(--radius, 6px);
       padding: 0.4rem 0.55rem;
     }
     textarea {
@@ -143,7 +143,7 @@ export class SystemSettings extends LitElement {
     }
     .hint {
       font-size: 0.8rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .row {
       display: flex;
@@ -155,27 +155,27 @@ export class SystemSettings extends LitElement {
     button {
       font: inherit;
       padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--accent, #1f6feb);
-      background: var(--accent, #1f6feb);
+      border-radius: var(--kc-mcp-c-button--BorderRadius, var(--button-radius, 999px));
+      border: 1px solid var(--accent, #0066cc);
+      background: var(--accent, #0066cc);
       color: #fff;
       cursor: pointer;
     }
     button.secondary {
       background: transparent;
       color: var(--fg, inherit);
-      border-color: var(--border, #8b949e);
+      border-color: var(--border, #6a6e73);
     }
     button:disabled {
       opacity: 0.5;
       cursor: default;
     }
     .error {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
       margin: 0 0 0.75rem;
     }
     .ok {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       margin: 0 0 0.75rem;
     }
     .meta {
@@ -186,14 +186,14 @@ export class SystemSettings extends LitElement {
       font-size: 0.9rem;
     }
     .meta dt {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .meta dd {
       margin: 0;
       overflow-wrap: anywhere;
     }
     a.back {
-      color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
       text-decoration: none;
       font-size: 0.9rem;
     }
@@ -202,14 +202,14 @@ export class SystemSettings extends LitElement {
     }
     button.danger {
       background: transparent;
-      color: var(--error, #cf222e);
-      border-color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
+      border-color: var(--error, #c9190b);
     }
     .confirm {
       margin-top: 1.25rem;
       padding: 0.85rem 1rem;
-      border: 1px solid var(--error, #cf222e);
-      border-radius: 8px;
+      border: 1px solid var(--error, #c9190b);
+      border-radius: var(--radius, 6px);
     }
   `;
 

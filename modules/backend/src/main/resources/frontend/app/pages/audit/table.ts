@@ -68,11 +68,11 @@ export class AuditTable extends LitElement {
     }
     tr.open > td {
       border-bottom-color: transparent;
-      background: color-mix(in srgb, var(--accent, #1f6feb) 5%, transparent);
+      background: color-mix(in srgb, var(--accent, #0066cc) 5%, transparent);
     }
     tr.detail > td {
       padding: 0 0.6rem 0.9rem 3.1rem;
-      background: color-mix(in srgb, var(--accent, #1f6feb) 5%, transparent);
+      background: color-mix(in srgb, var(--accent, #0066cc) 5%, transparent);
     }
     td.took {
       text-align: right;
@@ -96,7 +96,7 @@ export class AuditTable extends LitElement {
       opacity: 0.45;
     }
     button.sort.active {
-      color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
     }
     button.sort.active span {
       opacity: 1;
@@ -106,15 +106,15 @@ export class AuditTable extends LitElement {
       height: 1.6rem;
       padding: 0;
       border: none;
-      border-radius: 4px;
+      border-radius: var(--radius, 6px);
       background: none;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font-size: 0.8rem;
       line-height: 1;
       cursor: pointer;
     }
     button.toggle:hover {
-      background: color-mix(in srgb, var(--fg, #1f2328) 8%, transparent);
+      background: color-mix(in srgb, var(--fg, #151515) 8%, transparent);
     }
     dl {
       display: grid;
@@ -123,7 +123,7 @@ export class AuditTable extends LitElement {
       margin: 0;
     }
     dt {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     dd {
       margin: 0;
@@ -133,11 +133,11 @@ export class AuditTable extends LitElement {
     td {
       text-align: left;
       padding: 0.45rem 0.6rem;
-      border-bottom: 1px solid var(--border, #d0d7de);
+      border-bottom: 1px solid var(--border, #d2d2d2);
       vertical-align: top;
     }
     th {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font-weight: 600;
       white-space: nowrap;
     }
@@ -148,41 +148,41 @@ export class AuditTable extends LitElement {
       font-size: 0.85em;
     }
     a {
-      color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
       text-decoration: none;
     }
     a:hover {
       text-decoration: underline;
     }
     .muted {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .error {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
     }
     .badge {
       display: inline-block;
       font-size: 0.75rem;
       padding: 0.05rem 0.4rem;
-      border-radius: 4px;
-      border: 1px solid var(--border, #d0d7de);
-      color: var(--muted, #656d76);
+      border-radius: var(--radius, 6px);
+      border: 1px solid var(--border, #d2d2d2);
+      color: var(--muted, #6a6e73);
       white-space: nowrap;
     }
     .badge.write {
-      border-color: color-mix(in srgb, var(--accent, #1f6feb) 60%, transparent);
-      color: var(--accent, #1f6feb);
+      border-color: color-mix(in srgb, var(--accent, #0066cc) 60%, transparent);
+      color: var(--accent, #0066cc);
     }
     .badge.destructive,
     .badge.failed {
-      border-color: color-mix(in srgb, var(--error, #cf222e) 60%, transparent);
-      color: var(--error, #cf222e);
+      border-color: color-mix(in srgb, var(--error, #c9190b) 60%, transparent);
+      color: var(--error, #c9190b);
     }
     button.link {
       padding: 0;
       border: none;
       background: none;
-      color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
       font: inherit;
       font-weight: 400;
       text-align: left;
@@ -194,8 +194,8 @@ export class AuditTable extends LitElement {
     pre {
       margin: 0.35rem 0 0;
       padding: 0.5rem;
-      background: color-mix(in srgb, var(--fg, #1f2328) 5%, transparent);
-      border-radius: 6px;
+      background: color-mix(in srgb, var(--fg, #151515) 5%, transparent);
+      border-radius: var(--radius, 6px);
       font-size: 0.8rem;
       white-space: pre-wrap;
       word-break: break-word;

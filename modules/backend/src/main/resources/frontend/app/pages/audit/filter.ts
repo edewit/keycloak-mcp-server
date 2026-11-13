@@ -58,7 +58,7 @@ export class AuditFilter extends LitElement {
       flex-direction: column;
       gap: 0.25rem;
       font-size: 0.8rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .inline {
       display: flex;
@@ -73,8 +73,8 @@ export class AuditFilter extends LitElement {
       height: 2.1rem;
       box-sizing: border-box;
       padding: 0 0.5rem;
-      border: 1px solid var(--border, #d0d7de);
-      border-radius: 6px;
+      border: 1px solid var(--border, #d2d2d2);
+      border-radius: var(--radius, 6px);
       background: var(--card, #fff);
       color: var(--fg, inherit);
       min-width: 0;
@@ -82,7 +82,7 @@ export class AuditFilter extends LitElement {
     input:focus-visible,
     select:focus-visible,
     button:focus-visible {
-      outline: 2px solid var(--accent, #1f6feb);
+      outline: 2px solid var(--accent, #0066cc);
       outline-offset: 1px;
     }
     input.number {
@@ -95,7 +95,7 @@ export class AuditFilter extends LitElement {
       height: 2.1rem;
       padding: 0 0.75rem;
       border-radius: 0;
-      border: 1px solid var(--border, #d0d7de);
+      border: 1px solid var(--border, #d2d2d2);
       background: var(--card, #fff);
       color: var(--fg, inherit);
       font-weight: 400;
@@ -103,16 +103,16 @@ export class AuditFilter extends LitElement {
       margin-left: -1px;
     }
     .seg button:first-child {
-      border-radius: 6px 0 0 6px;
+      border-radius: var(--radius, 6px) 0 0 var(--radius, 6px);
       margin-left: 0;
     }
     .seg button:last-child {
-      border-radius: 0 6px 6px 0;
+      border-radius: 0 var(--radius, 6px) var(--radius, 6px) 0;
     }
     .seg button[aria-pressed='true'] {
-      background: color-mix(in srgb, var(--accent, #1f6feb) 14%, var(--card, #fff));
-      border-color: var(--accent, #1f6feb);
-      color: var(--accent, #1f6feb);
+      background: color-mix(in srgb, var(--accent, #0066cc) 14%, var(--card, #fff));
+      border-color: var(--accent, #0066cc);
+      color: var(--accent, #0066cc);
       font-weight: 600;
       position: relative;
     }
@@ -133,28 +133,28 @@ export class AuditFilter extends LitElement {
       font-size: 0.85rem;
       padding: 0.15rem 0.3rem 0.15rem 0.6rem;
       border-radius: 999px;
-      background: color-mix(in srgb, var(--accent, #1f6feb) 12%, transparent);
+      background: color-mix(in srgb, var(--accent, #0066cc) 12%, transparent);
       color: var(--fg, inherit);
     }
     .chip button {
       padding: 0 0.3rem;
       border: none;
       background: none;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font-size: 1rem;
       line-height: 1;
       border-radius: 999px;
       cursor: pointer;
     }
     .chip button:hover {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
     }
     button {
       font: inherit;
       padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--accent, #1f6feb);
-      background: var(--accent, #1f6feb);
+      border-radius: var(--kc-mcp-c-button--BorderRadius, var(--button-radius, 999px));
+      border: 1px solid var(--accent, #0066cc);
+      background: var(--accent, #0066cc);
       color: #fff;
       cursor: pointer;
       font-weight: 500;
@@ -163,7 +163,7 @@ export class AuditFilter extends LitElement {
       padding: 0;
       border: none;
       background: none;
-      color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
       font-weight: 400;
       text-align: left;
     }
@@ -173,14 +173,14 @@ export class AuditFilter extends LitElement {
     button.secondary {
       background: transparent;
       color: var(--fg, inherit);
-      border-color: var(--border, #8b949e);
+      border-color: var(--border, #6a6e73);
     }
     button:disabled {
       opacity: 0.5;
       cursor: default;
     }
     .muted {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
   `;
 

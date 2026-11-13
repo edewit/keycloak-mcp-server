@@ -30,34 +30,45 @@ export class KcMcpOutlet extends LitElement {
       color: var(--fg, inherit);
     }
     .card {
-      background: var(--card, #fff);
-      border: 1px solid var(--border, #d0d7de);
-      border-radius: 8px;
-      padding: 1rem 1.25rem;
+      background: var(--kc-mcp-c-card--BackgroundColor, var(--card, #fff));
+      border: 1px solid var(--kc-mcp-c-card--BorderColor, var(--border, #d2d2d2));
+      border-radius: var(--kc-mcp-c-card--BorderRadius, var(--radius, 6px));
+      box-shadow: var(--kc-mcp-c-card--BoxShadow, var(--shadow, none));
+      padding: var(--kc-mcp-c-card--Padding, 1.5rem);
       color: var(--fg, inherit);
-      max-width: 56rem;
+      max-width: var(--kc-mcp-c-card--MaxWidth, 56rem);
     }
     /* tables with many columns (the audit trail) use the screen; forms stay narrow */
     .card.wide {
-      max-width: 120rem;
+      max-width: var(--kc-mcp-c-card--m-wide--MaxWidth, 120rem);
     }
     h2 {
-      font-size: 1rem;
-      margin: 0 0 0.5rem;
+      font-family: var(--kc-mcp-c-title--FontFamily, var(--font-heading, 'Red Hat Display', sans-serif));
+      font-size: var(--kc-mcp-c-title--FontSize, 1.5rem);
+      font-weight: var(--kc-mcp-c-title--FontWeight, 400);
+      margin: 0 0 1rem;
     }
     button {
       font: inherit;
-      padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--accent, #1f6feb);
-      background: var(--accent, #1f6feb);
-      color: #fff;
+      padding: 0.4rem 1rem;
+      border-radius: var(--kc-mcp-c-button--BorderRadius, var(--button-radius, 999px));
+      border: 1px solid var(--kc-mcp-c-button--m-primary--BorderColor, var(--accent, #0066cc));
+      background: var(--kc-mcp-c-button--m-primary--BackgroundColor, var(--accent, #0066cc));
+      color: var(--kc-mcp-c-button--m-primary--Color, #fff);
       cursor: pointer;
     }
+    button:hover {
+      background: var(--kc-mcp-c-button--m-primary--hover--BackgroundColor, #004d99);
+      border-color: var(--kc-mcp-c-button--m-primary--hover--BackgroundColor, #004d99);
+    }
     button.secondary {
-      background: transparent;
-      color: var(--fg, inherit);
-      border-color: var(--border, #8b949e);
+      background: var(--kc-mcp-c-button--m-secondary--BackgroundColor, transparent);
+      color: var(--kc-mcp-c-button--m-secondary--Color, var(--fg, inherit));
+      border-color: var(--kc-mcp-c-button--m-secondary--BorderColor, var(--border, #707070));
+    }
+    button.secondary:hover {
+      background: color-mix(in srgb, var(--fg, #151515) 5%, transparent);
+      border-color: var(--fg, #151515);
     }
     .row {
       display: flex;
@@ -66,10 +77,10 @@ export class KcMcpOutlet extends LitElement {
       align-items: center;
     }
     .error {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
     }
     .muted {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
   `;
 

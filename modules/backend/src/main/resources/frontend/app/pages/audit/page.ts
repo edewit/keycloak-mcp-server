@@ -36,13 +36,13 @@ export class AuditPage extends LitElement {
     }
     p {
       margin: 0 0 0.75rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .error {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
     }
     .muted {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .pager {
       display: flex;
@@ -68,7 +68,7 @@ export class AuditPage extends LitElement {
       gap: 0.4rem;
       margin-right: 0.6rem;
       font-size: 0.8rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     select {
       font: inherit;
@@ -76,23 +76,23 @@ export class AuditPage extends LitElement {
       height: 2.1rem;
       box-sizing: border-box;
       padding: 0 0.5rem;
-      border: 1px solid var(--border, #d0d7de);
-      border-radius: 6px;
+      border: 1px solid var(--border, #d2d2d2);
+      border-radius: var(--radius, 6px);
       background: var(--card, #fff);
       color: var(--fg, inherit);
       min-width: 0;
     }
     select:focus-visible,
     button:focus-visible {
-      outline: 2px solid var(--accent, #1f6feb);
+      outline: 2px solid var(--accent, #0066cc);
       outline-offset: 1px;
     }
     button {
       font: inherit;
       padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--accent, #1f6feb);
-      background: var(--accent, #1f6feb);
+      border-radius: var(--kc-mcp-c-button--BorderRadius, var(--button-radius, 999px));
+      border: 1px solid var(--accent, #0066cc);
+      background: var(--accent, #0066cc);
       color: #fff;
       cursor: pointer;
       font-weight: 500;
@@ -100,7 +100,7 @@ export class AuditPage extends LitElement {
     button.secondary {
       background: transparent;
       color: var(--fg, inherit);
-      border-color: var(--border, #8b949e);
+      border-color: var(--border, #6a6e73);
     }
     button:disabled {
       opacity: 0.5;

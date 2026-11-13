@@ -9,6 +9,16 @@
       content="Management UI for the Keycloak MCP Server: systems, realms, and server settings."
     />
     <title>Keycloak MCP Server</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;700&family=Red+Hat+Text:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <!--
+      Theme tokens live in app/theme.css (bundled via app/index.ts): override --kc-mcp-global--*
+      or --kc-mcp-c-* on kc-mcp-session, PatternFly-style. See that file's header.
+    -->
     <style>
       html {
         color-scheme: light dark;
@@ -16,42 +26,14 @@
       body {
         margin: 0;
         min-height: 100vh;
-        font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font: 16px/1.5 'Red Hat Text', 'RedHatText', Helvetica, Arial, sans-serif;
       }
 
       /*
        * Document owns the shell layout. Session is a light-DOM host that provides
        * context; toolbar, nav and outlet are siblings that update independently.
+       * Colors / type come from theme.css on kc-mcp-session.
        */
-      kc-mcp-session {
-        --fg: #1f2328;
-        --muted: #656d76;
-        --bg: #f6f8fa;
-        --card: #ffffff;
-        --border: #d0d7de;
-        --error: #cf222e;
-        --pre-bg: #f6f8fa;
-        --accent: #1f6feb;
-        --nav-width: 13.5rem;
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
-        color: var(--fg);
-        background: var(--bg);
-      }
-      @media (prefers-color-scheme: dark) {
-        kc-mcp-session {
-          --fg: #e6edf3;
-          --muted: #8b949e;
-          --bg: #0d1117;
-          --card: #161b22;
-          --border: #30363d;
-          --error: #ff7b72;
-          --pre-bg: #0d1117;
-          --accent: #2f81f7;
-        }
-      }
-
       kc-mcp-session[state='loading'] > :not(.boot) {
         display: none;
       }
@@ -64,14 +46,16 @@
 
       .boot {
         box-sizing: border-box;
-        padding: 1.5rem;
+        padding: var(--kc-mcp-global--spacer--lg, 1.5rem);
         max-width: 36rem;
-        color: var(--muted, #656d76);
+        color: var(--muted, #6a6e73);
       }
       .boot h1 {
         margin: 0 0 0.5rem;
-        font-size: 1.1rem;
-        color: var(--fg, inherit);
+        font-family: var(--font-heading, 'Red Hat Display', sans-serif);
+        font-size: 1.125rem;
+        font-weight: 400;
+        color: var(--fg, #151515);
       }
       .boot p {
         margin: 0;
@@ -83,15 +67,15 @@
         min-height: 0;
       }
       .layout kc-mcp-nav {
-        flex: 0 0 var(--nav-width);
+        flex: 0 0 var(--nav-width, 15rem);
         align-self: stretch;
       }
       .layout > main {
         flex: 1;
         min-width: 0;
-        padding: 1.5rem;
+        padding: var(--kc-mcp-c-page--Padding, 1.5rem);
         display: grid;
-        gap: 1rem;
+        gap: var(--kc-mcp-c-page--Gap, 1rem);
         align-content: start;
       }
       @media (max-width: 640px) {
@@ -115,11 +99,11 @@
       }
       noscript p {
         margin: 0;
-        color: #656d76;
+        color: #6a6e73;
       }
       @media (prefers-color-scheme: dark) {
         noscript p {
-          color: #8b949e;
+          color: #c7c7c7;
         }
       }
     </style>
