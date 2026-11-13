@@ -1,0 +1,166 @@
+/*
+ * Theme tokens for the management UI (PatternFly 6–style cascade).
+ *
+ * Override on kc-mcp-session (or a wrapper) to retheme without touching components:
+ *
+ *   kc-mcp-session {
+ *     --kc-mcp-global--color--brand--default: #ee0000;
+ *     --kc-mcp-c-masthead--BackgroundColor: #003366;
+ *   }
+ *
+ * Layers:
+ *   1. --kc-mcp-global--*     palette / type / space (PF6 semantic shapes)
+ *   2. --kc-mcp-c-*           one region (masthead, nav, page, card, button)
+ *   3. short aliases          --fg, --accent, --button-radius, …
+ *
+ * Optional: set --pf-t--global--* (PF6) and short aliases prefer those when present.
+ *
+ * Notable PF6 vs PF5: primary buttons are pills (border-radius 999px); surfaces use
+ * 6px radius; page gray and muted text follow the PF6 gray scale.
+ */
+
+kc-mcp-session {
+  /* --- 1. Globals (PF6 palette / semantics) ------------------------------ */
+  /* text: regular / subtle */
+  --kc-mcp-global--Color--100: #151515;
+  --kc-mcp-global--Color--200: #4d4d4d;
+  /* surface / page — gray-10 page, white card */
+  --kc-mcp-global--BackgroundColor--100: #ffffff;
+  --kc-mcp-global--BackgroundColor--200: #f2f2f2;
+  /* gray-30 / gray-50 */
+  --kc-mcp-global--BorderColor--100: #c7c7c7;
+  --kc-mcp-global--BorderColor--200: #707070;
+  /* brand — blue-50 default, blue-60 hover */
+  --kc-mcp-global--color--brand--default: #0066cc;
+  --kc-mcp-global--color--brand--hover: #004d99;
+  --kc-mcp-global--primary-color--100: var(--kc-mcp-global--color--brand--default);
+  --kc-mcp-global--primary-color--200: var(--kc-mcp-global--color--brand--hover);
+  /* status danger (approx PF6) */
+  --kc-mcp-global--danger-color--100: #b1380b;
+  /* radius — small (controls/cards) vs pill (actions) */
+  --kc-mcp-global--BorderRadius--sm: 6px;
+  --kc-mcp-global--BorderRadius--pill: 999px;
+  --kc-mcp-global--BoxShadow--sm: 0 0.0625rem 0.125rem 0 rgba(3, 3, 3, 0.12), 0 0 0.125rem 0 rgba(3, 3, 3, 0.06);
+  --kc-mcp-global--FontFamily--text: 'Red Hat Text', 'RedHatText', Helvetica, Arial, sans-serif;
+  --kc-mcp-global--FontFamily--heading: 'Red Hat Display', 'RedHatDisplay', 'Red Hat Text', sans-serif;
+  --kc-mcp-global--FontSize--sm: 0.875rem;
+  --kc-mcp-global--FontSize--md: 1rem;
+  --kc-mcp-global--FontSize--xl: 1.5rem;
+  --kc-mcp-global--FontWeight--normal: 400;
+  --kc-mcp-global--FontWeight--bold: 700;
+  --kc-mcp-global--spacer--sm: 0.5rem;
+  --kc-mcp-global--spacer--md: 1rem;
+  --kc-mcp-global--spacer--lg: 1.5rem;
+  --kc-mcp-global--spacer--xl: 2rem;
+
+  /* --- 2. Components ----------------------------------------------------- */
+  --kc-mcp-c-masthead--BackgroundColor: #151515;
+  --kc-mcp-c-masthead--Color: #ffffff;
+  --kc-mcp-c-masthead--Color--muted: #c7c7c7;
+  --kc-mcp-c-masthead--BorderColor: #444548;
+  --kc-mcp-c-masthead--Height: 4rem;
+  --kc-mcp-c-masthead--PaddingX: var(--kc-mcp-global--spacer--lg);
+
+  --kc-mcp-c-nav--BackgroundColor: var(--kc-mcp-global--BackgroundColor--100);
+  --kc-mcp-c-nav--Color: var(--kc-mcp-global--Color--100);
+  --kc-mcp-c-nav--Width: 15rem;
+  --kc-mcp-c-nav--BorderColor: var(--kc-mcp-global--BorderColor--100);
+  --kc-mcp-c-nav--BoxShadow: var(--kc-mcp-global--BoxShadow--sm);
+  --kc-mcp-c-nav--m-current--Color: var(--kc-mcp-global--color--brand--default);
+  --kc-mcp-c-nav--m-current--BorderColor: var(--kc-mcp-global--color--brand--default);
+  --kc-mcp-c-nav--m-current--BackgroundColor: color-mix(
+    in srgb,
+    var(--kc-mcp-global--color--brand--default) 10%,
+    transparent
+  );
+  --kc-mcp-c-nav--m-hover--Color: var(--kc-mcp-global--color--brand--default);
+  --kc-mcp-c-nav--m-hover--BackgroundColor: color-mix(
+    in srgb,
+    var(--kc-mcp-global--Color--100) 5%,
+    transparent
+  );
+
+  --kc-mcp-c-page--BackgroundColor: var(--kc-mcp-global--BackgroundColor--200);
+  --kc-mcp-c-page--Padding: var(--kc-mcp-global--spacer--lg);
+  --kc-mcp-c-page--Gap: var(--kc-mcp-global--spacer--md);
+
+  --kc-mcp-c-card--BackgroundColor: var(--kc-mcp-global--BackgroundColor--100);
+  --kc-mcp-c-card--BorderColor: var(--kc-mcp-global--BorderColor--100);
+  --kc-mcp-c-card--BorderRadius: var(--kc-mcp-global--BorderRadius--sm);
+  --kc-mcp-c-card--BoxShadow: var(--kc-mcp-global--BoxShadow--sm);
+  --kc-mcp-c-card--Padding: var(--kc-mcp-global--spacer--lg);
+  --kc-mcp-c-card--MaxWidth: 56rem;
+  --kc-mcp-c-card--m-wide--MaxWidth: 120rem;
+
+  /* PF6 primary actions are pills */
+  --kc-mcp-c-button--BorderRadius: var(--kc-mcp-global--BorderRadius--pill);
+  --kc-mcp-c-button--m-primary--BackgroundColor: var(--kc-mcp-global--color--brand--default);
+  --kc-mcp-c-button--m-primary--BorderColor: var(--kc-mcp-global--color--brand--default);
+  --kc-mcp-c-button--m-primary--Color: #ffffff;
+  --kc-mcp-c-button--m-primary--hover--BackgroundColor: var(--kc-mcp-global--color--brand--hover);
+  --kc-mcp-c-button--m-secondary--BackgroundColor: transparent;
+  --kc-mcp-c-button--m-secondary--BorderColor: var(--kc-mcp-global--BorderColor--200);
+  --kc-mcp-c-button--m-secondary--Color: var(--kc-mcp-global--Color--100);
+
+  --kc-mcp-c-title--FontFamily: var(--kc-mcp-global--FontFamily--heading);
+  --kc-mcp-c-title--FontSize: var(--kc-mcp-global--FontSize--xl);
+  --kc-mcp-c-title--FontWeight: var(--kc-mcp-global--FontWeight--normal);
+
+  /* --- 3. Short aliases (Lit + layout) ----------------------------------- */
+  /* Prefer PatternFly 6 design tokens when the host sets them. */
+  --fg: var(--pf-t--global--text--color--regular, var(--pf-v5-global--Color--100, var(--kc-mcp-global--Color--100)));
+  --muted: var(--pf-t--global--text--color--subtle, var(--pf-v5-global--Color--200, var(--kc-mcp-global--Color--200)));
+  --bg: var(
+    --pf-t--global--background--color--secondary--default,
+    var(--pf-v5-global--BackgroundColor--200, var(--kc-mcp-c-page--BackgroundColor))
+  );
+  --card: var(
+    --pf-t--global--background--color--primary--default,
+    var(--pf-v5-global--BackgroundColor--100, var(--kc-mcp-c-card--BackgroundColor))
+  );
+  --pre-bg: var(--kc-mcp-global--BackgroundColor--200);
+  --border: var(--pf-t--global--border--color--default, var(--pf-v5-global--BorderColor--100, var(--kc-mcp-global--BorderColor--100)));
+  --accent: var(
+    --pf-t--global--color--brand--default,
+    var(--pf-v5-global--primary-color--100, var(--kc-mcp-global--color--brand--default))
+  );
+  --error: var(--pf-t--global--color--status--danger--default, var(--pf-v5-global--danger-color--100, var(--kc-mcp-global--danger-color--100)));
+  --radius: var(--pf-t--global--border--radius--small, var(--kc-mcp-global--BorderRadius--sm));
+  --button-radius: var(--pf-t--global--border--radius--pill, var(--kc-mcp-c-button--BorderRadius));
+  --shadow: var(--pf-t--global--box-shadow--sm, var(--pf-v5-global--BoxShadow--sm, var(--kc-mcp-global--BoxShadow--sm)));
+  --font-text: var(--pf-t--global--font--family--body, var(--kc-mcp-global--FontFamily--text));
+  --font-heading: var(--pf-t--global--font--family--heading, var(--kc-mcp-global--FontFamily--heading));
+
+  --masthead-bg: var(--kc-mcp-c-masthead--BackgroundColor);
+  --masthead-fg: var(--kc-mcp-c-masthead--Color);
+  --masthead-muted: var(--kc-mcp-c-masthead--Color--muted);
+  --masthead-border: var(--kc-mcp-c-masthead--BorderColor);
+  --nav-width: var(--kc-mcp-c-nav--Width);
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  color: var(--fg);
+  background: var(--bg);
+  font-family: var(--font-text);
+}
+
+@media (prefers-color-scheme: dark) {
+  kc-mcp-session {
+    --kc-mcp-global--Color--100: #e0e0e0;
+    --kc-mcp-global--Color--200: #c7c7c7;
+    --kc-mcp-global--BackgroundColor--100: #1b1d21;
+    --kc-mcp-global--BackgroundColor--200: #0f1115;
+    --kc-mcp-global--BorderColor--100: #444548;
+    --kc-mcp-global--BorderColor--200: #6a6e73;
+    --kc-mcp-global--color--brand--default: #1fa7f8;
+    --kc-mcp-global--color--brand--hover: #73bcf7;
+    --kc-mcp-global--danger-color--100: #fe5142;
+    --kc-mcp-global--BoxShadow--sm: 0 0.0625rem 0.125rem 0 rgba(0, 0, 0, 0.48), 0 0 0.125rem 0 rgba(0, 0, 0, 0.24);
+
+    --kc-mcp-c-masthead--BackgroundColor: #030303;
+    --kc-mcp-c-masthead--Color: #ffffff;
+    --kc-mcp-c-masthead--Color--muted: #c7c7c7;
+    --kc-mcp-c-masthead--BorderColor: #444548;
+  }
+}

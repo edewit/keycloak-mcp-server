@@ -14,7 +14,7 @@ export class SystemKeys extends LitElement {
     }
     .lead {
       margin: 0 0 0.75rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font-size: 0.9rem;
     }
     .meta {
@@ -25,7 +25,7 @@ export class SystemKeys extends LitElement {
       font-size: 0.9rem;
     }
     .meta dt {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .meta dd {
       margin: 0;
@@ -43,42 +43,42 @@ export class SystemKeys extends LitElement {
     button {
       font: inherit;
       padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--accent, #1f6feb);
-      background: var(--accent, #1f6feb);
+      border-radius: var(--kc-mcp-c-button--BorderRadius, var(--button-radius, 999px));
+      border: 1px solid var(--accent, #0066cc);
+      background: var(--accent, #0066cc);
       color: #fff;
       cursor: pointer;
     }
     button.secondary {
       background: transparent;
       color: var(--fg, inherit);
-      border-color: var(--border, #8b949e);
+      border-color: var(--border, #6a6e73);
     }
     button.danger {
       background: transparent;
-      color: var(--error, #cf222e);
-      border-color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
+      border-color: var(--error, #c9190b);
     }
     button:disabled {
       opacity: 0.5;
       cursor: default;
     }
     .error {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
       margin: 0 0 0.75rem;
     }
     .ok {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       margin: 0 0 0.75rem;
     }
     .muted {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .confirm {
       margin-top: 0.75rem;
       padding: 0.85rem 1rem;
-      border: 1px solid var(--border, #d0d7de);
-      border-radius: 8px;
+      border: 1px solid var(--border, #d2d2d2);
+      border-radius: var(--radius, 6px);
     }
   `;
 

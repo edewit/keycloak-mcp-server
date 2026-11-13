@@ -16,7 +16,7 @@ export class SystemPage extends LitElement {
       color: var(--fg, inherit);
     }
     a.back {
-      color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
       text-decoration: none;
       font-size: 0.9rem;
     }
@@ -29,7 +29,7 @@ export class SystemPage extends LitElement {
     }
     .lead {
       margin: 0 0 0.75rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font-size: 0.9rem;
     }
     .lead code {
@@ -39,15 +39,15 @@ export class SystemPage extends LitElement {
       display: inline-block;
       font-size: 0.75rem;
       padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      border: 1px solid var(--border, #d0d7de);
-      color: var(--muted, #656d76);
+      border-radius: var(--radius, 6px);
+      border: 1px solid var(--border, #d2d2d2);
+      color: var(--muted, #6a6e73);
       margin-left: 0.35rem;
     }
     .tabs {
       display: flex;
       gap: 0.25rem;
-      border-bottom: 1px solid var(--border, #d0d7de);
+      border-bottom: 1px solid var(--border, #d2d2d2);
       margin: 0 0 1rem;
     }
     .tabs a {
@@ -60,17 +60,17 @@ export class SystemPage extends LitElement {
       font-size: 0.9rem;
     }
     .tabs a:hover {
-      color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
     }
     .tabs a[aria-current='page'] {
-      color: var(--accent, #1f6feb);
-      border-bottom-color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
+      border-bottom-color: var(--accent, #0066cc);
     }
     .error {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
     }
     .muted {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
   `;
 

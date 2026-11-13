@@ -20,7 +20,7 @@ export class SystemsPage extends LitElement {
     }
     p {
       margin: 0 0 0.75rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .row {
       display: flex;
@@ -32,27 +32,38 @@ export class SystemsPage extends LitElement {
     button,
     a.btn {
       font: inherit;
-      padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--accent, #1f6feb);
-      background: var(--accent, #1f6feb);
-      color: #fff;
+      padding: 0.4rem 1rem;
+      border-radius: var(--kc-mcp-c-button--BorderRadius, var(--button-radius, 999px));
+      border: 1px solid var(--kc-mcp-c-button--m-primary--BorderColor, var(--accent, #0066cc));
+      background: var(--kc-mcp-c-button--m-primary--BackgroundColor, var(--accent, #0066cc));
+      color: var(--kc-mcp-c-button--m-primary--Color, #fff);
       cursor: pointer;
       text-decoration: none;
       font-weight: 500;
       display: inline-block;
     }
+    button:hover,
+    a.btn:hover {
+      background: var(--kc-mcp-c-button--m-primary--hover--BackgroundColor, #004d99);
+      border-color: var(--kc-mcp-c-button--m-primary--hover--BackgroundColor, #004d99);
+      color: var(--kc-mcp-c-button--m-primary--Color, #fff);
+      text-decoration: none;
+    }
     button.secondary {
-      background: transparent;
-      color: var(--fg, inherit);
-      border-color: var(--border, #8b949e);
+      background: var(--kc-mcp-c-button--m-secondary--BackgroundColor, transparent);
+      color: var(--kc-mcp-c-button--m-secondary--Color, var(--fg, inherit));
+      border-color: var(--kc-mcp-c-button--m-secondary--BorderColor, var(--border, #707070));
+    }
+    button.secondary:hover {
+      background: color-mix(in srgb, var(--fg, #151515) 5%, transparent);
+      border-color: var(--fg, #151515);
     }
     button:disabled {
       opacity: 0.5;
       cursor: default;
     }
     .error {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
     }
     table {
       width: 100%;
@@ -63,31 +74,31 @@ export class SystemsPage extends LitElement {
     td {
       text-align: left;
       padding: 0.55rem 0.65rem;
-      border-bottom: 1px solid var(--border, #d0d7de);
+      border-bottom: 1px solid var(--border, #d2d2d2);
       vertical-align: top;
     }
     th {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font-weight: 600;
     }
-    a {
-      color: var(--accent, #1f6feb);
+    a:not(.btn) {
+      color: var(--accent, #0066cc);
       text-decoration: none;
       font-weight: 600;
     }
-    a:hover {
+    a:not(.btn):hover {
       text-decoration: underline;
     }
     .muted {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     .badge {
       display: inline-block;
       font-size: 0.75rem;
       padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      border: 1px solid var(--border, #d0d7de);
-      color: var(--muted, #656d76);
+      border-radius: var(--radius, 6px);
+      border: 1px solid var(--border, #d2d2d2);
+      color: var(--muted, #6a6e73);
     }
   `;
 

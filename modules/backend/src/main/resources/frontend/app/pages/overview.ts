@@ -20,12 +20,12 @@ export class OverviewPage extends LitElement {
     }
     .lead {
       margin: 0 0 1rem;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font-size: 0.9rem;
       max-width: 40rem;
     }
     .lead a {
-      color: var(--accent, #1f6feb);
+      color: var(--accent, #0066cc);
       font-weight: 600;
       text-decoration: none;
     }
@@ -39,23 +39,23 @@ export class OverviewPage extends LitElement {
       margin: 0.5rem 0 0;
     }
     dt {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     dd {
       margin: 0;
       overflow-wrap: anywhere;
     }
     .error {
-      color: var(--error, #cf222e);
+      color: var(--error, #c9190b);
     }
     .muted {
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
     button {
       font: inherit;
       padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--border, #8b949e);
+      border-radius: var(--kc-mcp-c-button--BorderRadius, var(--button-radius, 999px));
+      border: 1px solid var(--border, #6a6e73);
       background: transparent;
       color: var(--fg, inherit);
       cursor: pointer;

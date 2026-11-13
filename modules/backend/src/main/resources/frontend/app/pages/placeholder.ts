@@ -15,7 +15,7 @@ export class PlaceholderPage extends LitElement {
     }
     p {
       margin: 0;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
     }
   `;
 

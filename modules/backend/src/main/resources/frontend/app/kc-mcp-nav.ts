@@ -13,16 +13,18 @@ export class KcMcpNav extends LitElement {
   static styles = css`
     :host {
       display: block;
-      color: var(--fg, inherit);
-      background: var(--card, #fff);
-      border-right: 1px solid var(--border, #d0d7de);
+      color: var(--kc-mcp-c-nav--Color, var(--fg, inherit));
+      background: var(--kc-mcp-c-nav--BackgroundColor, var(--card, #fff));
+      border-right: 1px solid var(--kc-mcp-c-nav--BorderColor, var(--border, #d2d2d2));
+      box-shadow: var(--kc-mcp-c-nav--BoxShadow, var(--shadow, none));
       min-height: 100%;
       box-sizing: border-box;
     }
     @media (max-width: 640px) {
       :host {
         border-right: none;
-        border-bottom: 1px solid var(--border, #d0d7de);
+        border-bottom: 1px solid var(--kc-mcp-c-nav--BorderColor, var(--border, #d2d2d2));
+        box-shadow: none;
       }
       nav {
         flex-direction: row;
@@ -36,29 +38,32 @@ export class KcMcpNav extends LitElement {
       }
       a[aria-current='page'] {
         border-left-color: transparent;
-        border-bottom-color: var(--accent, #1f6feb);
+        border-bottom-color: var(--kc-mcp-c-nav--m-current--BorderColor, var(--accent, #0066cc));
       }
     }
     nav {
       display: flex;
       flex-direction: column;
-      padding: 0.75rem 0;
-      gap: 0.15rem;
+      padding: 1rem 0;
+      gap: 0.125rem;
     }
     a {
       display: block;
-      color: var(--fg, inherit);
+      color: inherit;
       text-decoration: none;
-      padding: 0.55rem 1.25rem;
-      border-left: 3px solid transparent;
+      padding: 0.65rem 1.5rem;
+      border-left: 4px solid transparent;
+      font-weight: var(--kc-mcp-global--FontWeight--normal, 400);
     }
     a:hover {
-      background: color-mix(in srgb, var(--fg, #1f2328) 6%, transparent);
+      background: var(--kc-mcp-c-nav--m-hover--BackgroundColor, color-mix(in srgb, var(--fg, #151515) 5%, transparent));
+      color: var(--kc-mcp-c-nav--m-hover--Color, var(--accent, #0066cc));
     }
     a[aria-current='page'] {
-      font-weight: 600;
-      border-left-color: var(--accent, #1f6feb);
-      background: color-mix(in srgb, var(--accent, #1f6feb) 12%, transparent);
+      font-weight: var(--kc-mcp-global--FontWeight--bold, 700);
+      color: var(--kc-mcp-c-nav--m-current--Color, var(--accent, #0066cc));
+      border-left-color: var(--kc-mcp-c-nav--m-current--BorderColor, var(--accent, #0066cc));
+      background: var(--kc-mcp-c-nav--m-current--BackgroundColor, color-mix(in srgb, var(--accent, #0066cc) 10%, transparent));
     }
   `;
 

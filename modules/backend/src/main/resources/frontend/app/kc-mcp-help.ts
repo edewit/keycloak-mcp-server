@@ -24,9 +24,9 @@ export class KcMcpHelp extends LitElement {
       height: 1.3rem;
       padding: 0;
       border-radius: 50%;
-      border: 1px solid var(--border, #8b949e);
+      border: 1px solid var(--border, #6a6e73);
       background: transparent;
-      color: var(--muted, #656d76);
+      color: var(--muted, #6a6e73);
       font: inherit;
       font-size: 0.8rem;
       font-weight: 600;
@@ -35,11 +35,11 @@ export class KcMcpHelp extends LitElement {
     }
     button:hover,
     button[aria-expanded='true'] {
-      border-color: var(--accent, #1f6feb);
-      color: var(--accent, #1f6feb);
+      border-color: var(--accent, #0066cc);
+      color: var(--accent, #0066cc);
     }
     button:focus-visible {
-      outline: 2px solid var(--accent, #1f6feb);
+      outline: 2px solid var(--accent, #0066cc);
       outline-offset: 1px;
     }
     .panel {
@@ -49,8 +49,8 @@ export class KcMcpHelp extends LitElement {
       left: 0;
       width: min(34rem, 80vw);
       padding: 0.75rem 0.9rem;
-      border: 1px solid var(--border, #d0d7de);
-      border-radius: 8px;
+      border: 1px solid var(--border, #d2d2d2);
+      border-radius: var(--radius, 6px);
       background: var(--card, #fff);
       color: var(--fg, inherit);
       box-shadow: 0 6px 20px rgb(0 0 0 / 15%);
