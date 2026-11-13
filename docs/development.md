@@ -73,8 +73,9 @@ Conventions of the code:
   `role`. It replaces the element's own, and Lit relies on those: a page with an action called `remove()` was never
   taken out of the page on navigation, so the old page stayed above the new one, and leaving the page ran its delete
   action.
-- What a page is for goes into a help icon next to its title (`<kc-mcp-help>` in `kc-mcp-help.ts`, the text as its
-  content), not into a paragraph under it; lines that show data (alias, source, read-only) stay on the page.
+- What a page is for goes into a help icon next to its title (`<kc-mcp-help>` in `components/kc-mcp-help.ts`, the text
+  as its content), not into a paragraph under it; lines that show data (alias, source, read-only) stay on the page.
+  Shared UI pieces live under `frontend/app/components/` (help, `table/`); shell chrome stays at `app/` root.
 - The BFF decides what a user may do; the UI only hides what `/bff/me` does not list in `capabilities`
   (`systems:write`, ...), so a page has to cope with a 403 anyway.
 - Pages read the session (`/bff/me`) from the Lit context `sessionContext` (`session-context.ts`), which
@@ -92,7 +93,8 @@ with spaces (`etc/eclipse-formatter.prefs`; imports `java|javax|jakarta`, `org`,
 ## Status and roadmap
 
 Status: all reference tools, search, exposure modes, guardrails, extension SPI, database storage, admin API and the
-management UI (login, sessions, BFF; pages for systems, their realms and signing keys, the audit trail) done. Open items:
+management UI (login, sessions, BFF; pages for systems, their realms and signing keys, secrets, the audit trail)
+done. Open items:
 
 - Model-in-the-loop benchmarks with LM Studio: turns to success, tool-choice errors, tokens per mode
 - Reference skill recipes as prompts
@@ -100,7 +102,7 @@ management UI (login, sessions, BFF; pages for systems, their realms and signing
 - `private_key_jwt` end to end in a test: Keycloak fetching the server's JWKS, `client_credentials`
   (`PasswordGrantSessionsIT` covers the token manager against a client-jwt client with a fixed key)
 - Admin API read access to the signing-key history
-- Management UI pages for secrets and storage (today: placeholders)
+- Management UI page for storage (today: placeholder)
 
 ## Quarkus notes
 

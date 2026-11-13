@@ -30,6 +30,7 @@ import org.eclipse.microprofile.jwt.JsonWebToken;
 import com.github.thomasdarimont.keycloak.mcp.access.Caller;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminAudit;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminResource;
+import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminSecrets;
 import com.github.thomasdarimont.keycloak.mcp.backend.admin.AdminSystems;
 import com.github.thomasdarimont.keycloak.mcp.backend.guard.SecurityIdentityCallerProvider;
 import com.github.thomasdarimont.keycloak.mcp.config.McpServerConfig;
@@ -66,6 +67,7 @@ import io.quarkus.vertx.http.runtime.CurrentVertxRequest;
  * GET /bff/api/audit                      the audit trail, as GET /admin/audit (operator or viewer role)
  * GET /bff/api/audit/{id}                 one event with its arguments, as GET /admin/audit/{id}
  * GET /bff/api/audit/values/{field}       completions for its filters, as GET /admin/audit/values/{field}
+ * GET /bff/api/secrets                    vault names and usedBy, as GET /admin/secrets (never values; no writes)
  * POST /bff/backchannel-logout   the provider ends sessions (OIDC back-channel logout, BackChannelLogoutResource)
  * </pre>
  */
@@ -86,6 +88,8 @@ public class UiResource {
     AdminSystems systems;
     @Inject
     AdminAudit audit;
+    @Inject
+    AdminSecrets secrets;
     @Inject
     UiTenant tenant;
     @Inject
@@ -298,5 +302,12 @@ public class UiResource {
     public Map<String, Object> auditValues(@PathParam("field") String field,
             @QueryParam("containing") String containing) {
         return audit.values(field, containing);
+    }
+
+    /** Names in the vault and which systems use them; values never leave the vault. */
+    @GET
+    @Path("api/secrets")
+    public Map<String, Object> secrets() {
+        return secrets.list();
     }
 }
