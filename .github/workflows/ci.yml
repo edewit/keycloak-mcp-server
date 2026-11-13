@@ -10,7 +10,8 @@
 #   distribution starts the unpacked distribution with bin/kcmcp.sh on Linux (from a directory with a space, with a
 #                config file by relative path, then against a Keycloak in Docker with a real tool call) and with
 #                bin/kcmcp.bat on Windows (MCP session), see .github/scripts/dist-smoke.sh.
-#   typos        spell-checks the repository (crate-ci/typos, configured in _typos.toml).
+#   typos        spell-checks the repository (crate-ci/typos, configured in _typos.toml); etc/typos.sh runs the same
+#                check locally.
 name: CI
 
 on:
@@ -37,8 +38,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # the version etc/typos.sh runs locally (TYPOS_VERSION there): a newer one knows more misspellings
       - name: Check the spelling
-        uses: crate-ci/typos@v1
+        uses: crate-ci/typos@v1.52.2
 
   build:
     name: Build and test

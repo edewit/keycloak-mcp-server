@@ -11,6 +11,7 @@ Building, running and testing the server; the modules; formatting; open items.
 ./mvnw package && java -jar modules/backend/target/quarkus-app/quarkus-run.jar start
 ./mvnw package -Ppostgresql                     # PostgreSQL build
 ./mvnw spotless:apply                           # format; `verify` fails on unformatted code
+etc/typos.sh                                    # the spell check of CI (_typos.toml); --write-changes fixes
 conformance/run.sh                              # MCP conformance suite against the packaged server (conformance/README.md)
 ```
 
